@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kyle's Countdown to Retirement</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="stars"></div>
+
+    <!-- Animated Hourglass -->
+    <div class="hourglass-container">
+        <div class="hourglass">
+            <div class="hourglass-frame-top"></div>
+            <div class="hourglass-top-bulb">
+                <div class="sand-top" id="sand-top">
+                    <div class="sand-surface"></div>
+                </div>
+                <div class="glass-shine-top"></div>
+            </div>
+            <div class="hourglass-neck">
+                <div class="sand-stream" id="sand-stream">
+                    <div class="sand-particle"></div>
+                    <div class="sand-particle"></div>
+                    <div class="sand-particle"></div>
+                    <div class="sand-particle"></div>
+                    <div class="sand-particle"></div>
+                    <div class="sand-particle"></div>
+                    <div class="sand-particle"></div>
+                    <div class="sand-particle"></div>
+                </div>
+            </div>
+            <div class="hourglass-bottom-bulb">
+                <div class="sand-bottom" id="sand-bottom">
+                    <div class="sand-surface-bottom"></div>
+                </div>
+                <div class="glass-shine-bottom"></div>
+            </div>
+            <div class="hourglass-frame-bottom"></div>
+            <div class="hourglass-label" id="hourglass-label">0% Complete</div>
+        </div>
+    </div>
+
+    <!-- Animated Thermometer -->
+    <div class="thermometer-container">
+        <div class="thermometer">
+            <div class="thermometer-tube">
+                <div class="thermometer-liquid" id="thermometer-liquid">
+                    <div class="bubble"></div>
+                    <div class="bubble"></div>
+                    <div class="bubble"></div>
+                    <div class="bubble"></div>
+                    <div class="bubble"></div>
+                </div>
+                <div class="thermometer-shine"></div>
+                <div class="thermometer-markings">
+                    <div class="marking" data-days="730"><span>730</span></div>
+                    <div class="marking" data-days="365"><span>365</span></div>
+                    <div class="marking" data-days="180"><span>180</span></div>
+                    <div class="marking" data-days="100"><span>100</span></div>
+                    <div class="marking" data-days="50"><span>50</span></div>
+                    <div class="marking" data-days="30"><span>30</span></div>
+                    <div class="marking" data-days="7"><span>7</span></div>
+                    <div class="marking major" data-days="0"><span>0</span></div>
+                </div>
+            </div>
+            <div class="thermometer-bulb">
+                <div class="bulb-liquid"></div>
+                <div class="bulb-shine"></div>
+                <div class="bulb-days" id="thermometer-days">0</div>
+                <div class="bulb-label">DAYS</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 class="title">Kyle's Countdown to Retirement</h1>
+        <p class="subtitle">The Journey to Freedom Begins...</p>
+
+        <div class="date-setter">
+            <label for="retirement-date">🎯 Retirement Date:</label>
+            <input type="datetime-local" id="retirement-date" value="2026-01-30T16:00">
+            <button id="update-date">Update Date</button>
+        </div>
+
+        <div class="main-countdown">
+            <div class="countdown-item large">
+                <span class="value" id="days">0</span>
+                <span class="label">Days</span>
+            </div>
+            <div class="countdown-item large">
+                <span class="value" id="hours">0</span>
+                <span class="label">Hours</span>
+            </div>
+            <div class="countdown-item large">
+                <span class="value" id="minutes">0</span>
+                <span class="label">Minutes</span>
+            </div>
+            <div class="countdown-item large">
+                <span class="value" id="seconds">0</span>
+                <span class="label">Seconds</span>
+            </div>
+        </div>
+
+        <div class="alternate-views">
+            <div class="countdown-item">
+                <span class="value" id="months">0</span>
+                <span class="label">Months</span>
+            </div>
+            <div class="countdown-item">
+                <span class="value" id="weeks">0</span>
+                <span class="label">Weeks</span>
+            </div>
+            <div class="countdown-item">
+                <span class="value" id="total-hours">0</span>
+                <span class="label">Total Hours</span>
+            </div>
+        </div>
+
+        <div class="fun-metrics">
+            <div class="metric-card">
+                <div class="metric-icon">🎉</div>
+                <div class="metric-value" id="weekends">0</div>
+                <div class="metric-label">Weekends Left</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">☕</div>
+                <div class="metric-value" id="work-days">0</div>
+                <div class="metric-label">Work Days Remaining</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">⏰</div>
+                <div class="metric-value" id="work-hours">0</div>
+                <div class="metric-label">Work Hours Remaining</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">🌙</div>
+                <div class="metric-value" id="sleeps">0</div>
+                <div class="metric-label">Sleeps Until Freedom</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">☀️</div>
+                <div class="metric-value" id="sunrises">0</div>
+                <div class="metric-label">Sunrises to Go</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">📅</div>
+                <div class="metric-value" id="mondays">0</div>
+                <div class="metric-label">Mondays Left to Endure</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">🎊</div>
+                <div class="metric-value" id="fridays">0</div>
+                <div class="metric-label">Fridays to Celebrate</div>
+            </div>
+        </div>
+
+        <div class="progress-section">
+            <h2>Journey to Freedom</h2>
+            <div class="progress-timeline">
+                <div class="timeline-marker start">
+                    <div class="marker-icon">🚀</div>
+                    <div class="marker-date" id="start-date">Oct 1, 2018</div>
+                    <div class="marker-label">Day One</div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                    <span class="progress-text" id="progress-text">0%</span>
+                </div>
+                <div class="timeline-marker end">
+                    <div class="marker-icon">🏝️</div>
+                    <div class="marker-date" id="end-date">Jan 30, 2026</div>
+                    <div class="marker-label">Freedom Day</div>
+                </div>
+            </div>
+            <p class="progress-description" id="progress-description"></p>
+        </div>
+
+        <div class="milestone-section">
+            <h2>🏆 Milestones Journey</h2>
+            <div class="milestones-container">
+                <div class="milestone-timeline-line"></div>
+                <div id="milestones"></div>
+            </div>
+        </div>
+
+        <div class="motivation-section">
+            <p class="motivation-quote" id="motivation-quote"></p>
+        </div>
+    </div>
+
+    <div id="confetti-container"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

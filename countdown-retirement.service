@@ -1,0 +1,17 @@
+[Unit]
+Description=Countdown to Retirement Web Server
+After=network.target
+
+[Service]
+Type=simple
+User=kyle
+WorkingDirectory=/home/kyle/VibeCoding/claude/CountdownToRetirement
+ExecStart=/usr/bin/node /home/kyle/VibeCoding/claude/CountdownToRetirement/server.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=countdown-retirement
+
+[Install]
+WantedBy=multi-user.target
