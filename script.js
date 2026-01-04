@@ -1,5 +1,5 @@
 // Retirement date management
-let retirementDate = new Date('2026-01-30T16:00:00');
+let retirementDate = new Date('2026-02-27T16:00:00');
 
 // Load saved date from localStorage
 function loadSavedDate() {
