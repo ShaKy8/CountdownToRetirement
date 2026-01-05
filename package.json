@@ -1,0 +1,23 @@
+{
+  "name": "countdown-to-retirement",
+  "version": "1.0.0",
+  "description": "Retirement countdown timer with comprehensive security and testing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests.js && node tests-server.js",
+    "test:unit": "node tests.js",
+    "test:server": "node tests-server.js",
+    "test:watch": "nodemon --exec 'npm test' --ext js"
+  },
+  "keywords": [
+    "countdown",
+    "retirement",
+    "timer"
+  ],
+  "author": "Kyle",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
