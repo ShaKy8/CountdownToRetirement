@@ -3,15 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Kyle's retirement countdown timer - tracking the journey to freedom">
     <title>Kyle's Countdown to Retirement</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="stars"></div>
+    <!-- Skip Navigation Link -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
 
-    <!-- Animated Hourglass -->
-    <div class="hourglass-container">
-        <div class="hourglass">
+    <!-- Decorative Background -->
+    <div class="stars" aria-hidden="true"></div>
+
+    <!-- Animated Hourglass (Decorative) -->
+    <div class="hourglass-container" role="img" aria-label="Animated hourglass showing retirement countdown progress">
+        <div class="hourglass" aria-hidden="true">
             <div class="hourglass-frame-top"></div>
             <div class="hourglass-top-bulb">
                 <div class="sand-top" id="sand-top">
@@ -38,13 +43,13 @@
                 <div class="glass-shine-bottom"></div>
             </div>
             <div class="hourglass-frame-bottom"></div>
-            <div class="hourglass-label" id="hourglass-label">0% Complete</div>
+            <div class="hourglass-label" id="hourglass-label" role="status" aria-live="polite">0% Complete</div>
         </div>
     </div>
 
-    <!-- Animated Thermometer -->
-    <div class="thermometer-container">
-        <div class="thermometer">
+    <!-- Animated Thermometer (Decorative) -->
+    <div class="thermometer-container" role="img" aria-label="Thermometer displaying days remaining until retirement">
+        <div class="thermometer" aria-hidden="true">
             <div class="thermometer-tube">
                 <div class="thermometer-liquid" id="thermometer-liquid">
                     <div class="bubble"></div>
@@ -68,129 +73,160 @@
             <div class="thermometer-bulb">
                 <div class="bulb-liquid"></div>
                 <div class="bulb-shine"></div>
-                <div class="bulb-days" id="thermometer-days">0</div>
+                <div class="bulb-days" id="thermometer-days" role="status">0</div>
                 <div class="bulb-label">DAYS</div>
             </div>
         </div>
     </div>
 
-    <div class="container">
-        <h1 class="title">Kyle's Countdown to Retirement</h1>
-        <p class="subtitle">The Journey to Freedom Begins...</p>
+    <main id="main-content" class="container">
+        <header>
+            <h1 class="title">Kyle's Countdown to Retirement</h1>
+            <p class="subtitle">The Journey to Freedom Begins...</p>
+        </header>
 
-        <div class="date-setter">
-            <label for="retirement-date">🎯 Retirement Date:</label>
-            <input type="datetime-local" id="retirement-date" value="2026-02-27T16:00">
-            <button id="update-date">Update Date</button>
-        </div>
+        <section aria-labelledby="date-settings-heading">
+            <h2 id="date-settings-heading" class="sr-only">Retirement Date Settings</h2>
+            <div class="date-setter">
+                <label for="retirement-date">
+                    <span aria-hidden="true">🎯</span> Retirement Date:
+                </label>
+                <input
+                    type="datetime-local"
+                    id="retirement-date"
+                    value="2026-02-27T16:00"
+                    aria-describedby="date-format-hint"
+                >
+                <span id="date-format-hint" class="sr-only">Select your target retirement date and time</span>
+                <button id="update-date" aria-label="Update retirement date">Update Date</button>
+            </div>
+        </section>
 
-        <div class="main-countdown">
-            <div class="countdown-item large">
-                <span class="value" id="days">0</span>
-                <span class="label">Days</span>
+        <section aria-labelledby="countdown-heading">
+            <h2 id="countdown-heading" class="sr-only">Countdown Timer</h2>
+            <div class="main-countdown" role="timer" aria-label="Time remaining until retirement">
+                <div class="countdown-item large">
+                    <span class="value" id="days" aria-live="polite" aria-atomic="true">0</span>
+                    <span class="label">Days</span>
+                </div>
+                <div class="countdown-item large">
+                    <span class="value" id="hours">0</span>
+                    <span class="label">Hours</span>
+                </div>
+                <div class="countdown-item large">
+                    <span class="value" id="minutes">0</span>
+                    <span class="label">Minutes</span>
+                </div>
+                <div class="countdown-item large">
+                    <span class="value" id="seconds" aria-live="off">0</span>
+                    <span class="label">Seconds</span>
+                </div>
             </div>
-            <div class="countdown-item large">
-                <span class="value" id="hours">0</span>
-                <span class="label">Hours</span>
-            </div>
-            <div class="countdown-item large">
-                <span class="value" id="minutes">0</span>
-                <span class="label">Minutes</span>
-            </div>
-            <div class="countdown-item large">
-                <span class="value" id="seconds">0</span>
-                <span class="label">Seconds</span>
-            </div>
-        </div>
+        </section>
 
-        <div class="alternate-views">
-            <div class="countdown-item">
-                <span class="value" id="months">0</span>
-                <span class="label">Months</span>
+        <section aria-labelledby="alternate-views-heading">
+            <h2 id="alternate-views-heading" class="sr-only">Alternate Time Views</h2>
+            <div class="alternate-views">
+                <div class="countdown-item">
+                    <span class="value" id="months">0</span>
+                    <span class="label">Months</span>
+                </div>
+                <div class="countdown-item">
+                    <span class="value" id="weeks">0</span>
+                    <span class="label">Weeks</span>
+                </div>
+                <div class="countdown-item">
+                    <span class="value" id="total-hours">0</span>
+                    <span class="label">Total Hours</span>
+                </div>
             </div>
-            <div class="countdown-item">
-                <span class="value" id="weeks">0</span>
-                <span class="label">Weeks</span>
-            </div>
-            <div class="countdown-item">
-                <span class="value" id="total-hours">0</span>
-                <span class="label">Total Hours</span>
-            </div>
-        </div>
+        </section>
 
-        <div class="fun-metrics">
-            <div class="metric-card">
-                <div class="metric-icon">🎉</div>
-                <div class="metric-value" id="weekends">0</div>
-                <div class="metric-label">Weekends Left</div>
+        <section aria-labelledby="metrics-heading">
+            <h2 id="metrics-heading" class="sr-only">Retirement Metrics</h2>
+            <div class="fun-metrics">
+                <div class="metric-card" role="article" aria-labelledby="weekends-label">
+                    <div class="metric-icon" aria-hidden="true">🎉</div>
+                    <div class="metric-value" id="weekends">0</div>
+                    <div class="metric-label" id="weekends-label">Weekends Left</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="work-days-label">
+                    <div class="metric-icon" aria-hidden="true">☕</div>
+                    <div class="metric-value" id="work-days">0</div>
+                    <div class="metric-label" id="work-days-label">Work Days Remaining</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="work-hours-label">
+                    <div class="metric-icon" aria-hidden="true">⏰</div>
+                    <div class="metric-value" id="work-hours">0</div>
+                    <div class="metric-label" id="work-hours-label">Work Hours Remaining</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="sleeps-label">
+                    <div class="metric-icon" aria-hidden="true">🌙</div>
+                    <div class="metric-value" id="sleeps">0</div>
+                    <div class="metric-label" id="sleeps-label">Sleeps Until Freedom</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="sunrises-label">
+                    <div class="metric-icon" aria-hidden="true">☀️</div>
+                    <div class="metric-value" id="sunrises">0</div>
+                    <div class="metric-label" id="sunrises-label">Sunrises to Go</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="mondays-label">
+                    <div class="metric-icon" aria-hidden="true">📅</div>
+                    <div class="metric-value" id="mondays">0</div>
+                    <div class="metric-label" id="mondays-label">Mondays Left to Endure</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="fridays-label">
+                    <div class="metric-icon" aria-hidden="true">🎊</div>
+                    <div class="metric-value" id="fridays">0</div>
+                    <div class="metric-label" id="fridays-label">Fridays to Celebrate</div>
+                </div>
             </div>
-            <div class="metric-card">
-                <div class="metric-icon">☕</div>
-                <div class="metric-value" id="work-days">0</div>
-                <div class="metric-label">Work Days Remaining</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">⏰</div>
-                <div class="metric-value" id="work-hours">0</div>
-                <div class="metric-label">Work Hours Remaining</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">🌙</div>
-                <div class="metric-value" id="sleeps">0</div>
-                <div class="metric-label">Sleeps Until Freedom</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">☀️</div>
-                <div class="metric-value" id="sunrises">0</div>
-                <div class="metric-label">Sunrises to Go</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">📅</div>
-                <div class="metric-value" id="mondays">0</div>
-                <div class="metric-label">Mondays Left to Endure</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">🎊</div>
-                <div class="metric-value" id="fridays">0</div>
-                <div class="metric-label">Fridays to Celebrate</div>
-            </div>
-        </div>
+        </section>
 
-        <div class="progress-section">
-            <h2>Journey to Freedom</h2>
+        <section class="progress-section" aria-labelledby="progress-heading">
+            <h2 id="progress-heading">Journey to Freedom</h2>
             <div class="progress-timeline">
-                <div class="timeline-marker start">
-                    <div class="marker-icon">🚀</div>
+                <div class="timeline-marker start" role="img" aria-label="Start: Day One, October 1, 2018">
+                    <div class="marker-icon" aria-hidden="true">🚀</div>
                     <div class="marker-date" id="start-date">Oct 1, 2018</div>
                     <div class="marker-label">Day One</div>
                 </div>
-                <div class="progress-bar">
+                <div
+                    class="progress-bar"
+                    role="progressbar"
+                    aria-valuenow="0"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-label="Journey to retirement progress"
+                    id="progress-bar"
+                >
                     <div class="progress-fill" id="progress-fill"></div>
                     <span class="progress-text" id="progress-text">0%</span>
                 </div>
-                <div class="timeline-marker end">
-                    <div class="marker-icon">🏝️</div>
-                    <div class="marker-date" id="end-date">Jan 30, 2026</div>
+                <div class="timeline-marker end" role="img" aria-label="End: Freedom Day">
+                    <div class="marker-icon" aria-hidden="true">🏝️</div>
+                    <div class="marker-date" id="end-date">Feb 27, 2026</div>
                     <div class="marker-label">Freedom Day</div>
                 </div>
             </div>
-            <p class="progress-description" id="progress-description"></p>
-        </div>
+            <p class="progress-description" id="progress-description" role="status" aria-live="polite"></p>
+        </section>
 
-        <div class="milestone-section">
-            <h2>🏆 Milestones Journey</h2>
+        <section class="milestone-section" aria-labelledby="milestones-heading">
+            <h2 id="milestones-heading"><span aria-hidden="true">🏆</span> Milestones Journey</h2>
             <div class="milestones-container">
-                <div class="milestone-timeline-line"></div>
-                <div id="milestones"></div>
+                <div class="milestone-timeline-line" aria-hidden="true"></div>
+                <div id="milestones" role="list" aria-label="Milestone achievements"></div>
             </div>
-        </div>
+        </section>
 
-        <div class="motivation-section">
-            <p class="motivation-quote" id="motivation-quote"></p>
-        </div>
-    </div>
+        <section class="motivation-section" aria-labelledby="motivation-heading">
+            <h2 id="motivation-heading" class="sr-only">Daily Motivation</h2>
+            <p class="motivation-quote" id="motivation-quote" role="status" aria-live="polite"></p>
+        </section>
+    </main>
 
-    <div id="confetti-container"></div>
+    <div id="confetti-container" aria-hidden="true"></div>
 
     <script src="script.js"></script>
 </body>
