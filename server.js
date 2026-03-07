@@ -103,8 +103,23 @@ function validatePath(requestedPath) {
         return null;
     }
 
+    // Block dotfiles and dotdirectories (e.g., .env, .git/config)
+    const pathSegments = filePath.split('/').filter(Boolean);
+    if (pathSegments.some(seg => seg.startsWith('.'))) {
+        return null;
+    }
+
     // Check file extension whitelist
     const ext = path.extname(fullPath).toLowerCase();
+    if (!ext) {
+        // No extension - likely a directory request, try index.html
+        const trimmed = fullPath.endsWith('/') ? fullPath.slice(0, -1) : fullPath;
+        const indexPath = path.join(trimmed, 'index.html');
+        if (indexPath.startsWith(normalizedDir + path.sep)) {
+            return { fullPath: indexPath, ext: '.html' };
+        }
+        return null;
+    }
     if (!allowedExtensions.has(ext)) {
         return null;
     }
@@ -242,7 +257,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOSTNAME, () => {
     console.log(`\n===========================================`);
-    console.log(`Retirement Countdown Server Running!`);
+    console.log(`BranyonTech Server Running!`);
     console.log(`===========================================`);
     console.log(`Local:    http://localhost:${PORT}`);
     console.log(`===========================================\n`);

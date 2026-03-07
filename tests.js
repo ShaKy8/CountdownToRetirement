@@ -1003,6 +1003,89 @@ describe('PERFORMANCE TESTS - Optimization Validation', () => {
 });
 
 // =============================================================================
+// BUSINESS SITE TESTS
+// =============================================================================
+
+describe('BUSINESS SITE - HTML Structure', () => {
+    const fs = require('fs');
+    const indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
+    test('Should have BranyonTech in the title', () => {
+        assert.ok(indexHtml.includes('<title>BranyonTech'),
+            'Title should contain BranyonTech');
+    });
+
+    test('Should have a services section', () => {
+        assert.ok(indexHtml.includes('id="services"'),
+            'Should have a services section');
+    });
+
+    test('Should have an about section', () => {
+        assert.ok(indexHtml.includes('id="about"'),
+            'Should have an about section');
+    });
+
+    test('Should have a contact section', () => {
+        assert.ok(indexHtml.includes('id="contact"'),
+            'Should have a contact section');
+    });
+
+    test('Should have a link to the countdown page', () => {
+        assert.ok(indexHtml.includes('/countdown/index.html'),
+            'Should link to the countdown page');
+    });
+
+    test('Should have a mailto link', () => {
+        assert.ok(indexHtml.includes('mailto:kbshaver@gmail.com'),
+            'Should have a mailto link');
+    });
+
+    test('Should have proper meta description', () => {
+        assert.ok(indexHtml.includes('<meta name="description"'),
+            'Should have a meta description tag');
+    });
+
+    test('Should have skip navigation link for accessibility', () => {
+        assert.ok(indexHtml.includes('skip-link'),
+            'Should have a skip navigation link');
+    });
+
+    test('Should reference all three service types', () => {
+        assert.ok(indexHtml.includes('AI') && indexHtml.includes('Claude'),
+            'Should mention AI & Claude consulting');
+        assert.ok(indexHtml.includes('Technology Consulting'),
+            'Should mention technology consulting');
+        assert.ok(indexHtml.includes('IT Services'),
+            'Should mention IT services');
+    });
+});
+
+describe('BUSINESS SITE - Countdown Subdirectory', () => {
+    const fs = require('fs');
+    const countdownHtml = fs.readFileSync(path.join(__dirname, 'countdown', 'index.html'), 'utf8');
+
+    test('Countdown page should still have retirement countdown title', () => {
+        assert.ok(countdownHtml.includes('Countdown to Retirement'),
+            'Countdown page should have original title');
+    });
+
+    test('Countdown page should have back link to main site', () => {
+        assert.ok(countdownHtml.includes('back-link'),
+            'Countdown page should have a back link');
+    });
+
+    test('Countdown page should reference its own styles.css', () => {
+        assert.ok(countdownHtml.includes('href="styles.css"'),
+            'Should reference local styles.css');
+    });
+
+    test('Countdown page should reference its own script.js', () => {
+        assert.ok(countdownHtml.includes('src="script.js"'),
+            'Should reference local script.js');
+    });
+});
+
+// =============================================================================
 // RUN ALL TESTS
 // =============================================================================
 

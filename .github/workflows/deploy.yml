@@ -8,6 +8,7 @@ on:
       - 'script.js'
       - 'styles.css'
       - 'favicon.svg'
+      - 'countdown/**'
 
 jobs:
   deploy:
@@ -30,7 +31,11 @@ jobs:
             --include "index.html" \
             --include "script.js" \
             --include "styles.css" \
-            --include "favicon.svg"
+            --include "favicon.svg" \
+            --include "countdown/index.html" \
+            --include "countdown/script.js" \
+            --include "countdown/styles.css" \
+            --include "countdown/favicon.svg"
 
       - name: Invalidate CloudFront cache
         run: |

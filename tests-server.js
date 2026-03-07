@@ -103,7 +103,7 @@ function startServer() {
         let output = '';
         serverProcess.stdout.on('data', (data) => {
             output += data.toString();
-            if (output.includes('Retirement Countdown Server Running')) {
+            if (output.includes('BranyonTech Server Running')) {
                 setTimeout(resolve, 500); // Give server time to fully start
             }
         });
@@ -627,6 +627,103 @@ async function runRootPathTests() {
     });
 }
 
+async function runSubdirectoryTests() {
+    await describe('SERVER TESTS - Subdirectory Routing (Countdown)', async () => {
+        await test('Should serve countdown/index.html for /countdown/index.html', async () => {
+            const { res, data } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown/index.html',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200,
+                'Should return 200 for countdown index');
+            assert.ok(data.includes('Countdown to Retirement'),
+                'Should serve the countdown page');
+        });
+
+        await test('Should serve countdown/index.html for /countdown/ (directory resolution)', async () => {
+            const { res, data } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown/',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200,
+                'Should return 200 for countdown directory');
+            assert.strictEqual(res.headers['content-type'], 'text/html',
+                'Should serve HTML content type');
+        });
+
+        await test('Should serve countdown/index.html for /countdown (no trailing slash)', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200,
+                'Should resolve /countdown to countdown/index.html');
+        });
+
+        await test('Should serve countdown CSS file', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown/styles.css',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200,
+                'Should serve countdown CSS');
+            assert.strictEqual(res.headers['content-type'], 'text/css',
+                'Should have correct content type');
+        });
+
+        await test('Should serve countdown JS file', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown/script.js',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200,
+                'Should serve countdown JS');
+            assert.strictEqual(res.headers['content-type'], 'text/javascript',
+                'Should have correct content type');
+        });
+
+        await test('Should block path traversal from countdown subdirectory', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown/../../../etc/passwd',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 403,
+                'Should block traversal from subdirectory');
+        });
+
+        await test('Root / should serve business site, not countdown', async () => {
+            const { res, data } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200);
+            assert.ok(data.includes('BranyonTech'),
+                'Root should serve the business site');
+        });
+    });
+}
+
 // =============================================================================
 // MAIN TEST EXECUTION
 // =============================================================================
@@ -652,6 +749,7 @@ async function runAllTests() {
         await runErrorHandlingTests();
         await runRateLimitingTests();
         await runRootPathTests();
+        await runSubdirectoryTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);

@@ -1,234 +1,240 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Kyle's retirement countdown timer - tracking the journey to freedom">
-    <title>Kyle's Countdown to Retirement</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="BranyonTech - Professional technology consulting specializing in AI integration, cloud infrastructure, and IT services. Helping businesses leverage modern technology." />
+  <title>BranyonTech | Technology Consulting</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <!-- Skip Navigation Link -->
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+  <!-- Skip navigation link for accessibility -->
+  <a class="skip-link" href="#main-content">Skip to main content</a>
 
-    <!-- Decorative Background -->
-    <div class="stars" aria-hidden="true"></div>
+  <!-- Navigation -->
+  <header class="site-header" role="banner">
+    <nav class="nav-container" aria-label="Main navigation">
+      <a class="nav-logo" href="#" aria-label="BranyonTech - scroll to top">BranyonTech</a>
 
-    <!-- Animated Hourglass (Decorative) -->
-    <div class="hourglass-container" role="img" aria-label="Animated hourglass showing retirement countdown progress">
-        <div class="hourglass" aria-hidden="true">
-            <div class="hourglass-frame-top"></div>
-            <div class="hourglass-top-bulb">
-                <div class="sand-top" id="sand-top">
-                    <div class="sand-surface"></div>
-                </div>
-                <div class="glass-shine-top"></div>
+      <button
+        class="nav-toggle"
+        aria-controls="nav-menu"
+        aria-expanded="false"
+        aria-label="Toggle navigation menu"
+      >
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+      </button>
+
+      <ul class="nav-menu" id="nav-menu" role="list">
+        <li><a class="nav-link" href="#services">Services</a></li>
+        <li><a class="nav-link" href="#about">About</a></li>
+        <li><a class="nav-link" href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Main content -->
+  <main id="main-content">
+
+    <!-- Hero Section -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="hero-content">
+        <p class="hero-eyebrow">Independent Technology Consultant</p>
+        <h1 id="hero-heading" class="hero-heading">Technology Solutions for the AI Era</h1>
+        <p class="hero-subtitle">
+          Helping businesses leverage AI tools, modern cloud infrastructure, and clean engineering
+          practices to build faster, smarter, and more securely.
+        </p>
+        <a class="btn btn-primary" href="#contact">Get in Touch</a>
+      </div>
+    </section>
+
+    <!-- Services Section -->
+    <section class="section services" id="services" aria-labelledby="services-heading">
+      <div class="container">
+        <h2 id="services-heading" class="section-heading">Services</h2>
+        <p class="section-subheading">
+          Practical expertise across the modern technology stack, from AI integration to
+          infrastructure to day-to-day IT operations.
+        </p>
+
+        <ul class="services-grid" role="list">
+          <li class="service-card fade-in">
+            <div class="service-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
             </div>
-            <div class="hourglass-neck">
-                <div class="sand-stream" id="sand-stream">
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                </div>
+            <h3 class="service-title">AI &amp; Claude Consulting</h3>
+            <p class="service-description">
+              Integrate AI tools and workflows into your business processes. Specializing in Claude
+              and LLM integration, prompt engineering, AI-assisted software development, and helping
+              teams build effective human-AI collaboration practices.
+            </p>
+            <ul class="service-details" aria-label="AI and Claude consulting service details">
+              <li>Claude API integration and workflow design</li>
+              <li>Prompt engineering and optimization</li>
+              <li>AI-assisted development pipelines</li>
+              <li>Team training and adoption strategy</li>
+            </ul>
+          </li>
+
+          <li class="service-card fade-in">
+            <div class="service-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
             </div>
-            <div class="hourglass-bottom-bulb">
-                <div class="sand-bottom" id="sand-bottom">
-                    <div class="sand-surface-bottom"></div>
-                </div>
-                <div class="glass-shine-bottom"></div>
+            <h3 class="service-title">Technology Consulting</h3>
+            <p class="service-description">
+              Architecture reviews, cloud infrastructure design and optimization on AWS, security
+              audits, and performance improvements. Strategic guidance for technical decisions that
+              scale with your business.
+            </p>
+            <ul class="service-details" aria-label="Technology consulting service details">
+              <li>AWS cloud architecture and cost optimization</li>
+              <li>Security audits and hardening</li>
+              <li>Architecture and code reviews</li>
+              <li>Performance analysis and optimization</li>
+            </ul>
+          </li>
+
+          <li class="service-card fade-in">
+            <div class="service-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
             </div>
-            <div class="hourglass-frame-bottom"></div>
-            <div class="hourglass-label" id="hourglass-label" role="status" aria-live="polite">0% Complete</div>
+            <h3 class="service-title">IT Services</h3>
+            <p class="service-description">
+              Hands-on IT support, DevOps pipeline setup, infrastructure automation, and web
+              development. From small business IT needs to custom tooling and deployment
+              automation for growing teams.
+            </p>
+            <ul class="service-details" aria-label="IT services details">
+              <li>DevOps and CI/CD pipeline setup</li>
+              <li>Infrastructure automation and scripting</li>
+              <li>Website development and hosting</li>
+              <li>General IT support and consulting</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="section about" id="about" aria-labelledby="about-heading">
+      <div class="container about-container">
+        <div class="about-text fade-in">
+          <h2 id="about-heading" class="section-heading">About</h2>
+          <p>
+            I'm Kyle Shaver, an independent technology consultant with 7+ years of engineering
+            experience across software development, cloud infrastructure, and IT operations.
+          </p>
+          <p>
+            My background spans security-focused engineering, AWS cloud services, and full-stack
+            development. I've spent the last several years working at the intersection of software
+            quality and modern tooling -- writing comprehensive tests, building automated pipelines,
+            and staying current with emerging technologies.
+          </p>
+          <p>
+            I'm an early adopter and advocate for AI-assisted development. I believe Claude and
+            similar tools represent a genuine shift in how software gets built, and I help businesses
+            understand and adopt these capabilities in practical, grounded ways.
+          </p>
+          <p>
+            My approach: clean code, honest tradeoffs, and solutions that you can maintain long after
+            the engagement ends.
+          </p>
         </div>
-    </div>
 
-    <!-- Animated Thermometer (Decorative) -->
-    <div class="thermometer-container" role="img" aria-label="Thermometer displaying days remaining until retirement">
-        <div class="thermometer" aria-hidden="true">
-            <div class="thermometer-tube">
-                <div class="thermometer-liquid" id="thermometer-liquid">
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
-                </div>
-                <div class="thermometer-shine"></div>
-                <div class="thermometer-markings">
-                    <div class="marking" data-days="730"><span>730</span></div>
-                    <div class="marking" data-days="365"><span>365</span></div>
-                    <div class="marking" data-days="180"><span>180</span></div>
-                    <div class="marking" data-days="100"><span>100</span></div>
-                    <div class="marking" data-days="50"><span>50</span></div>
-                    <div class="marking" data-days="30"><span>30</span></div>
-                    <div class="marking" data-days="7"><span>7</span></div>
-                    <div class="marking major" data-days="0"><span>0</span></div>
-                </div>
+        <aside class="about-highlights fade-in" aria-label="Key experience highlights">
+          <ul class="highlights-list" role="list">
+            <li class="highlight-item">
+              <span class="highlight-label">Experience</span>
+              <span class="highlight-value">7+ Years in Tech</span>
+            </li>
+            <li class="highlight-item">
+              <span class="highlight-label">Focus Areas</span>
+              <span class="highlight-value">AI, Cloud, Security</span>
+            </li>
+            <li class="highlight-item">
+              <span class="highlight-label">Cloud Platform</span>
+              <span class="highlight-value">AWS Certified</span>
+            </li>
+            <li class="highlight-item">
+              <span class="highlight-label">Philosophy</span>
+              <span class="highlight-value">Clean Code &amp; Testing</span>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="section contact" id="contact" aria-labelledby="contact-heading">
+      <div class="container contact-container">
+        <h2 id="contact-heading" class="section-heading">Get in Touch</h2>
+        <p class="contact-intro">
+          Ready to talk about a project? Have questions about how AI or cloud technology might help
+          your business? I'd love to hear from you.
+        </p>
+
+        <div class="contact-links">
+          <div class="contact-item fade-in">
+            <div class="contact-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
             </div>
-            <div class="thermometer-bulb">
-                <div class="bulb-liquid"></div>
-                <div class="bulb-shine"></div>
-                <div class="bulb-days" id="thermometer-days" role="status">0</div>
-                <div class="bulb-label">DAYS</div>
+            <div class="contact-details">
+              <span class="contact-label">Email</span>
+              <a class="contact-link" href="mailto:kbshaver@gmail.com" aria-label="Send email to Kyle at kbshaver@gmail.com">
+                kbshaver@gmail.com
+              </a>
             </div>
+          </div>
+
+          <div class="contact-item fade-in">
+            <div class="contact-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+              </svg>
+            </div>
+            <div class="contact-details">
+              <span class="contact-label">GitHub</span>
+              <a class="contact-link" href="https://github.com/ShaKy8" target="_blank" rel="noopener noreferrer" aria-label="View GitHub profile for ShaKy8, opens in new tab">
+                github.com/ShaKy8
+              </a>
+            </div>
+          </div>
         </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="container footer-container">
+      <p class="footer-copy">
+        &copy; 2026 BranyonTech. All rights reserved.
+      </p>
+      <p class="footer-fun">
+        <a class="footer-link" href="/countdown/index.html">See my retirement countdown</a>
+      </p>
     </div>
+  </footer>
 
-    <main id="main-content" class="container">
-        <header>
-            <h1 class="title">Kyle's Countdown to Retirement</h1>
-            <p class="subtitle">The Journey to Freedom Begins...</p>
-        </header>
-
-        <section aria-labelledby="date-settings-heading">
-            <h2 id="date-settings-heading" class="sr-only">Retirement Date Settings</h2>
-            <div class="date-setter">
-                <label for="retirement-date">
-                    <span aria-hidden="true">🎯</span> Retirement Date:
-                </label>
-                <input
-                    type="datetime-local"
-                    id="retirement-date"
-                    value="2026-02-27T16:00"
-                    aria-describedby="date-format-hint"
-                >
-                <span id="date-format-hint" class="sr-only">Select your target retirement date and time</span>
-                <button id="update-date" aria-label="Update retirement date">Update Date</button>
-            </div>
-        </section>
-
-        <section aria-labelledby="countdown-heading">
-            <h2 id="countdown-heading" class="sr-only">Countdown Timer</h2>
-            <div class="main-countdown" role="timer" aria-label="Time remaining until retirement">
-                <div class="countdown-item large">
-                    <span class="value" id="days" aria-live="polite" aria-atomic="true">0</span>
-                    <span class="label">Days</span>
-                </div>
-                <div class="countdown-item large">
-                    <span class="value" id="hours">0</span>
-                    <span class="label">Hours</span>
-                </div>
-                <div class="countdown-item large">
-                    <span class="value" id="minutes">0</span>
-                    <span class="label">Minutes</span>
-                </div>
-                <div class="countdown-item large">
-                    <span class="value" id="seconds" aria-live="off">0</span>
-                    <span class="label">Seconds</span>
-                </div>
-            </div>
-        </section>
-
-        <section aria-labelledby="alternate-views-heading">
-            <h2 id="alternate-views-heading" class="sr-only">Alternate Time Views</h2>
-            <div class="alternate-views">
-                <div class="countdown-item">
-                    <span class="value" id="months">0</span>
-                    <span class="label">Months</span>
-                </div>
-                <div class="countdown-item">
-                    <span class="value" id="weeks">0</span>
-                    <span class="label">Weeks</span>
-                </div>
-                <div class="countdown-item">
-                    <span class="value" id="total-hours">0</span>
-                    <span class="label">Total Hours</span>
-                </div>
-            </div>
-        </section>
-
-        <section aria-labelledby="metrics-heading">
-            <h2 id="metrics-heading" class="sr-only">Retirement Metrics</h2>
-            <div class="fun-metrics">
-                <div class="metric-card" role="article" aria-labelledby="weekends-label">
-                    <div class="metric-icon" aria-hidden="true">🎉</div>
-                    <div class="metric-value" id="weekends">0</div>
-                    <div class="metric-label" id="weekends-label">Weekends Left</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="work-days-label">
-                    <div class="metric-icon" aria-hidden="true">☕</div>
-                    <div class="metric-value" id="work-days">0</div>
-                    <div class="metric-label" id="work-days-label">Work Days Remaining</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="work-hours-label">
-                    <div class="metric-icon" aria-hidden="true">⏰</div>
-                    <div class="metric-value" id="work-hours">0</div>
-                    <div class="metric-label" id="work-hours-label">Work Hours Remaining</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="sleeps-label">
-                    <div class="metric-icon" aria-hidden="true">🌙</div>
-                    <div class="metric-value" id="sleeps">0</div>
-                    <div class="metric-label" id="sleeps-label">Sleeps Until Freedom</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="sunrises-label">
-                    <div class="metric-icon" aria-hidden="true">☀️</div>
-                    <div class="metric-value" id="sunrises">0</div>
-                    <div class="metric-label" id="sunrises-label">Sunrises to Go</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="mondays-label">
-                    <div class="metric-icon" aria-hidden="true">📅</div>
-                    <div class="metric-value" id="mondays">0</div>
-                    <div class="metric-label" id="mondays-label">Mondays Left to Endure</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="fridays-label">
-                    <div class="metric-icon" aria-hidden="true">🎊</div>
-                    <div class="metric-value" id="fridays">0</div>
-                    <div class="metric-label" id="fridays-label">Fridays to Celebrate</div>
-                </div>
-            </div>
-        </section>
-
-        <section class="progress-section" aria-labelledby="progress-heading">
-            <h2 id="progress-heading">Journey to Freedom</h2>
-            <div class="progress-timeline">
-                <div class="timeline-marker start" role="img" aria-label="Start: Day One, October 1, 2018">
-                    <div class="marker-icon" aria-hidden="true">🚀</div>
-                    <div class="marker-date" id="start-date">Oct 1, 2018</div>
-                    <div class="marker-label">Day One</div>
-                </div>
-                <div
-                    class="progress-bar"
-                    role="progressbar"
-                    aria-valuenow="0"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                    aria-label="Journey to retirement progress"
-                    id="progress-bar"
-                >
-                    <div class="progress-fill" id="progress-fill"></div>
-                    <span class="progress-text" id="progress-text">0%</span>
-                </div>
-                <div class="timeline-marker end" role="img" aria-label="End: Freedom Day">
-                    <div class="marker-icon" aria-hidden="true">🏝️</div>
-                    <div class="marker-date" id="end-date">Feb 27, 2026</div>
-                    <div class="marker-label">Freedom Day</div>
-                </div>
-            </div>
-            <p class="progress-description" id="progress-description" role="status" aria-live="polite"></p>
-        </section>
-
-        <section class="milestone-section" aria-labelledby="milestones-heading">
-            <h2 id="milestones-heading"><span aria-hidden="true">🏆</span> Milestones Journey</h2>
-            <div class="milestones-container">
-                <div class="milestone-timeline-line" aria-hidden="true"></div>
-                <div id="milestones" role="list" aria-label="Milestone achievements"></div>
-            </div>
-        </section>
-
-        <section class="motivation-section" aria-labelledby="motivation-heading">
-            <h2 id="motivation-heading" class="sr-only">Daily Motivation</h2>
-            <p class="motivation-quote" id="motivation-quote" role="status" aria-live="polite"></p>
-        </section>
-    </main>
-
-    <div id="confetti-container" aria-hidden="true"></div>
-
-    <script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
