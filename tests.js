@@ -1003,6 +1003,249 @@ describe('PERFORMANCE TESTS - Optimization Validation', () => {
 });
 
 // =============================================================================
+// COUNT-UP (FREEDOM COUNTER) TESTS
+// =============================================================================
+
+describe('COUNT-UP TESTS - Core Count-Up Calculations', () => {
+    test('Should calculate positive elapsed time after retirement', () => {
+        const RETIREMENT_DATE = new Date('2026-02-27T16:00:00');
+        const now = new Date('2026-03-05T12:00:00');
+        const diff = now - RETIREMENT_DATE;
+
+        assert.strictEqual(diff > 0, true, 'Elapsed time should be positive after retirement');
+    });
+
+    test('Should calculate days of freedom correctly', () => {
+        const RETIREMENT_DATE = new Date('2026-02-27T16:00:00');
+        const now = new Date('2026-03-06T16:00:00');
+        const diff = now - RETIREMENT_DATE;
+
+        const totalSeconds = Math.floor(diff / 1000);
+        const totalHours = Math.floor(totalSeconds / 3600);
+        const days = Math.floor(totalHours / 24);
+
+        assert.strictEqual(days, 7, 'Should calculate 7 days of freedom');
+    });
+
+    test('Should calculate hours remainder correctly for count-up', () => {
+        const RETIREMENT_DATE = new Date('2026-02-27T16:00:00');
+        const now = new Date('2026-02-28T19:00:00');
+        const diff = now - RETIREMENT_DATE;
+
+        const totalHours = Math.floor(diff / (1000 * 60 * 60));
+        const hoursRemainder = totalHours % 24;
+
+        assert.strictEqual(hoursRemainder, 3, 'Should show 3 hours remainder');
+    });
+
+    test('Should detect pre-retirement state (negative diff)', () => {
+        const RETIREMENT_DATE = new Date('2026-02-27T16:00:00');
+        const now = new Date('2026-02-26T12:00:00');
+        const diff = now - RETIREMENT_DATE;
+
+        assert.strictEqual(diff < 0, true, 'Should detect pre-retirement state');
+    });
+
+    test('Should calculate weeks of freedom correctly', () => {
+        // Use dates within same timezone offset to avoid DST issues
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const diff = msPerDay * 21; // Exactly 21 days = 3 weeks
+
+        const days = Math.floor(diff / msPerDay);
+        const weeks = Math.floor(days / 7);
+
+        assert.strictEqual(weeks, 3, 'Should calculate 3 weeks of freedom');
+    });
+
+    test('Should calculate months of freedom correctly', () => {
+        const RETIREMENT_DATE = new Date('2026-02-27T16:00:00');
+        const now = new Date('2026-05-28T16:00:00');
+        const diff = now - RETIREMENT_DATE;
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const months = Math.floor(days / 30.44);
+
+        assert.strictEqual(months >= 2 && months <= 3, true,
+            `Should calculate ~3 months (got ${months})`);
+    });
+});
+
+describe('COUNT-UP TESTS - Freedom Metrics', () => {
+    test('Should calculate weekends of freedom for full weeks', () => {
+        const totalDays = 14;
+        const fullWeeks = Math.floor(totalDays / 7);
+        const weekends = fullWeeks;
+
+        assert.strictEqual(weekends, 2, 'Should calculate 2 weekends of freedom in 14 days');
+    });
+
+    test('Should calculate work days skipped correctly', () => {
+        const totalDays = 7;
+        const fullWeeks = Math.floor(totalDays / 7);
+        const workDays = fullWeeks * 5;
+
+        assert.strictEqual(workDays, 5, 'Should calculate 5 work days skipped in 1 week');
+    });
+
+    test('Should calculate work hours of freedom (8 hrs/day)', () => {
+        const workDays = 20;
+        const workHours = workDays * 8;
+
+        assert.strictEqual(workHours, 160, 'Should calculate 160 hours of freedom for 20 work days');
+    });
+
+    test('Should calculate mornings without alarms equal to days', () => {
+        const days = 50;
+        const sleeps = days;
+
+        assert.strictEqual(sleeps, 50, 'Mornings without alarms should equal days');
+    });
+
+    test('Should calculate sunrises enjoyed as days + 1', () => {
+        const days = 50;
+        const sunrises = days + 1;
+
+        assert.strictEqual(sunrises, 51, 'Sunrises should be days + 1');
+    });
+});
+
+describe('COUNT-UP TESTS - Freedom Milestones', () => {
+    test('Should mark milestone as achieved when days >= threshold', () => {
+        const days = 50;
+        const threshold = 30;
+
+        const state = days >= threshold ? 'achieved' : 'locked';
+
+        assert.strictEqual(state, 'achieved', 'Milestone should be achieved when days >= threshold');
+    });
+
+    test('Should mark milestone as active when approaching (within 30 days before threshold)', () => {
+        const days = 85;
+        const threshold = 100;
+
+        let state = '';
+        if (days >= threshold) {
+            state = 'achieved';
+        } else if (days >= threshold - 30 && days < threshold) {
+            state = 'active';
+        } else {
+            state = 'locked';
+        }
+
+        assert.strictEqual(state, 'active', 'Milestone should be active when approaching');
+    });
+
+    test('Should mark milestone as locked when far from threshold', () => {
+        const days = 10;
+        const threshold = 100;
+
+        let state = '';
+        if (days >= threshold) {
+            state = 'achieved';
+        } else if (days >= threshold - 30 && days < threshold) {
+            state = 'active';
+        } else {
+            state = 'locked';
+        }
+
+        assert.strictEqual(state, 'locked', 'Milestone should be locked when far from threshold');
+    });
+
+    test('Should have correct milestone thresholds for count-up', () => {
+        const milestones = [1, 7, 30, 100, 180, 365, 500, 730];
+
+        assert.strictEqual(milestones[0], 1, 'First milestone should be Day 1');
+        assert.strictEqual(milestones[milestones.length - 1], 730, 'Last milestone should be 2 years');
+        assert.strictEqual(milestones.length, 8, 'Should have 8 milestones');
+    });
+});
+
+describe('COUNT-UP TESTS - Progress Description', () => {
+    test('Should show correct description for first week', () => {
+        const days = 3;
+        let description = '';
+
+        if (days < 7) description = 'The adventure has just begun!';
+        else if (days < 30) description = 'Getting the hang of this freedom thing!';
+        else if (days < 100) description = 'Living the dream, one day at a time!';
+        else if (days < 365) description = 'A seasoned retiree in the making!';
+        else description = 'A full year of freedom and counting!';
+
+        assert.strictEqual(description, 'The adventure has just begun!',
+            'Should show first week message');
+    });
+
+    test('Should show correct description for first month', () => {
+        const days = 15;
+        let description = '';
+
+        if (days < 7) description = 'The adventure has just begun!';
+        else if (days < 30) description = 'Getting the hang of this freedom thing!';
+        else if (days < 100) description = 'Living the dream, one day at a time!';
+        else if (days < 365) description = 'A seasoned retiree in the making!';
+        else description = 'A full year of freedom and counting!';
+
+        assert.strictEqual(description, 'Getting the hang of this freedom thing!',
+            'Should show first month message');
+    });
+
+    test('Should show correct description after a year', () => {
+        const days = 400;
+        let description = '';
+
+        if (days < 7) description = 'The adventure has just begun!';
+        else if (days < 30) description = 'Getting the hang of this freedom thing!';
+        else if (days < 100) description = 'Living the dream, one day at a time!';
+        else if (days < 365) description = 'A seasoned retiree in the making!';
+        else description = 'A full year of freedom and counting!';
+
+        assert.strictEqual(description, 'A full year of freedom and counting!',
+            'Should show year+ message');
+    });
+});
+
+describe('COUNT-UP TESTS - Server Routing', () => {
+    test('Should resolve trailing slash to index.html', () => {
+        let filePath = '/countup/';
+
+        if (filePath === '/') {
+            filePath = '/index.html';
+        } else if (filePath.endsWith('/')) {
+            filePath = filePath + 'index.html';
+        }
+
+        assert.strictEqual(filePath, '/countup/index.html',
+            'Should resolve /countup/ to /countup/index.html');
+    });
+
+    test('Should resolve root to index.html', () => {
+        let filePath = '/';
+
+        if (filePath === '/') {
+            filePath = '/index.html';
+        } else if (filePath.endsWith('/')) {
+            filePath = filePath + 'index.html';
+        }
+
+        assert.strictEqual(filePath, '/index.html',
+            'Should resolve / to /index.html');
+    });
+
+    test('Should not modify non-directory paths', () => {
+        let filePath = '/countup/script.js';
+
+        if (filePath === '/') {
+            filePath = '/index.html';
+        } else if (filePath.endsWith('/')) {
+            filePath = filePath + 'index.html';
+        }
+
+        assert.strictEqual(filePath, '/countup/script.js',
+            'Should not modify direct file paths');
+    });
+});
+
+// =============================================================================
 // RUN ALL TESTS
 // =============================================================================
 

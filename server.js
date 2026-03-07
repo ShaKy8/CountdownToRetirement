@@ -77,9 +77,11 @@ function validatePath(requestedPath) {
     // Remove query string
     let filePath = requestedPath.split('?')[0];
 
-    // Default to index.html for root
+    // Default to index.html for root and directories
     if (filePath === '/') {
         filePath = '/index.html';
+    } else if (filePath.endsWith('/')) {
+        filePath = filePath + 'index.html';
     }
 
     // Decode URI components to catch encoded traversal attempts
