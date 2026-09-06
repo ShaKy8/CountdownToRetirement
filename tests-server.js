@@ -238,7 +238,7 @@ async function runSecurityHeaderTests() {
             const { res } = await makeRequest({
                 hostname: TEST_HOST,
                 port: TEST_PORT,
-                path: '/script.js',
+                path: '/countdown/script.js',
                 method: 'GET'
             });
 
@@ -351,7 +351,7 @@ async function runPathTraversalTests() {
             const { res } = await makeRequest({
                 hostname: TEST_HOST,
                 port: TEST_PORT,
-                path: '/script.js',
+                path: '/countdown/script.js',
                 method: 'GET'
             });
 
@@ -469,7 +469,7 @@ async function runContentTypeTests() {
             const { res } = await makeRequest({
                 hostname: TEST_HOST,
                 port: TEST_PORT,
-                path: '/script.js',
+                path: '/countdown/script.js',
                 method: 'GET'
             });
 
@@ -509,7 +509,7 @@ async function runCacheHeaderTests() {
             const { res } = await makeRequest({
                 hostname: TEST_HOST,
                 port: TEST_PORT,
-                path: '/script.js',
+                path: '/countdown/script.js',
                 method: 'GET'
             });
 

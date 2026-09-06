@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - A professional consulting website for AI, technology, and IT services at branyontech.com. The site also preserves the original retirement countdown as an easter egg at `/countdown/`. Kyle retired on February 27, 2026, so that page now runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, three links). The retirement clock at `/countdown/` is the main feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date.
 
 ## Tech Stack
 
@@ -40,7 +40,6 @@ node tests-server.js
 aws s3 sync . s3://branyontech.com/ \
   --exclude "*" \
   --include "index.html" \
-  --include "script.js" \
   --include "styles.css" \
   --include "favicon.svg" \
   --include "countdown/index.html" \
@@ -70,9 +69,8 @@ sudo systemctl status countdown-retirement
 
 ```
 CountdownToRetirement/
-├── index.html              # BranyonTech consulting landing page
-├── script.js               # Business site JS (nav, scroll, animations)
-├── styles.css              # Business site styles (dark navy/blue theme)
+├── index.html              # One-screen personal landing page (no JS)
+├── styles.css              # Landing page styles (warm cream, plum text, coral accent)
 ├── favicon.svg             # Professional "BT" monogram favicon
 ├── server.js               # Node.js HTTP server with security headers
 ├── countdown/              # Retirement clock (easter egg)
@@ -92,11 +90,10 @@ CountdownToRetirement/
 
 ## Key Features
 
-### Business Site (/)
-- **Services:** AI & Claude consulting, technology consulting, IT services
-- **About:** Professional bio and experience highlights
-- **Contact:** Email and GitHub links
-- **Design:** Dark navy palette, responsive, accessible, minimal JS
+### Landing Page (/)
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and three text links: email, GitHub, and the retirement clock
+- **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, no JavaScript
+- **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
 
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.

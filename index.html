@@ -3,238 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="BranyonTech - Professional technology consulting specializing in AI integration, cloud infrastructure, and IT services. Helping businesses leverage modern technology." />
-  <title>BranyonTech | Technology Consulting</title>
+  <meta name="description" content="Kyle Shaver. Retired technologist, occasional AI and IT consulting by referral." />
+  <title>BranyonTech | Kyle Shaver</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Skip navigation link for accessibility -->
   <a class="skip-link" href="#main-content">Skip to main content</a>
 
-  <!-- Navigation -->
-  <header class="site-header" role="banner">
-    <nav class="nav-container" aria-label="Main navigation">
-      <a class="nav-logo" href="#" aria-label="BranyonTech - scroll to top">BranyonTech</a>
+  <main id="main-content" class="page">
+    <section class="intro" aria-labelledby="name">
+      <p class="brand">BranyonTech</p>
+      <h1 id="name">Kyle Shaver</h1>
+      <p class="tagline">Retired technologist. Occasional AI and IT consulting, mostly by referral.</p>
 
-      <button
-        class="nav-toggle"
-        aria-controls="nav-menu"
-        aria-expanded="false"
-        aria-label="Toggle navigation menu"
-      >
-        <span class="hamburger-bar"></span>
-        <span class="hamburger-bar"></span>
-        <span class="hamburger-bar"></span>
-      </button>
-
-      <ul class="nav-menu" id="nav-menu" role="list">
-        <li><a class="nav-link" href="#services">Services</a></li>
-        <li><a class="nav-link" href="#about">About</a></li>
-        <li><a class="nav-link" href="#contact">Contact</a></li>
+      <ul class="links" role="list">
+        <li>
+          <a href="mailto:kbshaver@gmail.com" aria-label="Send email to Kyle at kbshaver@gmail.com">Email</a>
+        </li>
+        <li>
+          <a href="https://github.com/ShaKy8" target="_blank" rel="noopener noreferrer" aria-label="View GitHub profile for ShaKy8, opens in new tab">GitHub</a>
+        </li>
+        <li>
+          <a href="/countdown/index.html">See how long I've been retired</a>
+        </li>
       </ul>
-    </nav>
-  </header>
-
-  <!-- Main content -->
-  <main id="main-content">
-
-    <!-- Hero Section -->
-    <section class="hero" aria-labelledby="hero-heading">
-      <div class="hero-content">
-        <p class="hero-eyebrow">Independent Technology Consultant</p>
-        <h1 id="hero-heading" class="hero-heading">Technology Solutions for the AI Era</h1>
-        <p class="hero-subtitle">
-          Helping businesses leverage AI tools, modern cloud infrastructure, and clean engineering
-          practices to build faster, smarter, and more securely.
-        </p>
-        <a class="btn btn-primary" href="#contact">Get in Touch</a>
-      </div>
     </section>
-
-    <!-- Services Section -->
-    <section class="section services" id="services" aria-labelledby="services-heading">
-      <div class="container">
-        <h2 id="services-heading" class="section-heading">Services</h2>
-        <p class="section-subheading">
-          Practical expertise across the modern technology stack, from AI integration to
-          infrastructure to day-to-day IT operations.
-        </p>
-
-        <ul class="services-grid" role="list">
-          <li class="service-card fade-in">
-            <div class="service-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
-              </svg>
-            </div>
-            <h3 class="service-title">AI &amp; Claude Consulting</h3>
-            <p class="service-description">
-              Integrate AI tools and workflows into your business processes. Specializing in Claude
-              and LLM integration, prompt engineering, AI-assisted software development, and helping
-              teams build effective human-AI collaboration practices.
-            </p>
-            <ul class="service-details" aria-label="AI and Claude consulting service details">
-              <li>Claude API integration and workflow design</li>
-              <li>Prompt engineering and optimization</li>
-              <li>AI-assisted development pipelines</li>
-              <li>Team training and adoption strategy</li>
-            </ul>
-          </li>
-
-          <li class="service-card fade-in">
-            <div class="service-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                <line x1="8" y1="21" x2="16" y2="21"/>
-                <line x1="12" y1="17" x2="12" y2="21"/>
-              </svg>
-            </div>
-            <h3 class="service-title">Technology Consulting</h3>
-            <p class="service-description">
-              Architecture reviews, cloud infrastructure design and optimization on AWS, security
-              audits, and performance improvements. Strategic guidance for technical decisions that
-              scale with your business.
-            </p>
-            <ul class="service-details" aria-label="Technology consulting service details">
-              <li>AWS cloud architecture and cost optimization</li>
-              <li>Security audits and hardening</li>
-              <li>Architecture and code reviews</li>
-              <li>Performance analysis and optimization</li>
-            </ul>
-          </li>
-
-          <li class="service-card fade-in">
-            <div class="service-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                <polyline points="16 18 22 12 16 6"/>
-                <polyline points="8 6 2 12 8 18"/>
-              </svg>
-            </div>
-            <h3 class="service-title">IT Services</h3>
-            <p class="service-description">
-              Hands-on IT support, DevOps pipeline setup, infrastructure automation, and web
-              development. From small business IT needs to custom tooling and deployment
-              automation for growing teams.
-            </p>
-            <ul class="service-details" aria-label="IT services details">
-              <li>DevOps and CI/CD pipeline setup</li>
-              <li>Infrastructure automation and scripting</li>
-              <li>Website development and hosting</li>
-              <li>General IT support and consulting</li>
-            </ul>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- About Section -->
-    <section class="section about" id="about" aria-labelledby="about-heading">
-      <div class="container about-container">
-        <div class="about-text fade-in">
-          <h2 id="about-heading" class="section-heading">About</h2>
-          <p>
-            I'm Kyle Shaver, an independent technology consultant with 7+ years of engineering
-            experience across software development, cloud infrastructure, and IT operations.
-          </p>
-          <p>
-            My background spans security-focused engineering, AWS cloud services, and full-stack
-            development. I've spent the last several years working at the intersection of software
-            quality and modern tooling -- writing comprehensive tests, building automated pipelines,
-            and staying current with emerging technologies.
-          </p>
-          <p>
-            I'm an early adopter and advocate for AI-assisted development. I believe Claude and
-            similar tools represent a genuine shift in how software gets built, and I help businesses
-            understand and adopt these capabilities in practical, grounded ways.
-          </p>
-          <p>
-            My approach: clean code, honest tradeoffs, and solutions that you can maintain long after
-            the engagement ends.
-          </p>
-        </div>
-
-        <aside class="about-highlights fade-in" aria-label="Key experience highlights">
-          <ul class="highlights-list" role="list">
-            <li class="highlight-item">
-              <span class="highlight-label">Experience</span>
-              <span class="highlight-value">7+ Years in Tech</span>
-            </li>
-            <li class="highlight-item">
-              <span class="highlight-label">Focus Areas</span>
-              <span class="highlight-value">AI, Cloud, Security</span>
-            </li>
-            <li class="highlight-item">
-              <span class="highlight-label">Cloud Platform</span>
-              <span class="highlight-value">AWS Certified</span>
-            </li>
-            <li class="highlight-item">
-              <span class="highlight-label">Philosophy</span>
-              <span class="highlight-value">Clean Code &amp; Testing</span>
-            </li>
-          </ul>
-        </aside>
-      </div>
-    </section>
-
-    <!-- Contact Section -->
-    <section class="section contact" id="contact" aria-labelledby="contact-heading">
-      <div class="container contact-container">
-        <h2 id="contact-heading" class="section-heading">Get in Touch</h2>
-        <p class="contact-intro">
-          Ready to talk about a project? Have questions about how AI or cloud technology might help
-          your business? I'd love to hear from you.
-        </p>
-
-        <div class="contact-links">
-          <div class="contact-item fade-in">
-            <div class="contact-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
-              </svg>
-            </div>
-            <div class="contact-details">
-              <span class="contact-label">Email</span>
-              <a class="contact-link" href="mailto:kbshaver@gmail.com" aria-label="Send email to Kyle at kbshaver@gmail.com">
-                kbshaver@gmail.com
-              </a>
-            </div>
-          </div>
-
-          <div class="contact-item fade-in">
-            <div class="contact-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-              </svg>
-            </div>
-            <div class="contact-details">
-              <span class="contact-label">GitHub</span>
-              <a class="contact-link" href="https://github.com/ShaKy8" target="_blank" rel="noopener noreferrer" aria-label="View GitHub profile for ShaKy8, opens in new tab">
-                github.com/ShaKy8
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
   </main>
 
-  <!-- Footer -->
   <footer class="site-footer" role="contentinfo">
-    <div class="container footer-container">
-      <p class="footer-copy">
-        &copy; 2026 BranyonTech. All rights reserved.
-      </p>
-      <p class="footer-fun">
-        <a class="footer-link" href="/countdown/index.html">See how long I've been retired</a>
-      </p>
-    </div>
+    <p>&copy; 2026 BranyonTech</p>
   </footer>
-
-  <script src="script.js"></script>
 </body>
 </html>

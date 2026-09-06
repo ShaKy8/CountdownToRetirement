@@ -1158,19 +1158,32 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'Title should contain BranyonTech');
     });
 
-    test('Should have a services section', () => {
-        assert.ok(indexHtml.includes('id="services"'),
-            'Should have a services section');
+    test('Should have proper meta description', () => {
+        assert.ok(indexHtml.includes('<meta name="description"'),
+            'Should have a meta description tag');
     });
 
-    test('Should have an about section', () => {
-        assert.ok(indexHtml.includes('id="about"'),
-            'Should have an about section');
+    test('Should have skip navigation link for accessibility', () => {
+        assert.ok(indexHtml.includes('skip-link'),
+            'Should have a skip navigation link');
+        assert.ok(indexHtml.includes('id="main-content"'),
+            'Skip link target should exist');
     });
 
-    test('Should have a contact section', () => {
-        assert.ok(indexHtml.includes('id="contact"'),
-            'Should have a contact section');
+    test('Should introduce Kyle by name with the tagline', () => {
+        assert.ok(indexHtml.includes('Kyle Shaver'), 'Should show the name');
+        assert.ok(indexHtml.includes('Retired technologist. Occasional AI and IT consulting, mostly by referral.'),
+            'Should show the tagline');
+    });
+
+    test('Should have a mailto link', () => {
+        assert.ok(indexHtml.includes('mailto:kbshaver@gmail.com'),
+            'Should have a mailto link');
+    });
+
+    test('Should link to GitHub safely', () => {
+        assert.ok(indexHtml.includes('https://github.com/ShaKy8'), 'Should link to GitHub');
+        assert.ok(indexHtml.includes('rel="noopener noreferrer"'), 'External link should use noopener noreferrer');
     });
 
     test('Should have a link to the countdown page', () => {
@@ -1183,28 +1196,14 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'Footer link should say "See how long I\'ve been retired"');
     });
 
-    test('Should have a mailto link', () => {
-        assert.ok(indexHtml.includes('mailto:kbshaver@gmail.com'),
-            'Should have a mailto link');
+    test('Should be text only with no scripts or graphics', () => {
+        assert.ok(!indexHtml.includes('<svg'), 'Landing page should not contain SVG graphics');
+        assert.ok(!indexHtml.includes('<img'), 'Landing page should not contain images');
+        assert.ok(!indexHtml.includes('<script'), 'Landing page should not load any script');
     });
 
-    test('Should have proper meta description', () => {
-        assert.ok(indexHtml.includes('<meta name="description"'),
-            'Should have a meta description tag');
-    });
-
-    test('Should have skip navigation link for accessibility', () => {
-        assert.ok(indexHtml.includes('skip-link'),
-            'Should have a skip navigation link');
-    });
-
-    test('Should reference all three service types', () => {
-        assert.ok(indexHtml.includes('AI') && indexHtml.includes('Claude'),
-            'Should mention AI & Claude consulting');
-        assert.ok(indexHtml.includes('Technology Consulting'),
-            'Should mention technology consulting');
-        assert.ok(indexHtml.includes('IT Services'),
-            'Should mention IT services');
+    test('Should have a footer landmark', () => {
+        assert.ok(indexHtml.includes('role="contentinfo"'), 'Footer should be a contentinfo landmark');
     });
 });
 
