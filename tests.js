@@ -11,6 +11,7 @@
 const assert = require('assert');
 const http = require('http');
 const path = require('path');
+const Calc = require('./countdown/calc.js');
 
 // ANSI color codes for pretty output
 const colors = {
@@ -236,57 +237,65 @@ describe('REGRESSION TESTS - Confetti Memory Leak', () => {
 });
 
 describe('REGRESSION TESTS - Date Validation', () => {
+    const NOW = new Date('2026-09-06T10:00:00');
+
     test('Should reject empty date input', () => {
-        const newDateValue = '';
-
-        // Validation logic from script.js
-        const isValid = newDateValue !== '';
-
-        assert.strictEqual(isValid, false, 'Empty date should be rejected');
+        const result = Calc.validateDateInput('', NOW);
+        assert.strictEqual(result.ok, false, 'Empty date should be rejected');
+        assert.strictEqual(result.error, 'Please select a valid date');
     });
 
     test('Should reject invalid date format (NaN)', () => {
-        const newDateValue = 'invalid-date';
-        const newDate = new Date(newDateValue);
-
-        const isValid = !isNaN(newDate.getTime());
-
-        assert.strictEqual(isValid, false, 'Invalid date format should be rejected');
+        const result = Calc.validateDateInput('invalid-date', NOW);
+        assert.strictEqual(result.ok, false, 'Invalid date format should be rejected');
+        assert.strictEqual(result.error, 'Invalid date format');
     });
 
-    test('Should reject past dates', () => {
-        const pastDate = new Date('2020-01-01T00:00:00');
-        const now = new Date();
+    test('Should accept past dates (count-up mode)', () => {
+        const result = Calc.validateDateInput('2020-01-01T00:00', NOW);
+        assert.strictEqual(result.ok, true, 'Past dates should be accepted');
+        assert.strictEqual(result.date.getFullYear(), 2020);
+    });
 
-        const isValid = pastDate > now;
+    test('Should reject dates before January 1, 1950', () => {
+        const result = Calc.validateDateInput('1949-12-31T23:59', NOW);
+        assert.strictEqual(result.ok, false, 'Dates before 1950 should be rejected');
+        assert.ok(result.error.includes('1950'), 'Error should mention 1950');
+    });
 
-        assert.strictEqual(isValid, false, 'Past dates should be rejected');
+    test('Should accept exactly January 1, 1950', () => {
+        const result = Calc.validateDateInput('1950-01-01T00:00', NOW);
+        assert.strictEqual(result.ok, true, 'The 1950 boundary itself should be accepted');
     });
 
     test('Should reject dates more than 50 years in the future', () => {
-        const now = new Date();
-        const farFutureDate = new Date();
-        farFutureDate.setFullYear(now.getFullYear() + 51);
+        const farFuture = new Date(NOW);
+        farFuture.setFullYear(NOW.getFullYear() + 51);
+        const result = Calc.validateDateInput(farFuture.toISOString(), NOW);
+        assert.strictEqual(result.ok, false, 'Dates > 50 years in future should be rejected');
+    });
 
-        const maxDate = new Date();
-        maxDate.setFullYear(maxDate.getFullYear() + 50);
+    test('Should reject one day past the 50 year limit', () => {
+        const limit = new Date(NOW);
+        limit.setFullYear(NOW.getFullYear() + 50);
+        limit.setDate(limit.getDate() + 1);
+        const result = Calc.validateDateInput(limit.toISOString(), NOW);
+        assert.strictEqual(result.ok, false, '50 years + 1 day should be rejected');
+    });
 
-        const isValid = farFutureDate <= maxDate;
-
-        assert.strictEqual(isValid, false, 'Dates > 50 years in future should be rejected');
+    test('Should accept exactly 50 years in the future', () => {
+        const limit = new Date(NOW);
+        limit.setFullYear(NOW.getFullYear() + 50);
+        const result = Calc.validateDateInput(limit.toISOString(), NOW);
+        assert.strictEqual(result.ok, true, 'Exactly 50 years ahead should be accepted');
     });
 
     test('Should accept valid future date within 50 years', () => {
-        const now = new Date();
-        const validDate = new Date();
-        validDate.setFullYear(now.getFullYear() + 5);
-
-        const maxDate = new Date();
-        maxDate.setFullYear(maxDate.getFullYear() + 50);
-
-        const isValid = !isNaN(validDate.getTime()) && validDate > now && validDate <= maxDate;
-
-        assert.strictEqual(isValid, true, 'Valid future date should be accepted');
+        const validDate = new Date(NOW);
+        validDate.setFullYear(NOW.getFullYear() + 5);
+        const result = Calc.validateDateInput(validDate.toISOString(), NOW);
+        assert.strictEqual(result.ok, true, 'Valid future date should be accepted');
+        assert.strictEqual(result.error, null, 'No error for a valid date');
     });
 });
 
@@ -410,191 +419,157 @@ describe('REGRESSION TESTS - Path Traversal Protection', () => {
 
 describe('CORE TESTS - Countdown Calculations', () => {
     test('Should correctly calculate days from milliseconds', () => {
-        const msPerDay = 1000 * 60 * 60 * 24;
-        const diff = msPerDay * 5; // 5 days
+        const now = new Date('2026-01-01T00:00:00');
+        const retirement = new Date('2026-01-06T00:00:00'); // 5 days
+        const parts = Calc.computeCountdownParts(now, retirement);
 
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-        assert.strictEqual(days, 5, 'Should calculate 5 days');
+        assert.strictEqual(parts.days, 5, 'Should calculate 5 days');
     });
 
     test('Should correctly calculate hours remainder', () => {
         const now = new Date('2026-01-01T00:00:00');
         const retirement = new Date('2026-01-02T15:00:00'); // 1 day + 15 hours
-        const diff = retirement - now;
+        const parts = Calc.computeCountdownParts(now, retirement);
 
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const hoursRemainder = hours % 24;
-
-        assert.strictEqual(hoursRemainder, 15, 'Should show 15 hours remainder');
+        assert.strictEqual(parts.days, 1, 'Should show 1 day');
+        assert.strictEqual(parts.hoursRemainder, 15, 'Should show 15 hours remainder');
     });
 
     test('Should correctly calculate minutes remainder', () => {
         const now = new Date('2026-01-01T00:00:00');
         const retirement = new Date('2026-01-01T00:45:00'); // 45 minutes
-        const diff = retirement - now;
+        const parts = Calc.computeCountdownParts(now, retirement);
 
-        const minutes = Math.floor(diff / (1000 * 60));
-        const minutesRemainder = minutes % 60;
-
-        assert.strictEqual(minutesRemainder, 45, 'Should show 45 minutes');
+        assert.strictEqual(parts.minutesRemainder, 45, 'Should show 45 minutes');
     });
 
     test('Should correctly calculate seconds remainder', () => {
         const now = new Date('2026-01-01T00:00:00');
         const retirement = new Date('2026-01-01T00:00:30'); // 30 seconds
-        const diff = retirement - now;
+        const parts = Calc.computeCountdownParts(now, retirement);
 
-        const seconds = Math.floor(diff / 1000);
-        const secondsRemainder = seconds % 60;
-
-        assert.strictEqual(secondsRemainder, 30, 'Should show 30 seconds');
+        assert.strictEqual(parts.secondsRemainder, 30, 'Should show 30 seconds');
     });
 
     test('Should calculate weeks correctly', () => {
-        const msPerDay = 1000 * 60 * 60 * 24;
-        const diff = msPerDay * 14; // 2 weeks
+        const now = new Date('2026-01-01T00:00:00');
+        const retirement = new Date('2026-01-15T00:00:00'); // 2 weeks
+        const parts = Calc.computeCountdownParts(now, retirement);
 
-        const days = Math.floor(diff / msPerDay);
-        const weeks = Math.floor(days / 7);
-
-        assert.strictEqual(weeks, 2, 'Should calculate 2 weeks');
+        assert.strictEqual(parts.weeks, 2, 'Should calculate 2 weeks');
     });
 
     test('Should calculate months correctly (using 30.44 days average)', () => {
-        const msPerDay = 1000 * 60 * 60 * 24;
-        const diff = msPerDay * 61; // ~2 months
+        const now = new Date('2026-01-01T00:00:00');
+        const retirement = new Date(now.getTime() + Calc.MS_PER_DAY * 61); // ~2 months
+        const parts = Calc.computeCountdownParts(now, retirement);
 
-        const days = Math.floor(diff / msPerDay);
-        const months = Math.floor(days / 30.44);
+        assert.strictEqual(parts.months, 2, 'Should calculate 2 months');
+    });
 
-        assert.strictEqual(months, 2, 'Should calculate 2 months');
+    test('Should report total hours', () => {
+        const now = new Date('2026-01-01T00:00:00');
+        const retirement = new Date('2026-01-03T06:00:00'); // 54 hours
+        const parts = Calc.computeCountdownParts(now, retirement);
+
+        assert.strictEqual(parts.totalHours, 54, 'Should report 54 total hours');
     });
 
     test('Should handle zero or negative difference (retirement reached)', () => {
         const now = new Date('2026-01-01T00:00:00');
         const retirement = new Date('2025-12-31T00:00:00'); // Past date
-        const diff = retirement - now;
 
-        assert.strictEqual(diff <= 0, true, 'Should detect retirement reached');
+        assert.strictEqual(Calc.getMode(now, retirement), 'countup', 'Should detect retirement reached');
+        assert.strictEqual(Calc.computeCountdownParts(now, retirement).days, 0, 'Parts should clamp at zero');
     });
 });
 
 describe('CORE TESTS - Fun Metrics Calculations', () => {
+    // Monday Jan 5 2026 -> Monday Jan 19 2026: exactly two full weeks
+    const now = new Date('2026-01-05T08:00:00');
+    const retirement = new Date('2026-01-19T16:00:00');
+    const metrics = Calc.computeFunMetrics(now, retirement, 'countdown');
+
     test('Should calculate weekends correctly for full weeks', () => {
-        const totalDays = 14; // 2 weeks
-        const fullWeeks = Math.floor(totalDays / 7);
-
-        // Each full week has 1 Saturday (weekend day)
-        const weekends = fullWeeks;
-
-        assert.strictEqual(weekends, 2, 'Should calculate 2 weekends in 14 days');
+        assert.strictEqual(metrics.weekends, 2, 'Should calculate 2 weekends in 14 days');
     });
 
     test('Should calculate workdays correctly for full weeks', () => {
-        const totalDays = 14; // 2 weeks
-        const fullWeeks = Math.floor(totalDays / 7);
-
-        // Each week has 5 workdays (Mon-Fri)
-        const workDays = fullWeeks * 5;
-
-        assert.strictEqual(workDays, 10, 'Should calculate 10 workdays in 2 weeks');
+        assert.strictEqual(metrics.workDays, 10, 'Should calculate 10 workdays in 2 weeks');
     });
 
     test('Should calculate work hours correctly (8 hours per workday)', () => {
-        const workDays = 10;
-        const workHours = workDays * 8;
-
-        assert.strictEqual(workHours, 80, 'Should calculate 80 work hours for 10 workdays');
+        assert.strictEqual(Calc.WORK_HOURS_PER_DAY, 8, 'Assumes an 8 hour workday');
+        assert.strictEqual(metrics.workHours, 80, 'Should calculate 80 work hours for 10 workdays');
     });
 
-    test('Should calculate Mondays correctly for full weeks', () => {
-        const fullWeeks = 4;
-        const mondays = fullWeeks; // One Monday per week
-
-        assert.strictEqual(mondays, 4, 'Should calculate 4 Mondays in 4 weeks');
+    test('Should calculate Mondays and Fridays correctly for full weeks', () => {
+        assert.strictEqual(metrics.mondays, 2, 'Should calculate 2 Mondays in 2 weeks');
+        assert.strictEqual(metrics.fridays, 2, 'Should calculate 2 Fridays in 2 weeks');
     });
 
-    test('Should calculate Fridays correctly for full weeks', () => {
-        const fullWeeks = 4;
-        const fridays = fullWeeks; // One Friday per week
-
-        assert.strictEqual(fridays, 4, 'Should calculate 4 Fridays in 4 weeks');
+    test('Should count partial weeks day by day (Wednesday to next Tuesday)', () => {
+        // Wed Jan 7 -> Tue Jan 13: Wed Thu Fri Sat Sun Mon = 6 days
+        const counts = Calc.computeWorkweekCounts(new Date('2026-01-07T00:00:00'), new Date('2026-01-13T00:00:00'));
+        assert.strictEqual(counts.totalDays, 6);
+        assert.strictEqual(counts.weekends, 1, 'One Saturday');
+        assert.strictEqual(counts.workDays, 4, 'Wed Thu Fri Mon');
+        assert.strictEqual(counts.mondays, 1);
+        assert.strictEqual(counts.fridays, 1);
     });
 
     test('Should handle zero days remaining', () => {
-        const totalDays = 0;
-        const fullWeeks = Math.floor(totalDays / 7);
-        const weekends = fullWeeks;
-        const workDays = fullWeeks * 5;
-
-        assert.strictEqual(weekends, 0, 'Should show 0 weekends');
-        assert.strictEqual(workDays, 0, 'Should show 0 workdays');
+        const sameDay = Calc.computeFunMetrics(new Date('2026-01-05T08:00:00'), new Date('2026-01-05T09:00:00'), 'countdown');
+        assert.strictEqual(sameDay.weekends, 0, 'Should show 0 weekends');
+        assert.strictEqual(sameDay.workDays, 0, 'Should show 0 workdays');
+        assert.strictEqual(sameDay.mondays, 0, 'Should show 0 Mondays');
     });
 
     test('Should calculate sleeps equal to days remaining', () => {
-        const days = 100;
-        const sleeps = days;
-
-        assert.strictEqual(sleeps, 100, 'Sleeps should equal days');
+        assert.strictEqual(metrics.sleeps, 14, 'Sleeps should equal days');
     });
 
     test('Should calculate sunrises as days + 1', () => {
-        const days = 100;
-        const sunrises = days + 1;
-
-        assert.strictEqual(sunrises, 101, 'Sunrises should be days + 1');
+        assert.strictEqual(metrics.sunrises, 15, 'Sunrises should be days + 1');
     });
 });
 
 describe('CORE TESTS - Progress Percentage Calculation', () => {
     test('Should calculate progress percentage correctly', () => {
-        const EMPLOYMENT_START = new Date('2018-10-01T00:00:00');
         const retirement = new Date('2026-02-27T16:00:00');
         const now = new Date('2022-06-14T00:00:00'); // Midpoint roughly
-
-        const totalTime = retirement - EMPLOYMENT_START;
-        const elapsed = now - EMPLOYMENT_START;
-        const percentage = (elapsed / totalTime) * 100;
+        const { percentage } = Calc.computeProgress(now, retirement);
 
         assert.strictEqual(percentage > 0 && percentage < 100, true,
             'Progress should be between 0 and 100%');
     });
 
+    test('Should use the employment start date as the default origin', () => {
+        assert.strictEqual(Calc.EMPLOYMENT_START_DATE.getFullYear(), 2018);
+        assert.strictEqual(Calc.EMPLOYMENT_START_DATE.getMonth(), 9, 'October');
+    });
+
     test('Should cap progress at 100% maximum', () => {
-        const EMPLOYMENT_START = new Date('2018-10-01T00:00:00');
         const retirement = new Date('2026-02-27T16:00:00');
         const now = new Date('2027-01-01T00:00:00'); // After retirement
-
-        const totalTime = retirement - EMPLOYMENT_START;
-        const elapsed = now - EMPLOYMENT_START;
-        const rawPercentage = (elapsed / totalTime) * 100;
-        const percentage = Math.max(0, Math.min(100, rawPercentage));
+        const { percentage } = Calc.computeProgress(now, retirement);
 
         assert.strictEqual(percentage, 100, 'Progress should cap at 100%');
     });
 
     test('Should floor progress at 0% minimum', () => {
-        const EMPLOYMENT_START = new Date('2018-10-01T00:00:00');
         const retirement = new Date('2026-02-27T16:00:00');
         const now = new Date('2017-01-01T00:00:00'); // Before employment
-
-        const totalTime = retirement - EMPLOYMENT_START;
-        const elapsed = now - EMPLOYMENT_START;
-        const rawPercentage = (elapsed / totalTime) * 100;
-        const percentage = Math.max(0, Math.min(100, rawPercentage));
+        const { percentage } = Calc.computeProgress(now, retirement);
 
         assert.strictEqual(percentage, 0, 'Progress should floor at 0%');
     });
 
     test('Should calculate approximately 50% at midpoint', () => {
-        const EMPLOYMENT_START = new Date('2020-01-01T00:00:00');
+        const start = new Date('2020-01-01T00:00:00');
         const retirement = new Date('2024-01-01T00:00:00');
         const now = new Date('2022-01-01T00:00:00'); // Approximate midpoint
-
-        const totalTime = retirement - EMPLOYMENT_START;
-        const elapsed = now - EMPLOYMENT_START;
-        const percentage = (elapsed / totalTime) * 100;
+        const { percentage } = Calc.computeProgress(now, retirement, start);
 
         // Midpoint should be close to 50% (allow 1% tolerance due to leap years)
         assert.strictEqual(percentage > 49 && percentage < 51, true,
@@ -603,59 +578,42 @@ describe('CORE TESTS - Progress Percentage Calculation', () => {
 });
 
 describe('CORE TESTS - Milestone State Determination', () => {
+    const find = (states, threshold) => states.find(m => m.threshold === threshold);
+
     test('Should mark milestone as "achieved" when days <= threshold', () => {
-        const days = 50;
-        const threshold = 100;
-
-        const state = days <= threshold ? 'achieved' : 'locked';
-
-        assert.strictEqual(state, 'achieved', 'Milestone should be achieved');
+        const states = Calc.milestoneStates(50, Calc.COUNTDOWN_MILESTONES, 'countdown');
+        assert.strictEqual(find(states, 100).state, 'achieved', 'Milestone should be achieved');
     });
 
     test('Should mark milestone as "active" when within 30 days after threshold', () => {
-        const days = 110;
-        const threshold = 100;
-
-        let state = '';
-        if (days <= threshold) {
-            state = 'achieved';
-        } else if (days <= threshold + 30 && days > threshold) {
-            state = 'active';
-        } else {
-            state = 'locked';
-        }
-
-        assert.strictEqual(state, 'active', 'Milestone should be active');
+        const states = Calc.milestoneStates(110, Calc.COUNTDOWN_MILESTONES, 'countdown');
+        assert.strictEqual(find(states, 100).state, 'active', 'Milestone should be active');
     });
 
     test('Should mark milestone as "locked" when more than 30 days before threshold', () => {
-        const days = 200;
-        const threshold = 100;
-
-        let state = '';
-        if (days <= threshold) {
-            state = 'achieved';
-        } else if (days <= threshold + 30 && days > threshold) {
-            state = 'active';
-        } else {
-            state = 'locked';
-        }
-
-        assert.strictEqual(state, 'locked', 'Milestone should be locked');
+        const states = Calc.milestoneStates(200, Calc.COUNTDOWN_MILESTONES, 'countdown');
+        assert.strictEqual(find(states, 100).state, 'locked', 'Milestone should be locked');
     });
 
     test('Should use correct icon for achieved milestones', () => {
-        const state = 'achieved';
-        const displayIcon = state === 'achieved' ? '✅' : '🔒';
-
-        assert.strictEqual(displayIcon, '✅', 'Achieved milestone should show checkmark');
+        const states = Calc.milestoneStates(50, Calc.COUNTDOWN_MILESTONES, 'countdown');
+        assert.strictEqual(find(states, 100).displayIcon, '✅', 'Achieved milestone should show checkmark');
     });
 
     test('Should use correct icon for locked milestones', () => {
-        const state = 'locked';
-        const displayIcon = state === 'locked' ? '🔒' : '✅';
+        const states = Calc.milestoneStates(200, Calc.COUNTDOWN_MILESTONES, 'countdown');
+        assert.strictEqual(find(states, 100).displayIcon, '🔒', 'Locked milestone should show lock');
+    });
 
-        assert.strictEqual(displayIcon, '🔒', 'Locked milestone should show lock');
+    test('Should use the milestone icon for active milestones', () => {
+        const states = Calc.milestoneStates(110, Calc.COUNTDOWN_MILESTONES, 'countdown');
+        assert.strictEqual(find(states, 100).displayIcon, '💯', 'Active milestone should show its own icon');
+    });
+
+    test('Should fire countdown confetti when crossing a confetti threshold', () => {
+        assert.strictEqual(Calc.crossedMilestone(101, 100, 'countdown'), 100);
+        assert.strictEqual(Calc.crossedMilestone(100, 99, 'countdown'), null);
+        assert.strictEqual(Calc.crossedMilestone(null, 100, 'countdown'), null, 'No confetti on first tick');
     });
 });
 
@@ -690,12 +648,18 @@ describe('SECURITY TESTS - XSS Prevention', () => {
     });
 
     test('Should validate milestone icons are from predefined set', () => {
-        const validIcons = ['🎯', '🎆', '🌸', '💯', '⚡', '🎪', '⭐', '🔥', '✅', '🔒'];
-        const userIcon = '✅'; // From the code
+        const validIcons = new Set([
+            '🎯', '🎆', '🌸', '💯', '⚡', '🎪', '⭐', '🔥', '✅', '🔒',
+            '📅', '🗓️', '⏳', '🎊', '🎉', '📆', '🚀',
+            '🌅', '🌿', '🌙', '🌻', '🎂', '🌟', '🌊', '🌳', '🏔️', '✨',
+            '🍂', '🍁', '🌈', '🎈', '🏆', '🎇'
+        ]);
 
-        const isValid = validIcons.includes(userIcon);
-
-        assert.strictEqual(isValid, true, 'Only predefined icons should be used');
+        const all = Calc.COUNTDOWN_MILESTONES.concat(Calc.COUNTUP_MILESTONES);
+        all.forEach(m => {
+            assert.ok(validIcons.has(m.icon), `Icon ${m.icon} should be in the predefined set`);
+            assert.ok(validIcons.has(m.emoji), `Emoji ${m.emoji} should be in the predefined set`);
+        });
     });
 
     test('Should not allow arbitrary HTML in notification messages', () => {
@@ -929,44 +893,25 @@ describe('EDGE CASE TESTS - Interval Management', () => {
 
 describe('INTEGRATION TESTS - Progress Description Updates', () => {
     test('Should show correct description for 0-25% progress', () => {
-        const percentage = 20;
-        let description = '';
-
-        if (percentage < 25) description = 'The journey has begun!';
-        else if (percentage < 50) description = 'Making steady progress!';
-        else if (percentage < 75) description = 'More than halfway there!';
-        else if (percentage < 90) description = 'The finish line is in sight!';
-        else description = 'Almost there! So close!';
-
-        assert.strictEqual(description, 'The journey has begun!',
+        assert.strictEqual(Calc.progressDescription(20), 'The journey has begun!',
             'Should show correct message for early progress');
     });
 
     test('Should show correct description for 25-50% progress', () => {
-        const percentage = 40;
-        let description = '';
-
-        if (percentage < 25) description = 'The journey has begun!';
-        else if (percentage < 50) description = 'Making steady progress!';
-        else if (percentage < 75) description = 'More than halfway there!';
-        else if (percentage < 90) description = 'The finish line is in sight!';
-        else description = 'Almost there! So close!';
-
-        assert.strictEqual(description, 'Making steady progress!',
+        assert.strictEqual(Calc.progressDescription(40), 'Making steady progress!',
             'Should show correct message for mid progress');
     });
 
+    test('Should show correct description for 50-75% progress', () => {
+        assert.strictEqual(Calc.progressDescription(60), 'More than halfway there!');
+    });
+
+    test('Should show correct description for 75-90% progress', () => {
+        assert.strictEqual(Calc.progressDescription(80), 'The finish line is in sight!');
+    });
+
     test('Should show correct description for 90%+ progress', () => {
-        const percentage = 95;
-        let description = '';
-
-        if (percentage < 25) description = 'The journey has begun!';
-        else if (percentage < 50) description = 'Making steady progress!';
-        else if (percentage < 75) description = 'More than halfway there!';
-        else if (percentage < 90) description = 'The finish line is in sight!';
-        else description = 'Almost there! So close!';
-
-        assert.strictEqual(description, 'Almost there! So close!',
+        assert.strictEqual(Calc.progressDescription(95), 'Almost there! So close!',
             'Should show correct message for near completion');
     });
 });
@@ -977,13 +922,15 @@ describe('INTEGRATION TESTS - Progress Description Updates', () => {
 
 describe('PERFORMANCE TESTS - Optimization Validation', () => {
     test('Should use math calculations instead of loops for metrics', () => {
-        const totalDays = 365;
-        const fullWeeks = Math.floor(totalDays / 7);
-        const workDays = fullWeeks * 5;
+        // Monday Jan 5 2026 + 364 days = 52 full weeks
+        const start = new Date('2026-01-05T00:00:00');
+        const end = new Date(start);
+        end.setDate(end.getDate() + 364);
 
-        // This is O(1) constant time, not O(n) loop
-        assert.strictEqual(typeof workDays, 'number', 'Should calculate in constant time');
-        assert.strictEqual(workDays, 260, 'Should calculate 260 workdays in 52 weeks');
+        const counts = Calc.computeWorkweekCounts(start, end);
+
+        assert.strictEqual(counts.totalDays, 364);
+        assert.strictEqual(counts.workDays, 260, 'Should calculate 260 workdays in 52 weeks');
     });
 
     test('Should cache milestone DOM to avoid rebuilding every second', () => {
@@ -999,6 +946,202 @@ describe('PERFORMANCE TESTS - Optimization Validation', () => {
 
         assert.strictEqual(shouldUpdate1, true, 'Should update on first call');
         assert.strictEqual(shouldUpdate2, false, 'Should skip update when days unchanged');
+    });
+});
+
+// =============================================================================
+// COUNT-UP TESTS
+// =============================================================================
+
+describe('COUNT-UP - Mode detection', () => {
+    test('Should be countdown when the target is in the future', () => {
+        assert.strictEqual(Calc.getMode(new Date('2026-01-01T00:00:00'), new Date('2026-02-27T16:00:00')), 'countdown');
+    });
+
+    test('Should be countup when the target is in the past', () => {
+        assert.strictEqual(Calc.getMode(new Date('2026-09-06T10:00:00'), new Date('2026-02-27T16:00:00')), 'countup');
+    });
+
+    test('Should be countup at the exact moment of retirement', () => {
+        const moment = new Date('2026-02-27T16:00:00');
+        assert.strictEqual(Calc.getMode(moment, new Date(moment)), 'countup');
+    });
+});
+
+describe('COUNT-UP - Elapsed time', () => {
+    const retirement = new Date('2026-02-27T16:00:00');
+
+    test('Should count calendar days, not floor of milliseconds', () => {
+        // 10:00 is before the 16:00 retirement time, but it is still the 191st day
+        assert.strictEqual(Calc.computeElapsedDays(new Date('2026-09-06T10:00:00'), retirement), 191);
+        assert.strictEqual(Calc.computeElapsedDays(new Date('2026-09-06T23:00:00'), retirement), 191);
+    });
+
+    test('Should report zero days on retirement day itself', () => {
+        assert.strictEqual(Calc.computeElapsedDays(new Date('2026-02-27T20:00:00'), retirement), 0);
+    });
+
+    test('Should never go negative', () => {
+        assert.strictEqual(Calc.computeElapsedDays(new Date('2026-01-01T00:00:00'), retirement), 0);
+    });
+
+    test('Should break 191 days into 6 months and 10 days', () => {
+        assert.deepStrictEqual(Calc.computeMonthsDays(retirement, new Date('2026-09-06T10:00:00')), { months: 6, days: 10 });
+    });
+
+    test('Should clamp month ends (Jan 31 + 1 month = Feb 28)', () => {
+        assert.deepStrictEqual(Calc.computeMonthsDays(new Date('2026-01-31T00:00:00'), new Date('2026-03-01T00:00:00')), { months: 1, days: 1 });
+    });
+
+    test('Should return zero months and days on the same day', () => {
+        assert.deepStrictEqual(Calc.computeMonthsDays(retirement, new Date('2026-02-27T18:00:00')), { months: 0, days: 0 });
+    });
+
+    test('Should not count a month until the same day-of-month arrives', () => {
+        assert.deepStrictEqual(Calc.computeMonthsDays(retirement, new Date('2026-03-26T08:00:00')), { months: 0, days: 27 });
+        assert.deepStrictEqual(Calc.computeMonthsDays(retirement, new Date('2026-03-27T08:00:00')), { months: 1, days: 0 });
+    });
+
+    test('Should format months and days with correct plurals', () => {
+        assert.strictEqual(Calc.formatMonthsDays({ months: 6, days: 10 }), '6 months, 10 days');
+        assert.strictEqual(Calc.formatMonthsDays({ months: 1, days: 1 }), '1 month, 1 day');
+        assert.strictEqual(Calc.formatMonthsDays({ months: 0, days: 3 }), '3 days');
+        assert.strictEqual(Calc.formatMonthsDays({ months: 0, days: 0 }), '0 days');
+    });
+});
+
+describe('COUNT-UP - Freedom metrics', () => {
+    // Retired Friday Feb 27; two weeks later is Friday Mar 13.
+    // Window counted: Sat Feb 28 through Fri Mar 13 = 14 days.
+    const retirement = new Date('2026-02-27T16:00:00');
+    const metrics = Calc.computeFunMetrics(new Date('2026-03-13T09:00:00'), retirement, 'countup');
+
+    test('Should count the day after retirement through today', () => {
+        assert.strictEqual(metrics.days, 14);
+        assert.strictEqual(metrics.sleeps, 14);
+        assert.strictEqual(metrics.sunrises, 14, 'Sunrises equal days in count-up mode');
+    });
+
+    test('Should count weekends, workdays and Mondays that were skipped', () => {
+        assert.strictEqual(metrics.weekends, 2);
+        assert.strictEqual(metrics.workDays, 10);
+        assert.strictEqual(metrics.workHours, 80);
+        assert.strictEqual(metrics.mondays, 2);
+    });
+
+    test('Should treat every day as Friday', () => {
+        assert.strictEqual(metrics.fridays, 14);
+    });
+
+    test('Should derive commute, meeting and alarm counts from workdays', () => {
+        assert.strictEqual(Calc.COMMUTES_PER_WORKDAY, 2);
+        assert.strictEqual(Calc.COMMUTE_MINUTES_EACH_WAY, 30);
+        assert.strictEqual(Calc.MEETINGS_PER_WORKDAY, 3);
+        assert.strictEqual(Calc.ALARMS_PER_WORKDAY, 1);
+        assert.strictEqual(metrics.commutes, 20);
+        assert.strictEqual(metrics.commuteHours, 10);
+        assert.strictEqual(metrics.meetings, 30);
+        assert.strictEqual(metrics.alarms, 10);
+    });
+
+    test('Should be all zeros on retirement day', () => {
+        const dayZero = Calc.computeFunMetrics(new Date('2026-02-27T20:00:00'), retirement, 'countup');
+        ['days', 'weekends', 'workDays', 'workHours', 'mondays', 'fridays', 'commutes', 'meetings', 'alarms'].forEach(key => {
+            assert.strictEqual(dayZero[key], 0, `${key} should be 0 on day zero`);
+        });
+    });
+});
+
+describe('COUNT-UP - Milestones', () => {
+    const states = Calc.milestoneStates(191, Calc.COUNTUP_MILESTONES, 'countup');
+    const byThreshold = t => states.find(m => m.threshold === t);
+
+    test('Should list count-up milestones in ascending order', () => {
+        const thresholds = Calc.COUNTUP_MILESTONES.map(m => m.threshold);
+        const sorted = thresholds.slice().sort((a, b) => a - b);
+        assert.deepStrictEqual(thresholds, sorted, 'COUNTUP_MILESTONES must be ascending');
+        assert.deepStrictEqual(thresholds, [7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652]);
+    });
+
+    test('Should mark passed milestones as achieved at 191 days', () => {
+        [7, 30, 100, 182].forEach(t => {
+            assert.strictEqual(byThreshold(t).state, 'achieved', `${t} days should be achieved`);
+            assert.strictEqual(byThreshold(t).displayIcon, '✅');
+        });
+    });
+
+    test('Should mark only the next milestone as active', () => {
+        assert.strictEqual(byThreshold(365).state, 'active');
+        assert.strictEqual(byThreshold(365).displayIcon, '🎂');
+        assert.strictEqual(states.filter(m => m.state === 'active').length, 1, 'Exactly one active milestone');
+    });
+
+    test('Should lock everything after the next milestone', () => {
+        [500, 730, 1000, 1095, 1826, 3652].forEach(t => {
+            assert.strictEqual(byThreshold(t).state, 'locked', `${t} days should be locked`);
+        });
+    });
+
+    test('Should measure progress from the previous milestone to the next', () => {
+        const progress = Calc.nextMilestoneProgress(191, Calc.COUNTUP_MILESTONES);
+        assert.strictEqual(progress.prev, 182);
+        assert.strictEqual(progress.next, 365);
+        assert.strictEqual(progress.nextMilestone.text, 'One Year');
+        assert.ok(Math.abs(progress.percentage - 4.918) < 0.01, `Expected ~4.9%, got ${progress.percentage}`);
+        assert.strictEqual(progress.complete, false);
+    });
+
+    test('Should start from zero before the first milestone', () => {
+        const progress = Calc.nextMilestoneProgress(0, Calc.COUNTUP_MILESTONES);
+        assert.strictEqual(progress.prev, 0);
+        assert.strictEqual(progress.next, 7);
+        assert.strictEqual(progress.percentage, 0);
+    });
+
+    test('Should report completion after the last milestone', () => {
+        const progress = Calc.nextMilestoneProgress(5000, Calc.COUNTUP_MILESTONES);
+        assert.strictEqual(progress.complete, true);
+        assert.strictEqual(progress.next, null);
+        assert.strictEqual(progress.percentage, 100);
+    });
+
+    test('Should detect a milestone crossing exactly once', () => {
+        assert.strictEqual(Calc.crossedMilestone(181, 182, 'countup'), 182, 'Crossing into 182 fires');
+        assert.strictEqual(Calc.crossedMilestone(182, 183, 'countup'), null, 'Day after does not fire again');
+        assert.strictEqual(Calc.crossedMilestone(null, 182, 'countup'), null, 'First tick never fires');
+        assert.strictEqual(Calc.crossedMilestone(182, 182, 'countup'), null, 'Same day never fires');
+    });
+});
+
+describe('COUNT-UP - Comparisons', () => {
+    test('Should list comparisons in ascending order', () => {
+        const days = Calc.COMPARISONS.map(c => c.days);
+        assert.deepStrictEqual(days, days.slice().sort((a, b) => a - b));
+    });
+
+    test('Should unlock comparisons shorter than the days retired', () => {
+        const { unlocked, next } = Calc.comparisonsUnlocked(191);
+        const labels = unlocked.map(c => c.label);
+        assert.ok(labels.includes('a school semester'));
+        assert.ok(labels.includes('an NFL regular season'));
+        assert.ok(!labels.includes('a one-way trip to Mars'), 'Mars is still ahead at 191 days');
+        assert.strictEqual(next.label, 'a one-way trip to Mars');
+    });
+
+    test('Should honor the limit and keep the most recent unlocks', () => {
+        const { unlocked } = Calc.comparisonsUnlocked(400, Calc.COMPARISONS, 2);
+        assert.deepStrictEqual(unlocked.map(c => c.days), [280, 365]);
+    });
+
+    test('Should return nothing unlocked on day zero', () => {
+        const { unlocked, next } = Calc.comparisonsUnlocked(0);
+        assert.strictEqual(unlocked.length, 0);
+        assert.strictEqual(next.days, 90);
+    });
+
+    test('Should report no next comparison after the last one', () => {
+        const { next } = Calc.comparisonsUnlocked(10000);
+        assert.strictEqual(next, null);
     });
 });
 
@@ -1033,6 +1176,11 @@ describe('BUSINESS SITE - HTML Structure', () => {
     test('Should have a link to the countdown page', () => {
         assert.ok(indexHtml.includes('/countdown/index.html'),
             'Should link to the countdown page');
+    });
+
+    test('Should describe the countdown link as time since retirement', () => {
+        assert.ok(indexHtml.includes("See how long I've been retired"),
+            'Footer link should say "See how long I\'ve been retired"');
     });
 
     test('Should have a mailto link', () => {
@@ -1079,9 +1227,53 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             'Should reference local styles.css');
     });
 
-    test('Countdown page should reference its own script.js', () => {
-        assert.ok(countdownHtml.includes('src="script.js"'),
-            'Should reference local script.js');
+    test('Countdown page should load calc.js before script.js', () => {
+        const calcIndex = countdownHtml.indexOf('src="calc.js"');
+        const scriptIndex = countdownHtml.indexOf('src="script.js"');
+        assert.ok(calcIndex > -1, 'Should reference local calc.js');
+        assert.ok(scriptIndex > -1, 'Should reference local script.js');
+        assert.ok(calcIndex < scriptIndex, 'calc.js must load before script.js');
+    });
+
+    test('Countdown page should have count-up sections', () => {
+        assert.ok(countdownHtml.includes('data-mode="countup"'), 'Should mark count-up sections');
+        assert.ok(countdownHtml.includes('data-mode="countdown"'), 'Should mark countdown sections');
+        assert.ok(countdownHtml.includes('id="countup-days"'), 'Should have the count-up hero number');
+        assert.ok(countdownHtml.includes('id="comparisons"'), 'Should have the comparisons list');
+        assert.ok(countdownHtml.includes('id="personal-section"'), 'Should have the personal stats section');
+    });
+
+    test('Countdown page should collapse the date setter behind a details element', () => {
+        assert.ok(countdownHtml.includes('<details'), 'Date setter should be inside <details>');
+        assert.ok(countdownHtml.includes('id="retirement-date"'), 'Date input should remain');
+        assert.ok(countdownHtml.includes('id="reset-date"'), 'Reset button should exist');
+    });
+
+    test('Countdown page should have a static celebration overlay', () => {
+        assert.ok(countdownHtml.includes('id="celebration"'), 'Celebration overlay should be in the markup');
+        assert.ok(countdownHtml.includes('id="celebration-continue"'), 'Celebration should have a Continue button');
+    });
+
+    test('Countdown page should not use inline scripts (CSP)', () => {
+        const inlineScript = /<script(?![^>]*\bsrc=)[^>]*>/i;
+        assert.ok(!inlineScript.test(countdownHtml), 'No inline <script> blocks allowed under CSP');
+    });
+});
+
+describe('BUSINESS SITE - Personal stats file', () => {
+    const fs = require('fs');
+    const raw = fs.readFileSync(path.join(__dirname, 'countdown', 'stats.json'), 'utf8');
+    const stats = JSON.parse(raw);
+
+    test('stats.json should have the four personal counters as non-negative integers', () => {
+        ['trips', 'books', 'projects', 'naps'].forEach(key => {
+            assert.strictEqual(typeof stats[key], 'number', `${key} should be a number`);
+            assert.ok(Number.isInteger(stats[key]) && stats[key] >= 0, `${key} should be a non-negative integer`);
+        });
+    });
+
+    test('stats.json should carry an ISO date in "updated"', () => {
+        assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(stats.updated), 'updated should look like YYYY-MM-DD');
     });
 });
 

@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Kyle's retirement countdown timer - tracking the journey to freedom">
-    <title>Kyle's Countdown to Retirement</title>
+    <meta name="description" content="Kyle's retirement clock - counting the days since retirement, or the days until it if you set your own date">
+    <title>Kyle's Retirement Clock</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
-<body>
+<body class="mode-countdown">
     <!-- Skip Navigation Link -->
     <a href="#main-content" class="skip-link">Skip to main content</a>
 
@@ -19,7 +19,10 @@
     <div class="stars" aria-hidden="true"></div>
 
     <!-- Animated Hourglass (Decorative) -->
-    <div class="hourglass-container" role="img" aria-label="Animated hourglass showing retirement countdown progress">
+    <div class="hourglass-container" id="hourglass-container" role="img"
+         aria-label="Animated hourglass showing retirement countdown progress"
+         data-aria-countdown="Animated hourglass showing retirement countdown progress"
+         data-aria-countup="Animated hourglass showing progress toward the next retirement milestone">
         <div class="hourglass" aria-hidden="true">
             <div class="hourglass-frame-top"></div>
             <div class="hourglass-top-bulb">
@@ -52,7 +55,10 @@
     </div>
 
     <!-- Animated Thermometer (Decorative) -->
-    <div class="thermometer-container" role="img" aria-label="Thermometer displaying days remaining until retirement">
+    <div class="thermometer-container" id="thermometer-container" role="img"
+         aria-label="Thermometer displaying days remaining until retirement"
+         data-aria-countdown="Thermometer displaying days remaining until retirement"
+         data-aria-countup="Thermometer displaying days retired and the next milestone">
         <div class="thermometer" aria-hidden="true">
             <div class="thermometer-tube">
                 <div class="thermometer-liquid" id="thermometer-liquid">
@@ -72,6 +78,8 @@
                     <div class="marking" data-days="30"><span>30</span></div>
                     <div class="marking" data-days="7"><span>7</span></div>
                     <div class="marking major" data-days="0"><span>0</span></div>
+                    <div class="marking major countup-marking" data-mark="next"><span id="thermo-next-label">365</span></div>
+                    <div class="marking major countup-marking" data-mark="prev"><span id="thermo-prev-label">0</span></div>
                 </div>
             </div>
             <div class="thermometer-bulb">
@@ -85,28 +93,35 @@
 
     <main id="main-content" class="container">
         <header>
-            <h1 class="title">Kyle's Countdown to Retirement</h1>
-            <p class="subtitle">The Journey to Freedom Begins...</p>
+            <h1 class="title" id="page-title">Kyle's Countdown to Retirement</h1>
+            <p class="subtitle" id="page-subtitle">The Journey to Freedom Begins...</p>
         </header>
 
         <section aria-labelledby="date-settings-heading">
             <h2 id="date-settings-heading" class="sr-only">Retirement Date Settings</h2>
-            <div class="date-setter">
-                <label for="retirement-date">
-                    <span aria-hidden="true">🎯</span> Retirement Date:
-                </label>
-                <input
-                    type="datetime-local"
-                    id="retirement-date"
-                    value="2026-02-27T16:00"
-                    aria-describedby="date-format-hint"
-                >
-                <span id="date-format-hint" class="sr-only">Select your target retirement date and time</span>
-                <button id="update-date" aria-label="Update retirement date">Update Date</button>
-            </div>
+            <details class="date-setter-details" id="date-setter-details">
+                <summary id="date-setter-summary"
+                         data-text-countdown="Change your retirement date"
+                         data-text-countup="Not retired yet? Set your date">Not retired yet? Set your date</summary>
+                <div class="date-setter">
+                    <label for="retirement-date">
+                        <span aria-hidden="true">🎯</span> Retirement Date:
+                    </label>
+                    <input
+                        type="datetime-local"
+                        id="retirement-date"
+                        value="2026-02-27T16:00"
+                        min="1950-01-01T00:00"
+                        aria-describedby="date-format-hint"
+                    >
+                    <span id="date-format-hint" class="sr-only">Select your retirement date and time. Past dates count up, future dates count down.</span>
+                    <button id="update-date" type="button" aria-label="Update retirement date">Update Date</button>
+                    <button id="reset-date" type="button" class="reset-link" aria-label="Reset to the default retirement date">Reset to default</button>
+                </div>
+            </details>
         </section>
 
-        <section aria-labelledby="countdown-heading">
+        <section data-mode="countdown" aria-labelledby="countdown-heading">
             <h2 id="countdown-heading" class="sr-only">Countdown Timer</h2>
             <div class="main-countdown" role="timer" aria-label="Time remaining until retirement">
                 <div class="countdown-item large">
@@ -128,7 +143,7 @@
             </div>
         </section>
 
-        <section aria-labelledby="alternate-views-heading">
+        <section data-mode="countdown" aria-labelledby="alternate-views-heading">
             <h2 id="alternate-views-heading" class="sr-only">Alternate Time Views</h2>
             <div class="alternate-views">
                 <div class="countdown-item">
@@ -146,54 +161,130 @@
             </div>
         </section>
 
+        <section data-mode="countup" hidden aria-labelledby="countup-heading">
+            <h2 id="countup-heading" class="sr-only">Time Since Retirement</h2>
+            <div class="countup-hero" role="status" aria-live="polite" aria-atomic="true">
+                <span class="countup-days" id="countup-days">0</span>
+                <span class="countup-label">days retired</span>
+                <p class="countup-breakdown" id="countup-breakdown"></p>
+            </div>
+        </section>
+
         <section aria-labelledby="metrics-heading">
             <h2 id="metrics-heading" class="sr-only">Retirement Metrics</h2>
             <div class="fun-metrics">
                 <div class="metric-card" role="article" aria-labelledby="weekends-label">
                     <div class="metric-icon" aria-hidden="true">🎉</div>
                     <div class="metric-value" id="weekends">0</div>
-                    <div class="metric-label" id="weekends-label">Weekends Left</div>
+                    <div class="metric-label" id="weekends-label"
+                         data-text-countdown="Weekends Left"
+                         data-text-countup="Weekends enjoyed">Weekends Left</div>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="work-days-label">
                     <div class="metric-icon" aria-hidden="true">☕</div>
                     <div class="metric-value" id="work-days">0</div>
-                    <div class="metric-label" id="work-days-label">Work Days Remaining</div>
+                    <div class="metric-label" id="work-days-label"
+                         data-text-countdown="Work Days Remaining"
+                         data-text-countup="Workdays skipped">Work Days Remaining</div>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="work-hours-label">
                     <div class="metric-icon" aria-hidden="true">⏰</div>
                     <div class="metric-value" id="work-hours">0</div>
-                    <div class="metric-label" id="work-hours-label">Work Hours Remaining</div>
+                    <div class="metric-label" id="work-hours-label"
+                         data-text-countdown="Work Hours Remaining"
+                         data-text-countup="Work hours reclaimed">Work Hours Remaining</div>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="sleeps-label">
                     <div class="metric-icon" aria-hidden="true">🌙</div>
                     <div class="metric-value" id="sleeps">0</div>
-                    <div class="metric-label" id="sleeps-label">Sleeps Until Freedom</div>
+                    <div class="metric-label" id="sleeps-label"
+                         data-text-countdown="Sleeps Until Freedom"
+                         data-text-countup="Nights of freedom">Sleeps Until Freedom</div>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="sunrises-label">
                     <div class="metric-icon" aria-hidden="true">☀️</div>
                     <div class="metric-value" id="sunrises">0</div>
-                    <div class="metric-label" id="sunrises-label">Sunrises to Go</div>
+                    <div class="metric-label" id="sunrises-label"
+                         data-text-countdown="Sunrises to Go"
+                         data-text-countup="Sunrises enjoyed">Sunrises to Go</div>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="mondays-label">
                     <div class="metric-icon" aria-hidden="true">📅</div>
                     <div class="metric-value" id="mondays">0</div>
-                    <div class="metric-label" id="mondays-label">Mondays Left to Endure</div>
+                    <div class="metric-label" id="mondays-label"
+                         data-text-countdown="Mondays Left to Endure"
+                         data-text-countup="Mondays dodged">Mondays Left to Endure</div>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="fridays-label">
                     <div class="metric-icon" aria-hidden="true">🎊</div>
                     <div class="metric-value" id="fridays">0</div>
-                    <div class="metric-label" id="fridays-label">Fridays to Celebrate</div>
+                    <div class="metric-label" id="fridays-label"
+                         data-text-countdown="Fridays to Celebrate"
+                         data-text-countup="Fridays (every day now)">Fridays to Celebrate</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="commutes-label" data-mode="countup" hidden>
+                    <div class="metric-icon" aria-hidden="true">🚗</div>
+                    <div class="metric-value" id="commutes">0</div>
+                    <div class="metric-label" id="commutes-label">Commutes avoided</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="commute-hours-label" data-mode="countup" hidden>
+                    <div class="metric-icon" aria-hidden="true">🛣️</div>
+                    <div class="metric-value" id="commute-hours">0</div>
+                    <div class="metric-label" id="commute-hours-label">Commute hours reclaimed</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="meetings-label" data-mode="countup" hidden>
+                    <div class="metric-icon" aria-hidden="true">🗓️</div>
+                    <div class="metric-value" id="meetings">0</div>
+                    <div class="metric-label" id="meetings-label">Meetings skipped</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="alarms-label" data-mode="countup" hidden>
+                    <div class="metric-icon" aria-hidden="true">🔕</div>
+                    <div class="metric-value" id="alarms">0</div>
+                    <div class="metric-label" id="alarms-label">Alarms not set</div>
                 </div>
             </div>
+        </section>
+
+        <section class="comparisons-section" id="comparisons-section" data-mode="countup" hidden aria-labelledby="comparisons-heading">
+            <h2 id="comparisons-heading">Retired longer than...</h2>
+            <ul id="comparisons" class="comparisons-list"></ul>
+            <p id="comparisons-next" class="comparisons-next"></p>
+        </section>
+
+        <section class="personal-section" id="personal-section" data-mode="countup" hidden aria-labelledby="personal-heading">
+            <h2 id="personal-heading">Since then</h2>
+            <div class="fun-metrics personal-metrics">
+                <div class="metric-card" role="article" aria-labelledby="stat-trips-label" id="stat-trips-card">
+                    <div class="metric-icon" aria-hidden="true">🧳</div>
+                    <div class="metric-value" id="stat-trips">0</div>
+                    <div class="metric-label" id="stat-trips-label">Trips taken</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="stat-books-label" id="stat-books-card">
+                    <div class="metric-icon" aria-hidden="true">📚</div>
+                    <div class="metric-value" id="stat-books">0</div>
+                    <div class="metric-label" id="stat-books-label">Books read</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="stat-projects-label" id="stat-projects-card">
+                    <div class="metric-icon" aria-hidden="true">🛠️</div>
+                    <div class="metric-value" id="stat-projects">0</div>
+                    <div class="metric-label" id="stat-projects-label">Projects shipped</div>
+                </div>
+                <div class="metric-card" role="article" aria-labelledby="stat-naps-label" id="stat-naps-card">
+                    <div class="metric-icon" aria-hidden="true">😴</div>
+                    <div class="metric-value" id="stat-naps">0</div>
+                    <div class="metric-label" id="stat-naps-label">Naps taken</div>
+                </div>
+            </div>
+            <p class="stats-updated" id="stats-updated"></p>
         </section>
 
         <section class="progress-section" aria-labelledby="progress-heading">
             <h2 id="progress-heading">Journey to Freedom</h2>
             <div class="progress-timeline">
-                <div class="timeline-marker start" role="img" aria-label="Start: Day One, October 1, 2018">
-                    <div class="marker-icon" aria-hidden="true">🚀</div>
+                <div class="timeline-marker start" id="start-marker" role="img" aria-label="Start: Day One, October 1, 2018">
+                    <div class="marker-icon" id="start-icon" aria-hidden="true">🚀</div>
                     <div class="marker-date" id="start-date">Oct 1, 2018</div>
-                    <div class="marker-label">Day One</div>
+                    <div class="marker-label" id="start-label">Day One</div>
                 </div>
                 <div
                     class="progress-bar"
@@ -207,17 +298,19 @@
                     <div class="progress-fill" id="progress-fill"></div>
                     <span class="progress-text" id="progress-text">0%</span>
                 </div>
-                <div class="timeline-marker end" role="img" aria-label="End: Freedom Day">
-                    <div class="marker-icon" aria-hidden="true">🏝️</div>
+                <div class="timeline-marker end" id="end-marker" role="img" aria-label="End: Freedom Day">
+                    <div class="marker-icon" id="end-icon" aria-hidden="true">🏝️</div>
                     <div class="marker-date" id="end-date">Feb 27, 2026</div>
-                    <div class="marker-label">Freedom Day</div>
+                    <div class="marker-label" id="end-label">Freedom Day</div>
                 </div>
             </div>
             <p class="progress-description" id="progress-description" role="status" aria-live="polite"></p>
         </section>
 
         <section class="milestone-section" aria-labelledby="milestones-heading">
-            <h2 id="milestones-heading"><span aria-hidden="true">🏆</span> Milestones Journey</h2>
+            <h2 id="milestones-heading"><span aria-hidden="true">🏆</span> <span id="milestones-heading-text"
+                data-text-countdown="Milestones Journey"
+                data-text-countup="Retirement Milestones">Milestones Journey</span></h2>
             <div class="milestones-container">
                 <div class="milestone-timeline-line" aria-hidden="true"></div>
                 <div id="milestones" role="list" aria-label="Milestone achievements"></div>
@@ -230,8 +323,19 @@
         </section>
     </main>
 
+    <!-- Celebration overlay: shown only when a countdown reaches zero while the page is open -->
+    <section id="celebration" class="celebration" hidden tabindex="-1" aria-labelledby="celebration-title">
+        <h1 class="celebration-title" id="celebration-title">CONGRATULATIONS!</h1>
+        <h2 class="celebration-subtitle">YOU'RE OFFICIALLY RETIRED!</h2>
+        <p class="celebration-message">Welcome to the best chapter of your life!</p>
+        <div class="celebration-emoji" aria-hidden="true">🥳🍾🎈🌟✨🎆</div>
+        <button id="celebration-continue" class="reset-button" type="button">Continue</button>
+        <p class="sr-only" role="alert" id="celebration-alert"></p>
+    </section>
+
     <div id="confetti-container" aria-hidden="true"></div>
 
+    <script src="calc.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

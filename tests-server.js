@@ -697,6 +697,38 @@ async function runSubdirectoryTests() {
                 'Should have correct content type');
         });
 
+        await test('Should serve countdown calc.js module', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown/calc.js',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200,
+                'Should serve countdown calc.js');
+            assert.strictEqual(res.headers['content-type'], 'text/javascript',
+                'Should have correct content type');
+        });
+
+        await test('Should serve countdown stats.json as JSON', async () => {
+            const { res, data } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/countdown/stats.json',
+                method: 'GET'
+            });
+
+            assert.strictEqual(res.statusCode, 200,
+                'Should serve stats.json');
+            assert.strictEqual(res.headers['content-type'], 'application/json',
+                'Should have JSON content type');
+
+            const stats = JSON.parse(data);
+            assert.strictEqual(typeof stats.trips, 'number',
+                'stats.json should include a numeric trips counter');
+        });
+
         await test('Should block path traversal from countdown subdirectory', async () => {
             const { res } = await makeRequest({
                 hostname: TEST_HOST,

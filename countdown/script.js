@@ -1,17 +1,96 @@
-// Retirement date management
-let retirementDate = new Date('2026-02-27T16:00:00');
+/**
+ * Retirement clock - dual mode page logic.
+ *
+ * Countdown mode: target date in the future (days / hours / minutes / seconds).
+ * Count-up mode:  target date in the past (days retired, freedom metrics).
+ *
+ * All date math lives in calc.js (window.RetirementCalc). This file only
+ * touches the DOM.
+ */
+const Calc = window.RetirementCalc;
 
-// Shared constants to avoid duplication
-const EMPLOYMENT_START_DATE = new Date('2018-10-01T00:00:00');
+// Retirement date management
+let retirementDate = new Date(Calc.DEFAULT_RETIREMENT_ISO);
+
 const MAX_CONFETTI_ELEMENTS = 200;
 const CELEBRATION_CONFETTI_DURATION = 30000; // Stop confetti after 30 seconds
+const CELEBRATION_CONFETTI_INTERVAL = 300;
 
-// Store interval references for cleanup
-let countdownInterval = null;
-let milestoneInterval = null;
+// State
+let currentMode = null;          // 'countdown' | 'countup'
+let celebrating = false;
+let lastCountdownDays = null;    // confetti tracking (countdown)
+let lastCountupDays = null;      // render + confetti tracking (count-up)
+let lastMilestoneDays = null;    // milestone DOM cache
+let personalStatsRequested = false;
+
+// Interval / timeout handles for cleanup
+let tickInterval = null;
 let celebrationConfettiInterval = null;
+let celebrationTimeout = null;
 
-// Load saved date from localStorage with error handling
+const METRIC_ELEMENT_IDS = {
+    weekends: 'weekends',
+    workDays: 'work-days',
+    workHours: 'work-hours',
+    sleeps: 'sleeps',
+    sunrises: 'sunrises',
+    mondays: 'mondays',
+    fridays: 'fridays',
+    commutes: 'commutes',
+    commuteHours: 'commute-hours',
+    meetings: 'meetings',
+    alarms: 'alarms'
+};
+
+const COUNTDOWN_QUOTES = [
+    "Every day brings you closer to your dream!",
+    "You've worked hard for this moment!",
+    "The best is yet to come!",
+    "Soon you'll have all the time in the world!",
+    "Freedom is just around the corner!",
+    "New adventures await!",
+    "Your well-deserved break is coming!",
+    "Get ready to spread your wings!",
+    "Paradise is calling your name!",
+    "You're crushing this countdown!"
+];
+
+const COUNTUP_QUOTES = [
+    "No alarm tomorrow either.",
+    "The calendar is yours now.",
+    "Slow mornings are the whole point.",
+    "Every sunrise on your own schedule.",
+    "Time well earned, spent well.",
+    "The best chapter, one day at a time.",
+    "Nothing due. Nowhere to be.",
+    "Rest is not a reward. It's the plan.",
+    "Today is whatever you make it.",
+    "Still retired. Still good."
+];
+
+const DATE_OPTIONS_SHORT = { year: 'numeric', month: 'short', day: 'numeric' };
+const DATE_OPTIONS_LONG = { year: 'numeric', month: 'long', day: 'numeric' };
+
+// ----------------------------------------------------------------------
+// Small DOM helpers
+// ----------------------------------------------------------------------
+function byId(id) {
+    return document.getElementById(id);
+}
+
+function setText(id, text) {
+    const el = byId(id);
+    if (el) el.textContent = text;
+}
+
+function formatNumber(value) {
+    return Number(value).toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+// ----------------------------------------------------------------------
+// Saved date handling
+// ----------------------------------------------------------------------
 function loadSavedDate() {
     try {
         const savedDate = localStorage.getItem('retirementDate');
@@ -24,12 +103,13 @@ function loadSavedDate() {
                 return;
             }
             retirementDate = parsedDate;
-            document.getElementById('retirement-date').value = formatDateForInput(retirementDate);
         }
     } catch (error) {
         console.warn('Unable to access localStorage:', error);
         showNotification('Unable to load saved date');
     }
+    const input = byId('retirement-date');
+    if (input) input.value = formatDateForInput(retirementDate);
 }
 
 function formatDateForInput(date) {
@@ -42,39 +122,16 @@ function formatDateForInput(date) {
 }
 
 // Update retirement date with validation
-document.getElementById('update-date').addEventListener('click', () => {
-    const newDateValue = document.getElementById('retirement-date').value;
+byId('update-date').addEventListener('click', () => {
+    const newDateValue = byId('retirement-date').value;
+    const result = Calc.validateDateInput(newDateValue, new Date());
 
-    // Validate input is not empty
-    if (!newDateValue) {
-        showNotification('Please select a valid date');
+    if (!result.ok) {
+        showNotification(result.error);
         return;
     }
 
-    const newDate = new Date(newDateValue);
-
-    // Validate date is valid
-    if (isNaN(newDate.getTime())) {
-        showNotification('Invalid date format');
-        return;
-    }
-
-    // Validate date is in the future
-    const now = new Date();
-    if (newDate <= now) {
-        showNotification('Retirement date must be in the future');
-        return;
-    }
-
-    // Validate date is not too far in the future (50 years max)
-    const maxDate = new Date();
-    maxDate.setFullYear(maxDate.getFullYear() + 50);
-    if (newDate > maxDate) {
-        showNotification('Date cannot be more than 50 years in the future');
-        return;
-    }
-
-    retirementDate = newDate;
+    retirementDate = result.date;
 
     // Save to localStorage with error handling
     try {
@@ -84,257 +141,304 @@ document.getElementById('update-date').addEventListener('click', () => {
         showNotification('Date updated but could not be saved');
     }
 
+    // A freshly set date never triggers the celebration; jump straight to its mode
+    currentMode = null;
+    resetTrackers();
     createConfetti();
     showNotification('Retirement date updated!');
-    updateCountdown();
+    tick();
 });
 
-// Countdown calculations
-function updateCountdown() {
-    const now = new Date();
-    const diff = retirementDate - now;
+byId('reset-date').addEventListener('click', resetCountdown);
+byId('celebration-continue').addEventListener('click', endCelebration);
 
-    if (diff <= 0) {
+function resetTrackers() {
+    lastCountdownDays = null;
+    lastCountupDays = null;
+    lastMilestoneDays = null;
+}
+
+function resetCountdown() {
+    clearAllIntervals();
+
+    try {
+        localStorage.removeItem('retirementDate');
+    } catch (error) {
+        console.warn('Unable to clear localStorage:', error);
+    }
+    location.reload();
+}
+
+function clearAllIntervals() {
+    if (tickInterval) clearInterval(tickInterval);
+    if (celebrationConfettiInterval) clearInterval(celebrationConfettiInterval);
+    if (celebrationTimeout) clearTimeout(celebrationTimeout);
+    tickInterval = null;
+    celebrationConfettiInterval = null;
+    celebrationTimeout = null;
+}
+
+// ----------------------------------------------------------------------
+// Mode switching
+// ----------------------------------------------------------------------
+function applyMode(mode) {
+    if (mode === currentMode) return;
+    currentMode = mode;
+    resetTrackers();
+
+    document.body.classList.toggle('mode-countdown', mode === 'countdown');
+    document.body.classList.toggle('mode-countup', mode === 'countup');
+
+    // Show / hide mode-specific blocks
+    document.querySelectorAll('[data-mode]').forEach(el => {
+        el.hidden = el.dataset.mode !== mode;
+    });
+
+    // Swap per-mode text labels
+    document.querySelectorAll('[data-text-countdown]').forEach(el => {
+        const text = mode === 'countup' ? el.dataset.textCountup : el.dataset.textCountdown;
+        if (text) el.textContent = text;
+    });
+
+    // Swap per-mode aria labels on the decorative visuals
+    document.querySelectorAll('[data-aria-countdown]').forEach(el => {
+        const label = mode === 'countup' ? el.dataset.ariaCountup : el.dataset.ariaCountdown;
+        if (label) el.setAttribute('aria-label', label);
+    });
+
+    if (mode === 'countup') {
+        const since = retirementDate.toLocaleDateString('en-US', DATE_OPTIONS_LONG);
+        setText('page-title', `Retired Since ${since}`);
+        setText('page-subtitle', 'Every day is a Saturday now.');
+        document.title = `Retired Since ${since}`;
+        loadPersonalStats();
+    } else {
+        setText('page-title', "Kyle's Countdown to Retirement");
+        setText('page-subtitle', 'The Journey to Freedom Begins...');
+        document.title = "Kyle's Countdown to Retirement";
+    }
+}
+
+function tick() {
+    if (celebrating) return;
+
+    const now = new Date();
+    const mode = Calc.getMode(now, retirementDate);
+
+    // The only path to the celebration: a live countdown reaching zero
+    if (currentMode === 'countdown' && mode === 'countup') {
         celebrateRetirement();
         return;
     }
 
-    // Calculate time units
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    const weeks = Math.floor(days / 7);
-    const months = Math.floor(days / 30.44);
+    applyMode(mode);
 
-    // Update main countdown
-    document.getElementById('days').textContent = days;
-    document.getElementById('hours').textContent = hours % 24;
-    document.getElementById('minutes').textContent = minutes % 60;
-    document.getElementById('seconds').textContent = seconds % 60;
-
-    // Update alternate views
-    document.getElementById('months').textContent = months;
-    document.getElementById('weeks').textContent = weeks;
-    document.getElementById('total-hours').textContent = hours.toLocaleString();
-
-    // Calculate fun metrics (optimized - no loop)
-    updateFunMetrics(now, retirementDate, days);
-
-    // Calculate shared progress values once
-    const progressData = calculateProgress(now, retirementDate);
-
-    // Update progress bar
-    updateProgress(progressData);
-
-    // Update thermometer
-    updateThermometer(progressData, days);
-
-    // Update hourglass
-    updateHourglass(progressData, now, retirementDate);
-
-    // Update milestones (only when days change)
-    updateMilestones(days);
-
-    // Update motivation quote
-    updateMotivation(days);
+    if (mode === 'countdown') {
+        renderCountdown(now);
+    } else {
+        renderCountup(now);
+    }
 }
 
-// Shared progress calculation to avoid duplication
-function calculateProgress(now, retirement) {
-    const totalTime = retirement - EMPLOYMENT_START_DATE;
-    const elapsed = now - EMPLOYMENT_START_DATE;
-    const percentage = Math.max(0, Math.min(100, (elapsed / totalTime) * 100));
-    return { totalTime, elapsed, percentage };
+// ----------------------------------------------------------------------
+// Countdown rendering
+// ----------------------------------------------------------------------
+function renderCountdown(now) {
+    const parts = Calc.computeCountdownParts(now, retirementDate);
+
+    setText('days', parts.days);
+    setText('hours', parts.hoursRemainder);
+    setText('minutes', parts.minutesRemainder);
+    setText('seconds', parts.secondsRemainder);
+    setText('months', parts.months);
+    setText('weeks', parts.weeks);
+    setText('total-hours', parts.totalHours.toLocaleString());
+
+    renderMetrics(Calc.computeFunMetrics(now, retirementDate, 'countdown'));
+
+    const { percentage } = Calc.computeProgress(now, retirementDate);
+    renderProgressBar({
+        percentage,
+        heading: 'Journey to Freedom',
+        startIcon: '🚀',
+        startDate: Calc.EMPLOYMENT_START_DATE,
+        startLabel: 'Day One',
+        startAria: `Start: Day One, ${Calc.EMPLOYMENT_START_DATE.toLocaleDateString('en-US', DATE_OPTIONS_LONG)}`,
+        endIcon: '🏝️',
+        endDate: retirementDate,
+        endLabel: 'Freedom Day',
+        endAria: 'End: Freedom Day',
+        barAria: 'Journey to retirement progress',
+        description: Calc.progressDescription(percentage)
+    });
+    renderThermometer(percentage, parts.days);
+    renderHourglass(percentage, percentage.toFixed(1) + '% Complete');
+    renderMilestones(parts.days, 'countdown');
+    updateMotivation('countdown');
+
+    const crossed = Calc.crossedMilestone(lastCountdownDays, parts.days, 'countdown');
+    if (crossed !== null) {
+        createConfetti();
+        showNotification(`Milestone: ${crossed} days remaining!`);
+    }
+    lastCountdownDays = parts.days;
 }
 
-// Optimized fun metrics calculation using math instead of loops
-function updateFunMetrics(now, retirement, days) {
-    const startDate = new Date(now);
-    startDate.setHours(0, 0, 0, 0);
+// ----------------------------------------------------------------------
+// Count-up rendering
+// ----------------------------------------------------------------------
+function renderCountup(now) {
+    updateMotivation('countup');
 
-    const endDate = new Date(retirement);
-    endDate.setHours(0, 0, 0, 0);
+    const days = Calc.computeElapsedDays(now, retirementDate);
+    if (days === lastCountupDays) return; // nothing changes until midnight
 
-    // Calculate total days
-    const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    setText('countup-days', days.toLocaleString());
+    setText('countup-breakdown', Calc.formatMonthsDays(Calc.computeMonthsDays(retirementDate, now)));
 
-    if (totalDays <= 0) {
-        document.getElementById('weekends').textContent = '0';
-        document.getElementById('work-days').textContent = '0';
-        document.getElementById('work-hours').textContent = '0';
-        document.getElementById('sleeps').textContent = '0';
-        document.getElementById('sunrises').textContent = '0';
-        document.getElementById('mondays').textContent = '0';
-        document.getElementById('fridays').textContent = '0';
-        return;
+    renderMetrics(Calc.computeFunMetrics(now, retirementDate, 'countup'));
+
+    const progress = Calc.nextMilestoneProgress(days, Calc.COUNTUP_MILESTONES);
+    const retirementDay = Calc.startOfDay(retirementDate);
+    const retirementLong = retirementDate.toLocaleDateString('en-US', DATE_OPTIONS_LONG);
+
+    if (progress.complete) {
+        const last = progress.prevMilestone;
+        renderProgressBar({
+            percentage: 100,
+            heading: 'Every milestone reached',
+            startIcon: '🏝️',
+            startDate: retirementDate,
+            startLabel: 'Retired',
+            startAria: `Start: Retired ${retirementLong}`,
+            endIcon: last ? last.icon : '🏆',
+            endDate: Calc.addDays(retirementDay, progress.prev),
+            endLabel: last ? last.text : 'Done',
+            endAria: `End: ${last ? last.text : 'Done'}`,
+            barAria: 'Retirement milestone progress',
+            description: 'Every milestone reached. The rest is yours.'
+        });
+        renderHourglass(100, 'Every milestone reached');
+    } else {
+        const next = progress.nextMilestone;
+        const remaining = progress.next - days;
+        const pctRounded = Math.round(progress.percentage);
+        renderProgressBar({
+            percentage: progress.percentage,
+            heading: `On the way to ${next.text}`,
+            startIcon: '🏝️',
+            startDate: retirementDate,
+            startLabel: 'Retired',
+            startAria: `Start: Retired ${retirementLong}`,
+            endIcon: next.icon,
+            endDate: Calc.addDays(retirementDay, progress.next),
+            endLabel: next.text,
+            endAria: `End: ${next.text}, ${progress.next} days retired`,
+            barAria: `Progress toward ${next.text}`,
+            description: `${pctRounded}% of the way to ${next.text.toLowerCase()}, ${remaining} ${remaining === 1 ? 'day' : 'days'} to go.`
+        });
+        renderHourglass(progress.percentage, `${progress.percentage.toFixed(1)}% to ${next.text}`);
     }
 
-    // Calculate full weeks and remaining days
-    const fullWeeks = Math.floor(totalDays / 7);
-    const remainingDays = totalDays % 7;
+    renderThermometer(progress.percentage, days);
+    setText('thermo-prev-label', progress.prev);
+    setText('thermo-next-label', progress.next === null ? progress.prev : progress.next);
 
-    // Base counts from full weeks
-    let weekends = fullWeeks; // Each full week has 1 weekend (Saturday)
-    let workDays = fullWeeks * 5;
-    let mondays = fullWeeks;
-    let fridays = fullWeeks;
+    renderMilestones(days, 'countup');
+    renderComparisons(days);
 
-    // Count remaining days
-    const startDayOfWeek = startDate.getDay();
-    for (let i = 0; i < remainingDays; i++) {
-        const dayOfWeek = (startDayOfWeek + i) % 7;
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-            if (dayOfWeek === 6) weekends++;
-        } else {
-            workDays++;
-            if (dayOfWeek === 1) mondays++;
-            if (dayOfWeek === 5) fridays++;
+    const crossed = Calc.crossedMilestone(lastCountupDays, days, 'countup');
+    if (crossed !== null) {
+        const milestone = Calc.COUNTUP_MILESTONES.find(m => m.threshold === crossed);
+        createConfetti();
+        showNotification(`Milestone reached: ${milestone ? milestone.text : crossed + ' days'}`);
+    }
+    lastCountupDays = days;
+}
+
+// ----------------------------------------------------------------------
+// Shared renderers
+// ----------------------------------------------------------------------
+function renderMetrics(metrics) {
+    Object.keys(METRIC_ELEMENT_IDS).forEach(key => {
+        if (key in metrics) {
+            setText(METRIC_ELEMENT_IDS[key], formatNumber(metrics[key]));
         }
-    }
-
-    // Calculate work hours (8 hours per work day)
-    const workHours = workDays * 8;
-
-    document.getElementById('weekends').textContent = weekends;
-    document.getElementById('work-days').textContent = workDays.toLocaleString();
-    document.getElementById('work-hours').textContent = workHours.toLocaleString();
-    document.getElementById('sleeps').textContent = days;
-    document.getElementById('sunrises').textContent = days + 1;
-    document.getElementById('mondays').textContent = mondays;
-    document.getElementById('fridays').textContent = fridays;
+    });
 }
 
-function updateProgress(progressData) {
-    const { percentage } = progressData;
+function renderProgressBar(opts) {
+    const { percentage } = opts;
 
-    document.getElementById('progress-fill').style.width = percentage + '%';
-    document.getElementById('progress-text').textContent = percentage.toFixed(1) + '%';
+    const fill = byId('progress-fill');
+    if (fill) fill.style.width = percentage + '%';
+    setText('progress-text', percentage.toFixed(1) + '%');
 
-    // Update ARIA progressbar value
-    const progressBar = document.getElementById('progress-bar');
+    const progressBar = byId('progress-bar');
     if (progressBar) {
         progressBar.setAttribute('aria-valuenow', Math.round(percentage));
+        progressBar.setAttribute('aria-label', opts.barAria);
     }
 
-    // Update end date display
-    const endDateOptions = { year: 'numeric', month: 'short', day: 'numeric' };
-    document.getElementById('end-date').textContent = retirementDate.toLocaleDateString('en-US', endDateOptions);
+    setText('progress-heading', opts.heading);
+    setText('start-icon', opts.startIcon);
+    setText('start-date', opts.startDate.toLocaleDateString('en-US', DATE_OPTIONS_SHORT));
+    setText('start-label', opts.startLabel);
+    setText('end-icon', opts.endIcon);
+    setText('end-date', opts.endDate.toLocaleDateString('en-US', DATE_OPTIONS_SHORT));
+    setText('end-label', opts.endLabel);
 
-    let description = '';
-    if (percentage < 25) {
-        description = 'The journey has begun!';
-    } else if (percentage < 50) {
-        description = 'Making steady progress!';
-    } else if (percentage < 75) {
-        description = 'More than halfway there!';
-    } else if (percentage < 90) {
-        description = 'The finish line is in sight!';
-    } else {
-        description = 'Almost there! So close!';
-    }
+    const startMarker = byId('start-marker');
+    if (startMarker) startMarker.setAttribute('aria-label', opts.startAria);
+    const endMarker = byId('end-marker');
+    if (endMarker) endMarker.setAttribute('aria-label', opts.endAria);
 
-    document.getElementById('progress-description').textContent = description;
+    setText('progress-description', opts.description);
 }
 
-function updateThermometer(progressData, days) {
-    const { percentage } = progressData;
-
-    // Update thermometer liquid height
-    const liquidElement = document.getElementById('thermometer-liquid');
-    if (liquidElement) {
-        liquidElement.style.height = percentage + '%';
-    }
-
-    // Update days counter in bulb
-    const daysElement = document.getElementById('thermometer-days');
-    if (daysElement) {
-        daysElement.textContent = days;
-    }
+function renderThermometer(percentage, days) {
+    const liquidElement = byId('thermometer-liquid');
+    if (liquidElement) liquidElement.style.height = percentage + '%';
+    setText('thermometer-days', days);
 }
 
-function updateHourglass(progressData, now, retirement) {
-    const { percentage } = progressData;
-
-    // Invert percentage for top sand (starts full, ends empty)
+function renderHourglass(percentage, labelText) {
     const topPercentage = 100 - percentage;
 
-    // Calculate seconds remaining
-    const diff = retirement - now;
-    const secondsRemaining = Math.max(0, Math.floor(diff / 1000));
+    const sandTopElement = byId('sand-top');
+    if (sandTopElement) sandTopElement.style.height = topPercentage + '%';
 
-    // Update top sand level (empties as time passes)
-    const sandTopElement = document.getElementById('sand-top');
-    if (sandTopElement) {
-        sandTopElement.style.height = topPercentage + '%';
-    }
+    const sandBottomElement = byId('sand-bottom');
+    if (sandBottomElement) sandBottomElement.style.height = percentage + '%';
 
-    // Update bottom sand level (fills as time passes)
-    const sandBottomElement = document.getElementById('sand-bottom');
-    if (sandBottomElement) {
-        sandBottomElement.style.height = percentage + '%';
-    }
+    setText('hourglass-label', labelText);
 
-    // Update label with percentage complete
-    const labelElement = document.getElementById('hourglass-label');
-    if (labelElement) {
-        labelElement.textContent = percentage.toFixed(1) + '% Complete';
-    }
-
-    // Adjust sand stream visibility
-    const sandStreamElement = document.getElementById('sand-stream');
-    if (sandStreamElement && percentage > 0 && percentage < 100) {
-        sandStreamElement.style.opacity = topPercentage > 0 ? '1' : '0';
+    const sandStreamElement = byId('sand-stream');
+    if (sandStreamElement) {
+        sandStreamElement.style.opacity = (percentage > 0 && percentage < 100) ? '1' : '0';
     }
 }
 
-// Cache for milestone DOM to avoid rebuilding every second
-let lastMilestoneDays = null;
-
-function updateMilestones(days) {
+function renderMilestones(days, direction) {
     // Only rebuild if days changed
     if (days === lastMilestoneDays) return;
     lastMilestoneDays = days;
 
-    const allMilestones = [
-        { threshold: 730, icon: '🎯', text: '2 Years to Go', emoji: '📅' },
-        { threshold: 365, icon: '🎆', text: 'One Year Left', emoji: '🗓️' },
-        { threshold: 180, icon: '🌸', text: '6 Months Away', emoji: '⏳' },
-        { threshold: 100, icon: '💯', text: 'Double Digits', emoji: '🎊' },
-        { threshold: 50, icon: '⚡', text: '50 Days Left', emoji: '🎉' },
-        { threshold: 30, icon: '🎪', text: 'One Month', emoji: '📆' },
-        { threshold: 7, icon: '⭐', text: 'Final Week', emoji: '🎯' },
-        { threshold: 1, icon: '🔥', text: 'LAST DAY!', emoji: '🚀' }
-    ];
+    const source = direction === 'countup' ? Calc.COUNTUP_MILESTONES : Calc.COUNTDOWN_MILESTONES;
+    const states = Calc.milestoneStates(days, source, direction);
+    const unit = direction === 'countup' ? 'days retired' : 'days';
 
-    const container = document.getElementById('milestones');
+    const container = byId('milestones');
+    if (!container) return;
     container.textContent = ''; // Clear safely
 
-    allMilestones.forEach(m => {
-        let state = '';
-        let displayIcon = '';
-        let stateLabel = '';
-
-        if (days <= m.threshold) {
-            state = 'achieved';
-            displayIcon = '✅';
-            stateLabel = 'Completed';
-        } else if (days <= m.threshold + 30 && days > m.threshold) {
-            state = 'active';
-            displayIcon = m.icon;
-            stateLabel = 'In progress';
-        } else {
-            state = 'locked';
-            displayIcon = '🔒';
-            stateLabel = 'Upcoming';
-        }
-
+    states.forEach(m => {
         // Create elements safely (no innerHTML XSS risk)
         const milestone = document.createElement('div');
-        milestone.className = `milestone ${state}`;
+        milestone.className = `milestone ${m.state}`;
         milestone.dataset.threshold = m.threshold;
-        milestone.setAttribute('role', 'article');
-        milestone.setAttribute('aria-label', `${m.text}, ${m.threshold} days. Status: ${stateLabel}`);
+        milestone.setAttribute('role', 'listitem');
+        milestone.setAttribute('aria-label', `${m.text}, ${m.threshold} ${unit}. Status: ${m.stateLabel}`);
 
         const iconWrapper = document.createElement('div');
         iconWrapper.className = 'milestone-icon-wrapper';
@@ -342,7 +446,7 @@ function updateMilestones(days) {
         const iconSpan = document.createElement('span');
         iconSpan.className = 'milestone-icon';
         iconSpan.setAttribute('aria-hidden', 'true');
-        iconSpan.textContent = displayIcon;
+        iconSpan.textContent = m.displayIcon;
 
         const emojiSpan = document.createElement('span');
         emojiSpan.className = 'milestone-emoji';
@@ -358,7 +462,7 @@ function updateMilestones(days) {
 
         const daysSpan = document.createElement('span');
         daysSpan.className = 'milestone-days';
-        daysSpan.textContent = m.threshold + ' days';
+        daysSpan.textContent = `${m.threshold.toLocaleString()} ${unit}`;
 
         milestone.appendChild(iconWrapper);
         milestone.appendChild(textSpan);
@@ -368,110 +472,141 @@ function updateMilestones(days) {
     });
 }
 
-function updateMotivation(days) {
-    const quotes = [
-        "Every day brings you closer to your dream!",
-        "You've worked hard for this moment!",
-        "The best is yet to come!",
-        "Soon you'll have all the time in the world!",
-        "Freedom is just around the corner!",
-        "New adventures await!",
-        "Your well-deserved break is coming!",
-        "Get ready to spread your wings!",
-        "Paradise is calling your name!",
-        "You're crushing this countdown!"
-    ];
+function renderComparisons(days) {
+    const section = byId('comparisons-section');
+    const list = byId('comparisons');
+    if (!section || !list) return;
 
-    const quoteIndex = Math.floor(Date.now() / 10000) % quotes.length;
-    document.getElementById('motivation-quote').textContent = quotes[quoteIndex];
-}
+    const { unlocked, next } = Calc.comparisonsUnlocked(days);
+    list.textContent = '';
 
-function resetCountdown() {
-    // Clear any running intervals
-    clearAllIntervals();
+    unlocked.forEach(c => {
+        const item = document.createElement('li');
+        item.className = 'comparison-item';
 
-    try {
-        localStorage.removeItem('retirementDate');
-    } catch (error) {
-        console.warn('Unable to clear localStorage:', error);
+        const label = document.createElement('span');
+        label.className = 'comparison-label';
+        label.textContent = c.label;
+
+        const length = document.createElement('span');
+        length.className = 'comparison-days';
+        length.textContent = `${c.days.toLocaleString()} days`;
+
+        item.appendChild(label);
+        item.appendChild(length);
+        list.appendChild(item);
+    });
+
+    if (next) {
+        const remaining = next.days - days;
+        setText('comparisons-next', `Next: ${next.label}, in ${remaining.toLocaleString()} ${remaining === 1 ? 'day' : 'days'}.`);
+    } else {
+        setText('comparisons-next', 'Longer than everything on the list.');
     }
-    location.reload();
+
+    section.hidden = unlocked.length === 0 || currentMode !== 'countup';
 }
 
-function clearAllIntervals() {
-    if (countdownInterval) clearInterval(countdownInterval);
-    if (milestoneInterval) clearInterval(milestoneInterval);
-    if (celebrationConfettiInterval) clearInterval(celebrationConfettiInterval);
+function updateMotivation(direction) {
+    const quotes = direction === 'countup' ? COUNTUP_QUOTES : COUNTDOWN_QUOTES;
+    const quoteIndex = Math.floor(Date.now() / 10000) % quotes.length;
+    setText('motivation-quote', quotes[quoteIndex]);
 }
 
+// ----------------------------------------------------------------------
+// Personal stats (countdown/stats.json)
+// ----------------------------------------------------------------------
+function loadPersonalStats() {
+    if (personalStatsRequested) return;
+    personalStatsRequested = true;
+
+    const section = byId('personal-section');
+    if (!section || typeof fetch !== 'function') return;
+
+    fetch('stats.json', { cache: 'no-cache' })
+        .then(response => {
+            if (!response.ok) throw new Error(`stats.json returned ${response.status}`);
+            return response.json();
+        })
+        .then(stats => {
+            if (!stats || typeof stats !== 'object') throw new Error('stats.json is not an object');
+
+            let populated = 0;
+            ['trips', 'books', 'projects', 'naps'].forEach(key => {
+                const card = byId(`stat-${key}-card`);
+                const value = stats[key];
+                const valid = typeof value === 'number' && Number.isFinite(value) && value >= 0;
+                if (card) card.hidden = !valid;
+                if (valid) {
+                    setText(`stat-${key}`, formatNumber(value));
+                    populated++;
+                }
+            });
+
+            if (typeof stats.updated === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(stats.updated)) {
+                const [y, m, d] = stats.updated.split('-').map(Number);
+                const updated = new Date(y, m - 1, d);
+                setText('stats-updated', `As of ${updated.toLocaleDateString('en-US', DATE_OPTIONS_LONG)}`);
+            } else {
+                setText('stats-updated', '');
+            }
+
+            section.hidden = populated === 0 || currentMode !== 'countup';
+        })
+        .catch(error => {
+            console.warn('Personal stats unavailable:', error);
+            section.hidden = true;
+        });
+}
+
+// ----------------------------------------------------------------------
+// Celebration (live countdown reaching zero)
+// ----------------------------------------------------------------------
 function celebrateRetirement() {
-    // Clear existing intervals
-    clearAllIntervals();
+    if (celebrating) return;
+    celebrating = true;
 
-    // Create celebration screen safely (no innerHTML XSS)
-    document.body.textContent = '';
+    const overlay = byId('celebration');
+    if (!overlay) {
+        endCelebration();
+        return;
+    }
 
-    const celebration = document.createElement('main');
-    celebration.className = 'celebration';
-    celebration.setAttribute('role', 'main');
+    document.body.classList.add('celebrating');
+    overlay.hidden = false;
+    setText('celebration-alert', 'Congratulations! You are officially retired!');
+    overlay.focus();
 
-    const title = document.createElement('h1');
-    title.className = 'celebration-title';
-    title.textContent = 'CONGRATULATIONS!';
-
-    const subtitle = document.createElement('h2');
-    subtitle.className = 'celebration-subtitle';
-    subtitle.textContent = "YOU'RE OFFICIALLY RETIRED!";
-
-    const message = document.createElement('p');
-    message.className = 'celebration-message';
-    message.textContent = 'Welcome to the best chapter of your life!';
-
-    const emojiDiv = document.createElement('div');
-    emojiDiv.className = 'celebration-emoji';
-    emojiDiv.setAttribute('aria-hidden', 'true');
-    emojiDiv.textContent = '🥳🍾🎈🌟✨🎆';
-
-    const resetButton = document.createElement('button');
-    resetButton.className = 'reset-button';
-    resetButton.textContent = 'Back to Countdown';
-    resetButton.addEventListener('click', resetCountdown);
-
-    celebration.appendChild(title);
-    celebration.appendChild(subtitle);
-    celebration.appendChild(message);
-    celebration.appendChild(emojiDiv);
-    celebration.appendChild(resetButton);
-
-    const confettiContainer = document.createElement('div');
-    confettiContainer.id = 'confetti-container';
-    confettiContainer.setAttribute('aria-hidden', 'true');
-
-    document.body.appendChild(celebration);
-    document.body.appendChild(confettiContainer);
-
-    // Announce to screen readers
-    const announcement = document.createElement('div');
-    announcement.setAttribute('role', 'alert');
-    announcement.setAttribute('aria-live', 'assertive');
-    announcement.className = 'sr-only';
-    announcement.textContent = 'Congratulations! You are officially retired!';
-    document.body.appendChild(announcement);
-
-    // Create confetti with automatic stop after 30 seconds
-    celebrationConfettiInterval = setInterval(() => createConfetti(), 300);
-
-    setTimeout(() => {
-        if (celebrationConfettiInterval) {
-            clearInterval(celebrationConfettiInterval);
-            celebrationConfettiInterval = null;
-        }
-    }, CELEBRATION_CONFETTI_DURATION);
+    createConfetti();
+    celebrationConfettiInterval = setInterval(createConfetti, CELEBRATION_CONFETTI_INTERVAL);
+    celebrationTimeout = setTimeout(endCelebration, CELEBRATION_CONFETTI_DURATION);
 }
 
-// Confetti animation with element limit
+function endCelebration() {
+    if (celebrationConfettiInterval) clearInterval(celebrationConfettiInterval);
+    if (celebrationTimeout) clearTimeout(celebrationTimeout);
+    celebrationConfettiInterval = null;
+    celebrationTimeout = null;
+
+    const overlay = byId('celebration');
+    if (overlay) overlay.hidden = true;
+    setText('celebration-alert', '');
+    document.body.classList.remove('celebrating');
+
+    celebrating = false;
+    applyMode('countup');
+    tick();
+
+    const title = byId('page-title');
+    if (title) title.setAttribute('tabindex', '-1');
+    if (title) title.focus();
+}
+
+// ----------------------------------------------------------------------
+// Confetti, notifications, stars
+// ----------------------------------------------------------------------
 function createConfetti() {
-    const container = document.getElementById('confetti-container');
+    const container = byId('confetti-container');
     if (!container) return;
 
     // Limit total confetti elements to prevent memory leak
@@ -539,19 +674,10 @@ function createStars() {
     }
 }
 
+// ----------------------------------------------------------------------
 // Initialize
+// ----------------------------------------------------------------------
 loadSavedDate();
 createStars();
-updateCountdown();
-countdownInterval = setInterval(updateCountdown, 1000);
-
-// Celebrate milestones with confetti
-let lastDays = null;
-milestoneInterval = setInterval(() => {
-    const days = Math.floor((retirementDate - new Date()) / (1000 * 60 * 60 * 24));
-    if (lastDays !== null && days !== lastDays && (days === 100 || days === 50 || days === 30 || days === 7 || days === 1)) {
-        createConfetti();
-        showNotification(`Milestone: ${days} days remaining!`);
-    }
-    lastDays = days;
-}, 1000);
+tick();
+tickInterval = setInterval(tick, 1000);

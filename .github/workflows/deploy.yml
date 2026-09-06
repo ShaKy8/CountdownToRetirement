@@ -34,8 +34,10 @@ jobs:
             --include "favicon.svg" \
             --include "countdown/index.html" \
             --include "countdown/script.js" \
+            --include "countdown/calc.js" \
             --include "countdown/styles.css" \
-            --include "countdown/favicon.svg"
+            --include "countdown/favicon.svg" \
+            --include "countdown/stats.json"
 
       - name: Invalidate CloudFront cache
         run: |

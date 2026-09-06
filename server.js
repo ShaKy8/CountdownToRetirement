@@ -169,8 +169,8 @@ function compressResponse(req, res, data, contentType) {
 
 // Get cache headers based on file type
 function getCacheHeaders(ext) {
-    if (ext === '.html') {
-        // HTML files: cache but revalidate
+    if (ext === '.html' || ext === '.json') {
+        // HTML and JSON data files: cache but revalidate
         return {
             'Cache-Control': 'no-cache, must-revalidate',
             'Pragma': 'no-cache'

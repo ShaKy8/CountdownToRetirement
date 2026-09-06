@@ -4,6 +4,11 @@
     box-sizing: border-box;
 }
 
+/* The hidden attribute must win over display:flex/grid rules */
+[hidden] {
+    display: none !important;
+}
+
 /* Back to main site link */
 .back-link {
     position: fixed;
@@ -95,10 +100,16 @@ a:focus-visible {
    ======================================== */
 
 body {
+    /* Theme tokens (countdown / night defaults; count-up overrides below) */
+    --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    --text-color: #fff;
+    --stars-opacity: 1;
+
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    background: var(--bg-gradient);
     min-height: 100vh;
-    color: #fff;
+    color: var(--text-color);
+    transition: color 1s ease;
     overflow-x: hidden;
     position: relative;
 }
@@ -112,6 +123,8 @@ body {
     height: 100%;
     pointer-events: none;
     z-index: 0;
+    opacity: var(--stars-opacity);
+    transition: opacity 2s ease;
 }
 
 .star {
@@ -1289,8 +1302,17 @@ body {
     transform: translateX(0);
 }
 
-/* Celebration screen */
+/* Celebration overlay (shown only when a live countdown reaches zero) */
 .celebration {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    overflow: auto;
+    padding: 20px;
+    color: #fff;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1498,4 +1520,366 @@ body {
         color: #fff !important;
         opacity: 1 !important;
     }
+}
+
+/* ========================================
+   COUNT-UP MODE (dawn theme)
+   Applied when the retirement date is in the past.
+   ======================================== */
+
+body.mode-countup {
+    --bg-gradient: linear-gradient(160deg, #ffb88c 0%, #f6d365 45%, #a1c4fd 100%);
+    --text-color: #3a2f45;
+    --stars-opacity: 0;
+}
+
+/* Glass surfaces need more opacity on a light background */
+body.mode-countup .date-setter,
+body.mode-countup .metric-card,
+body.mode-countup .progress-section,
+body.mode-countup .milestone-section,
+body.mode-countup .countup-hero,
+body.mode-countup .comparisons-section,
+body.mode-countup .personal-section {
+    background: rgba(255, 255, 255, 0.38);
+    border-color: rgba(255, 255, 255, 0.7);
+}
+
+body.mode-countup .milestone {
+    background: rgba(255, 255, 255, 0.45);
+    border-color: rgba(255, 255, 255, 0.8);
+}
+
+body.mode-countup .milestone.locked {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(58, 47, 69, 0.15);
+    opacity: 0.6;
+}
+
+body.mode-countup .milestone.active {
+    background: linear-gradient(135deg, #f6a35a, #e07a5f);
+    border-color: #fff;
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(224, 122, 95, 0.35);
+    animation: none;
+}
+
+body.mode-countup .milestone.achieved {
+    background: linear-gradient(135deg, #8fd3b6, #5fb89a);
+    border-color: #5fb89a;
+    color: #1f3b30;
+}
+
+body.mode-countup .milestone-emoji {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+body.mode-countup .milestone-timeline-line {
+    background: linear-gradient(90deg,
+        rgba(58, 47, 69, 0.05) 0%,
+        rgba(58, 47, 69, 0.25) 50%,
+        rgba(58, 47, 69, 0.05) 100%);
+}
+
+/* Flatten the glow effects */
+body.mode-countup .title,
+body.mode-countup .metric-value,
+body.mode-countup .motivation-quote,
+body.mode-countup .marker-date,
+body.mode-countup .progress-text {
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+body.mode-countup .subtitle {
+    opacity: 0.8;
+}
+
+/* Calm: switch off the busiest animations */
+body.mode-countup .title,
+body.mode-countup .metric-icon,
+body.mode-countup .marker-icon,
+body.mode-countup .motivation-quote,
+body.mode-countup .progress-fill,
+body.mode-countup .milestone.active .milestone-icon,
+body.mode-countup .bulb-days,
+body.mode-countup .hourglass-label,
+body.mode-countup .thermometer-liquid {
+    animation: none;
+}
+
+body.mode-countup .metric-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Accents: warm sunrise instead of purple */
+body.mode-countup .date-setter button,
+body.mode-countup .notification {
+    background: linear-gradient(135deg, #f6a35a, #e07a5f);
+    color: #fff;
+}
+
+body.mode-countup .progress-fill {
+    background: linear-gradient(90deg, #f6a35a, #e07a5f);
+    box-shadow: 0 0 12px rgba(224, 122, 95, 0.35);
+}
+
+body.mode-countup .progress-bar {
+    background: rgba(58, 47, 69, 0.12);
+}
+
+body.mode-countup .progress-text {
+    color: #3a2f45;
+}
+
+body.mode-countup .back-link {
+    color: #3a2f45;
+    background: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.7);
+}
+
+body.mode-countup .back-link:hover {
+    color: #1f1626;
+    background: rgba(255, 255, 255, 0.6);
+}
+
+body.mode-countup .date-setter-details summary {
+    color: #3a2f45;
+}
+
+body.mode-countup .hourglass-label,
+body.mode-countup .bulb-days,
+body.mode-countup .bulb-label,
+body.mode-countup .marking span {
+    color: #3a2f45;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+body.mode-countup .thermometer-liquid {
+    background: linear-gradient(to top, #e07a5f 0%, #f6a35a 60%, #f6d365 100%);
+    box-shadow: 0 0 12px rgba(224, 122, 95, 0.35), inset 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+/* Count-up hero */
+.countup-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 30px 20px 24px;
+    margin-bottom: 25px;
+    text-align: center;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.countup-days {
+    display: block;
+    font-size: clamp(4.5rem, 16vw, 9rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.countup-label {
+    display: block;
+    margin-top: 10px;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    opacity: 0.85;
+}
+
+.countup-breakdown {
+    margin-top: 14px;
+    font-size: 1.3rem;
+    font-style: italic;
+    opacity: 0.9;
+}
+
+/* Comparisons */
+.comparisons-section,
+.personal-section {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.comparisons-section h2,
+.personal-section h2 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 16px;
+}
+
+.comparisons-list {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 0;
+    margin: 0 0 12px;
+}
+
+.comparison-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    min-width: 150px;
+}
+
+.comparison-label {
+    font-weight: bold;
+    text-align: center;
+}
+
+.comparison-label::first-letter {
+    text-transform: uppercase;
+}
+
+.comparison-days {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.75;
+}
+
+.comparisons-next,
+.stats-updated {
+    text-align: center;
+    font-size: 0.95rem;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.personal-metrics {
+    margin-bottom: 8px;
+}
+
+/* Thermometer tick marks per mode */
+.countup-marking {
+    display: none;
+}
+
+body.mode-countup .marking[data-days] {
+    display: none;
+}
+
+body.mode-countup .countup-marking {
+    display: flex;
+}
+
+.countup-marking[data-mark="next"] { top: 2%; }
+.countup-marking[data-mark="prev"] { bottom: 0%; }
+
+/* Responsive tweaks for count-up components */
+@media (max-width: 768px) {
+    .countup-days {
+        font-size: clamp(3.5rem, 20vw, 6rem);
+    }
+
+    .countup-breakdown {
+        font-size: 1.1rem;
+    }
+
+    .comparisons-list {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .comparison-item {
+        min-width: 0;
+    }
+}
+
+/* High contrast: never put dark plum text on a black background */
+@media (prefers-contrast: high) {
+    body.mode-countup {
+        --bg-gradient: #000;
+        --text-color: #fff;
+        background: #000;
+        color: #fff;
+    }
+
+    body.mode-countup .date-setter,
+    body.mode-countup .metric-card,
+    body.mode-countup .progress-section,
+    body.mode-countup .milestone-section,
+    body.mode-countup .countup-hero,
+    body.mode-countup .comparisons-section,
+    body.mode-countup .personal-section,
+    body.mode-countup .milestone,
+    body.mode-countup .comparison-item {
+        background: #000;
+        border: 2px solid #fff;
+        color: #fff;
+    }
+
+    body.mode-countup .progress-text,
+    body.mode-countup .back-link,
+    body.mode-countup .hourglass-label,
+    body.mode-countup .bulb-days,
+    body.mode-countup .bulb-label,
+    body.mode-countup .marking span,
+    body.mode-countup .date-setter-details summary {
+        color: #fff;
+    }
+}
+
+/* Date setter disclosure and reset control (both modes) */
+.date-setter-details {
+    margin-bottom: 25px;
+}
+
+.date-setter-details summary {
+    cursor: pointer;
+    text-align: center;
+    font-size: 0.95rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    opacity: 0.85;
+    padding: 6px;
+    list-style: none;
+}
+
+.date-setter-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.date-setter-details summary:hover {
+    opacity: 1;
+}
+
+.date-setter-details[open] summary {
+    margin-bottom: 10px;
+}
+
+.date-setter-details .date-setter {
+    margin-bottom: 0;
+}
+
+.date-setter button.reset-link {
+    background: transparent;
+    box-shadow: none;
+    font-weight: normal;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    color: inherit;
+    margin-left: 6px;
+}
+
+.date-setter button.reset-link:hover {
+    transform: none;
+    box-shadow: none;
+    opacity: 0.8;
 }
