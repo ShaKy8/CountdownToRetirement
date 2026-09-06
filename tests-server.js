@@ -36,7 +36,7 @@ const failedTestDetails = [];
 let serverProcess = null;
 
 const TEST_PORT = 8000;
-const TEST_HOST = 'localhost';
+const TEST_HOST = '127.0.0.1'; // explicit IPv4: CI runners resolve localhost to ::1 but the server listens on 0.0.0.0
 
 /**
  * Test runner
