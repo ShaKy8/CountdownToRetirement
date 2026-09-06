@@ -171,7 +171,13 @@ Differences from the local server, all deliberate:
    in the cache key.** Every route is keyed by `?lat=…&lon=…`, and the default
    `CachingOptimized` policy ignores them — CloudFront would cache one visitor's
    city and serve it worldwide, looking like it worked.
-2. **The CSP must allow the map tile hosts under `/weather`.** The console draws
+2. **Lambda Function URLs return 403 in this account** for every auth mode,
+   even with an explicit public grant, and requests never reach the function.
+   The API is therefore fronted by an API Gateway HTTP API. If you ever rebuild
+   it, note the invoke permission's source ARN must be `${API}/*` — the
+   `apiid/*/*/*` form used for REST APIs does not match an HTTP API and causes
+   a 500 with no Lambda log entry.
+3. **The CSP must allow the map tile hosts under `/weather`.** The console draws
    Esri and RainViewer tiles into a canvas, and the site-wide
    `img-src 'self' data:` blocks them, leaving the radar blank with only a
    console error. `server.js` handles this with `headersFor()`; any CloudFront

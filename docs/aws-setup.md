@@ -99,53 +99,54 @@ aws lambda create-function \
   --role "arn:aws:iam::${ACCOUNT}:role/atmos-weather-api-role" \
   --handler index.handler \
   --zip-file fileb://function.zip \
-  --timeout 25 \
-  --memory-size 512
+  --timeout 25 --memory-size 512
 ```
 
-`--timeout 25` matters: the cold `/api/climate` call fetches a 406 KB, 33-year
-archive and takes ~2 s, and `/api/bundle` fans out to nine upstreams. The
-default 3 s would fail intermittently and confusingly.
+`--timeout 25` matters: a cold `/api/climate` fetches a 406 KB, 33-year archive
+and `/api/bundle` fans out to nine upstreams. The 3 s default fails
+intermittently and confusingly. Expect `create-function` to need a retry or two
+while the new IAM role propagates.
 
-Then a Function URL, locked to CloudFront:
+## 3. HTTP API in front of it
+
+> **Lambda Function URLs do not work in this account.** A Function URL returns
+> `403 AccessDeniedException` for every request — with `AWS_IAM` *and* with
+> `NONE` plus an explicit public `lambda:InvokeFunctionUrl` grant, on a
+> freshly-recreated URL, with no SCPs attached. Requests never reach the
+> function (nothing in CloudWatch). `aws lambda invoke` works fine, so the
+> function and its code are sound. Cause unidentified; an API Gateway HTTP API
+> works, so that is what this uses.
 
 ```bash
-aws lambda create-function-url-config \
-  --function-name atmos-weather-api \
-  --auth-type AWS_IAM \
-  --invoke-mode BUFFERED
+API=$(aws apigatewayv2 create-api \
+  --name atmos-weather-api --protocol-type HTTP \
+  --target "arn:aws:lambda:us-east-1:${ACCOUNT}:function:atmos-weather-api" \
+  --query ApiId --output text)
 
-aws lambda add-permission \
-  --function-name atmos-weather-api \
-  --statement-id cloudfront-oac \
-  --action lambda:InvokeFunctionUrl \
-  --principal cloudfront.amazonaws.com \
-  --source-arn "arn:aws:cloudfront::${ACCOUNT}:distribution/E1MBTRO86GIH7E" \
-  --function-url-auth-type AWS_IAM
+aws lambda add-permission --function-name atmos-weather-api \
+  --statement-id apigw-invoke \
+  --action lambda:InvokeFunction \
+  --principal apigateway.amazonaws.com \
+  --source-arn "arn:aws:execute-api:us-east-1:${ACCOUNT}:${API}/*"
 ```
 
-`AWS_IAM` rather than `NONE` is deliberate. A `NONE` Function URL is openly
-reachable on the internet, so anyone could bypass CloudFront entirely and invoke
-the Lambda directly — no edge cache, and the bill is yours. With `AWS_IAM` plus
-an origin access control, only CloudFront can call it.
+> The source ARN must be `${API}/*`. An HTTP API's ARN is
+> `apiid/stage/route`, so the four-part `apiid/*/*/*` form used with REST APIs
+> silently fails to match — API Gateway then cannot invoke the function and
+> returns **500 with no Lambda log entry at all**, which looks like a code bug
+> and is not one.
 
-## 3. CloudFront: route `/weather/api/*` to the Lambda
+## 3b. CloudFront: route `/weather/api/*` to the API
 
-In the CloudFront console for `E1MBTRO86GIH7E`:
+Add an origin for `${API}.execute-api.us-east-1.amazonaws.com` (HTTPS only, no
+origin access control — that is for S3 and Lambda URLs, not API Gateway), then
+a cache behaviour:
 
-1. **Origins → Create origin.** Domain = the Function URL host (from
-   `aws lambda get-function-url-config --function-name atmos-weather-api
-   --query FunctionUrl --output text`, without the scheme or trailing slash).
-   Protocol HTTPS only. Under **Origin access**, create a new
-   **origin access control** with signing behaviour "Sign requests", origin type
-   **Lambda**.
-2. **Behaviors → Create behavior.**
-   - Path pattern: `/weather/api/*`
-   - Origin: the Lambda origin
-   - Viewer protocol policy: Redirect HTTP to HTTPS
-   - Allowed methods: GET, HEAD
-   - **Cache policy: a custom one — see the warning below**
-   - Origin request policy: `AllViewerExceptHostHeader`
+- Path pattern `/weather/api/*`, that origin, GET + HEAD
+- Viewer protocol policy: redirect to HTTPS
+- Origin request policy: `Managed-AllViewerExceptHostHeader` — API Gateway must
+  set its own `Host`, so the viewer's must not be forwarded
+- **Cache policy: custom, see the warning below**
 
 > ### The one thing that will silently break everything
 >
@@ -153,10 +154,6 @@ In the CloudFront console for `E1MBTRO86GIH7E`:
 > cache key**. Every weather route is keyed by `?lat=…&lon=…`, so CloudFront
 > would cache the first visitor's city and serve it to everyone — the site would
 > look like it worked while showing the wrong location worldwide.
->
-> Create a cache policy with **Query strings: All**, and TTLs of
-> min 0 / default 300 / max 2592000 so the `Cache-Control` headers the Lambda
-> already sets are respected per route.
 
 ```bash
 aws cloudfront create-cache-policy --cache-policy-config '{
@@ -175,14 +172,16 @@ aws cloudfront create-cache-policy --cache-policy-config '{
 ## 4. Verify
 
 ```bash
-curl -s 'https://branyontech.com/weather/api/config' | head -c 200; echo
-curl -sI 'https://branyontech.com/weather/api/bundle?lat=34.05&lon=-118.24' \
-  | grep -i 'x-cache\|cache-control'
+curl -s 'https://branyontech.com/weather/api/config'
+curl -sD- -o /dev/null 'https://branyontech.com/weather/api/config' | grep -i x-cache
+
+# The check that matters: different coordinates must return different data.
+curl -s 'https://branyontech.com/weather/api/bundle?lat=34.0522&lon=-118.2437' | head -c 80
+curl -s 'https://branyontech.com/weather/api/bundle?lat=40.7128&lon=-74.0060'  | head -c 80
 ```
 
-The second request to the same coordinates should report `Hit from cloudfront`.
-Then confirm two *different* coordinate pairs return *different* bodies — that
-is the check that the query-string cache key is actually working.
+If those two return the *same* temperature, the cache policy is wrong and the
+site is serving one city to the world.
 
 ## If you add a CloudFront response-headers policy
 
