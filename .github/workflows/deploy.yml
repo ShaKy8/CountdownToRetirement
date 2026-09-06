@@ -60,8 +60,7 @@ jobs:
             --include 'robots.txt' --include 'sitemap.xml' \
             --include 'countdown/index.html' \
             --include 'weather/index.html' \
-            --cache-control 'public, max-age=300' \
-            --delete=false
+            --cache-control 'public, max-age=300'
 
       - name: Sync assets
         run: |
