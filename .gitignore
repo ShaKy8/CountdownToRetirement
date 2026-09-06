@@ -11,3 +11,12 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Credentials — never commit these. An sk-ant- OAuth token for clawd.bot was
+# committed here in March 2026 and sat in a public repo for six months.
+*Token*.txt
+*token*.txt
+*.pem
+*.key
+credentials
+secrets/
