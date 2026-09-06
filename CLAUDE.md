@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, three links). The retirement clock at `/countdown/` is the main feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, four links). The retirement clock at `/countdown/` is the main feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date.
 
 ## Tech Stack
 
@@ -16,7 +16,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-# Start local development server (port 8000)
+# Serve the site the way production does — static files plus the weather API
+# routed to the Lambda handler, so /weather/ can be exercised from its real
+# subpath. This is what catches absolute-path bugs before they ship.
+node scripts/dev-server.mjs        # http://localhost:8000
+
+# Re-copy the weather console out of ../Weather after changing it there
+./scripts/sync-weather.sh
+
+# Original static server (site + countdown; sets the security headers)
 node server.js
 
 # Run client-side tests (125 tests)
@@ -72,6 +80,11 @@ CountdownToRetirement/
 ├── index.html              # One-screen personal landing page (no JS)
 ├── styles.css              # Landing page styles (warm cream, plum text, coral accent)
 ├── favicon.svg             # Professional "BT" monogram favicon
+├── weather/                # ATMOS//NET console (generated — scripts/sync-weather.sh)
+├── lambda/index.mjs        # Weather API, derived from ../Weather/server.mjs
+├── scripts/                # dev-server.mjs, sync-weather.sh, inject-backlink.py
+├── docs/aws-setup.md       # One-time IAM / Lambda / CloudFront setup
+├── 404.html  robots.txt  sitemap.xml
 ├── server.js               # Node.js HTTP server with security headers
 ├── countdown/              # Retirement clock (easter egg)
 │   ├── index.html          # Dual-mode page (countdown / count-up) with back link
@@ -91,7 +104,7 @@ CountdownToRetirement/
 ## Key Features
 
 ### Landing Page (/)
-- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and three text links: email, GitHub, and the retirement clock
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and four text links: email, GitHub, the retirement clock, and the weather console
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, no JavaScript
 - **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
 
@@ -114,3 +127,52 @@ The server implements:
 - Subdirectory index.html resolution
 - Security headers (X-Frame-Options, CSP, X-Content-Type-Options, etc.)
 - HTTP method validation (GET/HEAD only)
+
+## Weather console (`/weather/`)
+
+ATMOS//NET — a live weather console (WebGL sky, five views, a time scrubber).
+Developed in the sibling repo `../Weather`; `scripts/sync-weather.sh` copies its
+`public/` tree into `weather/` and adapts it:
+
+- **Absolute asset paths become relative.** `/css/…`, `/js/…` and `/assets/…`
+  resolve to the apex when served from `/weather/`, so every one would 404 and
+  the page would render unstyled with no JS. The script rewrites them and then
+  *fails* if any survive.
+- **`wallpaper.html` is dropped** — it drives a desktop wallpaper renderer.
+- **A back-link to the site is injected**, rather than committed upstream: the
+  console is a standalone app in its own repo and shouldn't carry this site's
+  chrome.
+
+`weather/` is generated output. Change the console in `../Weather`, re-run the
+sync, commit the result.
+
+### API — `lambda/index.mjs`
+
+Derived from `../Weather/server.mjs`, so the twelve route bodies are the same
+code and response shapes cannot drift. `state.js` names every Open-Meteo field
+by its exact upstream key, so a single dropped variable would null an entire
+data column silently; and `bundle.space` is double-enveloped in a way that
+blanks every space-weather readout if flattened.
+
+Differences from the local server, all deliberate:
+
+- `/api/config` returns a neutral Los Angeles default plus `public: true`. It
+  must **never** carry a home address. The flag tells the frontend to offer the
+  visitor geolocation — the local server omits it, so the console never prompts
+  on the tailnet (where it also couldn't: geolocation needs a secure context).
+- The on-disk cache points at `/tmp`, which Lambda keeps across warm invocations.
+- Each route sets `Cache-Control`, so CloudFront's edge cache does the job the
+  local server's in-memory TTLs do — one upstream fetch serves every visitor.
+- No CORS headers: the API is same-origin through the same distribution.
+
+### Two things that will silently break it
+
+1. **The CloudFront cache policy for `/weather/api/*` must include query strings
+   in the cache key.** Every route is keyed by `?lat=…&lon=…`, and the default
+   `CachingOptimized` policy ignores them — CloudFront would cache one visitor's
+   city and serve it worldwide, looking like it worked.
+2. **The CSP must allow the map tile hosts under `/weather`.** The console draws
+   Esri and RainViewer tiles into a canvas, and the site-wide
+   `img-src 'self' data:` blocks them, leaving the radar blank with only a
+   console error. `server.js` handles this with `headersFor()`; any CloudFront
+   response-headers policy must do the same.

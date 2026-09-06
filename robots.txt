@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# The console is a live application, not content worth crawling: every view is
+# the same HTML shell and the data is fetched at runtime.
+Disallow: /weather/api/
+
+Sitemap: https://branyontech.com/sitemap.xml

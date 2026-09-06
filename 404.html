@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found | BranyonTech</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .notfound {
+      min-height: 70vh;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    .notfound-code { font-size: 5rem; font-weight: 700; line-height: 1; margin: 0; }
+    .notfound-text { margin: 1rem 0 2rem; max-width: 34rem; }
+    .notfound-links { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <main id="main-content" class="notfound">
+    <div>
+      <p class="notfound-code" aria-hidden="true">404</p>
+      <h1>Page not found</h1>
+      <p class="notfound-text">
+        That page doesn't exist. It may have moved, or the link may be out of date.
+      </p>
+      <nav class="notfound-links" aria-label="Suggested pages">
+        <a class="footer-link" href="/">Home</a>
+        <a class="footer-link" href="/countdown/index.html">Retirement clock</a>
+        <a class="footer-link" href="/weather/">Weather console</a>
+      </nav>
+    </div>
+  </main>
+</body>
+</html>

@@ -25,6 +25,27 @@ const mimeTypes = {
 const allowedExtensions = new Set(['.html', '.css', '.js', '.json', '.png', '.jpg', '.gif', '.svg', '.ico']);
 
 // Security headers
+/*
+ * The weather console needs a slightly wider policy than the rest of the site:
+ * it draws map tiles fetched directly from Esri and RainViewer into a canvas,
+ * and the site-wide `img-src 'self' data:` blocks them — the radar view renders
+ * blank with only a console error to explain it. Everything else stays as
+ * strict as the site; scripts, fonts and the API are all same-origin.
+ */
+const TILE_HOSTS = 'https://services.arcgisonline.com https://tilecache.rainviewer.com';
+const WEATHER_CSP = "default-src 'self'; script-src 'self'; "
+    + "style-src 'self' 'unsafe-inline'; "
+    + "img-src 'self' data: " + TILE_HOSTS + "; "
+    + "font-src 'self'; connect-src 'self'; frame-ancestors 'none'";
+
+/** Security headers for a request, widening img-src only under /weather. */
+function headersFor(req) {
+    const pathname = (req && req.url ? req.url : '/').split('?')[0];
+    const h = { ...securityHeaders };
+    if (pathname.startsWith('/weather')) h['Content-Security-Policy'] = WEATHER_CSP;
+    return h;
+}
+
 const securityHeaders = {
     'X-Frame-Options': 'DENY',
     'X-Content-Type-Options': 'nosniff',
@@ -135,7 +156,7 @@ function compressResponse(req, res, data, contentType) {
     res.setHeader('Content-Type', contentType);
 
     // Add security headers
-    for (const [header, value] of Object.entries(securityHeaders)) {
+    for (const [header, value] of Object.entries(headersFor(req))) {
         res.setHeader(header, value);
     }
 
@@ -241,7 +262,7 @@ const server = http.createServer((req, res) => {
             if (req.method === 'HEAD') {
                 res.setHeader('Content-Type', mimeType);
                 res.setHeader('Content-Length', data.length);
-                for (const [header, value] of Object.entries(securityHeaders)) {
+                for (const [header, value] of Object.entries(headersFor(req))) {
                     res.setHeader(header, value);
                 }
                 res.writeHead(200);

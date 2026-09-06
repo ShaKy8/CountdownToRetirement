@@ -1,0 +1,8 @@
+{
+  "name": "atmos-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ATMOS//NET weather API — Lambda Function URL behind CloudFront",
+  "main": "index.mjs"
+}
