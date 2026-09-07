@@ -287,10 +287,15 @@
 
         // terrain
         const cols = 150;
+        const ridgePts = [];
         ctx.beginPath();
         for (let i = 0; i <= cols; i++) {
             const xt = flight.x - span + (2 * span * i) / cols;
-            const p = project(xt, T.terrain(world.seed, xt), D);
+            const gh = T.terrain(world.seed, xt);
+            const p = project(xt, gh, D);
+            // Ridge lift sampled just off the surface, where it is strongest.
+            ridgePts.push({ p: p, w: T.ridgeW(world.seed, xt, gh + 25, cond.windAlong),
+                top: project(xt, gh + FLY.RIDGE_DECAY * 1.1, D) });
             if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
         }
         ctx.lineTo(W + 10, H + 10);
@@ -304,6 +309,28 @@
         ctx.strokeStyle = 'rgba(120,200,150,0.5)';
         ctx.lineWidth = 1;
         ctx.stroke();
+
+        /*
+         * Ridge lift, drawn hugging the windward faces.
+         *
+         * Without this it is invisible, and invisible lift is the exact mistake
+         * the thermal columns were fixed for. It matters most on the days
+         * thermals do not work - shallow, overcast, or after the sun has gone -
+         * when the only way to stay up is to get low and work a slope. The band
+         * fades with height because the lift does, which is what makes flying
+         * it a real risk rather than a free ride.
+         */
+        for (let i = 0; i < ridgePts.length; i++) {
+            const r = ridgePts[i];
+            if (r.w < 0.25) continue;
+            const a = clamp(r.w / 3, 0.06, 0.5);
+            const g2 = ctx.createLinearGradient(0, r.p.y, 0, r.top.y);
+            g2.addColorStop(0, 'rgba(120,255,180,' + (a * 0.85).toFixed(3) + ')');
+            g2.addColorStop(1, 'rgba(120,255,180,0)');
+            ctx.fillStyle = g2;
+            const wpx = (2 * span / cols / D) * (H / (2 * Sky.AZ_PER_NDC)) + 2;
+            ctx.fillRect(r.p.x - wpx / 2, r.top.y, wpx, r.p.y - r.top.y);
+        }
 
         /*
          * Draw the lift.

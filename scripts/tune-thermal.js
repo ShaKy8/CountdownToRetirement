@@ -46,13 +46,16 @@ for (const [name, lat, lon] of cities) {
         // optimal - which is a skill gradient, not a bug. Measure the BEST
         // available policy against doing nothing.
         const pols = [['good', T.policyGood], ['bad', T.policyBad], ['idle', T.policyRelease],
-                      ['fast', T.policyHold]];
+                      ['fast', T.policyHold], ['ridge', null]];
         for (const [k, pol] of pols) {
             const ds = [];
-            for (let d = 0; d < 12; d++) ds.push(T.simulate(T.makeWorld(T.seedForDay(d), cond), pol, {}).score.distance);
+            for (let d = 0; d < 12; d++) {
+                const w = T.makeWorld(T.seedForDay(d), cond);
+                ds.push(T.simulate(w, pol || T.policyRidge(w), {}).score.distance);
+            }
             out[k] = med(ds);
         }
-        out.best = Math.max(out.good, out.bad, out.fast);
+        out.best = Math.max(out.good, out.bad, out.fast, out.ridge);
         rows.push({
             name, hour, cape: Math.round(s.raw.cape), cloud: Math.round(s.raw.cloudLow),
             sun: Math.round(s.sunAlt * 180 / Math.PI), solar: cond.solar,
@@ -62,7 +65,7 @@ for (const [name, lat, lon] of cities) {
     }
 }
 
-console.log('city          hr  CAPE cld sun° solar base  w*   spac | good   bad  idle  best | skill');
+console.log('city          hr  CAPE cld sun° solar base  w*   spac | good   bad  idle ridge  best | skill');
 for (const r of rows) {
     const skill = r.idle > 0 ? (r.best / r.idle) : 0;
     console.log(
@@ -72,6 +75,7 @@ for (const r of rows) {
         String(r.base).padStart(5), r.wstar.toFixed(1).padStart(4), String(r.spacing).padStart(5),
         '|', (r.good / 1000).toFixed(1).padStart(5), (r.bad / 1000).toFixed(1).padStart(5),
         (r.idle / 1000).toFixed(1).padStart(5),
+        (r.ridge / 1000).toFixed(1).padStart(5),
         (r.best / 1000).toFixed(1).padStart(5), '|', skill.toFixed(2));
 }
 const active = rows.filter(r => r.solar > 0.3);

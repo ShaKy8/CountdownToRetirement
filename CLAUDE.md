@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (315 tests)
+# Run client-side tests (318 tests)
 node tests.js
 
 # Run server integration tests (58 tests)
@@ -123,7 +123,7 @@ CountdownToRetirement/
 │   ├── astro.js            # VENDORED weather/js/lib/astro.js + shim
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (315 tests)
+├── tests.js                # Client-side unit tests (318 tests)
 ├── tests-server.js         # Server integration tests (58 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -222,6 +222,13 @@ right play and the button worth pressing.
   60% - so on a blue sky nothing on screen showed where the rising air was and
   the game read as "hold the mouse and descend". You cannot feel lift through a
   screen. Cumulus are now decoration on top of the columns, never instead of them.
+- **Ridge lift is texture, not a second engine.** It is wind times slope, so it
+  is positive on every windward face and equally negative on every lee face, and
+  a glider crossing undulating ground in ONE direction nets close to zero. Real
+  ridge soaring beats back and forth along a single face, which this glider
+  cannot do - a ridge-running autopilot measurably LOSES to simply drifting. It
+  is drawn and it makes reading the ground worth something; it does not rescue a
+  dead day, and `policyRidge` is kept because it is what proved that.
 - **Straight-line soaring needs streets.** Thermals sit about two boundary-layer
   depths apart and are a fifth of that across, so crossing them in a straight line
   puts you in lift ~15% of the time whatever the day. That is fine if you can

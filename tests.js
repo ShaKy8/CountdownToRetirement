@@ -2669,12 +2669,41 @@ describe('THERMAL - Lift', () => {
         assert.ok(found, 'Expected some sloping ground');
     });
 
-    test('Should give no ridge lift in calm air, and little of it high up', () => {
+    test('Should give no ridge lift in calm air', () => {
         assert.ok(Thermal.ridgeW(seed, 1234, Thermal.terrain(seed, 1234) + 30, 0) === 0,
-            'Calm air lifts nothing');
-        const low = Math.abs(Thermal.ridgeW(seed, 1234, Thermal.terrain(seed, 1234) + 5, 10));
-        const high = Math.abs(Thermal.ridgeW(seed, 1234, Thermal.terrain(seed, 1234) + 450, 10));
-        assert.ok(high < low * 0.06, 'Ridge lift should not reach 450 m');
+            'Ridge lift is wind times slope; no wind, no lift');
+    });
+
+    // The height profile is the whole risk/reward of ridge running: the band has
+    // to be REACHABLE from the launch or nobody can use it, and it has to fall
+    // away fast enough that working it means flying low.
+    test('Should reward getting low without being usable from height', () => {
+        const g = Thermal.terrain(seed, 1234);
+        const at = agl => Math.abs(Thermal.ridgeW(seed, 1234, g + agl, 10));
+        const surface = at(5);
+        assert.ok(at(150) > 0.40 * surface, 'The band must be reachable, not hugging the dirt');
+        assert.ok(at(450) < 0.20 * surface, 'And it must not work from altitude');
+        assert.ok(at(60) > at(200), 'Lower is always stronger');
+    });
+
+    // Ridge lift is local texture, not a rescue for a dead day: it is positive
+    // on windward faces and equally negative on lee faces, so a glider crossing
+    // undulating ground in ONE direction nets close to zero. Real ridge soaring
+    // beats back and forth along a single face, which this glider cannot. The
+    // test records that, so nobody re-derives it by hand.
+    test('Should make windward slopes worth something and lee slopes cost', () => {
+        let windward = 0, lee = 0, n = 0;
+        for (let x = 0; x < 20000; x += 40) {
+            const g = Thermal.terrain(seed, x);
+            const w = Thermal.ridgeW(seed, x, g + 60, 8);
+            if (w > 0) windward += w; else lee += w;
+            n++;
+        }
+        assert.ok(windward > 0 && lee < 0, 'Both signs should occur');
+        // They very nearly cancel over the course - which is exactly why a
+        // one-directional glider cannot live on ridge lift alone.
+        assert.ok(Math.abs(windward + lee) < 0.35 * windward,
+            'Windward gain and lee loss should nearly cancel over undulating ground');
     });
 });
 
@@ -3156,6 +3185,13 @@ describe('THERMAL - Page structure', () => {
         assert.ok(cuGate === -1 || cuGate > columns,
             'The cloud-cover gate must sit INSIDE the thermal loop, on the cumulus ' +
             'only - never around the lift columns themselves');
+    });
+
+    test('Should draw the ridge lift as well as the thermals', () => {
+        // Invisible lift is the mistake the columns were fixed for; ridge lift
+        // matters most on exactly the days thermals do not work.
+        assert.ok(/ridgePts/.test(js), 'draw() should sample ridge lift along the terrain');
+        assert.ok(/T\.ridgeW\(/.test(js), 'and use the same function the physics does');
     });
 
     test('Should make the vario a primary instrument', () => {

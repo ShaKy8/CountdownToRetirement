@@ -38,8 +38,9 @@
         // over the first 150 m above its base, so a lower launch never reaches
         // usable air and every flight collapses to a 40-second sled ride.
         START_ALT: 300,       // m above the launch point
-        RIDGE_DECAY: 150,     // m e-folding height for ridge lift
-        RIDGE_MAX: 3.0,       // m/s
+        RIDGE_DECAY: 200,     // m e-folding height for ridge lift
+        RIDGE_GAIN: 1.6,      // streamline compression over a crest
+        RIDGE_MAX: 4.0,       // m/s
         WIND_ALONG_MAX: 15,   // m/s
         BALANCE: 0.90,        // tunes how lossy the day is to a passive pilot
         TIME_LIMIT: 1200,      // s of flight - the task is distance in fixed time
@@ -180,7 +181,10 @@
      */
     function ridgeW(seed, x, h, windAlong) {
         const g = terrainSlope(seed, x);
-        const surf = clamp(windAlong * g, -FLY.RIDGE_MAX, FLY.RIDGE_MAX);
+        // u * dh/dx is the air simply following the ground; the gain is
+        // streamline compression over a crest, which is why a good ridge lifts
+        // harder than the bare slope suggests.
+        const surf = clamp(windAlong * g * FLY.RIDGE_GAIN, -FLY.RIDGE_MAX, FLY.RIDGE_MAX);
         const agl = Math.max(0, h - terrain(seed, x));
         return surf * Math.exp(-agl / FLY.RIDGE_DECAY);
     }
@@ -513,7 +517,7 @@
         const trace = [];
         let steps = 0;
         while (s.alive && steps < cap) {
-            s = Object.assign({}, s, { hold: !!policy(s, s.w, world.cond) });
+            s = Object.assign({}, s, { hold: !!policy(s, s.w, world) });
             s = step(world, s, dt, o.fly);
             steps++;
             if (o.trace && steps % 30 === 0) trace.push({ x: s.x, h: s.h, v: s.v, w: s.w });
@@ -527,6 +531,30 @@
     function policyBad(state, w) { return w > 0; }
     function policyHold(state) { return true; }
     function policyRelease(state) { return false; }
+
+    /**
+     * A ridge runner: get down to the slope and stay there.
+     *
+     * Measured, this LOSES to simply drifting on a shallow day, and the reason
+     * is structural rather than a tuning miss. Ridge lift is wind times slope,
+     * so it is positive on every windward face and equally negative on every
+     * lee face; a glider crossing undulating ground in one direction nets zero.
+     * Real ridge soaring works because the pilot beats back and forth along a
+     * single face, which this one-directional glider cannot do.
+     *
+     * Ridge lift therefore earns its place as local texture - a windward slope
+     * is a genuine boost and a lee slope a genuine cost, so the ground is worth
+     * reading - and not as a way to save a dead day. Kept as a policy because
+     * it is what proved that.
+     */
+    function policyRidge(world) {
+        return function (state, w) {
+            const agl = state.h - terrain(world.seed, state.x);
+            if (agl > 160) return true;       // dive down to the band
+            if (agl < 70) return false;       // too low, hold what height there is
+            return w <= 0;                     // in the band, dolphin it
+        };
+    }
 
     // ------------------------------------------------------------------
     // Scoring and sharing
@@ -685,6 +713,7 @@
         policyBad: policyBad,
         policyHold: policyHold,
         policyRelease: policyRelease,
+        policyRidge: policyRidge,
 
         ambientSink: ambientSink,
         blhToWStar: blhToWStar,
