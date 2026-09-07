@@ -111,7 +111,7 @@ def ensure_policies(apply):
             continue
         if not apply:
             print('  policy %-22s WOULD CREATE' % name)
-            ids[name] = '<new>'
+            ids[name] = '<new:' + name + '>'
             continue
         made = aws('cloudfront', 'create-response-headers-policy',
                    '--response-headers-policy-config',
