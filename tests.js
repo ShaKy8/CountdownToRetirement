@@ -3112,6 +3112,57 @@ describe('THERMAL - Page structure', () => {
     });
 });
 
+describe('BUSINESS SITE - Production security headers', () => {
+    const fs = require('fs');
+    const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+    const policy = fs.readFileSync(path.join(__dirname, 'scripts', 'cloudfront-headers.py'), 'utf8');
+
+    // server.js protects the tailnet; the CloudFront policy protects everyone
+    // else. They have to say the same thing about the same site.
+    test('Should widen img-src for the same tile hosts in both places', () => {
+        const hosts = /const TILE_HOSTS = '([^']+)'/.exec(server);
+        assert.ok(hosts, 'server.js should define TILE_HOSTS');
+        const inPolicy = /^TILE_HOSTS = '([^']+)'/m.exec(policy);
+        assert.ok(inPolicy, 'the CloudFront policy should define TILE_HOSTS');
+        assert.strictEqual(inPolicy[1], hosts[1],
+            'The two would disagree about which hosts the radar may load tiles from');
+    });
+
+    test('Should restrict scripts to the same origin in both places', () => {
+        assert.ok(server.includes("script-src 'self'"));
+        assert.ok(policy.includes("script-src 'self'"));
+        assert.ok(!policy.includes("'unsafe-eval'"));
+        // Inline styles are used throughout; inline scripts are not, and a test
+        // per page asserts it.
+        assert.ok(policy.includes("style-src 'self' 'unsafe-inline'"));
+    });
+
+    // The one header where copying server.js verbatim would remove a feature
+    // rather than add risk.
+    test('Should allow geolocation in production, unlike the local server', () => {
+        assert.ok(server.includes('geolocation=()'),
+            'server.js disables it: the tailnet is plain HTTP where it cannot work');
+        assert.ok(policy.includes('geolocation=(self)'),
+            'CloudFront must ALLOW it - all three features call getCurrentPosition, ' +
+            'and an empty allowlist would silently put every visitor in Los Angeles');
+        assert.ok(!/geolocation=\(\)/.test(policy.split('PERMISSIONS_POLICY')[1] || ''),
+            'The production policy must not carry the local disable');
+    });
+
+    test('Should not commit to HSTS options that cannot be taken back', () => {
+        const hsts = policy.slice(policy.indexOf('StrictTransportSecurity'));
+        assert.ok(!/includeSubDomains|IncludeSubdomains.*True/i.test(hsts.slice(0, 400)),
+            'includeSubDomains hardens every subdomain for the whole max-age');
+        assert.ok(!/Preload.*True/i.test(hsts.slice(0, 400)), 'preload is effectively permanent');
+    });
+
+    test('Should ship a way to check what production actually sends', () => {
+        const check = path.join(__dirname, 'scripts', 'check-headers.sh');
+        assert.ok(fs.existsSync(check), 'scripts/check-headers.sh should exist');
+        assert.ok((fs.statSync(check).mode & 0o111) !== 0, 'It should be executable');
+    });
+});
+
 // =============================================================================
 // RUN ALL TESTS
 // =============================================================================

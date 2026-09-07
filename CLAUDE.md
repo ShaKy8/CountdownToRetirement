@@ -289,5 +289,20 @@ Differences from the local server, all deliberate:
 3. **The CSP must allow the map tile hosts under `/weather`.** The console draws
    Esri and RainViewer tiles into a canvas, and the site-wide
    `img-src 'self' data:` blocks them, leaving the radar blank with only a
-   console error. `server.js` handles this with `headersFor()`; any CloudFront
-   response-headers policy must do the same.
+   console error. `server.js` handles this with `headersFor()`, and the
+   CloudFront policy in `scripts/cloudfront-headers.py` mirrors it. A test keeps
+   the two lists of tile hosts identical.
+
+## Security headers in production
+
+`server.js` only ever protected the tailnet. `scripts/cloudfront-headers.py`
+creates and attaches the CloudFront response-headers policies (dry run unless
+`--apply`), and `scripts/check-headers.sh` reports what production actually
+sends. Full runbook in `docs/aws-setup.md`.
+
+**The one header that must NOT be copied from `server.js`:** it sends
+`Permissions-Policy: geolocation=()`, which is right for plain-HTTP local use
+and would silently break the site in production. The console, ONE PUTT and
+THERMAL all call `getCurrentPosition`; an empty allowlist disables it with no
+error, and every visitor quietly gets Los Angeles weather. Production sends
+`geolocation=(self)`.

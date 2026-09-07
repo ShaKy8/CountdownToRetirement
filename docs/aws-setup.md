@@ -184,24 +184,66 @@ curl -s 'https://branyontech.com/weather/api/bundle?lat=40.7128&lon=-74.0060'  |
 If those two return the *same* temperature, the cache policy is wrong and the
 site is serving one city to the world.
 
-## If you add a CloudFront response-headers policy
+## 5. Security headers on CloudFront
 
-The site currently sends no security headers in production. Adding them is
-worthwhile — but the console draws Esri and RainViewer map tiles into a canvas,
-so a policy with `img-src 'self' data:` blanks the radar view with nothing but a
-console error to explain it. Use a separate policy on the `/weather/*`
-behaviours:
+The site sent no security headers in production for a long time: `server.js`
+builds them carefully via `headersFor()`, but that only ever protected the
+tailnet. `scripts/cloudfront-headers.py` creates two response-headers policies
+and attaches them. It is a dry run unless you pass `--apply`.
 
+```bash
+python3 scripts/cloudfront-headers.py            # show the plan, change nothing
+python3 scripts/cloudfront-headers.py --apply    # create and attach
+./scripts/check-headers.sh                       # confirm, a few minutes later
 ```
-img-src 'self' data: https://services.arcgisonline.com https://tilecache.rainviewer.com
-```
 
-`server.js` already does this locally via `headersFor()`; keep the two in step.
+Two policies, because one CSP cannot serve the whole site:
 
-## Known issue, unrelated but worth fixing
+| behaviour | policy | why |
+|---|---|---|
+| default | `branyontech-strict` | `img-src 'self' data:` |
+| `/weather/*` | `branyontech-weather` | plus the Esri and RainViewer tile hosts |
+| `/weather/api/*` | `branyontech-strict` | it returns JSON and never loads a tile |
 
-`www.branyontech.com` currently serves an invalid certificate (the ACM cert
-covers the apex only, so browsers show a full-page warning) from a **second**
-CloudFront distribution carrying a stale, drifted copy of the site. Either add
-`www` to the cert and point it at `E1MBTRO86GIH7E`, or delete that distribution
-and redirect www → apex.
+The script creates the `/weather/*` behaviour if it is missing, and inserts it
+**after** `/weather/api/*` — CloudFront takes the first matching pattern in list
+order, so the reverse would swallow the API behaviour and route the API to S3.
+
+> ### Do not copy `Permissions-Policy` from server.js
+>
+> `server.js` sends `geolocation=()`, which disables it outright. That is right
+> for the tailnet, where the page is plain HTTP and geolocation could not work
+> anyway — and completely wrong for production, where it is the entire premise.
+>
+> The weather console, ONE PUTT and THERMAL all call `getCurrentPosition`. An
+> empty allowlist disables it site-wide with **no error anywhere**: the browser
+> simply refuses, each game falls back to its default coordinates, and every
+> visitor on earth silently gets Los Angeles weather. It is indistinguishable
+> from the feature working.
+>
+> The policy sends `geolocation=(self)`. A test in `tests.js` asserts the two
+> files disagree on exactly this header and agree on the rest.
+
+Two deliberate differences from `server.js`, both noted in the script:
+
+- **No `X-XSS-Protection`.** Deprecated, ignored by current browsers, and its
+  legacy filter could itself be abused. `server.js` still sends it; production
+  does not.
+- **HSTS without `includeSubDomains` or `preload`.** Both are effectively
+  irreversible for the lifetime of the `max-age`, and `includeSubDomains` would
+  harden every subdomain including any that does not serve a valid certificate —
+  browsers then refuse to let anyone through. Add them deliberately later.
+
+The deploy role cannot do any of this: it holds `CreateInvalidation` and nothing
+else on CloudFront. Run it with credentials that can update the distribution.
+
+## Resolved: www.branyontech.com
+
+This used to serve an invalid certificate from a second CloudFront distribution
+carrying a stale copy of the site. As of 2026-09-07 `https://www.branyontech.com/`
+serves a valid certificate and the current site, including `/thermal/`, so
+whatever it points at is reading the live bucket.
+
+Worth knowing before enabling HSTS `includeSubDomains`: that would cover `www`
+and any other subdomain for the whole `max-age`, with no way for a visitor to
+click through a certificate error. Check every subdomain first.
