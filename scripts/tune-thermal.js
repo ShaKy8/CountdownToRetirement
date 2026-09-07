@@ -45,17 +45,36 @@ for (const [name, lat, lon] of cities) {
         // the right cruise speed rises, so a fixed threshold stops being
         // optimal - which is a skill gradient, not a bug. Measure the BEST
         // available policy against doing nothing.
-        const pols = [['good', T.policyGood], ['bad', T.policyBad], ['idle', T.policyRelease],
-                      ['fast', T.policyHold], ['ridge', null]];
+        // policyRelease is the TRUE no-input baseline - never touch the button.
+        // policyGreedy is the NAIVE player: circle in anything that rises, which
+        // finds a stable equilibrium at the top of a column and goes nowhere.
+        // best is the MacCready grid, because "leave near the top" cannot be
+        // expressed by a climb threshold alone.
+        const pols = [['idle', T.policyRelease], ['hold', T.policyHold],
+                      ['greedy', T.policyGreedy], ['bad', T.policyBad]];
         for (const [k, pol] of pols) {
             const ds = [];
-            for (let d = 0; d < 12; d++) {
-                const w = T.makeWorld(T.seedForDay(d), cond);
-                ds.push(T.simulate(w, pol || T.policyRidge(w), {}).score.distance);
-            }
+            for (let d = 0; d < 12; d++) ds.push(T.simulate(T.makeWorld(T.seedForDay(d), cond), pol, {}).score.distance);
             out[k] = med(ds);
         }
-        out.best = Math.max(out.good, out.bad, out.fast, out.ridge);
+        let mcBest = 0, circFrac = 0, landed = 0, dur = 0;
+        for (const mc of [0.3, 0.7, 1.2, 2, 3]) {
+            for (const cf of [0.5, 0.7, 0.9, 1.2]) {
+                const ds = [], cf2 = [], la = [], du = [];
+                for (let d = 0; d < 12; d++) {
+                    const w = T.makeWorld(T.seedForDay(d), cond);
+                    const r = T.simulate(w, T.policyMacCready(mc, cf), { trace: true });
+                    ds.push(r.score.distance);
+                    cf2.push(r.trace.filter(t => t.w > t.wAir - 1.0).length / Math.max(1, r.trace.length));
+                    la.push(r.state.landed ? 1 : 0);
+                    du.push(r.state.t / T.FLY.TIME_SCALE);
+                }
+                const m = med(ds);
+                if (m > mcBest) { mcBest = m; circFrac = med(cf2); landed = la.reduce((a, b) => a + b, 0) / la.length; dur = med(du); }
+            }
+        }
+        out.mc = mcBest; out.circ = circFrac; out.landed = landed; out.dur = dur;
+        out.best = Math.max(out.mc, out.idle, out.hold, out.greedy);
         rows.push({
             name, hour, cape: Math.round(s.raw.cape), cloud: Math.round(s.raw.cloudLow),
             sun: Math.round(s.sunAlt * 180 / Math.PI), solar: cond.solar,
@@ -65,24 +84,26 @@ for (const [name, lat, lon] of cities) {
     }
 }
 
-console.log('city          hr  CAPE cld sun° solar base  w*   spac | good   bad  idle ridge  best | skill');
+console.log('city          hr  base   w*  spac |  best  idle  hold greedy | skill  dur land');
 for (const r of rows) {
     const skill = r.idle > 0 ? (r.best / r.idle) : 0;
     console.log(
         r.name.padEnd(13), String(r.hour).padStart(2),
-        String(r.cape).padStart(5), String(r.cloud).padStart(3),
-        String(r.sun).padStart(4), (r.solar * 100).toFixed(0).padStart(4) + '%',
         String(r.base).padStart(5), r.wstar.toFixed(1).padStart(4), String(r.spacing).padStart(5),
-        '|', (r.good / 1000).toFixed(1).padStart(5), (r.bad / 1000).toFixed(1).padStart(5),
-        (r.idle / 1000).toFixed(1).padStart(5),
-        (r.ridge / 1000).toFixed(1).padStart(5),
-        (r.best / 1000).toFixed(1).padStart(5), '|', skill.toFixed(2));
+        '|', (r.best / 1000).toFixed(1).padStart(5), (r.idle / 1000).toFixed(1).padStart(5),
+        (r.hold / 1000).toFixed(1).padStart(5), (r.greedy / 1000).toFixed(1).padStart(5),
+        '|', skill.toFixed(2).padStart(5), Math.round(r.dur) + 's', Math.round(100 * r.landed) + '%');
 }
+
 const active = rows.filter(r => r.solar > 0.3);
+const ratio = a => med(active.map(r => r.idle > 0 ? r.best / r.idle : 0));
 console.log('\ndaylight rows:', active.length,
-    '| median good', (med(active.map(r => r.good)) / 1000).toFixed(1) + ' km',
     '| median best', (med(active.map(r => r.best)) / 1000).toFixed(1) + ' km',
-    '| median skill (best/idle)', med(active.map(r => r.best / r.idle)).toFixed(2));
-const alive = active.filter(r => r.best / r.idle > 1.08);
-console.log('rows with a real game in them:', alive.length, 'of', active.length,
-    '(' + Math.round(100 * alive.length / active.length) + '%)');
+    '| median skill (best/idle)', ratio().toFixed(2));
+console.log('rows where skill > 1.25:', active.filter(r => r.best / r.idle > 1.25).length, 'of', active.length);
+console.log('hold ever wins:', active.filter(r => r.hold >= r.best).length, 'rows   (must be 0)');
+console.log('median best/hold:', med(active.map(r => r.best / Math.max(1, r.hold))).toFixed(1),
+    '| median best/greedy:', med(active.map(r => r.best / Math.max(1, r.greedy))).toFixed(2));
+console.log('median circling fraction:', (100 * med(active.map(r => r.circ))).toFixed(0) + '%',
+    '| landing rate:', (100 * med(active.map(r => r.landed))).toFixed(0) + '%',
+    '| median duration:', Math.round(med(active.map(r => r.dur))) + 's');

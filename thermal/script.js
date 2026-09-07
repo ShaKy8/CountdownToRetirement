@@ -240,6 +240,36 @@
 
     let W = 0, H = 0, dpr = 1;
 
+    /*
+     * The camera used to sit at the glider's exact altitude, which pinned the
+     * sprite to one pixel forever: burning the ENTIRE altitude budget moved the
+     * horizon 70 px, and the two control states differed by 0.6 px/sec. The
+     * elevation scale is about 0.4*H px per radian, so at D=600 a hundred
+     * metres of climb is ~45 px - the signal was always there and the code
+     * threw it away.
+     *
+     * Two slow followers fix it. The altitude one lags by seconds, so a climb
+     * lifts the glider visibly up the frame and releasing drops it back. The
+     * standoff one is deliberately slower still: within a single climb the
+     * framing is effectively frozen, so nothing cancels the movement.
+     */
+    const CAM = { ALT_HALF: 4.0, D_HALF: 9.0, LEAD: 120 };
+    let camH = null, camD = 700, phase = 0;
+
+    function targetD() {
+        // No longer shrinks as you descend - that cancelled the one channel
+        // that showed height.
+        const agl = Math.max(0, flight.h - T.terrain(world.seed, flight.x));
+        return clamp(500 + 0.55 * agl, 550, 1800);
+    }
+
+    function easeCam(dtSec) {
+        if (camH === null) { camH = flight.h; camD = targetD(); return; }
+        camH = flight.h + (camH - flight.h) * Math.pow(0.5, dtSec / CAM.ALT_HALF);
+        camH = clamp(camH, flight.h - CAM.LEAD, flight.h + CAM.LEAD);
+        camD = targetD() + (camD - targetD()) * Math.pow(0.5, dtSec / CAM.D_HALF);
+    }
+
     function fitStage() {
         const rect = stage.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
@@ -253,24 +283,8 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    /**
-     * How far to the side the camera sits, in metres.
-     *
-     * Grows with height so the ground stays in frame when high and closes in
-     * when low, which makes the last hundred metres tense without a number. It
-     * also has to be at least comparable to the cloudbase, or the cumulus
-     * project enormous and near-vertical - a 2 km cloudbase seen from 900 m
-     * away puts them at 62 degrees and filling the sky.
-     */
-    function standoff() {
-        const agl = Math.max(0, flight.h - T.terrain(world.seed, flight.x));
-        const forHeight = 600 + 1.1 * agl;
-        const forCloud = cond.cloudbase * 0.9;
-        return Math.max(700, Math.min(4000, Math.max(forHeight, forCloud)));
-    }
-
     function project(xt, ht, D) {
-        const el = Math.atan2(ht - flight.h, D);
+        const el = Math.atan2(ht - camH, D);
         const az = Math.atan2(xt - flight.x, D);
         return {
             x: W / 2 + az * (H / (2 * Sky.AZ_PER_NDC)),
@@ -278,10 +292,16 @@
         };
     }
 
+    // Renderer only. The simulation is one-dimensional and stays that way -
+    // simulate(), every autopilot and the tuning harness depend on it. These
+    // offsets never feed back into physics and ring collection never uses them.
+    function lat() { return FLY.TURN_RADIUS * Math.sin(phase) * flight.bank; }
+    function dep() { return FLY.TURN_RADIUS * (1 - Math.cos(phase)) * flight.bank; }
+
     function draw() {
         if (!W) fitStage();
         ctx.clearRect(0, 0, W, H);
-        const D = standoff();
+        const D = camD;
         const azMax = (W / 2) / (H / (2 * Sky.AZ_PER_NDC));
         const span = D * Math.tan(Math.min(1.4, azMax));
 
@@ -346,6 +366,7 @@
          */
         const ths = T.thermalsNear(world.seed, cond, flight.x);
         const t = window.performance.now() / 1000;
+        const pulse = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * 4);
         for (let i = 0; i < ths.length; i++) {
             const th = ths[i];
             const ground = T.terrain(world.seed, th.x);
@@ -390,6 +411,44 @@
                 }
             }
 
+            /*
+             * The ring stack.
+             *
+             * A horizontal hoop seen from the side projects as an ellipse whose
+             * flattening IS the elevation cue: level with you it is a line, and
+             * it opens as you climb past it. That, plus the fact that the stack
+             * sits at fixed altitudes while you move, is the strongest signal in
+             * the game that you are going up.
+             *
+             * Drawn outside any reduced-motion guard - the rings are the game,
+             * only the pulse on the next one is decoration.
+             */
+            const rs = T.ringsFor(th);
+            for (let r = 0; r < rs.length; r++) {
+                const alt = ground + rs[r].agl;
+                const rx = T.ringX(th, rs[r], cond.windAlong);
+                const cpt = project(rx, alt, D);
+                if (cpt.x < -80 || cpt.x > W + 80) continue;
+                const halfW = (T.RING.R / D) * (H / (2 * Sky.AZ_PER_NDC));
+                const halfH = Math.max(1.2,
+                    Math.abs(project(rx, alt, D - T.RING.R).y - project(rx, alt, D + T.RING.R).y) / 2);
+                const got = (flight.taken[th.id] || 0) & (1 << r);
+                if (got) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                    ctx.lineWidth = 1;
+                } else {
+                    const reach = clamp(1 - Math.abs(alt - flight.h) / 400, 0.12, 1);
+                    const next = !got && alt > flight.h && alt - flight.h < 160;
+                    ctx.strokeStyle = next
+                        ? 'rgba(255,176,46,' + (0.55 + 0.35 * pulse).toFixed(2) + ')'
+                        : 'rgba(0,234,255,' + (0.30 + 0.5 * reach).toFixed(2) + ')';
+                    ctx.lineWidth = next ? 3 : 2;
+                }
+                ctx.beginPath();
+                ctx.ellipse(cpt.x, cpt.y, halfW, halfH, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
             // Cumulus mark the top when there is enough moisture to make one.
             if (cond.cloudFrac >= 0.08 && th.top > cond.cloudbase * 0.8) {
                 const p = project(th.x + tiltTop, ground + th.top, D);
@@ -409,29 +468,46 @@
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             for (let i = 0; i < trace.length; i++) {
-                const p = project(trace[i].x, trace[i].h, D);
+                const tp = trace[i];
+                const tl = FLY.TURN_RADIUS * Math.sin(tp.ph || 0);
+                const p = project(tp.x + tl, tp.h, D);
                 if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
             }
             ctx.stroke();
         }
 
-        // the glider sits on the horizon line: the camera flies alongside it
-        const gx = W / 2, gy = HORIZON_FRAC * H;
-        const pitch = Math.max(-0.5, Math.min(0.5, -(flight.v - FLY.V_SOAR) / 40));
+        // The glider is projected like everything else now, so it rises and
+        // falls in frame as it climbs and sinks.
+        const gp = project(flight.x + lat(), flight.h, camD + dep());
+        const gspeed = FLY.V_CRUISE * (1 - flight.bank) + cond.windAlong;
+        // canvas +rotate is clockwise, which is nose-DOWN for a sprite pointing
+        // +x, and gamma is negative when sinking - so the rotation is -gamma.
+        // The old code used airspeed error and had both quantity and sign wrong,
+        // pitching the nose UP in a dive.
+        const gamma = Math.atan2(flight.w, Math.max(4, gspeed));
+        const pitch = clamp(-gamma * 2.5, -0.45, 0.45);
+
         ctx.save();
-        ctx.translate(gx, gy);
+        ctx.translate(gp.x, gp.y);
         ctx.rotate(pitch);
-        const w = flight.w || 0;
-        if (w > 0.2 && !flight.stalled) {
+        if (flight.w > 0.2) {
             ctx.shadowColor = '#6dff4a';
-            ctx.shadowBlur = Math.min(26, 8 + w * 5);
+            ctx.shadowBlur = Math.min(26, 8 + flight.w * 5);
         }
-        ctx.fillStyle = flight.stalled ? '#ff3b57' : (w > 0.2 ? '#d8ffcc' : '#ffffff');
+        const lit = flight.w > 0.2 ? '#d8ffcc' : '#ffffff';
+        // A banked wing rather than a rotated dart: the tips foreshorten to
+        // edge-on twice a circle and tip with the bank, which reads as turning
+        // without any new art.
+        const S = 14, ct = Math.cos(phase), st = Math.sin(phase);
+        const b = FLY.BANK_ANGLE * flight.bank;
+        ctx.strokeStyle = lit;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(-13, 0); ctx.lineTo(9, -3); ctx.lineTo(13, 0); ctx.lineTo(9, 3);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillRect(-4, -8, 2.5, 16);
+        ctx.moveTo(-S * ct, S * st * Math.sin(b));
+        ctx.lineTo(S * ct, -S * st * Math.sin(b));
+        ctx.stroke();
+        ctx.fillStyle = lit;
+        ctx.fillRect(-3, -1.5, 12, 3);
         ctx.shadowBlur = 0;
         ctx.restore();
 
@@ -448,7 +524,12 @@
      * watches.
      */
     function drawVarioTape() {
+        // flight.w is the GLIDER's climb rate. This used to read flight.w when
+        // step() returned the AIR's velocity in that field, so the tape did not
+        // respond to the button at all - measured, a held step dropped the
+        // glider at -17.98 m/s while the tape showed -1.21.
         const w = flight.w || 0;
+        const air = flight.wAir || 0;
         const x = W - 30, top = H * 0.28, bot = H * 0.72, mid = (top + bot) / 2;
 
         ctx.fillStyle = 'rgba(4,10,20,0.55)';
@@ -460,10 +541,20 @@
         ctx.strokeStyle = 'rgba(255,255,255,0.30)';
         ctx.beginPath(); ctx.moveTo(x - 9, mid); ctx.lineTo(x + 9, mid); ctx.stroke();
 
-        const f = clamp(w / 4, -1, 1);
+        const f = clamp(w / 5, -1, 1);
         const h = Math.abs(f) * (mid - top);
         ctx.fillStyle = w >= 0 ? '#6dff4a' : '#ff3b57';
         ctx.fillRect(x - 7, w >= 0 ? mid - h : mid, 14, h);
+
+        // The air's own climb, as a hairline. The gap between the two IS the
+        // cost of circling, drawn.
+        const af = clamp(air / 5, -1, 1);
+        ctx.strokeStyle = 'rgba(160,255,140,0.85)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x - 9, mid - af * (mid - top));
+        ctx.lineTo(x + 9, mid - af * (mid - top));
+        ctx.stroke();
 
         ctx.font = '600 11px ui-monospace, monospace';
         ctx.textAlign = 'center';
@@ -495,10 +586,14 @@
                 flight = T.step(world, flight, FLY.DT);
                 acc -= stepMs;
             }
-            if (guard > 0 && (!trace.length ||
-                flight.x - trace[trace.length - 1].x > 60)) {
-                trace.push({ x: flight.x, h: flight.h });
-                if (trace.length > 400) trace.shift();
+            // By PATH, not by ground covered. While circling x advances only at
+            // the wind speed - zero in calm air - so a distance test recorded
+            // nothing at all and the loops never appeared.
+            const last = trace[trace.length - 1];
+            if (!last || Math.hypot(flight.x - last.x, flight.h - last.h) > 22 ||
+                flight.t - last.t > 1.5) {
+                trace.push({ x: flight.x, h: flight.h, t: flight.t, ph: phase });
+                if (trace.length > 900) trace.shift();
             }
             if (!flight.alive) finish();
         }
@@ -506,6 +601,8 @@
         // dtSec, not dtMs: sky.render eases with pow(0.0016, dt), and
         // milliseconds underflow that to zero so every parameter snaps and the
         // easing silently dies.
+        phase += FLY.TURN_RATE * flight.bank * dtSec * FLY.TIME_SCALE;
+        easeCam(dtSec);
         if (skyOk) sky.render(now, dtSec);
         draw();
         paintGauges();
@@ -551,7 +648,7 @@
         scored = mode === 'preflight';
         mode = 'flying';
         byId('card').hidden = true;
-        say('Launched. Hold to dive, release to soar.');
+        say('Released. HOLD to circle and climb — let go to glide on.');
     }
 
     function finish() {
@@ -561,6 +658,7 @@
                 dist: score.distance, glide: Math.round(score.glide * 10),
                 climb: score.climb, dur: score.duration,
                 solar: Math.round(cond.solar * 100), wind: Math.round(cond.windMps / T.MPH_TO_MPS),
+                rings: flight.rings, chain: flight.bestChain,
                 source: raw.source
             });
             writeState();
@@ -598,8 +696,8 @@
         // the point, not that the mouse does something.
         byId('card-line').textContent = conditions;
         byId('card-teach').textContent =
-            'Green columns are rising air. Release inside one to climb; ' +
-            'hold between them to cover ground. Fly as far as you can.';
+            'HOLD to circle and climb inside the green columns — fly the rings. ' +
+            'Let go to glide on. Leave when the climb slows.';
         byId('card-teach').hidden = false;
         byId('launch').textContent = 'Launch';
         card.hidden = false;
@@ -649,6 +747,9 @@
         byId('g-alt').textContent = Math.round(flight.h - T.terrain(world.seed, flight.x)) + ' m';
         const w = flight.w || 0;
         byId('g-vario').textContent = (w >= 0 ? '+' : '') + w.toFixed(1);
+        const mult = Math.min(T.RING.MAX_MULT, 1 + 0.25 * Math.max(0, flight.chain - 1));
+        byId('g-chain').textContent = '×' + mult.toFixed(1);
+        byId('g-rings').textContent = flight.rings + ' rings';
         const fill = byId('vario-fill');
         const pct = Math.max(-1, Math.min(1, w / 4)) * 50;
         fill.style.width = Math.abs(pct) + '%';

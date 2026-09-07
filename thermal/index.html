@@ -13,7 +13,7 @@
 
     <canvas id="sky" aria-hidden="true"></canvas>
     <canvas id="stage" role="application" tabindex="0"
-            aria-label="Glider. Hold to dive and build speed, release to soar and trade speed for height."></canvas>
+            aria-label="Glider. Hold to circle and climb in rising air; release to glide forward."></canvas>
 
     <main id="main-content" class="hud">
         <a href="/" class="back-link" aria-label="Back to BranyonTech.com">&larr; BranyonTech.com</a>
@@ -30,6 +30,11 @@
         <div class="gauges">
             <div class="gauge"><span class="g-k">DIST</span><span class="g-v" id="g-dist">0 m</span></div>
             <div class="gauge"><span class="g-k">ALT</span><span class="g-v" id="g-alt">0 m</span></div>
+            <div class="gauge">
+                <span class="g-k">CHAIN</span>
+                <span class="g-v" id="g-chain">×1.0</span>
+                <span class="g-sub" id="g-rings">0 rings</span>
+            </div>
             <div class="gauge">
                 <span class="g-k">VARIO</span>
                 <span class="g-v" id="g-vario">0.0</span>
@@ -57,7 +62,7 @@
             <p class="card-next">Next flight in <span id="next-in">—</span></p>
         </div>
 
-        <p class="hint" id="hint">Hold anywhere — or Space — to dive. Release to soar.</p>
+        <p class="hint" id="hint">HOLD anywhere — or Space — to circle and climb. Release to glide on.</p>
         <p class="say" id="say" role="status" aria-live="polite"></p>
     </main>
 

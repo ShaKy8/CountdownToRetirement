@@ -191,59 +191,50 @@ CountdownToRetirement/
 
 ### THERMAL (/thermal/)
 
-A one-button glider. Hold to dive and build speed, release to soar and trade it
-back for height. Distance in a fixed time is the score, so it is cross-country
-*speed* -- which is what makes dolphin soaring (slow in lift, fast in sink) the
-right play and the button worth pressing.
+A glider. **HOLD to circle and climb** wherever the air is rising; release to glide
+forward and lose height. Distance in a fixed time is the score, so it is
+cross-country speed, and the decision is the one real pilots fly: leave a thermal
+when your climb drops below the average climb you expect to find next.
 
-- **The sky is the real sky.** `thermal/sky.js` is the weather console's WebGL
-  shader, drawing the sun and moon at their true altitude and azimuth, real
-  cloud decks drifting at the real wind bearing, aurora when the KP index is up.
-- **The weather flies the glider.** `boundary_layer_height` sets thermal strength
-  (see below), `sunshine_duration` says how much sun actually reaches the ground,
-  `cloud_cover_low` and wind decide whether the lift organises into streets, and
-  **sun altitude switches the thermals on and off**. Dawn is a glide; a deep
-  afternoon is 25-30 km.
-- **Tune only against real weather.** `scripts/fetch-wx.sh` caches live bundles
-  for ten cities and `scripts/tune-thermal.js` sweeps them. The first tuning pass
-  used invented conditions and produced a game that simulated beautifully and was
-  dead on arrival: against real forecasts, flying perfectly scored the same as
-  doing nothing in 27 of 30 conditions. Re-run the sweep before changing any
-  weather constant.
-- **Not CAPE.** CAPE measures potential for deep convection - thunderstorms - and
-  reads 0-250 J/kg on nearly every real forecast, which is why it could not tell
-  a good soaring day from a dead one. Boundary-layer depth is what sets glider
-  thermal strength, ranges 80-2990 m in practice, and ranks places the way pilots
-  would: Phoenix, Albuquerque and Minden high, Seattle and London low.
-- **The lift is always drawn.** Green columns, leaning downwind exactly as the
-  physics does, with chevrons drifting up them at the thermal's own strength; a
-  centre-zero vario tape down the right edge; the glider lit when it is climbing.
-  This started as cumulus only, drawn only when cloud cover fell between 8% and
-  60% - so on a blue sky nothing on screen showed where the rising air was and
-  the game read as "hold the mouse and descend". You cannot feel lift through a
-  screen. Cumulus are now decoration on top of the columns, never instead of them.
-- **Ridge lift is texture, not a second engine.** It is wind times slope, so it
-  is positive on every windward face and equally negative on every lee face, and
-  a glider crossing undulating ground in ONE direction nets close to zero. Real
-  ridge soaring beats back and forth along a single face, which this glider
-  cannot do - a ridge-running autopilot measurably LOSES to simply drifting. It
-  is drawn and it makes reading the ground worth something; it does not rescue a
-  dead day, and `policyRidge` is kept because it is what proved that.
-- **Straight-line soaring needs streets.** Thermals sit about two boundary-layer
-  depths apart and are a fifth of that across, so crossing them in a straight line
-  puts you in lift ~15% of the time whatever the day. That is fine if you can
-  circle, and this glider cannot. Real pilots fly cloud streets - lines of lift
-  you follow rather than cross - so deep air plus moderate wind draws the spacing
-  in and stretches the cores until they nearly join.
-- **The sun works with the API down.** `astro.js` needs only (date, lat, lon), so
-  the time-of-day mechanic survives an outage on synthetic weather.
-- **Daily plus free flight**, the ONE PUTT split: `recordDaily` fires on landing,
-  once, and `?seed=` forces free flight so a hand-picked course is never scored.
-- **Dev overrides:** `?seed=1234`, `?wx=<mixing layer m>@<mph>@<deg>@<cloud %>`
-  (e.g. `?wx=2200@9@250@20`), `?t=14:30`.
+- **The sky is the real sky** — `thermal/sky.js` is the weather console's WebGL
+  shader, sun and moon at true altitude, cloud decks drifting at the real bearing.
+- **The weather flies the glider.** `boundary_layer_height` sets thermal strength,
+  `sunshine_duration` how much sun reaches the ground, `cloud_cover_low` how often
+  columns occur, and **sun altitude switches thermals on and off**.
+- **The sun works with the API down** — `astro.js` needs only (date, lat, lon).
+- **Rings** stack up the middle of every column, placed from the same profile the
+  lift uses, so every ring provably sits where `thermalW > 0`. They are how the
+  invisible air is made visible: chasing them IS learning to read lift. They give a
+  small altitude bonus and a chain multiplier; distance stays the only score.
+- **Dev overrides:** `?seed=`, `?wx=<mixing layer m>@<mph>@<deg>@<cloud %>`, `?t=14:30`.
 
-### Four things that will silently break it
+### Why it is circle-to-climb, and not what it was
 
+The first version mapped HOLD to *dive* and the glider flew a fixed line through
+every thermal on it. Measured across 40 daily seeds, **holding the button forever
+was the outright best strategy on 15 days and never touching it won on 5 more** —
+on half of all days the optimal play was no input at all. A one-second input error
+cost 0.3% of the score and was frequently an improvement. The owner played it twice
+and said, correctly, that it was boring and that he could not tell what to do.
+
+Three things were also simply broken: the vario read the AIR's velocity rather than
+the glider's, so it did not respond to the button at all (a held step dropped the
+glider at −17.98 m/s while the tape showed −1.21); the sprite pitched nose-**up**
+while diving; and the camera sat at the glider's own altitude, welding it to one
+pixel — burning the entire altitude budget moved the horizon 70 px.
+
+Circling fixes the mapping and, more importantly, gives the player a reason to be
+**at** a place rather than merely passing through it. Measured on the same ten live
+forecasts: skilled play now beats doing nothing by 1.8×, beats holding forever by
+45×, and beats naive circling by 45×. Naive play — circle in anything that rises —
+finds a stable equilibrium at the top of a column, climbing a few metres over
+several minutes and travelling almost nowhere. That trap is the skill gradient.
+
+### Four things that will silently break it### Four things that will silently break it
+
+0. **The camera must not sit at the glider's altitude**, and the vario must read
+   the glider's climb rather than the air's. Both were true once and both made the
+   game unreadable without erroring. Tests pin them.
 1. **The vendored files are copies, not imports.** `weather/` is `rm -rf`'d and
    rebuilt by `scripts/sync-weather.sh`, so an import would break silently on the
    next upstream shader change -- the class would still construct and render, and

@@ -25,27 +25,38 @@
     const FLY = {
         G: 9.81,
         DT: 1 / 120,
-        V_STALL: 13.0,        // m/s
-        V_SOAR: 18.0,         // min-sink speed - the release target
-        V_DIVE: 30.0,         // the hold target - cruise, not a dive
-        W_MINSINK: 0.55,      // m/s sink at V_SOAR
-        POLAR_K: 0.0030,      // parabolic polar curvature
-        K_PITCH: 0.90,        // 1/s pitch response
-        A_MAX: 8.0,           // m/s^2 - about 0.8g, so 42->18 is not instant
-        STALL_W: 0.50,        // extra sink per (m/s below stall)^2
-        STALL_RECOVER: 6.0,   // m/s^2 nose-down authority while stalled
-        // 300 m is close to a floor, not a free choice: thermal lift ramps in
-        // over the first 150 m above its base, so a lower launch never reaches
-        // usable air and every flight collapses to a 40-second sled ride.
-        START_ALT: 300,       // m above the launch point
-        RIDGE_DECAY: 200,     // m e-folding height for ridge lift
-        RIDGE_GAIN: 1.6,      // streamline compression over a crest
-        RIDGE_MAX: 4.0,       // m/s
-        WIND_ALONG_MAX: 15,   // m/s
-        BALANCE: 0.90,        // tunes how lossy the day is to a passive pilot
-        TIME_LIMIT: 1200,      // s of flight - the task is distance in fixed time
-        TIME_SCALE: 6,        // sim seconds per wall-clock second (renderer only)
-        MAX_STEPS: 120 * (1200 + 120)  // the clock ends flights; this only catches runaways
+
+        // Cruise. 26 m/s at 0.95 m/s sink is L/D 27 - a real modern glider. There
+        // is no longer a speed to choose: the button chooses a FLIGHT MODE.
+        V_CRUISE: 26.0,
+        SINK_CRUISE: 0.95,
+
+        // Banked flight sinks a little more and goes nowhere. The 0.10 m/s is
+        // almost beside the point - what circling really costs is all 26 m/s of
+        // forward speed, which is a 26:0 difference rather than the 0.43 m/s the
+        // old model managed. Set this to 1.25 and no thermal on a weak day can be
+        // climbed at all.
+        SINK_CIRCLE: 1.05,
+
+        // Half-life of rolling in and out. The pow() form in step() is exactly
+        // timestep-invariant; a linear (target-bank)*RATE*dt is not.
+        ROLL_HALF: 0.9,
+
+        // RENDERER ONLY. The simulation stays one-dimensional - simulate(), every
+        // autopilot and the tuning harness depend on it.
+        TURN_RATE: 0.32,
+        BANK_ANGLE: 0.80,
+        TURN_RADIUS: 52,
+
+        RIDGE_DECAY: 200,
+        RIDGE_GAIN: 1.6,
+        RIDGE_MAX: 4.0,
+        WIND_ALONG_MAX: 12,
+
+        RELEASE_AGL: 420,     // m above the release point, capped by the column
+        TIME_LIMIT: 1200,     // s of flight
+        TIME_SCALE: 4,        // sim seconds per wall second - a 20 s circle reads as 5
+        MAX_STEPS: 120 * (1200 + 120)
     };
 
     const WORLD = {
@@ -53,24 +64,6 @@
         CHUNK_M: 2000,
         OCTAVES: [[3200, 150], [900, 60], [260, 25], [80, 8]]   // [wavelength m, amplitude m]
     };
-
-    /**
-     * Sink rate at a given airspeed - a parabolic glider polar.
-     *
-     * Best glide falls out as sqrt(V_SOAR^2 + W_MINSINK/POLAR_K) = 19.5 m/s at
-     * about 34:1, which is a real and aspirational machine. Tests pin both.
-     */
-    function sink(v, fly) {
-        const F = fly || FLY;
-        let w = F.W_MINSINK + F.POLAR_K * (v - F.V_SOAR) * (v - F.V_SOAR);
-        if (v < F.V_STALL) w += F.STALL_W * (F.V_STALL - v) * (F.V_STALL - v);
-        return w;
-    }
-
-    function bestGlideSpeed(fly) {
-        const F = fly || FLY;
-        return Math.sqrt(F.V_SOAR * F.V_SOAR + F.W_MINSINK / F.POLAR_K);
-    }
 
     // ------------------------------------------------------------------
     // Terrain
@@ -125,8 +118,12 @@
         // density to whole thermals per chunk, so a 1400 m spacing and a 2500 m
         // spacing both produced exactly one, and cloud cover stopped mattering.
         let px = start + rng() * cond.thermalSpacing;
+        let n = 0;
         while (px < start + WORLD.CHUNK_M) {
             out.push({
+                // Derived, not drawn from rng: pulling an extra number here
+                // would shift every thermal in the world.
+                id: Daily.hashSeed('rg:' + seed + ':' + c + ':' + n++),
                 x: px,
                 r: cond.coreRadius * (0.75 + 0.5 * rng()),
                 strength: cond.wStarEff * (0.6 + 0.8 * rng()),
@@ -155,10 +152,18 @@
      * thermals actually have - and leaning downwind with height, so on a windy
      * day the column walks out from under you.
      */
+    /** How far downwind the column has leaned by this height. */
+    function thermalTilt(th, agl, windAlong) {
+        // Math.max(1, undefined) is NaN, and a NaN here silently poisons the
+        // whole flight rather than throwing.
+        const strength = isFinite(th.strength) ? Math.max(1, th.strength) : 1;
+        return clamp(windAlong * (agl - th.base) / strength, -600, 600);
+    }
+
     function thermalW(th, x, h, windAlong, ground) {
         const agl = h - ground;
         if (agl < 0) return 0;
-        const tilt = clamp(windAlong * (agl - th.base) / Math.max(1, th.strength), -600, 600);
+        const tilt = thermalTilt(th, agl, windAlong);
         const q = Math.abs((x - (th.x + tilt)) / th.r);
         if (q >= 2) return 0;
         let shape;
@@ -167,8 +172,14 @@
         } else {
             shape = -0.35 * (1 - (q - 1.5) * (q - 1.5) * 4);
         }
-        const a = clamp((agl - th.base) / 150, 0, 1);
-        const b = clamp((th.top - agl) / 250, 0, 1);
+        // w/w* in the convective boundary layer is a function of z/zi, not of an
+        // absolute height. Fixed 150/250 m ramps overlap on a shallow column and
+        // cap the profile at about half - measured, a 350 m cloudbase could only
+        // ever deliver 49% of its core strength however strong it was. That, not
+        // weakness, is why shallow days were dead.
+        const depth = Math.max(200, th.top - th.base);
+        const a = clamp((agl - th.base) / (0.25 * depth), 0, 1);
+        const b = clamp((th.top - agl) / (0.35 * depth), 0, 1);
         const vprof = a * a * (3 - 2 * a) * b * b * (3 - 2 * b);
         return th.strength * shape * vprof;
     }
@@ -208,8 +219,15 @@
         return v;
     }
 
+    // Scratch, set by airVelocity and read by the step that just called it. The
+    // tracking term needs the strength of the column acting here, and walking the
+    // same thermals a second time to find it doubled the cost of every step.
+    let lastStrength = 0;
+
     function airVelocity(world, x, h) {
         const ground = terrain(world.seed, x);
+        let bestW = 0;
+        lastStrength = 0;
         // Air that is not rising is sinking - the compensating downdraft around
         // every thermal. This is what makes altitude a budget rather than a
         // gift, and it is why flying well matters.
@@ -219,10 +237,56 @@
         for (let k = c - 1; k <= c + 1; k++) {
             const ths = chunkCached(world, k);
             for (let i = 0; i < ths.length; i++) {
-                w += thermalW(ths[i], x, h, world.cond.windAlong, ground);
+                const tw = thermalW(ths[i], x, h, world.cond.windAlong, ground);
+                w += tw;
+                if (tw > bestW) { bestW = tw; lastStrength = ths[i].strength; }
             }
         }
         return w;
+    }
+
+
+    // ------------------------------------------------------------------
+    // Rings
+    //
+    // A stack of hoops up the middle of every thermal. They are the answer to
+    // "I cannot tell what I am supposed to do": the lift is invisible, so the
+    // rings draw it. Chasing them IS learning to read the air, which is why
+    // they are placed from the same profile the lift uses rather than sprinkled
+    // for decoration - a test pins that every ring sits where thermalW > 0.
+    // ------------------------------------------------------------------
+
+    const RING = {
+        DH: 110,        // m between rings up the column
+        R: 70,          // m collection radius
+        JITTER: 0.15,   // fraction of the core radius the stack may wander
+        ALT: 8,         // m of bonus height per ring at chain 1
+        MAX_MULT: 3.0,
+        DROP: 45        // m below the last ring taken that breaks the chain
+    };
+
+    /** Deterministic from the thermal alone, memoised on it. */
+    function ringsFor(th) {
+        if (th.rings) return th.rings;
+        const rng = Daily.makeRng(th.id);
+        const depth = Math.max(200, th.top - th.base);
+        const lo = th.base + 0.30 * depth;
+        const hi = th.top - 0.30 * depth;
+        const n = Math.max(2, Math.min(14, Math.floor((hi - lo) / RING.DH)));
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            out.push({
+                agl: lo + (hi - lo) * (i + 0.5) / n,
+                off: (rng() - 0.5) * 2 * RING.JITTER * th.r
+            });
+        }
+        th.rings = out;
+        return out;
+    }
+
+    /** Where a ring is horizontally - it leans with the column. */
+    function ringX(th, ring, windAlong) {
+        return th.x + thermalTilt(th, ring.agl, windAlong) + ring.off;
     }
 
     // ------------------------------------------------------------------
@@ -250,7 +314,7 @@
     function blhToWStar(blhMetres, flux) {
         const zi = typeof blhMetres === 'number' && isFinite(blhMetres) ? Math.max(0, blhMetres) : 0;
         const f = clamp(typeof flux === 'number' && isFinite(flux) ? flux : 0, 0, 1);
-        return clamp(0.62 * (Math.cbrt(zi * f) - 3.1), 0.6, 6.0);
+        return clamp(0.62 * (Math.cbrt(zi * f) - 3.1), 1.6, 6.0);
     }
 
     /**
@@ -314,16 +378,20 @@
     /**
      * Ambient sink - the air between the lift.
      *
-     * This was first derived from mass continuity (thermals covering fraction f
-     * and rising at meanW force the rest to sink meanW*f/(1-f)). That is sound
-     * meteorology and a bad game: the formula diverges as f grows, so widening
-     * the lift enough to be dolphin-soarable also made the sink between it
-     * enormous, and every flight ended in two kilometres. It is kept mild and
-     * only mildly solar-scaled instead - a strong day is rougher, but not
-     * self-defeatingly so.
+     * Mass continuity: thermals covering a fraction f and rising at meanW force
+     * the rest of the air down at meanW*f/(1-f). This was abandoned once because
+     * it diverges as f approaches 1, and straight-line dolphin soaring needed f
+     * near 1. Capping the lift fraction at 0.30 is what makes it safe again, and
+     * it restores the thing every pilot knows: a booming day has enormous sink
+     * between the lift, which is the reason you have to climb at all.
+     *
+     * The 0.90 cap is load-bearing. At 1.8 the five strongest afternoons became
+     * unplayable - L/D falls to 12.7 and neither the sled nor correct play can
+     * connect.
      */
-    function ambientSink(solar) {
-        return 0.25 * (0.6 + 0.4 * clamp(solar, 0, 1));
+    function ambientSink(cond) {
+        const f = Math.min(0.30, 2 * cond.coreRadius / Math.max(1, cond.thermalSpacing));
+        return clamp(0.667 * cond.wStarEff * f / (1 - f), 0.20, 0.90);
     }
 
     function buildConditions(raw, sunAltRad, course) {
@@ -333,51 +401,46 @@
         const wStar = blhToWStar(blh, flux);
         const cloudFrac = clamp((typeof raw.cloudLow === 'number' && isFinite(raw.cloudLow)
             ? raw.cloudLow : 0) / 100, 0, 1);
+
         /*
-         * Thermals sit roughly two boundary-layer depths apart and are about a
-         * fifth of that across - both real results, and together they mean a
-         * glider crossing them in a straight line is in lift about 15% of the
-         * time whatever the day. That is survivable if you can circle. This
-         * glider cannot, so on its own it makes every day equally unflyable,
-         * which is exactly what the first real-weather sweep measured.
+         * Thermals sit about two boundary-layer depths apart and are a fifth of
+         * that across. The previous model inflated the cores and collapsed the
+         * spacing into "streets" so that a glider crossing them in a straight
+         * line was always in lift - which is exactly why holding the button and
+         * never releasing was the best strategy on 15 of 40 days.
          *
-         * What makes straight-line soaring work in reality is ORGANISATION: on a
-         * deep day with some wind, thermals line up into streets, and a pilot
-         * flies along one for tens of kilometres barely turning. That is the
-         * mechanic this game is actually about, so it is modelled directly -
-         * deep mixing plus moderate wind lines the lift up, which draws the
-         * spacing in and stretches the cores until they nearly join.
+         * Circling wants the opposite. Narrow cores and honest spacing make
+         * FINDING and CENTRING a thermal the skill. The spacing is capped at
+         * 2400 m because beyond that the glider cannot reliably connect one
+         * column to the next and the sled ride wins again.
          */
-        const windMpsRaw = Math.max(0, (typeof raw.windMph === 'number' && isFinite(raw.windMph)
-            ? raw.windMph : 0)) * MPH_TO_MPS;
-        const street = clamp((blh - 250) / 900, 0, 1) * clamp((windMpsRaw - 0.8) / 3.5, 0, 1);
-        const base = clamp(2.0 * blh, 700, 2600) / Math.max(0.25, cloudFrequency(cloudFrac));
-        const spacing = base * (1 - 0.78 * street);
+        const coreRadius = clamp(0.10 * blh, 90, 320);
+        const thermalSpacing = clamp(
+            2.0 * blh / clamp(cloudFrequency(cloudFrac), 0.55, 1), 700, 2400);
+
         const windMps = Math.max(0, (typeof raw.windMph === 'number' && isFinite(raw.windMph)
             ? raw.windMph : 0)) * MPH_TO_MPS;
         const windToward = (((typeof raw.windDeg === 'number' && isFinite(raw.windDeg)
             ? raw.windDeg : 0) + 180) % 360) * Math.PI / 180;
-        return {
+
+        const cond = {
             wStar: wStar,
             wStarEff: wStar,
             solar: solar,
             flux: flux,
             blh: blh,
-            street: street,
             cloudFrac: cloudFrac,
-            thermalSpacing: spacing,
-            // Thermal diameter is about a fifth of the mixing depth; a street
-            // is far longer than it is wide, so along-track it reads as a much
-            // broader band of lift.
-            coreRadius: clamp(0.10 * blh, 90, 320) * (1 + 1.6 * street),
+            coreRadius: coreRadius,
+            thermalSpacing: thermalSpacing,
             cloudbase: cloudbaseFrom(raw.tempF, raw.dewF, blh),
-            ambient: ambientSink(solar),
             windMps: windMps,
             windToward: windToward,
             windAlong: clamp(windMps * Math.cos(windToward - course),
                 -FLY.WIND_ALONG_MAX, FLY.WIND_ALONG_MAX),
             source: raw.source === 'live' ? 'live' : 'synthetic'
         };
+        cond.ambient = ambientSink(cond);
+        return cond;
     }
 
     /** Reads any bundle shape; returns null - never throws - when it cannot. */
@@ -441,70 +504,161 @@
         return { seed: seed, cond: cond, ground0: terrain(seed, 0), chunks: new Map() };
     }
 
+    /**
+     * Aerotow release, not a launch off a hill.
+     *
+     * Dropping the glider at a fixed height over whatever happened to be at x=0
+     * was a coin flip on a wide-spacing day, and it handed out most of a
+     * mediocre score for free. The tug drops you in the first thermal, which is
+     * what actually happens and what makes every day open with a decision
+     * instead of a search.
+     */
     function createFlight(world) {
-        const h = world.ground0 + FLY.START_ALT;
+        // Spacing can exceed the chunk size, so chunk 0 is often empty - scan
+        // forward until a column turns up rather than falling back to a
+        // hand-made one over open ground.
+        let first = null;
+        for (let c = 0; c < 4 && !first; c++) {
+            const found = thermalsInChunk(world.seed, world.cond, c)
+                .filter(function (t) { return t.x > 200; });
+            if (found.length) first = found[0];
+        }
+        if (!first) first = { x: 600, base: 100, top: 800, r: 150, strength: 1, id: 1 };
+        const g = terrain(world.seed, first.x);
+        const depth = Math.max(200, first.top - first.base);
+        // Release just below the bottom of the ring stack: the first hoop has to
+        // be reachable from the tow, or the opening climb has nothing in it.
+        // 0.22 of the depth is inside the ramp where the lift is already strong,
+        // and still below the first ring at 0.30. Releasing at the base itself
+        // put the glider where the profile is exactly zero.
+        const agl = Math.max(120, first.base + 0.22 * depth);
+        // The column leans downwind with height, so releasing at the thermal's
+        // ground position drops you hundreds of metres clear of the core.
+        const x = first.x + thermalTilt(first, agl, world.cond.windAlong);
+        const h = g + agl;
         return {
-            x: 0, h: h, v: FLY.V_SOAR + 4, hold: false, stalled: false, t: 0,
-            startAlt: h, climbTotal: 0, peakAlt: h, endAlt: h, alive: true, landed: false, w: 0
+            x: x, x0: x, h: h, bank: 0, hold: false, t: 0,
+            startAlt: h, climbTotal: 0, peakX: first.x, peakAlt: h, endAlt: h,
+            alive: true, landed: false, w: 0, wAir: 0,
+            taken: {}, chain: 0, chainAlt: 0, rings: 0, bestChain: 0
         };
     }
+
 
     /**
      * One fixed step. Returns a NEW state; never mutates its input.
      *
-     * The button adds no energy - it chooses how total energy E = h + v^2/2g is
-     * split between height and speed. Release and dv < 0, so -(v/g)dv > 0 and
-     * the lost airspeed reappears as a zoom climb. Using the MIDPOINT velocity
-     * in that term makes the split exactly energy-conserving rather than nearly
-     * so, which is what lets a test assert it instead of tolerating it.
+     * Hold banks the glider into a turn: it climbs wherever the air is rising
+     * and gives up all of its forward speed to do it. Release rolls out and
+     * cruises. That is the whole game, and the decision it creates is the one
+     * real pilots fly - leave when your achieved climb drops below the average
+     * climb you expect to find next.
      */
     function step(world, state, dt, fly) {
         const F = fly || FLY;
         if (!state.alive) return state;
 
-        const v0 = state.v;
-        let dv = clamp(F.K_PITCH * ((state.hold ? F.V_DIVE : F.V_SOAR) - v0), -F.A_MAX, F.A_MAX);
-        let stalled = false;
-        if (v0 < F.V_STALL) {
-            // The nose drops whatever the player is asking for.
-            stalled = true;
-            dv = F.STALL_RECOVER;
-        }
+        // Exactly timestep-invariant: bank(t) is a true exponential, so four
+        // steps of dt/4 land on the same number as one step of dt. A linear
+        // (target - bank) * RATE * dt does not, and the dt test catches it.
+        const k = Math.pow(0.5, dt / F.ROLL_HALF);
+        const bank = state.hold ? 1 - (1 - state.bank) * k : state.bank * k;
 
         const wAir = airVelocity(world, state.x, state.h);
-        const dEdt = wAir - sink(v0, F);
-        const vMid = v0 + 0.5 * dv * dt;
-        const dh = dEdt - (vMid / F.G) * dv;
+        const sink = F.SINK_CRUISE + (F.SINK_CIRCLE - F.SINK_CRUISE) * bank;
+        const dh = wAir - sink;
+        /*
+         * Forward speed, and the tracking term that makes circling mean
+         * something.
+         *
+         * A column leans downwind with height. A glider that merely drifts with
+         * the wind climbs out of its own thermal within a minute, because it
+         * rises faster than the lean carries it sideways - and with no lateral
+         * control it can never get back. That made every climb end in the same
+         * place regardless of how well it was flown.
+         *
+         * Circling IS centring: a pilot follows the core. While banked the
+         * glider tracks the lean of the column it is in, at exactly the rate the
+         * geometry implies, d(tilt)/d(agl) = windAlong / strength.
+         */
+        let track = 0;
+        if (bank > 0.05 && lastStrength > 0) {
+            track = bank * (world.cond.windAlong / lastStrength) * Math.max(0, wAir - sink);
+        }
+        const vx = (F.V_CRUISE + world.cond.windAlong) * (1 - bank) + track;
 
-        const v1 = Math.max(1, v0 + dv * dt);
-        const vz = dh;
-        const vh = Math.sqrt(Math.max(0, v0 * v0 - vz * vz));
-        const x1 = state.x + (vh + world.cond.windAlong) * dt;
-        const h1 = state.h + dh * dt;
+        let x1 = state.x + vx * dt;
+        let h1 = state.h + dh * dt;
+        const t1 = state.t + dt;
+
+        // Rings. A crossing test rather than a proximity one, so a ring counts
+        // once however fast you pass it and whatever the timestep.
+        let taken = state.taken;
+        let chain = state.chain;
+        let chainAlt = state.chainAlt;
+        let rings = state.rings;
+        let bonus = 0;
+        if (chain > 0 && h1 < chainAlt - RING.DROP) chain = 0;
+
+        // Two cheap rejects before the expensive work: a ring can only be
+        // crossed if its altitude lies in the slice this step swept, and a
+        // thermal can only matter if it is roughly overhead. Without them this
+        // loop walks every ring of every nearby thermal 120 times a second.
+        const loH = Math.min(state.h, h1);
+        const hiH = Math.max(state.h, h1);
+        const c = Math.floor(x1 / WORLD.CHUNK_M);
+        for (let ci = c - 1; ci <= c + 1; ci++) {
+            const ths = chunkCached(world, ci);
+            for (let i = 0; i < ths.length; i++) {
+                const th = ths[i];
+                if (Math.abs(x1 - th.x) > th.r + RING.R + 620) continue;
+                const mask = taken[th.id] || 0;
+                if (mask === -1) continue;
+                const rs = ringsFor(th);
+                const ground = terrain(world.seed, th.x);
+                for (let r = 0; r < rs.length; r++) {
+                    if (mask & (1 << r)) continue;
+                    const alt = ground + rs[r].agl;
+                    if (alt < loH || alt > hiH) continue;
+                    if (Math.abs(x1 - ringX(th, rs[r], world.cond.windAlong)) > RING.R) continue;
+                    if (taken === state.taken) taken = Object.assign({}, taken);
+                    taken[th.id] = (taken[th.id] || 0) | (1 << r);
+                    chain += 1;
+                    rings += 1;
+                    chainAlt = alt;
+                    bonus += RING.ALT * Math.min(RING.MAX_MULT, 1 + 0.25 * (chain - 1));
+                }
+            }
+        }
+        h1 += bonus;
 
         const ground = terrain(world.seed, x1);
-        const t1 = state.t + dt;
-        // Two ways to finish. Without the clock, "fly as far as you can" is
-        // solved by always flying best glide and the button is decorative;
-        // with it, distance becomes cross-country SPEED, which is the number
-        // real pilots actually chase and the reason to dolphin-soar.
-        const alive = h1 > ground && t1 < F.TIME_LIMIT;
         const landed = h1 <= ground;
+        const alive = !landed && t1 < F.TIME_LIMIT;
 
         return {
             x: x1,
+            x0: state.x0,
             h: landed ? ground : h1,
-            v: v1,
+            bank: bank,
             hold: state.hold,
-            stalled: stalled,
             t: t1,
             startAlt: state.startAlt,
-            climbTotal: state.climbTotal + (wAir > 0 ? wAir * dt : 0),
+            // Height the AIR gave you, plus ring bonuses, so the shared L/D
+            // stays honest about what the flight actually consumed.
+            climbTotal: state.climbTotal + (wAir > 0 ? wAir * dt : 0) + bonus,
+            peakX: Math.max(state.peakX, x1),
             peakAlt: Math.max(state.peakAlt, h1),
             endAlt: landed ? ground : h1,
             alive: alive,
             landed: landed,
-            w: wAir
+            w: dh,          // the GLIDER - what a vario reads
+            wAir: wAir,     // the AIR    - what the columns are drawn from
+            taken: taken,
+            chain: chain,
+            chainAlt: chainAlt,
+            rings: rings,
+            bestChain: Math.max(state.bestChain, chain)
         };
     }
 
@@ -517,44 +671,51 @@
         const trace = [];
         let steps = 0;
         while (s.alive && steps < cap) {
-            s = Object.assign({}, s, { hold: !!policy(s, s.w, world) });
+            s = Object.assign({}, s, { hold: !!policy(s, s.wAir, world) });
             s = step(world, s, dt, o.fly);
             steps++;
-            if (o.trace && steps % 30 === 0) trace.push({ x: s.x, h: s.h, v: s.v, w: s.w });
+            if (o.trace && steps % 30 === 0) trace.push({ x: s.x, h: s.h, w: s.w, wAir: s.wAir });
         }
         return { state: s, steps: steps, trace: trace, score: scoreFlight(s) };
     }
 
     // Slow down in lift, speed up in sink. This is the whole skill, and a bad
     // policy scoring far worse than this one is how we know the skill is real.
-    function policyGood(state, w) { return w <= 0; }
-    function policyBad(state, w) { return w > 0; }
-    function policyHold(state) { return true; }
-    function policyRelease(state) { return false; }
+    // Autopilots. They reason about the AIR (wAir); the player reads the vario.
+    function policyRelease() { return false; }          // never circle - the no-input baseline
+    function policyHold() { return true; }              // always circle
+    function policyGreedy(state, wAir) { return wAir > FLY.SINK_CIRCLE; }
+    function policyBad(state, wAir) { return wAir < 0; }
 
     /**
-     * A ridge runner: get down to the slope and stay there.
+     * Circle while the climb beats `mc`, but leave near the top of the column.
      *
-     * Measured, this LOSES to simply drifting on a shallow day, and the reason
-     * is structural rather than a tuning miss. Ridge lift is wind times slope,
-     * so it is positive on every windward face and equally negative on every
-     * lee face; a glider crossing undulating ground in one direction nets zero.
-     * Real ridge soaring works because the pilot beats back and forth along a
-     * single face, which this one-directional glider cannot do.
-     *
-     * Ridge lift therefore earns its place as local texture - a windward slope
-     * is a genuine boost and a lee slope a genuine cost, so the ground is worth
-     * reading - and not as a way to save a dead day. Kept as a policy because
-     * it is what proved that.
+     * The ceiling is not optional. Without it `mc` alone cannot express "leave
+     * before the lift dies", and policyGreedy demonstrates why: circling
+     * whenever the air rises finds a stable equilibrium at the top of the
+     * column, where it climbs a few metres over several minutes and travels
+     * almost nowhere. Naive play scores close to zero, which is the skill
+     * gradient this game never had.
      */
-    function policyRidge(world) {
-        return function (state, w) {
+    function policyMacCready(mc, ceilFrac) {
+        return function (state, wAir, world) {
             const agl = state.h - terrain(world.seed, state.x);
-            if (agl > 160) return true;       // dive down to the band
-            if (agl < 70) return false;       // too low, hold what height there is
-            return w <= 0;                     // in the band, dolphin it
+            if (agl > ceilFrac * world.cond.cloudbase) return false;
+            return (wAir - FLY.SINK_CIRCLE) > mc;
         };
     }
+
+    function policyRidgeCircle(world) {
+        return function (state, wAir) {
+            const agl = state.h - terrain(world.seed, state.x);
+            if (agl > 260) return wAir > FLY.SINK_CIRCLE;
+            if (agl < 70) return wAir > 0;
+            return wAir > FLY.SINK_CIRCLE * 0.6;
+        };
+    }
+
+    // Kept so older callers and the harness keep working.
+    const policyGood = policyGreedy;
 
     // ------------------------------------------------------------------
     // Scoring and sharing
@@ -565,12 +726,13 @@
         // the air gave it, less what it landed with.
         const consumed = state.startAlt + state.climbTotal - state.endAlt;
         return {
-            distance: Math.round(state.x),
+            distance: Math.round(Math.max(0, state.peakX - state.x0)),
             climb: Math.round(state.climbTotal),
             duration: Math.round(state.t),
             // How well you flew, as opposed to how good your day was. Nearly
             // invariant to thermal strength, which a raw distance is not.
-            glide: consumed > 1 ? Math.round((state.x / consumed) * 10) / 10 : 0
+            glide: consumed > 1
+                ? Math.round((Math.max(0, state.peakX - state.x0) / consumed) * 10) / 10 : 0
         };
     }
 
@@ -624,7 +786,9 @@
     // Persisted state
     // ------------------------------------------------------------------
 
-    const STORAGE_KEY = 'thermal.v1';
+    // v2: the flight model changed, so a carried-over `best` would be a record
+    // set under different physics and would poison the personal-best on day one.
+    const STORAGE_KEY = 'thermal.v2';
 
     const store = Daily.makeStore({
         version: 1,
@@ -634,6 +798,8 @@
             glide: { kind: 'int', default: 0 },
             climb: { kind: 'int', default: 0 },
             dur: { kind: 'int', default: 0 },
+            rings: { kind: 'int', default: 0 },
+            chain: { kind: 'int', default: 0 },
             solar: { kind: 'int', default: 0 },
             wind: { kind: 'int', default: 0 },
             source: { kind: 'enum', values: ['live', 'synthetic'], default: 'synthetic' }
@@ -677,7 +843,7 @@
         }
         for (let i = 0; i < trace.length; i++) {
             const c = clamp(Math.round((trace[i].x / Math.max(1, maxX)) * (w - 1)), 0, w - 1);
-            grid[rowFor(trace[i].h)][c] = trace[i].w > 0.2 ? '+' : (trace[i].w < -0.2 ? 'v' : '-');
+            grid[rowFor(trace[i].h)][c] = trace[i].wAir > 0.2 ? '+' : (trace[i].wAir < -0.2 ? 'v' : '-');
         }
         return grid.map(function (line) { return line.join(''); }).join('\n');
     }
@@ -700,11 +866,13 @@
         thermalsInChunk: thermalsInChunk,
         thermalsNear: thermalsNear,
         thermalW: thermalW,
+        thermalTilt: thermalTilt,
+        ringsFor: ringsFor,
+        ringX: ringX,
+        RING: RING,
         ridgeW: ridgeW,
         airVelocity: airVelocity,
 
-        sink: sink,
-        bestGlideSpeed: bestGlideSpeed,
         makeWorld: makeWorld,
         createFlight: createFlight,
         step: step,
@@ -713,7 +881,9 @@
         policyBad: policyBad,
         policyHold: policyHold,
         policyRelease: policyRelease,
-        policyRidge: policyRidge,
+        policyGreedy: policyGreedy,
+        policyMacCready: policyMacCready,
+        policyRidgeCircle: policyRidgeCircle,
 
         ambientSink: ambientSink,
         blhToWStar: blhToWStar,
