@@ -58,7 +58,8 @@ cat > /tmp/perms.json <<'JSON'
       "Resource": "arn:aws:s3:::branyontech.com" },
     { "Effect": "Allow", "Action": "cloudfront:CreateInvalidation",
       "Resource": "*" },
-    { "Effect": "Allow", "Action": "lambda:UpdateFunctionCode",
+    { "Effect": "Allow",
+      "Action": ["lambda:UpdateFunctionCode", "lambda:GetFunctionConfiguration"],
       "Resource": "arn:aws:lambda:us-east-1:*:function:atmos-weather-api" }
   ]
 }

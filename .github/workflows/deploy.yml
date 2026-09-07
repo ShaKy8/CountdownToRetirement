@@ -37,6 +37,7 @@ env:
   S3_BUCKET: branyontech.com
   CLOUDFRONT_DISTRIBUTION: E1MBTRO86GIH7E
   LAMBDA_FUNCTION: atmos-weather-api
+  LAMBDA_RUNTIME: nodejs22.x
 
 jobs:
   site:
@@ -110,3 +111,22 @@ jobs:
             --zip-file fileb://function.zip \
             --publish >/dev/null
           echo "lambda updated"
+
+      # The runtime is set in AWS, not here: update-function-code never touches
+      # it, so nothing in this repo would notice when AWS deprecates it or
+      # someone changes it in the console. It has to stay in step with the
+      # engines floor in package.json and the node-version in test.yml.
+      #
+      # Checked after the code ships, deliberately. A drifted runtime should be
+      # a loud failure, not a gate that blocks deploying a fix.
+      - name: Assert the Lambda runtime
+        run: |
+          actual=$(aws lambda get-function-configuration \
+            --function-name "${LAMBDA_FUNCTION}" \
+            --query Runtime --output text)
+          if [ "$actual" != "${LAMBDA_RUNTIME}" ]; then
+            echo "::error::Lambda runtime is '$actual', expected '${LAMBDA_RUNTIME}'."
+            echo "Move LAMBDA_RUNTIME here, engines in package.json and node-version in test.yml together."
+            exit 1
+          fi
+          echo "runtime $actual"
