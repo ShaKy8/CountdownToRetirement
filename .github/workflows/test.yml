@@ -1,3 +1,8 @@
+# Third-party actions are pinned to commit SHAs, not tags. A tag is mutable:
+# whoever controls the action's repo can repoint v5 at new code, which then runs
+# here with whatever the job holds. The trailing comment is the version the SHA
+# was at -- to upgrade, resolve the new tag to its commit and replace both.
+
 name: Run Tests
 
 on:
@@ -11,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
 
