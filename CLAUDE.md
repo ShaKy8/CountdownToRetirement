@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (311 tests)
+# Run client-side tests (315 tests)
 node tests.js
 
 # Run server integration tests (58 tests)
@@ -123,7 +123,7 @@ CountdownToRetirement/
 │   ├── astro.js            # VENDORED weather/js/lib/astro.js + shim
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (311 tests)
+├── tests.js                # Client-side unit tests (315 tests)
 ├── tests-server.js         # Server integration tests (58 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -215,6 +215,13 @@ right play and the button worth pressing.
   a good soaring day from a dead one. Boundary-layer depth is what sets glider
   thermal strength, ranges 80-2990 m in practice, and ranks places the way pilots
   would: Phoenix, Albuquerque and Minden high, Seattle and London low.
+- **The lift is always drawn.** Green columns, leaning downwind exactly as the
+  physics does, with chevrons drifting up them at the thermal's own strength; a
+  centre-zero vario tape down the right edge; the glider lit when it is climbing.
+  This started as cumulus only, drawn only when cloud cover fell between 8% and
+  60% - so on a blue sky nothing on screen showed where the rising air was and
+  the game read as "hold the mouse and descend". You cannot feel lift through a
+  screen. Cumulus are now decoration on top of the columns, never instead of them.
 - **Straight-line soaring needs streets.** Thermals sit about two boundary-layer
   depths apart and are a fifth of that across, so crossing them in a straight line
   puts you in lift ~15% of the time whatever the day. That is fine if you can
@@ -225,7 +232,8 @@ right play and the button worth pressing.
   the time-of-day mechanic survives an outage on synthetic weather.
 - **Daily plus free flight**, the ONE PUTT split: `recordDaily` fires on landing,
   once, and `?seed=` forces free flight so a hand-picked course is never scored.
-- **Dev overrides:** `?seed=1234`, `?wx=cape@mph@deg@cloudpct`, `?t=14:30`.
+- **Dev overrides:** `?seed=1234`, `?wx=<mixing layer m>@<mph>@<deg>@<cloud %>`
+  (e.g. `?wx=2200@9@250@20`), `?t=14:30`.
 
 ### Four things that will silently break it
 

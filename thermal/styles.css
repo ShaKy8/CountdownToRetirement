@@ -207,6 +207,17 @@ html, body {
 .card-title { margin: 0; font-size: 1.3rem; letter-spacing: .12em; color: var(--cy); }
 .card-line { margin: 0; font-family: var(--mono); font-size: .76rem; color: var(--dim); line-height: 1.6; }
 
+.card-teach[hidden] { display: none; }
+
+.card-teach {
+    margin: 2px 0 0;
+    max-width: 30ch;
+    font-family: var(--mono);
+    font-size: .68rem;
+    line-height: 1.7;
+    color: var(--lm);
+}
+
 .card-share {
     margin: 4px 0 0;
     padding: 9px 12px;

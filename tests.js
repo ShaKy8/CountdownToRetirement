@@ -3144,6 +3144,40 @@ describe('THERMAL - Page structure', () => {
         assert.ok(css.includes('prefers-reduced-motion'));
     });
 
+    // The game shipped drawing lift only as cumulus, and only when cloud cover
+    // happened to fall between 8% and 60%. On a blue sky - most of Los Angeles -
+    // nothing on screen showed where the rising air was, and the game read as
+    // "hold the mouse and descend". You cannot feel lift through a screen.
+    test('Should draw the lift whatever the sky is doing', () => {
+        const draw = js.slice(js.indexOf('function draw('), js.indexOf('function frame('));
+        const columns = draw.indexOf('thermalsNear');
+        const cuGate = draw.indexOf('cloudFrac >= 0.08');
+        assert.ok(columns > 0, 'draw() should walk the thermals');
+        assert.ok(cuGate === -1 || cuGate > columns,
+            'The cloud-cover gate must sit INSIDE the thermal loop, on the cumulus ' +
+            'only - never around the lift columns themselves');
+    });
+
+    test('Should make the vario a primary instrument', () => {
+        assert.ok(/function drawVarioTape/.test(js),
+            'A three-character readout in the corner was the only channel telling ' +
+            'the player the air was doing anything');
+        assert.ok(js.includes('drawVarioTape()'), 'and it has to actually be called');
+    });
+
+    test('Should teach the loop, not just the controls', () => {
+        assert.ok(html.includes('id="card-teach"'), 'The pre-flight card should explain the game');
+        assert.ok(/Green columns are rising air/.test(js),
+            'It should name what the columns are and what to do about them');
+    });
+
+    test('Should keep the weather override in step with the model', () => {
+        // ?wx= took CAPE, which stopped driving anything when the model moved to
+        // mixing depth. An override that silently does nothing is worse than none.
+        assert.ok(/blh: Number\(m\[1\]\)/.test(js), '?wx= should set the mixing layer');
+        assert.ok(!/cape: Number\(m\[1\]\)/.test(js), '?wx= must not set CAPE any more');
+    });
+
     test('Should ship a favicon', () => {
         assert.ok(fs.readFileSync(path.join(__dirname, 'thermal', 'favicon.svg'), 'utf8')
             .includes('<svg'));

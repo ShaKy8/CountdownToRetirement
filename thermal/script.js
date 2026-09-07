@@ -12,6 +12,7 @@
     const Sky = window.ThermalSky;
     const Astro = window.ThermalAstro;
     const FLY = T.FLY;
+    const clamp = window.Daily.clamp;
 
     const byId = function (id) { return document.getElementById(id); };
     const skyCanvas = byId('sky');
@@ -114,13 +115,17 @@
         start();
     }
 
+    // ?wx=<mixing layer m>@<mph>@<deg>@<cloud %>  e.g. ?wx=2200@9@250@20
+    // Takes the boundary-layer depth, not CAPE: CAPE stopped driving anything
+    // when the model moved to mixing depth, and an override that silently does
+    // nothing is worse than no override.
     function parseWxParam(v) {
         if (!v) return null;
         const m = /^(\d+)@(\d+(?:\.\d+)?)@(\d+)@(\d+)$/.exec(v);
         if (!m) return null;
         return {
-            cape: Number(m[1]), windMph: Number(m[2]), windDeg: Number(m[3]),
-            cloudLow: Number(m[4]), tempF: 80, dewF: 50, source: 'live'
+            blh: Number(m[1]), sunshine: 1, windMph: Number(m[2]), windDeg: Number(m[3]),
+            cloudLow: Number(m[4]), tempF: 80, dewF: 50, cape: 0, source: 'live'
         };
     }
 
@@ -300,16 +305,69 @@
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // cumulus over working thermals - the only way to see the invisible air
-        if (cond.cloudFrac >= 0.08 && cond.cloudFrac <= 0.60) {
-            const ths = T.thermalsNear(world.seed, cond, flight.x);
-            for (let i = 0; i < ths.length; i++) {
-                const th = ths[i];
-                if (th.top < cond.cloudbase * 0.8) continue;
-                const p = project(th.x, T.terrain(world.seed, th.x) + cond.cloudbase, D);
-                if (p.x < -120 || p.x > W + 120) continue;
-                const r = Math.max(7, Math.min(46, (th.r / D) * (H / (2 * Sky.AZ_PER_NDC))));
-                ctx.fillStyle = 'rgba(255,255,255,0.42)';
+        /*
+         * Draw the lift.
+         *
+         * This used to render cumulus only, and only when cloud cover happened
+         * to fall between 8% and 60% - on the reasoning that real pilots read
+         * clouds and a blue day should be harder. That was wrong for a game:
+         * on a blue sky, which is most of Los Angeles, there was NOTHING on
+         * screen telling you where the rising air was, and the whole thing read
+         * as "hold the mouse and descend". You cannot feel lift through a
+         * screen. So the columns are always drawn, and the cumulus are a
+         * decoration on top of them when the sky has any.
+         */
+        const ths = T.thermalsNear(world.seed, cond, flight.x);
+        const t = window.performance.now() / 1000;
+        for (let i = 0; i < ths.length; i++) {
+            const th = ths[i];
+            const ground = T.terrain(world.seed, th.x);
+            // The column leans downwind with height exactly as the physics does,
+            // so what you see is where the lift actually is.
+            const tiltTop = clamp(cond.windAlong * (th.top - th.base) /
+                Math.max(1, th.strength), -600, 600);
+            const bl = project(th.x - th.r, ground + th.base, D);
+            const br = project(th.x + th.r, ground + th.base, D);
+            const tl = project(th.x - th.r + tiltTop, ground + th.top, D);
+            const tr = project(th.x + th.r + tiltTop, ground + th.top, D);
+            if (Math.max(bl.x, br.x, tl.x, tr.x) < -60 ||
+                Math.min(bl.x, br.x, tl.x, tr.x) > W + 60) continue;
+
+            const punch = clamp(th.strength / 4, 0.12, 1);
+            const g = ctx.createLinearGradient(0, br.y, 0, tr.y);
+            g.addColorStop(0, 'rgba(109,255,74,' + (0.05 * punch).toFixed(3) + ')');
+            g.addColorStop(0.45, 'rgba(109,255,74,' + (0.20 * punch).toFixed(3) + ')');
+            g.addColorStop(1, 'rgba(109,255,74,0)');
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.moveTo(bl.x, bl.y); ctx.lineTo(br.x, br.y);
+            ctx.lineTo(tr.x, tr.y); ctx.lineTo(tl.x, tl.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Chevrons drifting up the column: the air is moving, and how fast.
+            if (!reduceMotion) {
+                const rows = 5;
+                ctx.strokeStyle = 'rgba(160,255,140,' + (0.42 * punch).toFixed(3) + ')';
+                ctx.lineWidth = 1.4;
+                for (let k = 0; k < rows; k++) {
+                    const f = ((k / rows) + (t * th.strength * 0.10)) % 1;
+                    const y = br.y + (tr.y - br.y) * f;
+                    const cx = bl.x + (tl.x - bl.x) * f + (br.x - bl.x) / 2;
+                    const half = ((br.x - bl.x) / 2) * (1 - f * 0.35);
+                    ctx.beginPath();
+                    ctx.moveTo(cx - half * 0.5, y + 5);
+                    ctx.lineTo(cx, y);
+                    ctx.lineTo(cx + half * 0.5, y + 5);
+                    ctx.stroke();
+                }
+            }
+
+            // Cumulus mark the top when there is enough moisture to make one.
+            if (cond.cloudFrac >= 0.08 && th.top > cond.cloudbase * 0.8) {
+                const p = project(th.x + tiltTop, ground + th.top, D);
+                const r = Math.max(6, Math.min(26, (th.r / D) * (H / (2 * Sky.AZ_PER_NDC)) * 0.55));
+                ctx.fillStyle = 'rgba(255,255,255,0.26)';
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
                 ctx.arc(p.x - r * 0.7, p.y + r * 0.25, r * 0.65, 0, Math.PI * 2);
@@ -336,13 +394,58 @@
         ctx.save();
         ctx.translate(gx, gy);
         ctx.rotate(pitch);
-        ctx.fillStyle = flight.stalled ? '#ff3b57' : '#ffffff';
+        const w = flight.w || 0;
+        if (w > 0.2 && !flight.stalled) {
+            ctx.shadowColor = '#6dff4a';
+            ctx.shadowBlur = Math.min(26, 8 + w * 5);
+        }
+        ctx.fillStyle = flight.stalled ? '#ff3b57' : (w > 0.2 ? '#d8ffcc' : '#ffffff');
         ctx.beginPath();
         ctx.moveTo(-13, 0); ctx.lineTo(9, -3); ctx.lineTo(13, 0); ctx.lineTo(9, 3);
         ctx.closePath();
         ctx.fill();
         ctx.fillRect(-4, -8, 2.5, 16);
+        ctx.shadowBlur = 0;
         ctx.restore();
+
+        drawVarioTape();
+    }
+
+    /**
+     * The vario, as the primary instrument it is in a real glider.
+     *
+     * A three-character readout in the corner was not enough to fly by - it was
+     * the only channel telling you the air was doing anything at all, and it
+     * was the least visible thing on screen. This is a tape down the right-hand
+     * edge, centre-zero, green up and red down, which is what a pilot actually
+     * watches.
+     */
+    function drawVarioTape() {
+        const w = flight.w || 0;
+        const x = W - 30, top = H * 0.28, bot = H * 0.72, mid = (top + bot) / 2;
+
+        ctx.fillStyle = 'rgba(4,10,20,0.55)';
+        ctx.fillRect(x - 9, top - 10, 18, bot - top + 20);
+        ctx.strokeStyle = 'rgba(0,234,255,0.25)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - 9, top - 10, 18, bot - top + 20);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+        ctx.beginPath(); ctx.moveTo(x - 9, mid); ctx.lineTo(x + 9, mid); ctx.stroke();
+
+        const f = clamp(w / 4, -1, 1);
+        const h = Math.abs(f) * (mid - top);
+        ctx.fillStyle = w >= 0 ? '#6dff4a' : '#ff3b57';
+        ctx.fillRect(x - 7, w >= 0 ? mid - h : mid, 14, h);
+
+        ctx.font = '600 11px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = w >= 0 ? '#6dff4a' : '#ff3b57';
+        ctx.fillText((w >= 0 ? '+' : '') + w.toFixed(1), x, top - 16);
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.font = '600 8px ui-monospace, monospace';
+        ctx.fillText('LIFT', x, top - 26);
+        ctx.textAlign = 'left';
     }
 
     // ------------------------------------------------------------------
@@ -442,6 +545,7 @@
     function showCard() {
         const card = byId('card');
         byId('card-share').hidden = true;
+        byId('card-teach').hidden = true;
         byId('share').hidden = true;
         byId('free').hidden = true;
         byId('launch').hidden = false;
@@ -458,10 +562,18 @@
         const noon = times.solarNoon ? times.solarNoon.toTimeString().slice(0, 5) : 'midday';
         const pct = Math.round(cond.solar * 100);
         byId('card-title').textContent = mode === 'free' ? 'Free flight' : 'Flight #' + day;
-        byId('card-line').textContent = pct < 15
+        const conditions = pct < 15
             ? 'Solar ' + pct + '% · thermals asleep · best lift around ' + noon
             : 'Solar ' + pct + '% · ' + (pct > 70 ? 'working well' : 'coming up') +
               ' · cloudbase ' + Math.round(cond.cloudbase) + ' m';
+        // The controls were explained and the GAME was not. What the player
+        // needs to know before the first launch is that the green columns are
+        // the point, not that the mouse does something.
+        byId('card-line').textContent = conditions;
+        byId('card-teach').textContent =
+            'Green columns are rising air. Release inside one to climb; ' +
+            'hold between them to cover ground. Fly as far as you can.';
+        byId('card-teach').hidden = false;
         byId('launch').textContent = 'Launch';
         card.hidden = false;
     }
