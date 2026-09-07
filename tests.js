@@ -2988,9 +2988,14 @@ describe('THERMAL - Vendored sky and astronomy', () => {
     });
 
     test('Should put the sun where the sky actually is', () => {
+        // These instants must be ABSOLUTE, not local. Elsewhere in this file the
+        // rule is the opposite - puzzleDay is about the player's own calendar
+        // day, so those tests build local date parts. Here the coordinates are
+        // pinned to Los Angeles, so the instant has to be too, or a UTC runner
+        // asks where the sun is over LA at 7am and correctly answers "low".
         const lat = 34.0522, lon = -118.2437;
-        const noon = ThermalAstro.sunPosition(new Date(2026, 8, 7, 14, 0), lat, lon);
-        const night = ThermalAstro.sunPosition(new Date(2026, 8, 7, 2, 0), lat, lon);
+        const noon = ThermalAstro.sunPosition(new Date(Date.UTC(2026, 8, 7, 21, 0)), lat, lon);
+        const night = ThermalAstro.sunPosition(new Date(Date.UTC(2026, 8, 7, 9, 0)), lat, lon);
         assert.ok(noon.altitude * 180 / Math.PI > 45, 'The afternoon sun should be high');
         assert.ok(night.altitude < 0, 'At 2am it should be below the horizon');
         // Southward in the afternoon, northern hemisphere, once converted.
@@ -3003,7 +3008,7 @@ describe('THERMAL - Vendored sky and astronomy', () => {
         const src = fs2.readFileSync(path.join(__dirname, 'thermal/astro.js'), 'utf8');
         assert.ok(!/\bfetch\s*\(/.test(src), 'astro.js must not reach the network');
         assert.ok(!/XMLHttpRequest/.test(src));
-        const t = ThermalAstro.sunTimes(new Date(2026, 8, 7, 12), 34.0522, -118.2437);
+        const t = ThermalAstro.sunTimes(new Date(Date.UTC(2026, 8, 7, 19, 0)), 34.0522, -118.2437);
         assert.ok(t.sunrise instanceof Date && t.sunset instanceof Date,
             'Sunrise and sunset drive the pre-flight card');
         assert.ok(t.sunset > t.sunrise);
