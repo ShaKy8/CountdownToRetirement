@@ -130,10 +130,16 @@ CountdownToRetirement/
 - **Metric assumptions:** 8 work hours/day, 2 commutes of 30 minutes, 3 meetings and 1 alarm per workday, as constants at the top of `calc.js`.
 
 ### ONE PUTT (/game/)
-- **One hole a day.** `putt.js` `dailyHole()` seeds from the **UTC** puzzle day, so
-  every player worldwide gets the identical hole. UTC rather than local date
-  because the share string carries a puzzle number, and two people comparing
-  "#249" while looking at different holes would be worse than a day's offset.
+- **One hole a day, rolling over at LOCAL midnight.** `putt.js` `puzzleDay()` keys
+  off the player's local calendar date, as Wordle does. This still gives everyone
+  the identical hole, because the seed comes from the date (2026-09-07) rather
+  than from an instant: two people both playing their own Sep 7 derive the same
+  seed, even though Tokyo starts sixteen hours before Los Angeles — and the
+  puzzle number travels with the date, so "#249" is never ambiguous.
+  `Date.UTC()` of the local y/m/d normalises each date to a UTC-midnight instant
+  before subtracting, which keeps the count exact across DST, where a local day
+  is 23 or 25 hours long. The tests are built from local date parts so they pass
+  in any zone; CI runs UTC and the author's machine does not.
 - **The wind is the player's real wind.** `extractWind()` interpolates
   `forecast.data.hourly` from `/weather/api/bundle` — never `current`, which
   `weather/js/state.js` documents as the noisy 15-minute model step. Direction

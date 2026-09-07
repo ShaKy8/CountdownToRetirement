@@ -17,15 +17,28 @@
     // Time and seeding
     // ------------------------------------------------------------------
 
-    // Puzzle numbering runs on UTC so the whole world plays the same hole at
-    // the same moment. Wordle keys off the local date, but a Wordle share
-    // carries no puzzle number; ours does, and two people comparing "#249"
-    // while looking at different holes would be worse than a day's offset.
+    // The puzzle is keyed to the player's LOCAL CALENDAR DATE, so the hole rolls
+    // over at local midnight - as Wordle does.
+    //
+    // Note this still gives everyone the same hole, because the seed comes from
+    // the date itself (2026-09-07) and not from an instant: two people both
+    // playing their own Sep 7 derive the same seed and see the same hole, even
+    // though Tokyo starts sixteen hours before Los Angeles. The puzzle number
+    // travels with the date, so "#249" is never ambiguous either.
     const EPOCH_UTC_MS = Date.UTC(2026, 0, 1);
     const DAY_MS = 86400000;
 
+    /**
+     * Days from the epoch to the local calendar date `now` falls on.
+     *
+     * Date.UTC() of the LOCAL y/m/d normalises each date to a UTC midnight
+     * instant, so the subtraction is exact whole days regardless of the
+     * player's offset - and immune to DST, which would otherwise make some
+     * days 23 or 25 hours long and drift the count.
+     */
     function puzzleDay(now) {
-        return Math.floor((now.getTime() - EPOCH_UTC_MS) / DAY_MS);
+        const localMidnightUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+        return Math.round((localMidnightUTC - EPOCH_UTC_MS) / DAY_MS);
     }
 
     function puzzleDateKey(day) {
@@ -35,11 +48,13 @@
         return d.getUTCFullYear() + '-' + m + '-' + dd;
     }
 
-    /** Milliseconds until the next puzzle flips. Always in (0, DAY_MS]. */
+    /**
+     * Milliseconds until the next LOCAL midnight. Built from local date parts
+     * rather than by adding 24h, so the clocks-change days are still right.
+     */
     function msUntilNextPuzzle(now) {
-        const since = now.getTime() - EPOCH_UTC_MS;
-        const into = ((since % DAY_MS) + DAY_MS) % DAY_MS;
-        return DAY_MS - into;
+        const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+        return next.getTime() - now.getTime();
     }
 
     /** xmur3 string hash - spreads a short string into a well-mixed uint32. */

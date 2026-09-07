@@ -1327,27 +1327,41 @@ describe('BUSINESS SITE - Personal stats file', () => {
 // =============================================================================
 
 describe('ONE PUTT - Puzzle day and seed', () => {
-    test('Should key the puzzle to UTC, not local time', () => {
-        const early = new Date('2026-09-07T00:00:00Z');
-        const late = new Date('2026-09-07T23:59:59Z');
-        assert.strictEqual(Putt.puzzleDay(early), Putt.puzzleDay(late),
-            'Same UTC day should be the same puzzle');
+    test('Should hold one puzzle for a whole local day', () => {
+        for (let hour = 0; hour < 24; hour++) {
+            assert.strictEqual(
+                Putt.puzzleDay(new Date(2026, 8, 7, hour, 30)),
+                Putt.puzzleDay(new Date(2026, 8, 7, 0, 0)),
+                `Hour ${hour} landed on a different puzzle`);
+        }
     });
 
-    test('Should roll over exactly at UTC midnight', () => {
-        const before = new Date(Date.parse('2026-09-07T00:00:00Z') - 1);
-        const at = new Date('2026-09-07T00:00:00Z');
-        assert.strictEqual(Putt.puzzleDay(at) - Putt.puzzleDay(before), 1);
+    test('Should roll over at local midnight', () => {
+        const lastMoment = new Date(2026, 8, 7, 23, 59, 59, 999);
+        const midnight = new Date(2026, 8, 8, 0, 0, 0, 0);
+        assert.strictEqual(Putt.puzzleDay(midnight) - Putt.puzzleDay(lastMoment), 1,
+            'The hole should change as the local date does');
     });
 
     test('Should advance by exactly one per day', () => {
-        const a = Putt.puzzleDay(new Date('2026-03-01T12:00:00Z'));
-        const b = Putt.puzzleDay(new Date('2026-03-02T12:00:00Z'));
+        const a = Putt.puzzleDay(new Date(2026, 2, 1, 12, 0));
+        const b = Putt.puzzleDay(new Date(2026, 2, 2, 12, 0));
         assert.strictEqual(b - a, 1);
     });
 
+    // A day that is 23 or 25 hours long must still count as one day, or the
+    // puzzle number drifts every time the clocks change.
+    test('Should count clock-change days as one day', () => {
+        [[2, 7], [10, 31]].forEach(([month, dayOfMonth]) => {
+            const before = Putt.puzzleDay(new Date(2026, month, dayOfMonth, 12, 0));
+            const after = Putt.puzzleDay(new Date(2026, month, dayOfMonth + 1, 12, 0));
+            assert.strictEqual(after - before, 1,
+                `Crossing 2026-${month + 1}-${dayOfMonth} was not one day`);
+        });
+    });
+
     test('Should map a day back to its ISO date', () => {
-        const day = Putt.puzzleDay(new Date('2026-09-07T12:00:00Z'));
+        const day = Putt.puzzleDay(new Date(2026, 8, 7, 12, 0));
         assert.strictEqual(Putt.puzzleDateKey(day), '2026-09-07');
     });
 
@@ -1360,11 +1374,18 @@ describe('ONE PUTT - Puzzle day and seed', () => {
         });
     });
 
-    test('Should count down into the next puzzle within (0, one day]', () => {
-        [0, 1, 43200000, 86399999].forEach(offset => {
-            const now = new Date(Putt.EPOCH_UTC_MS + 500 * Putt.DAY_MS + offset);
+    test('Should count down to the next local midnight', () => {
+        [[2026, 8, 7, 0, 0], [2026, 8, 7, 12, 34], [2026, 8, 7, 23, 59],
+         [2026, 2, 8, 1, 30], [2026, 10, 1, 1, 30]].forEach(parts => {
+            const now = new Date(parts[0], parts[1], parts[2], parts[3], parts[4]);
             const ms = Putt.msUntilNextPuzzle(now);
-            assert.ok(ms > 0 && ms <= Putt.DAY_MS, `Out of range: ${ms}`);
+            assert.ok(ms > 0, `Countdown should be positive, got ${ms}`);
+            const then = new Date(now.getTime() + ms);
+            assert.strictEqual(then.getHours(), 0, 'Should land on midnight');
+            assert.strictEqual(then.getMinutes(), 0);
+            assert.strictEqual(then.getSeconds(), 0);
+            assert.strictEqual(Putt.puzzleDay(then) - Putt.puzzleDay(now), 1,
+                'Landing there should be the next puzzle');
         });
     });
 });
