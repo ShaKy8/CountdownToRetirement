@@ -985,6 +985,13 @@
             const keys = Object.keys(o.days);
             for (let i = 0; i < keys.length; i++) {
                 const k = keys[i];
+                // A stored blob is attacker-controlled in the sense that
+                // anything with access to the origin can write localStorage.
+                // `out.days[k] = ...` with k === '__proto__' does not add a
+                // key - it reassigns the object's prototype, so later lookups
+                // return values that were never stored. JSON.parse creates a
+                // real own '__proto__' property, unlike an object literal.
+                if (k === '__proto__') continue;
                 const d = o.days[k];
                 if (!d || typeof d !== 'object') continue;
                 const strokes = intOr(d.strokes, null);

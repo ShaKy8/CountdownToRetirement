@@ -2083,6 +2083,189 @@ describe('BUSINESS SITE - Deploy wiring', () => {
 });
 
 // =============================================================================
+// DAILY SHARED - characterisation
+//
+// Written BEFORE any code moves out of putt.js into shared/daily.js. These are
+// golden pins of what the code does TODAY, so the extraction can be proved to
+// have changed nothing. They are deliberately about observable output, not
+// about which file a function happens to live in.
+// =============================================================================
+
+describe('DAILY SHARED - Seeding is frozen', () => {
+    // Every hole ever played and every share string ever posted depends on
+    // these numbers. If one moves, history was rewritten.
+    const GOLDEN_SEEDS = [[0, 1816539778], [249, 2659711807], [3650, 1370797941]];
+
+    test('Should keep the day seeds pinned', () => {
+        GOLDEN_SEEDS.forEach(([day, seed]) => {
+            assert.strictEqual(Putt.seedForDay(day), seed,
+                `Seed for day ${day} changed - every past hole just moved`);
+        });
+    });
+
+    test('Should keep ten years of seeds distinct', () => {
+        const seeds = new Set();
+        for (let d = 0; d < 3650; d++) seeds.add(Putt.seedForDay(d));
+        assert.strictEqual(seeds.size, 3650);
+    });
+
+    // A hash of the whole hole, so ANY change to generation - archetypes,
+    // ranges, validation order, par - is caught, not just the seed.
+    const GOLDEN_HOLES = [[0, 2678361518], [1, 2013129863], [7, 1187580585], [30, 3711364453],
+        [99, 3780343058], [100, 3508609721], [182, 2909951490], [249, 264568346],
+        [365, 3036544282], [500, 1356520212], [730, 2621076798], [1000, 354758885],
+        [1095, 3790717719], [1500, 1663380036], [1826, 2160198124], [2000, 2230955715],
+        [2500, 659646394], [3000, 2429228771], [3400, 3110396994], [3650, 3718038452]];
+
+    test('Should build byte-identical holes to the ones already published', () => {
+        GOLDEN_HOLES.forEach(([day, hash]) => {
+            const hole = Putt.generateHole(Putt.seedForDay(day));
+            assert.strictEqual(Putt.hashSeed(JSON.stringify(hole)), hash,
+                `Hole for day ${day} changed`);
+        });
+    });
+});
+
+describe('DAILY SHARED - parseState characterisation', () => {
+    // One row per hostile or malformed blob, pinned by a hash of the rebuilt
+    // state. 378302632 is emptyState(); anything else is a deliberate survivor.
+    const EMPTY = 378302632;
+    const GOLDEN_PARSE = [
+        ['', EMPTY], ['{', EMPTY], ['null', EMPTY], ['[]', EMPTY],
+        ['"hello"', EMPTY], ['42', EMPTY], ['true', EMPTY], ['{}', EMPTY],
+        ['{"v":2}', EMPTY], ['{"v":"1"}', EMPTY], ['{"v":1}', EMPTY],
+        ['{"v":1,"days":"nope"}', EMPTY],
+        ['{"v":1,"days":[]}', EMPTY],
+        ['{"v":1,"days":{"5":{"strokes":"x","par":3}}}', EMPTY],
+        ['{"v":1,"days":{"5":{"strokes":0,"par":3}}}', EMPTY],
+        ['{"v":1,"days":{"5":{"strokes":3}}}', EMPTY],
+        ['{"v":1,"days":{"5":{"strokes":3,"par":3,"windMph":null}}}', 2977554838],
+        ['{"v":1,"days":{"5":{"strokes":3,"par":3,"source":"hacked"}}}', 2977554838],
+        ['{"v":1,"days":{"__proto__":{"strokes":2,"par":3}}}', EMPTY],
+        ['{"v":1,"streak":"x","days":{}}', EMPTY],
+        ['{"v":1,"streak":-5}', EMPTY],
+        ['{"v":1,"lastDay":"abc"}', EMPTY],
+        ['{"v":1,"settings":{"geo":"hacked","sound":"yes"}}', EMPTY],
+        ['{"v":1,"settings":[]}', EMPTY],
+        ['{"v":1,"played":1e300}', 950902151]
+    ];
+
+    test('Should rebuild every malformed blob to a pinned shape', () => {
+        GOLDEN_PARSE.forEach(([raw, hash]) => {
+            let out;
+            assert.doesNotThrow(() => { out = Putt.parseState(raw); }, `Threw on ${raw}`);
+            assert.strictEqual(Putt.hashSeed(JSON.stringify(out)), hash,
+                `parseState(${raw}) changed shape`);
+        });
+    });
+
+    test('Should never let a stored blob reach the prototype chain', () => {
+        Putt.parseState('{"v":1,"days":{"__proto__":{"strokes":2,"par":3}}}');
+        Putt.parseState('{"v":1,"__proto__":{"polluted":1}}');
+        Putt.parseState('{"__proto__":{"polluted":1},"v":1}');
+        assert.strictEqual(Object.prototype.polluted, undefined, 'Object.prototype was polluted');
+        assert.strictEqual(Object.prototype.strokes, undefined, 'Object.prototype was polluted');
+        assert.strictEqual({}.polluted, undefined);
+    });
+
+    test('Should drop a __proto__ day rather than store it', () => {
+        const out = Putt.parseState('{"v":1,"days":{"__proto__":{"strokes":2,"par":3}}}');
+        assert.deepStrictEqual(Object.keys(out.days), []);
+        assert.strictEqual(Object.getPrototypeOf(out.days), Object.prototype);
+    });
+
+    test('Should round-trip a real state unchanged', () => {
+        let s = Putt.emptyState();
+        s = Putt.recordDaily(s, 10, { strokes: 3, par: 3, windMph: 12, windDeg: 210, source: 'live' });
+        s = Putt.recordDaily(s, 11, { strokes: 1, par: 4, windMph: 4, windDeg: 90, source: 'synthetic' });
+        assert.deepStrictEqual(Putt.parseState(Putt.serializeState(s)), s);
+    });
+});
+
+describe('DAILY SHARED - recordDaily characterisation', () => {
+    const res = { strokes: 3, par: 3, windMph: 10, windDeg: 180, source: 'live' };
+
+    test('Should be idempotent for a day already recorded', () => {
+        const s = Putt.recordDaily(Putt.emptyState(), 10, res);
+        const again = Putt.recordDaily(s, 10, { strokes: 1, par: 3, windMph: 0, windDeg: 0, source: 'live' });
+        assert.strictEqual(again, s, 'Should return the very same object, not a copy');
+    });
+
+    test('Should refuse any day at or before the last one recorded', () => {
+        const s = Putt.recordDaily(Putt.emptyState(), 10, res);
+        [9, 10, 0, -5].forEach(day => {
+            assert.strictEqual(Putt.recordDaily(s, day, res), s, `Day ${day} should be refused`);
+        });
+    });
+
+    test('Should extend a streak only on the immediately following day', () => {
+        let s = Putt.emptyState();
+        s = Putt.recordDaily(s, 10, res); assert.strictEqual(s.streak, 1);
+        s = Putt.recordDaily(s, 11, res); assert.strictEqual(s.streak, 2);
+        s = Putt.recordDaily(s, 13, res); assert.strictEqual(s.streak, 1, 'A gap resets');
+        assert.strictEqual(s.bestStreak, 2, 'But the best is remembered');
+    });
+
+    test('Should prune at exactly thirty days', () => {
+        let s = Putt.emptyState();
+        for (let d = 1; d <= 30; d++) s = Putt.recordDaily(s, d, res);
+        assert.strictEqual(Object.keys(s.days).length, 30);
+        assert.ok(s.days['1'], 'Day 1 still present at the boundary');
+        s = Putt.recordDaily(s, 31, res);
+        assert.strictEqual(Object.keys(s.days).length, 30);
+        assert.ok(!s.days['1'], 'The oldest day is dropped on the thirty-first');
+        assert.ok(s.days['31']);
+    });
+
+    test('Should not mutate the state handed to it', () => {
+        const s = Putt.emptyState();
+        const before = JSON.parse(JSON.stringify(s));
+        Putt.recordDaily(s, 10, res);
+        assert.deepStrictEqual(s, before);
+    });
+});
+
+describe('DAILY SHARED - wind extraction characterisation', () => {
+    const bundle = (hourly, offset) => ({
+        forecast: { ok: true, data: { utc_offset_seconds: offset || 0, hourly } }
+    });
+    const base = {
+        time: ['2026-09-07T10:00', '2026-09-07T11:00'],
+        wind_speed_10m: [10, 20], wind_direction_10m: [180, 180], wind_gusts_10m: [15, 25]
+    };
+
+    test('Should clamp wind at the ONE PUTT maximum', () => {
+        assert.strictEqual(Putt.clampWind({ mph: 900, deg: 0 }).mph, Putt.SIM.WIND_MAX_MPH);
+        assert.strictEqual(Putt.SIM.WIND_MAX_MPH, 45, 'The clamp ONE PUTT was tuned against');
+    });
+
+    test('Should keep the interpolation exact', () => {
+        const w = Putt.extractWind(bundle(base), new Date(Date.UTC(2026, 8, 7, 10, 30)));
+        assert.strictEqual(w.mph, 15);
+        assert.strictEqual(w.deg, 180);
+        assert.strictEqual(w.gustMph, 20);
+        assert.strictEqual(w.source, 'live');
+    });
+
+    test('Should return null for every malformed shape, and never throw', () => {
+        const junk = [null, undefined, {}, [], 'nope', 42, true,
+            { forecast: null }, { forecast: {} }, { forecast: { ok: false, error: 'x' } },
+            { forecast: { ok: true, data: {} } },
+            { forecast: { ok: true, data: { hourly: {} } } },
+            { forecast: { ok: true, data: { hourly: { time: [] } } } },
+            bundle(Object.assign({}, base, { wind_speed_10m: [10] })),
+            bundle(Object.assign({}, base, { wind_speed_10m: [null, null] })),
+            bundle(Object.assign({}, base, { wind_direction_10m: ['n/a', 'n/a'] })),
+            bundle(Object.assign({}, base, { time: ['nope', 'also-nope'] }))];
+        junk.forEach((j, i) => {
+            let out;
+            assert.doesNotThrow(() => { out = Putt.extractWind(j, new Date()); }, `Threw on fixture ${i}`);
+            assert.strictEqual(out, null, `Fixture ${i} should be null`);
+        });
+    });
+});
+
+// =============================================================================
 // RUN ALL TESTS
 // =============================================================================
 
