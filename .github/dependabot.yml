@@ -1,0 +1,22 @@
+# The workflows pin third-party actions to commit SHAs, which is what makes a
+# repointed upstream tag unable to run here -- but it also means nothing moves
+# on its own. Dependabot understands a SHA pin with a trailing "# vX.Y.Z"
+# comment and bumps both together, so the pins stay current without giving up
+# immutability.
+#
+# There is no npm ecosystem entry on purpose: package.json declares no
+# dependencies or devDependencies. The tests use only Node built-ins.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # One PR for all of them rather than three; these move together in practice.
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
