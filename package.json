@@ -18,6 +18,6 @@
   "author": "Kyle",
   "license": "MIT",
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=22.0.0"
   }
 }
