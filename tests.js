@@ -1244,6 +1244,12 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'Game link should say "Putt against your own weather"');
     });
 
+    test('Should have a link to the glider', () => {
+        assert.ok(indexHtml.includes('/thermal/'), 'Should link to THERMAL');
+        assert.ok(indexHtml.includes('Fly a glider in your own sky'),
+            'Glider link should say "Fly a glider in your own sky"');
+    });
+
     test('Should be text only with no scripts or graphics', () => {
         assert.ok(!indexHtml.includes('<svg'), 'Landing page should not contain SVG graphics');
         assert.ok(!indexHtml.includes('<img'), 'Landing page should not contain images');
@@ -2089,6 +2095,25 @@ describe('BUSINESS SITE - Deploy wiring', () => {
             'The shared module must load before putt.js');
     });
 
+    test('Should deploy every THERMAL file', () => {
+        assert.ok(/-\s*'thermal\/\*\*'/.test(deploy),
+            "deploy.yml paths filter needs 'thermal/**'");
+        ['thermal/index.html', 'thermal/flight.js', 'thermal/script.js', 'thermal/sky.js',
+            'thermal/astro.js', 'thermal/styles.css', 'thermal/favicon.svg'].forEach(f => {
+                assert.ok(deploy.includes("--include '" + f + "'"), `${f} would 404 in production`);
+            });
+    });
+
+    test('Should keep the game HTML on the short cache, not the asset one', () => {
+        const htmlStep = deploy.slice(deploy.indexOf('Sync HTML'), deploy.indexOf('Sync assets'));
+        const assetStep = deploy.slice(deploy.indexOf('Sync assets'), deploy.indexOf('Sync weather'));
+        ['game/index.html', 'thermal/index.html'].forEach(f => {
+            assert.ok(htmlStep.includes("--include '" + f + "'"), `${f} belongs in the HTML step`);
+            assert.ok(!assetStep.includes("--include '" + f + "'"),
+                `${f} in the asset step would overwrite its 5-minute cache with an hour`);
+        });
+    });
+
     test('Should list every sitemap page as a real file', () => {
         const locs = sitemap.match(/<loc>([^<]+)<\/loc>/g) || [];
         assert.ok(locs.length >= 4, 'Sitemap should list the site pages');
@@ -2874,6 +2899,211 @@ describe('THERMAL - Scoring, sharing and state', () => {
         s = Thermal.recordDaily(s, 11, Object.assign({}, flight, { dist: 9000 }));
         assert.strictEqual(s.streak, 2);
         assert.strictEqual(s.best, 18420, 'A worse day does not lower the best');
+    });
+});
+
+describe('THERMAL - Vendored sky and astronomy', () => {
+    const fs = require('fs');
+    const crypto = require('crypto');
+    const ThermalSky = require('./thermal/sky.js');
+    const ThermalAstro = require('./thermal/astro.js');
+
+    const vendored = [
+        ['thermal/sky.js', 'weather/js/gl/sky.js'],
+        ['thermal/astro.js', 'weather/js/lib/astro.js']
+    ];
+
+    // Warns rather than fails. Upstream drifting is not an error - the copy is
+    // deliberate - but it should never drift UNNOTICED, because every symptom
+    // of a stale copy is silent.
+    test('Should notice when upstream has moved on', () => {
+        vendored.forEach(([copy, upstream]) => {
+            const src = fs.readFileSync(path.join(__dirname, copy), 'utf8');
+            const declared = (/Upstream sha256:\s*([0-9a-f]{64})/.exec(src) || [])[1];
+            assert.ok(declared, `${copy} must declare the hash it was taken from`);
+            const actual = crypto.createHash('sha256')
+                .update(fs.readFileSync(path.join(__dirname, upstream))).digest('hex');
+            if (declared !== actual) {
+                console.log(`\n  ${colors.yellow}NOTE: ${upstream} has changed since ` +
+                    `${copy} was vendored.${colors.reset}`);
+                console.log(`  Re-vendor if the change matters, then update the header hash to`);
+                console.log(`  ${actual}\n`);
+            }
+        });
+    });
+
+    test('Should still have something to compare against', () => {
+        vendored.forEach(([, upstream]) => {
+            assert.ok(fs.existsSync(path.join(__dirname, upstream)), `${upstream} has gone`);
+        });
+        assert.ok(fs.readFileSync(path.join(__dirname, 'weather/js/gl/sky.js'), 'utf8')
+            .includes('class Sky'), 'Upstream should still define Sky');
+    });
+
+    test('Should be classic scripts, not modules', () => {
+        vendored.forEach(([copy]) => {
+            const src = fs.readFileSync(path.join(__dirname, copy), 'utf8');
+            assert.ok(!/^\s*export\s/m.test(src), `${copy} still has an ES export`);
+            assert.ok(src.includes("typeof module !== 'undefined' && module.exports"),
+                `${copy} needs the require() half of the shim`);
+            assert.ok(src.includes("typeof window !== 'undefined' ? window : null"),
+                `${copy} needs the browser half of the shim`);
+        });
+    });
+
+    test('Should record where it came from and what was changed', () => {
+        vendored.forEach(([copy, upstream]) => {
+            const src = fs.readFileSync(path.join(__dirname, copy), 'utf8');
+            assert.ok(src.includes('VENDORED'), `${copy} should say so`);
+            assert.ok(src.includes(upstream), `${copy} should name its source`);
+            assert.ok(/Local edits from upstream/.test(src), `${copy} should list its edits`);
+        });
+    });
+
+    // The terrain layer projects with these constants. If the shader's geometry
+    // moves and they do not, the ridge line detaches from the horizon - and it
+    // looks like a drawing bug, not a stale copy.
+    test('Should keep the projection constants agreeing with the shader', () => {
+        const src = fs.readFileSync(path.join(__dirname, 'thermal/sky.js'), 'utf8');
+        assert.ok(src.includes('float horizonY = -0.30;'),
+            'The shader no longer puts the horizon where HORIZON_Y says');
+        assert.strictEqual(ThermalSky.HORIZON_Y, -0.30);
+        assert.ok(src.includes('(uv.y - horizonY) * 0.95'), 'Elevation scale changed');
+        assert.ok(src.includes('elev * (PI * 0.42)'), 'Elevation scale changed');
+        assert.ok(Math.abs(ThermalSky.EL_PER_NDC - 0.95 * Math.PI * 0.42) < 1e-12);
+        assert.ok(src.includes('uv.x * aspect * 0.95'), 'Azimuth scale changed');
+        assert.strictEqual(ThermalSky.AZ_PER_NDC, 0.95);
+        // 0.65 of the way down the screen, at every altitude.
+        assert.ok(Math.abs((1 - ThermalSky.HORIZON_Y) / 2 - 0.65) < 1e-12);
+    });
+
+    test('Should let the neon city be switched off', () => {
+        const src = fs.readFileSync(path.join(__dirname, 'thermal/sky.js'), 'utf8');
+        assert.ok(src.includes('uniform float uSkyline;'), 'The uniform should exist');
+        assert.ok(src.includes('skyline(az) * uSkyline'), 'It should gate the skyline');
+        assert.ok(src.includes("'uSkyline'"), 'It should be looked up');
+        assert.ok(src.includes('gl.uniform1f(u.uSkyline, p.skyline)'), 'It should be uploaded');
+        assert.strictEqual(ThermalSky.DEFAULTS.skyline, 1,
+            'Default 1 keeps upstream behaviour for anyone else using this file');
+    });
+
+    test('Should put the sun where the sky actually is', () => {
+        const lat = 34.0522, lon = -118.2437;
+        const noon = ThermalAstro.sunPosition(new Date(2026, 8, 7, 14, 0), lat, lon);
+        const night = ThermalAstro.sunPosition(new Date(2026, 8, 7, 2, 0), lat, lon);
+        assert.ok(noon.altitude * 180 / Math.PI > 45, 'The afternoon sun should be high');
+        assert.ok(night.altitude < 0, 'At 2am it should be below the horizon');
+        // Southward in the afternoon, northern hemisphere, once converted.
+        const az = ((noon.azimuth + Math.PI) * 180 / Math.PI + 360) % 360;
+        assert.ok(az > 180 && az < 280, `Afternoon sun bearing ${az} is not in the west`);
+    });
+
+    test('Should keep the sun working with no network at all', () => {
+        const fs2 = require('fs');
+        const src = fs2.readFileSync(path.join(__dirname, 'thermal/astro.js'), 'utf8');
+        assert.ok(!/\bfetch\s*\(/.test(src), 'astro.js must not reach the network');
+        assert.ok(!/XMLHttpRequest/.test(src));
+        const t = ThermalAstro.sunTimes(new Date(2026, 8, 7, 12), 34.0522, -118.2437);
+        assert.ok(t.sunrise instanceof Date && t.sunset instanceof Date,
+            'Sunrise and sunset drive the pre-flight card');
+        assert.ok(t.sunset > t.sunrise);
+    });
+});
+
+describe('THERMAL - Page structure', () => {
+    const fs = require('fs');
+    const html = fs.readFileSync(path.join(__dirname, 'thermal', 'index.html'), 'utf8');
+    const css = fs.readFileSync(path.join(__dirname, 'thermal', 'styles.css'), 'utf8');
+    const codeOnly = src => src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n').filter(l => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+    const js = codeOnly(fs.readFileSync(path.join(__dirname, 'thermal', 'script.js'), 'utf8'));
+    const rules = codeOnly(fs.readFileSync(path.join(__dirname, 'thermal', 'flight.js'), 'utf8'));
+
+    test('Should have a title, a description and a way back', () => {
+        assert.ok(html.includes('<title>THERMAL'));
+        assert.ok(html.includes('<meta name="description"'));
+        assert.ok(html.includes('skip-link') && html.includes('id="main-content"'));
+        assert.ok(html.includes('class="back-link"'));
+    });
+
+    // Classic scripts run in document order, and each of these reads globals the
+    // one before it set.
+    test('Should load its scripts in dependency order', () => {
+        const order = ['/shared/daily.js', 'sky.js', 'astro.js', 'flight.js', 'script.js'];
+        let last = -1;
+        order.forEach(f => {
+            const at = html.indexOf('src="' + f + '"');
+            assert.ok(at > 0, `${f} is not loaded`);
+            assert.ok(at > last, `${f} loads out of order`);
+            last = at;
+        });
+    });
+
+    test('Should obey the CSP', () => {
+        assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'No inline scripts');
+        assert.ok(!/\son(click|load|input|change|pointerdown|keydown)\s*=/i.test(html),
+            'No inline handlers');
+        [['script.js', js], ['flight.js', rules]].forEach(([name, src]) => {
+            assert.ok(!/\beval\s*\(/.test(src), `${name} should not call eval`);
+            assert.ok(!/new\s+Function\s*\(/.test(src), `${name} should not build code from strings`);
+        });
+    });
+
+    test('Should carry the markup the renderer binds to', () => {
+        ['id="sky"', 'id="stage"', 'id="g-dist"', 'id="g-alt"', 'id="g-vario"',
+            'id="launch"', 'id="share"', 'id="card"', 'aria-live']
+            .forEach(hook => assert.ok(html.includes(hook), `Missing ${hook}`));
+    });
+
+    // A relative './api/' from /thermal/ resolves to /thermal/api/, which is not
+    // routed to the Lambda - and it fails quietly into synthetic weather.
+    test('Should call the weather API by absolute path', () => {
+        assert.ok(js.includes('/weather/api/bundle'));
+        assert.ok(js.includes('/weather/api/config'));
+        assert.ok(!/['"`]\.\/api\//.test(js), 'A relative ./api/ would resolve under /thermal/');
+    });
+
+    test('Should keep the rules pure', () => {
+        assert.ok(!/\bdocument\./.test(rules), 'flight.js must not touch the DOM');
+        assert.ok(!/\blocalStorage\b/.test(rules), 'flight.js must not touch storage');
+        assert.ok(!/\bfetch\s*\(/.test(rules), 'flight.js must not make network calls');
+        assert.ok(!/new Date\(\s*\)/.test(rules), 'flight.js must be handed "now"');
+    });
+
+    // Sky has no dispose(); a second one leaks a context, and at the browser's
+    // limit the sky dies for the rest of the session.
+    test('Should build exactly one Sky for the life of the page', () => {
+        const matches = js.match(/new Sky\.Sky\(/g) || [];
+        assert.strictEqual(matches.length, 1, `Found ${matches.length} Sky constructions`);
+    });
+
+    test('Should hand the sky seconds, not milliseconds', () => {
+        assert.ok(/sky\.render\(now,\s*dtSec\)/.test(js),
+            'sky.render eases with pow(0.0016, dt); milliseconds underflow it to zero');
+    });
+
+    test('Should set a quality tier rather than take the constructor default', () => {
+        assert.ok(/sky\.setQuality\(/.test(js),
+            'Without setQuality the scale stays 1 and it is slower than the console for no gain');
+    });
+
+    test('Should give both canvases a layout size', () => {
+        // Sky.resize() reads clientWidth/clientHeight; with no CSS size it makes
+        // a 2x2 framebuffer and renders nothing, silently.
+        assert.ok(/#sky,\s*#stage\s*\{[^}]*width:\s*100%/.test(css));
+        assert.ok(/#sky,\s*#stage\s*\{[^}]*height:\s*100%/.test(css));
+        assert.ok(/#sky,\s*#stage\s*\{[^}]*position:\s*fixed/.test(css));
+    });
+
+    test('Should stay playable on a touchscreen and under reduced motion', () => {
+        assert.ok(css.includes('touch-action'), 'A drag to dive would scroll the page');
+        assert.ok(css.includes('prefers-reduced-motion'));
+    });
+
+    test('Should ship a favicon', () => {
+        assert.ok(fs.readFileSync(path.join(__dirname, 'thermal', 'favicon.svg'), 'utf8')
+            .includes('<svg'));
     });
 });
 

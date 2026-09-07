@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, five links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, six links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/thermal/` is THERMAL — a one-button glider flown against that same live sky, with thermals driven by the real CAPE and the real sun angle.
 
 ## Tech Stack
 
@@ -27,10 +27,10 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (215 tests)
+# Run client-side tests (304 tests)
 node tests.js
 
-# Run server integration tests (52 tests)
+# Run server integration tests (58 tests)
 # Note: Stop any running server first, tests start their own
 node tests-server.js
 ```
@@ -43,6 +43,7 @@ node tests-server.js
 - **URL:** https://branyontech.com
 - **Countdown URL:** https://branyontech.com/countdown/index.html
 - **Game URL:** https://branyontech.com/game/
+- **Glider URL:** https://branyontech.com/thermal/
 
 ```bash
 # Deploy to S3
@@ -61,7 +62,15 @@ aws s3 sync . s3://branyontech.com/ \
   --include "game/putt.js" \
   --include "game/script.js" \
   --include "game/styles.css" \
-  --include "game/favicon.svg"
+  --include "game/favicon.svg" \
+  --include "shared/daily.js" \
+  --include "thermal/index.html" \
+  --include "thermal/flight.js" \
+  --include "thermal/script.js" \
+  --include "thermal/sky.js" \
+  --include "thermal/astro.js" \
+  --include "thermal/styles.css" \
+  --include "thermal/favicon.svg"
 
 # Invalidate CloudFront cache
 aws cloudfront create-invalidation --distribution-id E1MBTRO86GIH7E --paths "/*"
@@ -105,8 +114,17 @@ CountdownToRetirement/
 │   ├── script.js           # Canvas, input, weather fetch, localStorage
 │   ├── styles.css          # Console palette, borrowed from weather/css/core.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (215 tests)
-├── tests-server.js         # Server integration tests (52 tests)
+├── shared/daily.js         # Seeding, API sampling, storage - shared by both games
+├── thermal/                # THERMAL - a one-button glider flown against the real sky
+│   ├── index.html          # Two canvases (WebGL sky under, 2D stage over) plus HUD
+│   ├── flight.js           # Pure rules: terrain, thermals, polar, energy, weather
+│   ├── script.js           # Canvas, camera, input, weather fetch, localStorage
+│   ├── sky.js              # VENDORED weather/js/gl/sky.js + uSkyline + shim
+│   ├── astro.js            # VENDORED weather/js/lib/astro.js + shim
+│   ├── styles.css
+│   └── favicon.svg
+├── tests.js                # Client-side unit tests (304 tests)
+├── tests-server.js         # Server integration tests (58 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
     ├── deploy.yml          # Auto-deploy on push to main
@@ -170,6 +188,43 @@ CountdownToRetirement/
    `/game/` resolves to `/game/api/bundle`, which CloudFront does not route to the
    Lambda — and it fails *quietly* into synthetic wind, indistinguishable from a
    slow API day. Asserted by a test rather than remembered.
+
+### THERMAL (/thermal/)
+
+A one-button glider. Hold to dive and build speed, release to soar and trade it
+back for height. Distance in a fixed time is the score, so it is cross-country
+*speed* -- which is what makes dolphin soaring (slow in lift, fast in sink) the
+right play and the button worth pressing.
+
+- **The sky is the real sky.** `thermal/sky.js` is the weather console's WebGL
+  shader, drawing the sun and moon at their true altitude and azimuth, real
+  cloud decks drifting at the real wind bearing, aurora when the KP index is up.
+- **The weather flies the glider.** `cape` sets thermal strength, `cloud_cover_low`
+  sets how often they occur (peaking at scattered cumulus and collapsing under
+  overcast, because cumulus mark thermals and overcast kills them), wind gives
+  head or tail, and **sun altitude switches the thermals on and off**. Dawn is a
+  glide; 2pm on a booming day is 4x the distance.
+- **The sun works with the API down.** `astro.js` needs only (date, lat, lon), so
+  the time-of-day mechanic survives an outage on synthetic weather.
+- **Daily plus free flight**, the ONE PUTT split: `recordDaily` fires on landing,
+  once, and `?seed=` forces free flight so a hand-picked course is never scored.
+- **Dev overrides:** `?seed=1234`, `?wx=cape@mph@deg@cloudpct`, `?t=14:30`.
+
+### Four things that will silently break it
+
+1. **The vendored files are copies, not imports.** `weather/` is `rm -rf`'d and
+   rebuilt by `scripts/sync-weather.sh`, so an import would break silently on the
+   next upstream shader change -- the class would still construct and render, and
+   the glider would just be in the wrong part of a differently-composed sky. A
+   test warns when the recorded sha256 goes stale, and *fails* if the shader's
+   `horizonY` stops matching the exported `HORIZON_Y` the terrain projects with.
+2. **`sky.render(now, dt)` wants SECONDS.** It eases with `pow(0.0016, dt)`;
+   milliseconds underflow that to zero, every parameter snaps, and the easing
+   dies with nothing to show for it.
+3. **Call `sky.setQuality()`.** The constructor leaves `quality = 2` but
+   `scale = 1`, which is *more* expensive than the console's own tier 2.
+4. **One `new Sky()` per page, ever.** There is no dispose; a second one leaks a
+   WebGL context and at ~16 the sky dies for the session.
 
 ## Security Features
 

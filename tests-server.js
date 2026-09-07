@@ -847,6 +847,66 @@ async function runGameTests() {
     });
 }
 
+async function runThermalTests() {
+    await describe('SERVER TESTS - Subdirectory Routing (Thermal)', async () => {
+        await test('Should serve the glider for all three URL forms', async () => {
+            for (const p of ['/thermal/index.html', '/thermal/', '/thermal']) {
+                const { res } = await makeRequest({
+                    hostname: TEST_HOST, port: TEST_PORT, path: p, method: 'GET'
+                });
+                assert.strictEqual(res.statusCode, 200, `${p} should return 200`);
+            }
+        });
+
+        await test('Should serve every THERMAL asset with the right content type', async () => {
+            const assets = [
+                ['/thermal/flight.js', 'text/javascript'],
+                ['/thermal/script.js', 'text/javascript'],
+                ['/thermal/sky.js', 'text/javascript'],
+                ['/thermal/astro.js', 'text/javascript'],
+                ['/thermal/styles.css', 'text/css'],
+                ['/thermal/favicon.svg', 'image/svg+xml']
+            ];
+            for (const [assetPath, type] of assets) {
+                const { res } = await makeRequest({
+                    hostname: TEST_HOST, port: TEST_PORT, path: assetPath, method: 'GET'
+                });
+                assert.strictEqual(res.statusCode, 200, `${assetPath} should return 200`);
+                assert.strictEqual(res.headers['content-type'], type, `${assetPath} content type`);
+            }
+        });
+
+        // The vendored copies are classic scripts. An ES export would be a
+        // SyntaxError in a plain <script> tag and nothing else would run.
+        await test('Should serve the vendored files as classic scripts', async () => {
+            for (const [p, sym] of [['/thermal/sky.js', 'ThermalSky'], ['/thermal/astro.js', 'ThermalAstro']]) {
+                const { data } = await makeRequest({
+                    hostname: TEST_HOST, port: TEST_PORT, path: p, method: 'GET'
+                });
+                assert.ok(data.includes(sym), `${p} should define ${sym}`);
+                assert.ok(!/^\s*export\s/m.test(data), `${p} must not be an ES module`);
+            }
+        });
+
+        await test('Should apply the strict CSP to the glider, not the weather one', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/thermal/index.html', method: 'GET'
+            });
+            const csp = res.headers['content-security-policy'];
+            assert.ok(csp && csp.includes("script-src 'self'"));
+            assert.ok(!csp.includes('arcgisonline') && !csp.includes('rainviewer'),
+                'THERMAL needs no tile-host widening');
+        });
+
+        await test('Should block traversal out of the glider directory', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/thermal/../../../etc/passwd', method: 'GET'
+            });
+            assert.ok(res.statusCode === 403 || res.statusCode === 404);
+        });
+    });
+}
+
 // =============================================================================
 // MAIN TEST EXECUTION
 // =============================================================================
@@ -874,6 +934,7 @@ async function runAllTests() {
         await runRootPathTests();
         await runSubdirectoryTests();
         await runGameTests();
+        await runThermalTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);

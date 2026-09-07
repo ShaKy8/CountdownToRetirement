@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="THERMAL - a one-button glider flown against the real sky where you are, with thermals from the live weather">
+    <title>THERMAL</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <canvas id="sky" aria-hidden="true"></canvas>
+    <canvas id="stage" role="application" tabindex="0"
+            aria-label="Glider. Hold to dive and build speed, release to soar and trade speed for height."></canvas>
+
+    <main id="main-content" class="hud">
+        <a href="/" class="back-link" aria-label="Back to BranyonTech.com">&larr; BranyonTech.com</a>
+
+        <header class="top">
+            <h1 class="title">THERMAL</h1>
+            <p class="sub">
+                <span id="puzzle-no">#—</span>
+                <span class="dot" aria-hidden="true">·</span>
+                <span id="mode-label">today's flight</span>
+            </p>
+        </header>
+
+        <div class="gauges">
+            <div class="gauge"><span class="g-k">DIST</span><span class="g-v" id="g-dist">0 m</span></div>
+            <div class="gauge"><span class="g-k">ALT</span><span class="g-v" id="g-alt">0 m</span></div>
+            <div class="gauge">
+                <span class="g-k">VARIO</span>
+                <span class="g-v" id="g-vario">0.0</span>
+                <div class="vario-bar" aria-hidden="true"><i id="vario-fill"></i></div>
+            </div>
+        </div>
+
+        <div class="badges">
+            <span class="badge" id="b-solar">☀ —</span>
+            <span class="badge" id="b-wind">🌬 —</span>
+            <span class="badge" id="b-sky">⛅</span>
+            <span class="badge" id="b-source">SIM</span>
+        </div>
+
+        <div class="card" id="card" hidden>
+            <p class="card-title" id="card-title">Ready</p>
+            <p class="card-line" id="card-line"></p>
+            <pre class="card-share" id="card-share" hidden></pre>
+            <div class="card-actions">
+                <button type="button" id="launch" class="primary">Launch</button>
+                <button type="button" id="share" hidden>Copy result</button>
+                <button type="button" id="free" hidden>Free flight</button>
+            </div>
+            <p class="card-next">Next flight in <span id="next-in">—</span></p>
+        </div>
+
+        <p class="hint" id="hint">Hold anywhere — or Space — to dive. Release to soar.</p>
+        <p class="say" id="say" role="status" aria-live="polite"></p>
+    </main>
+
+    <script src="/shared/daily.js"></script>
+    <script src="sky.js"></script>
+    <script src="astro.js"></script>
+    <script src="flight.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
