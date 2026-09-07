@@ -14,6 +14,7 @@ const path = require('path');
 const Calc = require('./countdown/calc.js');
 const Putt = require('./game/putt.js');
 const Daily = require('./shared/daily.js');
+const Thermal = require('./thermal/flight.js');
 
 // ANSI color codes for pretty output
 const colors = {
@@ -2373,6 +2374,506 @@ describe('DAILY SHARED - Extraction equivalence', () => {
         assert.ok(!/function makeRng\s*\(/.test(src), 'makeRng should have moved out');
         assert.ok(!/function sampleHourly\s*\(/.test(src), 'The sampler should live in shared');
         assert.ok(!/function parseState\s*\(/.test(src), 'parseState should come from makeStore');
+    });
+});
+
+// =============================================================================
+// THERMAL
+// =============================================================================
+
+describe('THERMAL - Determinism', () => {
+    const seed = Thermal.seedForDay(1);
+
+    test('Should key its own seeds separately from ONE PUTT', () => {
+        for (let d = 0; d < 500; d++) {
+            assert.notStrictEqual(Thermal.seedForDay(d), Putt.seedForDay(d),
+                `Day ${d} shares a seed between the two games`);
+        }
+        const seeds = new Set();
+        for (let d = 0; d < 3650; d++) seeds.add(Thermal.seedForDay(d));
+        assert.strictEqual(seeds.size, 3650);
+    });
+
+    // Terrain must be identical for every player. Pinned, because a change to
+    // the noise silently reshapes every ridge ever flown.
+    const TERRAIN = [[0, 185718416], [137, 200560536], [500, 222547125], [1000, 242518285],
+        [2000, 179118000], [3333, 292070527], [5000, 306073669], [8888, 317325357],
+        [12000, 303555535], [20000, 216003459], [-500, 179106111], [-3000, 385833422]];
+
+    test('Should keep the ridge line pinned', () => {
+        TERRAIN.forEach(([x, micro]) => {
+            assert.strictEqual(Math.round(Thermal.terrain(seed, x) * 1e6), micro,
+                `Terrain moved at x=${x}`);
+        });
+    });
+
+    test('Should be a pure function of x, with no chunk seams', () => {
+        for (let k = -3; k <= 5; k++) {
+            const edge = k * Thermal.WORLD.CHUNK_M;
+            const a = Thermal.terrain(seed, edge - 0.01);
+            const b = Thermal.terrain(seed, edge + 0.01);
+            assert.ok(Math.abs(a - b) < 0.01, `Seam at chunk boundary ${edge}`);
+        }
+    });
+
+    test('Should stay bounded and free of cliffs the collision test could miss', () => {
+        let lo = Infinity, hi = -Infinity, steepest = 0;
+        let prev = Thermal.terrain(seed, 0);
+        for (let x = 5; x <= 60000; x += 5) {
+            const h = Thermal.terrain(seed, x);
+            if (h < lo) lo = h;
+            if (h > hi) hi = h;
+            steepest = Math.max(steepest, Math.abs(h - prev) / 5);
+            prev = h;
+        }
+        assert.ok(lo > 0, `Terrain went below zero: ${lo}`);
+        assert.ok(hi < 600, `Terrain went above 600 m: ${hi}`);
+        assert.ok(steepest < 0.6, `Slope of ${steepest} is a cliff`);
+    });
+
+    // Chunks are cached on the world for speed. If the cache were state rather
+    // than memoisation, a flown-to position would differ from a cold query.
+    test('Should give the same thermals cold as after flying there', () => {
+        const cond = Thermal.buildConditions(
+            { cape: 1200, cloudLow: 30, windMph: 10, windDeg: 270, tempF: 80, dewF: 50 },
+            50 * Math.PI / 180, 0);
+        const cold = Thermal.thermalsInChunk(seed, cond, 7);
+        const warm = Thermal.makeWorld(seed, cond);
+        for (let x = 0; x < 16000; x += 500) Thermal.airVelocity(warm, x, 800);
+        assert.deepStrictEqual(Thermal.thermalsInChunk(seed, cond, 7), cold);
+        assert.ok(cold.length > 0, 'A normal day should have thermals');
+    });
+
+    test('Should never reach for a random number', () => {
+        const fs = require('fs');
+        const src = fs.readFileSync(path.join(__dirname, 'thermal', 'flight.js'), 'utf8');
+        assert.ok(!/Math\.random/.test(src), 'flight.js must be fully deterministic');
+    });
+});
+
+describe('THERMAL - Flight physics', () => {
+    const seed = Thermal.seedForDay(2);
+    // Dead, flat, windless air: no thermals (spacing beyond any chunk), no
+    // ridge lift (no wind), no ambient sink.
+    const deadCond = {
+        wStar: 0, wStarEff: 0, solar: 0, cloudFrac: 0, thermalSpacing: 1e9,
+        cloudbase: 1500, windMps: 0, windToward: 0, windAlong: 0, ambient: 0, source: 'synthetic'
+    };
+    const deadWorld = () => Thermal.makeWorld(seed, deadCond);
+
+    test('Should have a convex polar with its vertex at the soaring speed', () => {
+        assert.strictEqual(Thermal.sink(Thermal.FLY.V_SOAR), Thermal.FLY.W_MINSINK);
+        for (let v = 15; v <= 45; v++) {
+            const second = Thermal.sink(v - 1) - 2 * Thermal.sink(v) + Thermal.sink(v + 1);
+            assert.ok(second > 0, `Polar not convex at ${v} m/s`);
+        }
+    });
+
+    test('Should put best glide where the closed form says', () => {
+        const vb = Thermal.bestGlideSpeed();
+        assert.ok(Math.abs(vb - 22.524) < 0.01, `Best glide at ${vb}`);
+        const ld = vb / Thermal.sink(vb);
+        assert.ok(ld > 30 && ld < 40, `L/D of ${ld} is not a modern glider`);
+        for (let v = 15; v <= 45; v += 0.5) {
+            assert.ok(v / Thermal.sink(v) <= ld + 1e-9, `${v} m/s beats best glide`);
+        }
+    });
+
+    // The single most important test here: it proves the button splits energy
+    // rather than inventing it. With drag removed, height and speed must trade
+    // exactly.
+    test('Should conserve total energy when drag is removed', () => {
+        const fly = Object.assign({}, Thermal.FLY, {
+            W_MINSINK: 0, POLAR_K: 0, STALL_W: 0, TIME_LIMIT: 1e9
+        });
+        const world = deadWorld();
+        let s = Thermal.createFlight(world);
+        s = Object.assign({}, s, { h: world.ground0 + 8000 });
+        const energy = st => st.h + (st.v * st.v) / (2 * fly.G);
+        const start = energy(s);
+        for (let i = 0; i < 7200; i++) {
+            s = Object.assign({}, s, { hold: Math.floor(i / 240) % 2 === 0 });
+            s = Thermal.step(world, s, fly.DT, fly);
+        }
+        const drift = Math.abs(energy(s) - start) / start;
+        assert.ok(drift < 0.001, `Energy drifted ${(drift * 100).toFixed(3)}%`);
+    });
+
+    test('Should convert a zoom climb at the documented rate', () => {
+        const fly = Object.assign({}, Thermal.FLY, {
+            W_MINSINK: 0, POLAR_K: 0, STALL_W: 0, TIME_LIMIT: 1e9
+        });
+        const world = deadWorld();
+        let s = Thermal.createFlight(world);
+        s = Object.assign({}, s, { h: world.ground0 + 8000, v: fly.V_DIVE, hold: false });
+        const h0 = s.h;
+        let peak = h0;
+        for (let i = 0; i < 1200; i++) {
+            s = Thermal.step(world, s, fly.DT, fly);
+            peak = Math.max(peak, s.h);
+        }
+        const expected = (fly.V_DIVE * fly.V_DIVE - fly.V_SOAR * fly.V_SOAR) / (2 * fly.G);
+        assert.ok(Math.abs((peak - h0) - expected) < 2,
+            `Zoom gained ${(peak - h0).toFixed(1)} m, expected ${expected.toFixed(1)}`);
+    });
+
+    test('Should glide at the trimmed ratio in still air', () => {
+        const world = deadWorld();
+        let s = Thermal.createFlight(world);
+        s = Object.assign({}, s, { h: world.ground0 + 6000, v: Thermal.FLY.V_SOAR });
+        const x0 = s.x, h0 = s.h;
+        for (let i = 0; i < 12000; i++) s = Thermal.step(world, s, Thermal.FLY.DT);
+        const ld = (s.x - x0) / (h0 - s.h);
+        const expect = Thermal.FLY.V_SOAR / Thermal.FLY.W_MINSINK;
+        assert.ok(Math.abs(ld - expect) / expect < 0.02, `Glide ratio ${ld}, expected ${expect}`);
+    });
+
+    test('Should not depend on the size of the timestep', () => {
+        const world = deadWorld();
+        const run = dt => {
+            let s = Thermal.createFlight(world);
+            s = Object.assign({}, s, { h: world.ground0 + 6000 });
+            const steps = Math.round(120 / dt);
+            for (let i = 0; i < steps; i++) {
+                s = Object.assign({}, s, { hold: Math.floor(i * dt / 8) % 2 === 0 });
+                s = Thermal.step(world, s, dt);
+            }
+            return s;
+        };
+        const a = run(1 / 120), b = run(1 / 480);
+        assert.ok(Math.abs(a.x - b.x) / a.x < 0.005, `x diverged: ${a.x} vs ${b.x}`);
+        assert.ok(Math.abs(a.h - b.h) / a.h < 0.005, `h diverged: ${a.h} vs ${b.h}`);
+    });
+
+    test('Should drop the nose and recover from a stall unaided', () => {
+        const world = deadWorld();
+        let s = Thermal.createFlight(world);
+        s = Object.assign({}, s, { h: world.ground0 + 4000, v: 9, hold: false });
+        const h0 = s.h;
+        let recovered = -1;
+        for (let i = 0; i < 720 && recovered < 0; i++) {
+            s = Thermal.step(world, s, Thermal.FLY.DT);
+            if (s.v >= Thermal.FLY.V_STALL) recovered = i * Thermal.FLY.DT;
+        }
+        assert.ok(recovered >= 0 && recovered < 6, `Recovery took ${recovered}s`);
+        const lost = h0 - s.h;
+        assert.ok(lost > 5 && lost < 120, `Stall cost ${lost.toFixed(0)} m`);
+    });
+
+    test('Should not mutate the state handed to it', () => {
+        const world = deadWorld();
+        const s = Thermal.createFlight(world);
+        const before = JSON.parse(JSON.stringify(s));
+        Thermal.step(world, s, Thermal.FLY.DT);
+        assert.deepStrictEqual(s, before);
+    });
+
+    test('Should stay finite across the whole condition space', () => {
+        for (let i = 0; i < 300; i++) {
+            const rng = Daily.makeRng(i);
+            const cond = Thermal.buildConditions({
+                cape: rng() * 6000, cloudLow: rng() * 100, windMph: rng() * 60,
+                windDeg: rng() * 360, tempF: 40 + rng() * 60, dewF: 30 + rng() * 40
+            }, (rng() * 1.6 - 0.2), rng() * 6.28);
+            const world = Thermal.makeWorld(Thermal.seedForDay(i), cond);
+            let s = Thermal.createFlight(world);
+            for (let k = 0; k < 400; k++) {
+                s = Object.assign({}, s, { hold: k % 37 < 18 });
+                s = Thermal.step(world, s, Thermal.FLY.DT);
+                if (!s.alive) break;
+            }
+            ['x', 'h', 'v', 't', 'climbTotal'].forEach(f => {
+                assert.ok(isFinite(s[f]), `${f} went non-finite on case ${i}`);
+            });
+        }
+    });
+
+    test('Should end a flight on the ground or on the clock', () => {
+        const cond = Thermal.buildConditions(
+            { cape: 1200, cloudLow: 30, windMph: 10, windDeg: 270, tempF: 80, dewF: 50 },
+            50 * Math.PI / 180, 0);
+        const r = Thermal.simulate(Thermal.makeWorld(Thermal.seedForDay(5), cond), Thermal.policyGood, {});
+        assert.ok(!r.state.alive, 'The flight should be over');
+        assert.ok(r.state.landed || r.state.t >= Thermal.FLY.TIME_LIMIT - 1,
+            'It should have landed or run out of time');
+        assert.ok(r.steps < Thermal.FLY.MAX_STEPS, 'It should not hit the safety cap');
+    });
+});
+
+describe('THERMAL - Lift', () => {
+    const seed = Thermal.seedForDay(4);
+    const th = { x: 1000, r: 200, strength: 3, base: 100, top: 1600 };
+
+    test('Should lift in the core and sink around the rim', () => {
+        const core = Thermal.thermalW(th, 1000, 900, 0, 0);
+        const edge = Thermal.thermalW(th, 1200, 900, 0, 0);
+        const rim = Thermal.thermalW(th, 1300, 900, 0, 0);
+        const away = Thermal.thermalW(th, 1600, 900, 0, 0);
+        assert.ok(core > 0, 'Core should rise');
+        assert.ok(Math.abs(edge) < 1e-9, 'Edge of the core is neutral');
+        assert.ok(rim < 0, 'A real thermal has a sink ring around it');
+        assert.strictEqual(away, 0, 'Beyond two radii there is nothing');
+    });
+
+    test('Should fade out near the ground and at cloudbase', () => {
+        assert.ok(Thermal.thermalW(th, 1000, 50, 0, 0) <= 0.001, 'No lift below the base');
+        assert.ok(Thermal.thermalW(th, 1000, 1600, 0, 0) < 0.001, 'No lift at the top');
+        const mid = Thermal.thermalW(th, 1000, 900, 0, 0);
+        assert.ok(mid > Thermal.thermalW(th, 1000, 150, 0, 0), 'Weaker while still ramping in');
+    });
+
+    // A column that stayed put would be a much easier game than the real thing.
+    test('Should lean downwind with height', () => {
+        const still = Thermal.thermalW(th, 1000, 1200, 0, 0);
+        const blown = Thermal.thermalW(th, 1000, 1200, 8, 0);
+        assert.ok(blown < still, 'The column should have walked downwind');
+        const chased = Thermal.thermalW(th, 1000 + 600, 1200, 8, 0);
+        assert.ok(chased > blown, 'Following it downwind should find it again');
+    });
+
+    test('Should lift on the windward slope and sink on the lee', () => {
+        let found = false;
+        for (let x = 0; x < 20000 && !found; x += 50) {
+            const slope = Thermal.terrainSlope(seed, x);
+            if (Math.abs(slope) < 0.05) continue;
+            const a = Thermal.ridgeW(seed, x, Thermal.terrain(seed, x) + 20, 8);
+            const b = Thermal.ridgeW(seed, x, Thermal.terrain(seed, x) + 20, -8);
+            assert.ok(a * b < 0, `Ridge lift did not flip sign at x=${x}`);
+            found = true;
+        }
+        assert.ok(found, 'Expected some sloping ground');
+    });
+
+    test('Should give no ridge lift in calm air, and little of it high up', () => {
+        assert.ok(Thermal.ridgeW(seed, 1234, Thermal.terrain(seed, 1234) + 30, 0) === 0,
+            'Calm air lifts nothing');
+        const low = Math.abs(Thermal.ridgeW(seed, 1234, Thermal.terrain(seed, 1234) + 5, 10));
+        const high = Math.abs(Thermal.ridgeW(seed, 1234, Thermal.terrain(seed, 1234) + 450, 10));
+        assert.ok(high < low * 0.06, 'Ridge lift should not reach 450 m');
+    });
+});
+
+describe('THERMAL - Weather becomes gameplay', () => {
+    const D = deg => deg * Math.PI / 180;
+
+    test('Should map CAPE to a thermal strength worth flying', () => {
+        [[0, 0.800], [100, 1.800], [500, 3.036], [1200, 4.264], [3000, 6.000]].forEach(([c, w]) => {
+            assert.ok(Math.abs(Thermal.capeToWStar(c) - w) < 0.001, `CAPE ${c} gave ${Thermal.capeToWStar(c)}`);
+        });
+        assert.strictEqual(Thermal.capeToWStar(1e6), 6, 'Capped, not a thunderstorm updraft');
+        assert.strictEqual(Thermal.capeToWStar(-5), 0.8);
+        assert.strictEqual(Thermal.capeToWStar('nonsense'), 0.8);
+        assert.strictEqual(Thermal.capeToWStar(NaN), 0.8);
+    });
+
+    // Non-monotonic on purpose: cumulus mark thermals, overcast kills them.
+    test('Should peak thermal frequency at scattered cumulus', () => {
+        assert.ok(Thermal.cloudFrequency(0.15) > Thermal.cloudFrequency(0),
+            'A blue sky has no markers and fewer triggers');
+        assert.ok(Thermal.cloudFrequency(0.30) > Thermal.cloudFrequency(0.90),
+            'Overcast should be far worse than scattered');
+        assert.ok(Math.abs(Thermal.cloudFrequency(1) - 0.12) < 1e-9);
+    });
+
+    // The API sends 0-100. Passing it through unscaled reads as permanent
+    // overcast and looks entirely plausible.
+    test('Should not believe a raw percentage', () => {
+        assert.strictEqual(Thermal.cloudFrequency(95), Thermal.cloudFrequency(1),
+            'A raw 95 must clamp, not be read as 9500%');
+        const cond = Thermal.buildConditions(
+            { cape: 1200, cloudLow: 30, windMph: 10, windDeg: 0 }, D(50), 0);
+        assert.ok(Math.abs(cond.cloudFrac - 0.30) < 1e-9, 'cloudLow is a percentage');
+    });
+
+    test('Should switch thermals on with the sun and off without it', () => {
+        [[60, 0.9532], [40, 0.8630], [20, 0.6993], [10, 0.4525], [5, 0.1503], [2, 0.0490]]
+            .forEach(([deg, f]) => {
+                assert.ok(Math.abs(Thermal.solarFactor(D(deg)) - f) < 0.0005,
+                    `${deg} degrees gave ${Thermal.solarFactor(D(deg))}`);
+            });
+        assert.strictEqual(Thermal.solarFactor(D(-5)), 0, 'No sun, no thermals');
+        assert.strictEqual(Thermal.solarFactor(NaN), 0);
+        for (let d = -10; d < 89; d++) {
+            assert.ok(Thermal.solarFactor(D(d + 1)) >= Thermal.solarFactor(D(d)),
+                `Not monotonic at ${d} degrees`);
+        }
+        assert.ok(Thermal.solarFactor(D(5)) < 0.2 * Thermal.solarFactor(D(45)),
+            'Dawn should be a fraction of midday');
+    });
+
+    // The headline mechanic, as an assertion: the same day at a different hour
+    // is the same WORLD flown in different air.
+    test('Should give the same course materially different air at dawn and midday', () => {
+        const raw = { cape: 1200, cloudLow: 30, windMph: 10, windDeg: 270, tempF: 80, dewF: 50 };
+        const dawn = Thermal.buildConditions(raw, D(4), 0);
+        const noon = Thermal.buildConditions(raw, D(58), 0);
+        assert.ok(noon.wStarEff > 4 * dawn.wStarEff,
+            `Midday ${noon.wStarEff} should dwarf dawn ${dawn.wStarEff}`);
+
+        const seed = Thermal.seedForDay(11);
+        const ridge = x => Math.round(Thermal.terrain(seed, x) * 1e6);
+        const xs = [0, 500, 2500, 9000];
+        assert.deepStrictEqual(xs.map(ridge), xs.map(ridge), 'Terrain is the same course');
+
+        // Thermal POSITIONS are shared; only their strength moves with the sun.
+        const flat = c => Thermal.thermalsInChunk(seed, c, 3).map(t => Math.round(t.x));
+        assert.deepStrictEqual(flat(dawn), flat(noon), 'The thermals are in the same places');
+        const dawnW = Thermal.thermalsInChunk(seed, dawn, 3)[0];
+        const noonW = Thermal.thermalsInChunk(seed, noon, 3)[0];
+        assert.ok(noonW.strength > 4 * dawnW.strength, 'Only the strength changed');
+    });
+
+    test('Should read conditions out of a real bundle shape', () => {
+        const bundle = {
+            forecast: {
+                ok: true, data: {
+                    utc_offset_seconds: 0, hourly: {
+                        time: ['2026-09-07T10:00', '2026-09-07T11:00'],
+                        cape: [400, 800], cloud_cover_low: [20, 60],
+                        wind_speed_10m: [10, 20], wind_direction_10m: [180, 180],
+                        temperature_2m: [70, 80], dew_point_2m: [50, 50]
+                    }
+                }
+            }
+        };
+        const c = Thermal.extractConditions(bundle, new Date(Date.UTC(2026, 8, 7, 10, 30)));
+        assert.strictEqual(c.cape, 600);
+        assert.strictEqual(c.cloudLow, 40);
+        assert.strictEqual(c.windMph, 15);
+        assert.strictEqual(c.source, 'live');
+    });
+
+    test('Should return null for any malformed payload, and never throw', () => {
+        const junk = [null, undefined, {}, [], 'nope', 42, true,
+            { forecast: { ok: false } }, { forecast: { ok: true, data: {} } },
+            { forecast: { ok: true, data: { hourly: { time: [] } } } },
+            {
+                forecast: {
+                    ok: true, data: {
+                        hourly: { time: ['2026-09-07T10:00'], cape: [1, 2] }
+                    }
+                }
+            }];
+        junk.forEach((j, i) => {
+            let out;
+            assert.doesNotThrow(() => { out = Thermal.extractConditions(j, new Date()); },
+                `Threw on fixture ${i}`);
+            assert.strictEqual(out, null, `Fixture ${i} should be null`);
+        });
+    });
+
+    test('Should invent a deterministic day when the API is unavailable', () => {
+        assert.deepStrictEqual(Thermal.syntheticWeather(1234), Thermal.syntheticWeather(1234));
+        const seen = new Set();
+        for (let s = 0; s < 100; s++) {
+            const w = Thermal.syntheticWeather(s);
+            assert.ok(w.cape >= 200 && w.cape <= 1600, `CAPE ${w.cape}`);
+            assert.ok(w.cloudLow >= 10 && w.cloudLow <= 55);
+            assert.strictEqual(w.source, 'synthetic');
+            seen.add(w.cape);
+        }
+        assert.ok(seen.size > 50, 'Synthetic days should vary');
+        assert.deepStrictEqual(Thermal.resolveWeather(null, new Date(), 77),
+            Thermal.syntheticWeather(77));
+    });
+
+    test('Should turn wind into a head or tail component', () => {
+        const tail = Thermal.buildConditions({ cape: 0, cloudLow: 0, windMph: 20, windDeg: 180 }, 0.5, 0);
+        const head = Thermal.buildConditions({ cape: 0, cloudLow: 0, windMph: 20, windDeg: 0 }, 0.5, 0);
+        assert.ok(tail.windAlong > 8, `Wind from behind should push: ${tail.windAlong}`);
+        assert.ok(head.windAlong < -8, `Wind from ahead should hold back: ${head.windAlong}`);
+        assert.ok(Math.abs(tail.windMps - 20 * Thermal.MPH_TO_MPS) < 1e-9);
+    });
+});
+
+describe('THERMAL - Scoring, sharing and state', () => {
+    test('Should read distances the way a pilot would', () => {
+        assert.strictEqual(Thermal.formatDistance(940), '940 m');
+        assert.strictEqual(Thermal.formatDistance(999), '999 m');
+        assert.strictEqual(Thermal.formatDistance(1000), '1.0 km');
+        assert.strictEqual(Thermal.formatDistance(18420), '18.4 km');
+    });
+
+    test('Should draw the shape of the flight in ten cells', () => {
+        const trace = [];
+        for (let i = 0; i < 200; i++) trace.push({ h: 1000 + 300 * Math.sin(i / 20) });
+        const spark = Thermal.altitudeSparkline(trace);
+        assert.strictEqual(Array.from(spark).length, 10, 'Ten graphemes exactly');
+        Array.from(spark).forEach(ch => {
+            assert.ok('▁▂▃▄▅▆▇█'.indexOf(ch) >= 0, `Unexpected cell ${ch}`);
+        });
+        const flat = Thermal.altitudeSparkline([{ h: 500 }, { h: 500 }, { h: 500 }]);
+        assert.strictEqual(Array.from(flat).length, 10, 'A flat flight must not divide by zero');
+        assert.strictEqual(Array.from(Thermal.altitudeSparkline([])).length, 10);
+    });
+
+    // The share text is the product - it is what spreads. Locked exactly.
+    const result = {
+        day: 249, distance: 18420, spark: '▁▃▆█▅▂▄▇▃▁', glide: 31,
+        solar: 0.87, windMph: 18, windAlong: 5, cloudFrac: 0.3, streak: 4
+    };
+
+    test('Should build the share card exactly', () => {
+        assert.strictEqual(Thermal.buildShare(result),
+            'THERMAL #249 — 18.4 km\n▁▃▆█▅▂▄▇▃▁\n' +
+            'L/D 31 · ☀ 87% · 🌬 18mph tail · ⛅\nStreak 4\nbranyontech.com/thermal/');
+    });
+
+    test('Should say whether the wind helped or hindered', () => {
+        assert.ok(Thermal.buildShare(Object.assign({}, result, { windAlong: -6 })).indexOf('mph head') > 0);
+        assert.ok(Thermal.buildShare(Object.assign({}, result, { windAlong: 0 })).indexOf('mph cross') > 0);
+    });
+
+    test('Should show the sky the flight was flown under', () => {
+        assert.strictEqual(Thermal.skyGlyph(0.05), '☀️');
+        assert.strictEqual(Thermal.skyGlyph(0.30), '⛅');
+        assert.strictEqual(Thermal.skyGlyph(0.90), '☁️');
+    });
+
+    // The wind and the sun come from the player's location. The share must
+    // carry the weather without carrying where they are.
+    test('Should not leak the player location', () => {
+        const text = Thermal.buildShare(result);
+        assert.ok(!/\d+\.\d{3,}/.test(text), 'No coordinates');
+        assert.ok(text.indexOf('@') === -1, 'No address');
+        assert.ok(text.length < 200, `Share was ${text.length} chars`);
+    });
+
+    test('Should score a flight on distance and on how well it was flown', () => {
+        const s = { x: 20000, startAlt: 1000, climbTotal: 1500, endAlt: 500, t: 900, climb: 0 };
+        const score = Thermal.scoreFlight(s);
+        assert.strictEqual(score.distance, 20000);
+        // 1000 started with + 1500 given by the air - 500 landed with = 2000 used.
+        assert.strictEqual(score.glide, 10);
+        assert.strictEqual(score.climb, 1500);
+    });
+
+    test('Should keep its own storage, separate from ONE PUTT', () => {
+        assert.strictEqual(Thermal.STORAGE_KEY, 'thermal.v1');
+        assert.notStrictEqual(Thermal.STORAGE_KEY, Putt.STORAGE_KEY);
+    });
+
+    test('Should rebuild any corrupt blob into a clean state', () => {
+        ['', '{', 'null', '[]', '{"v":2}', '{"v":1,"days":"nope"}',
+            '{"v":1,"days":{"__proto__":{"dist":5}}}'].forEach(raw => {
+                let out;
+                assert.doesNotThrow(() => { out = Thermal.parseState(raw); }, `Threw on ${raw}`);
+                assert.deepStrictEqual(out, Thermal.emptyState(), `${raw} should be empty`);
+            });
+        assert.strictEqual(Object.prototype.dist, undefined);
+    });
+
+    test('Should record a flight once, keep a streak and remember the best', () => {
+        const flight = { dist: 18420, glide: 310, climb: 1500, dur: 900, solar: 87, wind: 18, source: 'live' };
+        let s = Thermal.recordDaily(Thermal.emptyState(), 10, flight);
+        assert.strictEqual(s.days['10'].dist, 18420);
+        assert.strictEqual(s.best, 18420);
+        assert.strictEqual(s.streak, 1);
+        const again = Thermal.recordDaily(s, 10, Object.assign({}, flight, { dist: 99999 }));
+        assert.strictEqual(again, s, 'The first flight of the day is the one that counts');
+        s = Thermal.recordDaily(s, 11, Object.assign({}, flight, { dist: 9000 }));
+        assert.strictEqual(s.streak, 2);
+        assert.strictEqual(s.best, 18420, 'A worse day does not lower the best');
     });
 });
 
