@@ -1,0 +1,293 @@
+/*
+ * ONE PUTT.
+ *
+ * Palette and type borrowed from the weather console (weather/css/core.css) so
+ * the two read as one system - the game is driven by the same API, and should
+ * look like it. The fonts are the console's own, referenced by absolute path;
+ * font-display: swap means the system stack is a fine outcome if they are
+ * unavailable.
+ */
+
+@font-face {
+    font-family: 'Chakra Petch';
+    src: url('/weather/assets/fonts/chakrapetch-600.woff2') format('woff2');
+    font-weight: 600;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/weather/assets/fonts/jetbrainsmono-400.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+
+:root {
+    --void: #03050b;
+    --deep: #060a14;
+    --panel-solid: #070d1a;
+    --cy: #00eaff;
+    --mg: #ff2d8f;
+    --am: #ffb02e;
+    --lm: #6dff4a;
+    --ink: #d6ecfa;
+    --dim: #7b97ad;
+    --faint: #3a5064;
+    --edge: rgba(0, 234, 255, .26);
+    --cut: 10px;
+    --ui: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(1200px 700px at 50% -10%, #0a1526 0%, var(--void) 62%),
+        var(--void);
+    color: var(--ink);
+    font-family: var(--ui);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    background: var(--cy);
+    color: var(--void);
+    padding: 10px 16px;
+    font-weight: 600;
+}
+
+.skip-link:focus { left: 8px; top: 8px; z-index: 200; }
+
+.back-link {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 100;
+    color: var(--dim);
+    text-decoration: none;
+    font-size: .78rem;
+    letter-spacing: .08em;
+    padding: 7px 13px;
+    border: 1px solid var(--edge);
+    background: rgba(6, 10, 20, .72);
+}
+
+.back-link:hover, .back-link:focus { color: var(--cy); }
+
+.wrap {
+    width: 100%;
+    max-width: 460px;
+    padding: 58px 14px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.top { text-align: center; }
+
+.title {
+    margin: 0;
+    font-size: 1.7rem;
+    letter-spacing: .28em;
+    text-indent: .28em;
+    color: var(--cy);
+    text-shadow: 0 0 8px rgba(0, 234, 255, .5), 0 0 26px rgba(0, 234, 255, .22);
+}
+
+.sub {
+    margin: 5px 0 0;
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .12em;
+    color: var(--dim);
+    text-transform: uppercase;
+}
+
+.dot { color: var(--faint); margin: 0 5px; }
+
+.hud { display: flex; gap: 8px; }
+
+.chip {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 7px 10px;
+    background: var(--panel-solid);
+    border: 1px solid var(--edge);
+    clip-path: polygon(0 var(--cut), var(--cut) 0, 100% 0,
+        100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+}
+
+.chip-k { font-size: .58rem; letter-spacing: .2em; color: var(--faint); }
+
+.chip-v {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.chip-src { font-size: .55rem; letter-spacing: .14em; color: var(--am); }
+.chip-src.live { color: var(--lm); }
+
+/* The board is 100x160, so its height is 1.6x its width. Left to fill the
+   column it pushes the PUTT button below the fold on a phone, which is the one
+   control a player cannot do without. Cap it against the viewport height. */
+.board-wrap {
+    position: relative;
+    width: min(100%, 40vh);
+    margin: 0 auto;
+}
+
+#board {
+    display: block;
+    width: 100%;
+    aspect-ratio: 100 / 160;
+    height: auto;
+    background: var(--deep);
+    border: 1px solid var(--edge);
+    /* Without this, dragging to aim scrolls the page on a phone and the game
+       is simply unplayable there. */
+    touch-action: none;
+    cursor: crosshair;
+}
+
+#board:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; }
+
+/* .result sets display:flex, which outranks the UA stylesheet's
+   [hidden] { display: none } - so the overlay would sit on top of the board
+   from the moment the page loaded. */
+.result[hidden] { display: none; }
+
+.result {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 18px;
+    text-align: center;
+    background: rgba(3, 5, 11, .88);
+}
+
+.result-score {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: .16em;
+    color: var(--cy);
+}
+
+.result-line { margin: 0; font-family: var(--mono); color: var(--dim); font-size: .8rem; }
+
+.result-share {
+    margin: 4px 0;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: .72rem;
+    line-height: 1.6;
+    color: var(--ink);
+    background: var(--panel-solid);
+    border: 1px solid var(--edge);
+    white-space: pre;
+    text-align: left;
+}
+
+.result-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
+.result-next { margin: 2px 0 0; font-family: var(--mono); font-size: .68rem; color: var(--faint); }
+
+button {
+    font-family: var(--ui);
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--panel-solid);
+    border: 1px solid var(--edge);
+    padding: 9px 15px;
+    cursor: pointer;
+}
+
+button:hover:not(:disabled) { color: var(--cy); border-color: var(--cy); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+button.primary { color: var(--void); background: var(--cy); border-color: var(--cy); }
+button.primary:hover:not(:disabled) { color: var(--void); background: #6df3ff; }
+
+.controls { display: flex; flex-direction: column; gap: 8px; }
+
+.ctl { display: flex; align-items: center; gap: 10px; }
+.ctl-k { width: 52px; font-size: .58rem; letter-spacing: .2em; color: var(--faint); }
+.ctl-v {
+    width: 46px;
+    text-align: right;
+    font-family: var(--mono);
+    font-size: .75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--dim);
+}
+
+input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--faint);
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    background: var(--cy);
+    cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border: none;
+    background: var(--cy);
+    cursor: pointer;
+}
+
+input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset: 4px; }
+
+.hint, .say {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: .66rem;
+    line-height: 1.5;
+    color: var(--faint);
+    text-align: center;
+}
+
+.say { color: var(--dim); min-height: 1.5em; }
+
+/*
+ * Reduced motion strips the DECORATION, not the game. The ball rolling is the
+ * mechanic - teleporting it to its resting place would make the hole
+ * unreadable, not more comfortable. Only the glow and the trail go.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .title { text-shadow: none; }
+    * { transition: none !important; }
+}
+
+@media (max-width: 380px) {
+    .wrap { padding-top: 52px; }
+    .title { font-size: 1.4rem; }
+    .chip-v { font-size: .88rem; }
+}

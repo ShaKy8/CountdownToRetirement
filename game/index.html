@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ONE PUTT - a new mini-golf hole every day, played against the real wind where you are">
+    <title>ONE PUTT</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="/" class="back-link" aria-label="Back to BranyonTech.com">&larr; BranyonTech.com</a>
+
+    <main id="main-content" class="wrap">
+        <header class="top">
+            <h1 class="title">ONE PUTT</h1>
+            <p class="sub">
+                <span id="puzzle-no">#—</span>
+                <span class="dot" aria-hidden="true">·</span>
+                <span id="par-label">par —</span>
+                <span class="dot" aria-hidden="true">·</span>
+                <span id="mode-label">today's hole</span>
+            </p>
+        </header>
+
+        <div class="hud">
+            <div class="chip" id="wind-chip" title="Wind where you are">
+                <span class="chip-k">WIND</span>
+                <span class="chip-v" id="wind-value">—</span>
+                <span class="chip-src" id="wind-source"></span>
+            </div>
+            <div class="chip">
+                <span class="chip-k">STROKES</span>
+                <span class="chip-v" id="stroke-count">0</span>
+            </div>
+            <div class="chip">
+                <span class="chip-k">STREAK</span>
+                <span class="chip-v" id="streak-value">0</span>
+            </div>
+        </div>
+
+        <div class="board-wrap">
+            <canvas id="board" width="600" height="960" tabindex="0" role="application"
+                    aria-label="Putting green. Use the aim and power sliders below, then press Putt."></canvas>
+            <div class="result" id="result" hidden>
+                <p class="result-score" id="result-score">Par</p>
+                <p class="result-line" id="result-line">2 strokes</p>
+                <pre class="result-share" id="result-share"></pre>
+                <div class="result-actions">
+                    <button type="button" id="share">Copy result</button>
+                    <button type="button" id="replay">Play it again</button>
+                    <button type="button" id="random">Random hole</button>
+                </div>
+                <p class="result-next">Next hole in <span id="next-in">—</span></p>
+            </div>
+        </div>
+
+        <div class="controls">
+            <label class="ctl">
+                <span class="ctl-k">AIM</span>
+                <input type="range" id="aim" min="0" max="359" value="270" step="1"
+                       aria-label="Aim in degrees">
+                <output class="ctl-v" id="aim-out">270&deg;</output>
+            </label>
+            <label class="ctl">
+                <span class="ctl-k">POWER</span>
+                <input type="range" id="power" min="5" max="100" value="50" step="1"
+                       aria-label="Power, percent">
+                <output class="ctl-v" id="power-out">50%</output>
+            </label>
+            <button type="button" id="putt" class="primary">Putt</button>
+        </div>
+
+        <p class="hint">Drag from the ball to aim, or use the sliders. Arrow keys work on the green.</p>
+        <p class="say" id="say" role="status" aria-live="polite"></p>
+    </main>
+
+    <script src="putt.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -12,6 +12,7 @@ const assert = require('assert');
 const http = require('http');
 const path = require('path');
 const Calc = require('./countdown/calc.js');
+const Putt = require('./game/putt.js');
 
 // ANSI color codes for pretty output
 const colors = {
@@ -1231,6 +1232,16 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'Footer link should say "See how long I\'ve been retired"');
     });
 
+    test('Should have a link to the game', () => {
+        assert.ok(indexHtml.includes('/game/'),
+            'Should link to the putting game');
+    });
+
+    test('Should describe the game link as putting against your own weather', () => {
+        assert.ok(indexHtml.includes('Putt against your own weather'),
+            'Game link should say "Putt against your own weather"');
+    });
+
     test('Should be text only with no scripts or graphics', () => {
         assert.ok(!indexHtml.includes('<svg'), 'Landing page should not contain SVG graphics');
         assert.ok(!indexHtml.includes('<img'), 'Landing page should not contain images');
@@ -1308,6 +1319,745 @@ describe('BUSINESS SITE - Personal stats file', () => {
 
     test('stats.json should carry an ISO date in "updated"', () => {
         assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(stats.updated), 'updated should look like YYYY-MM-DD');
+    });
+});
+
+// =============================================================================
+// ONE PUTT
+// =============================================================================
+
+describe('ONE PUTT - Puzzle day and seed', () => {
+    test('Should key the puzzle to UTC, not local time', () => {
+        const early = new Date('2026-09-07T00:00:00Z');
+        const late = new Date('2026-09-07T23:59:59Z');
+        assert.strictEqual(Putt.puzzleDay(early), Putt.puzzleDay(late),
+            'Same UTC day should be the same puzzle');
+    });
+
+    test('Should roll over exactly at UTC midnight', () => {
+        const before = new Date(Date.parse('2026-09-07T00:00:00Z') - 1);
+        const at = new Date('2026-09-07T00:00:00Z');
+        assert.strictEqual(Putt.puzzleDay(at) - Putt.puzzleDay(before), 1);
+    });
+
+    test('Should advance by exactly one per day', () => {
+        const a = Putt.puzzleDay(new Date('2026-03-01T12:00:00Z'));
+        const b = Putt.puzzleDay(new Date('2026-03-02T12:00:00Z'));
+        assert.strictEqual(b - a, 1);
+    });
+
+    test('Should map a day back to its ISO date', () => {
+        const day = Putt.puzzleDay(new Date('2026-09-07T12:00:00Z'));
+        assert.strictEqual(Putt.puzzleDateKey(day), '2026-09-07');
+    });
+
+    test('Should give 1000 distinct uint32 seeds for 1000 days', () => {
+        const seeds = [];
+        for (let d = 0; d < 1000; d++) seeds.push(Putt.seedForDay(d));
+        assert.strictEqual(new Set(seeds).size, 1000, 'Seeds should not collide');
+        seeds.forEach(s => {
+            assert.ok(Number.isInteger(s) && s >= 0 && s <= 0xffffffff, `Bad seed ${s}`);
+        });
+    });
+
+    test('Should count down into the next puzzle within (0, one day]', () => {
+        [0, 1, 43200000, 86399999].forEach(offset => {
+            const now = new Date(Putt.EPOCH_UTC_MS + 500 * Putt.DAY_MS + offset);
+            const ms = Putt.msUntilNextPuzzle(now);
+            assert.ok(ms > 0 && ms <= Putt.DAY_MS, `Out of range: ${ms}`);
+        });
+    });
+});
+
+describe('ONE PUTT - Seeded PRNG', () => {
+    // Locks the algorithm. Changing the PRNG silently rewrites every hole ever
+    // played and invalidates every share string ever posted, so it must not be
+    // possible to do by accident.
+    test('Should produce a locked, known sequence', () => {
+        const rng = Putt.makeRng(12345);
+        const got = [rng(), rng(), rng(), rng(), rng()].map(v => Math.round(v * 1e9) / 1e9);
+        assert.deepStrictEqual(got, [0.979728268, 0.306752264, 0.484205422, 0.817934413, 0.509428369],
+            'mulberry32 output changed - this rewrites history');
+    });
+
+    test('Should stay within [0, 1)', () => {
+        const rng = Putt.makeRng(999);
+        for (let i = 0; i < 10000; i++) {
+            const v = rng();
+            assert.ok(v >= 0 && v < 1, `Out of range: ${v}`);
+        }
+    });
+
+    test('Should be reproducible from the same seed', () => {
+        const a = Putt.makeRng(42), b = Putt.makeRng(42);
+        const seqA = [], seqB = [];
+        for (let i = 0; i < 1000; i++) { seqA.push(a()); seqB.push(b()); }
+        assert.deepStrictEqual(seqA, seqB);
+    });
+
+    test('Should be roughly uniform', () => {
+        const rng = Putt.makeRng(7);
+        let sum = 0;
+        for (let i = 0; i < 100000; i++) sum += rng();
+        const mean = sum / 100000;
+        assert.ok(mean > 0.49 && mean < 0.51, `Mean was ${mean}`);
+    });
+});
+
+describe('ONE PUTT - Hole determinism', () => {
+    test('Should build an identical hole from an identical seed', () => {
+        assert.deepStrictEqual(Putt.generateHole(7), Putt.generateHole(7));
+    });
+
+    test('Should tie the daily hole to the puzzle day', () => {
+        const now = new Date('2026-09-07T09:00:00Z');
+        assert.deepStrictEqual(Putt.dailyHole(now),
+            Putt.generateHole(Putt.seedForDay(Putt.puzzleDay(now))));
+    });
+
+    test('Should vary the cup position across days', () => {
+        const cups = new Set();
+        for (let d = 0; d < 100; d++) {
+            const h = Putt.generateHole(Putt.seedForDay(d));
+            cups.add(h.cup.x + ',' + h.cup.y);
+        }
+        assert.ok(cups.size >= 90, `Only ${cups.size} distinct cups in 100 days`);
+    });
+
+    // Math.sin/cos/pow are not bit-identical across JS engines. The hole must be
+    // the same everywhere, so its geometry uses only add/multiply/round.
+    test('Should place every coordinate on the half-unit grid', () => {
+        for (let d = 0; d < 200; d++) {
+            const h = Putt.generateHole(Putt.seedForDay(d));
+            const coords = [h.tee.x, h.tee.y, h.cup.x, h.cup.y];
+            h.walls.forEach(w => coords.push(w.x, w.y, w.w, w.h));
+            (h.hazards || []).forEach(z => coords.push(z.x, z.y, z.w, z.h));
+            coords.forEach(v => {
+                assert.strictEqual(v * 2, Math.round(v * 2), `Off-grid coordinate ${v} on day ${d}`);
+            });
+        }
+    });
+});
+
+describe('ONE PUTT - Hole validity across 3650 seeds', () => {
+    const holes = [];
+    for (let d = 0; d < 3650; d++) holes.push(Putt.generateHole(Putt.seedForDay(d)));
+
+    test('Should produce a valid hole for every one of ten years of days', () => {
+        const bad = holes
+            .map((h, d) => ({ d, v: Putt.validateHole(h) }))
+            .filter(x => !x.v.ok);
+        assert.strictEqual(bad.length, 0,
+            `Invalid holes: ${bad.slice(0, 3).map(x => `day ${x.d} (${x.v.reasons})`).join('; ')}`);
+    });
+
+    // The fallback exists so a bad day degrades to a playable hole instead of a
+    // broken puzzle worldwide. It should never actually be needed.
+    test('Should never fall back to the hand-authored hole', () => {
+        const fell = holes.filter(h => h.fallback);
+        assert.strictEqual(fell.length, 0, `${fell.length} days needed the fallback`);
+    });
+
+    test('Should keep par within 2..5 and use at least three values', () => {
+        const pars = new Set();
+        holes.forEach(h => {
+            assert.ok(h.par >= 2 && h.par <= 5, `Par ${h.par} out of range`);
+            pars.add(h.par);
+        });
+        assert.ok(pars.size >= 3, `Only ${pars.size} distinct par values`);
+    });
+
+    test('Should keep the tee a real distance from the cup', () => {
+        holes.forEach((h, d) => {
+            const gap = Math.hypot(h.tee.x - h.cup.x, h.tee.y - h.cup.y);
+            assert.ok(gap >= Putt.SIM.MIN_SEPARATION, `Day ${d} gap was only ${gap}`);
+        });
+    });
+
+    test('Should leave the cup reachable from the tee', () => {
+        const stuck = holes.filter(h => !Putt.reachable(h).ok);
+        assert.strictEqual(stuck.length, 0, `${stuck.length} unreachable holes`);
+    });
+
+    test('Should never put the cup inside a wall or on a hazard', () => {
+        holes.forEach((h, d) => {
+            assert.strictEqual(Putt.surfaceAt(h, h.cup.x, h.cup.y), 'green', `Day ${d} cup not on green`);
+        });
+    });
+
+    test('Should use every archetype over ten years', () => {
+        const used = new Set(holes.map(h => h.archetype));
+        assert.strictEqual(used.size, Putt.ARCHETYPES.length,
+            `Only used ${[...used].join(', ')}`);
+    });
+});
+
+describe('ONE PUTT - Physics', () => {
+    const calm = { mph: 0, deg: 0, gustMph: 0, source: 'none' };
+    const border = [
+        { x: 0, y: 0, w: 100, h: 2 }, { x: 0, y: 158, w: 100, h: 2 },
+        { x: 0, y: 0, w: 2, h: 160 }, { x: 98, y: 0, w: 2, h: 160 }
+    ];
+    const box = (extra, hazards) => ({
+        seed: 0, archetype: 'test', par: 3,
+        tee: { x: 50, y: 140 }, cup: { x: 50, y: 20 },
+        walls: border.concat(extra || []), hazards: hazards || []
+    });
+
+    test('Should leave a resting ball exactly where it is', () => {
+        const h = box();
+        const at_rest = Putt.createBall(h);
+        let b = at_rest;
+        for (let i = 0; i < 1000; i++) b = Putt.stepBall(h, b, calm, i / 120, Putt.SIM.DT).ball;
+        assert.deepStrictEqual(b, at_rest);
+    });
+
+    test('Should not mutate the ball handed to it', () => {
+        const h = box();
+        const b = Putt.createBall(h);
+        b.vx = 30; b.vy = -40; b.resting = false;
+        const snapshot = JSON.parse(JSON.stringify(b));
+        Putt.stepBall(h, b, calm, 0, Putt.SIM.DT);
+        assert.deepStrictEqual(b, snapshot, 'stepBall must be pure');
+    });
+
+    // Exponential damping approaches zero asymptotically and the ball creeps
+    // forever. Coulomb friction with an exact clamp gives a real resting state.
+    test('Should bring the ball to exactly zero speed, not merely near it', () => {
+        const h = box();
+        const r = Putt.simulateShot(h, Putt.createBall(h), { angle: 0.3, power: 0.5 }, calm, {});
+        assert.strictEqual(r.event, 'rest');
+        assert.strictEqual(r.ball.vx, 0);
+        assert.strictEqual(r.ball.vy, 0);
+    });
+
+    test('Should come to rest within the step cap', () => {
+        const h = box();
+        const r = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: 0.6 }, calm, {});
+        assert.ok(r.steps < Putt.SIM.MAX_STEPS, `Took ${r.steps} steps`);
+    });
+
+    test('Should travel further with more power', () => {
+        const h = box();
+        let last = -1;
+        // Up the open field: shooting toward a nearby wall would measure the
+        // bounce rather than the roll.
+        for (let p = 1; p <= 10; p++) {
+            const r = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: p / 20 }, calm, {});
+            const d = Math.hypot(r.ball.x - h.tee.x, r.ball.y - h.tee.y);
+            assert.ok(d > last, `Power ${p / 20} travelled ${d}, not more than ${last}`);
+            last = d;
+        }
+    });
+
+    test('Should never escape an empty box at full power, from any angle', () => {
+        const h = box();
+        for (let a = 0; a < 360; a++) {
+            const r = Putt.simulateShot(h, Putt.createBall(h), { angle: a * Math.PI / 180, power: 1 }, calm, { maxSteps: 4000 });
+            assert.notStrictEqual(r.event, 'oob', `Angle ${a} left the field`);
+            assert.ok(r.ball.x >= 0 && r.ball.x <= 100 && r.ball.y >= 0 && r.ball.y <= 160,
+                `Angle ${a} ended outside at ${r.ball.x},${r.ball.y}`);
+        }
+    });
+
+    // A 1.5u wall is thinner than one unsubstepped step at max speed, and
+    // thinner than the ball. It is the shape that finds tunneling bugs.
+    test('Should not tunnel through a wall thinner than the ball', () => {
+        const h = box([{ x: 2, y: 60, w: 96, h: 1.5 }]);
+        h.tee = { x: 50, y: 120 };
+        for (let a = 0; a < 360; a++) {
+            const r = Putt.simulateShot(h, Putt.createBall(h), { angle: a * Math.PI / 180, power: 1 }, calm, { maxSteps: 4000 });
+            assert.ok(r.ball.y >= 60, `Angle ${a} ended at y=${r.ball.y}, through the wall`);
+        }
+    });
+
+    test('Should reverse and lose speed on a head-on bounce', () => {
+        const h = box();
+        const b = Putt.createBall(h);
+        b.x = 90; b.y = 80; b.vx = 60; b.vy = 0; b.resting = false;
+        let cur = b, seen = null;
+        for (let i = 0; i < 200 && !seen; i++) {
+            const r = Putt.stepBall(h, cur, calm, i / 120, Putt.SIM.DT);
+            if (r.bounces > 0) seen = r.ball;
+            cur = r.ball;
+        }
+        assert.ok(seen, 'Expected a bounce');
+        assert.ok(seen.vx < 0, 'Should reverse direction');
+        assert.ok(Math.abs(seen.vx) < 60, 'Should lose energy, not gain it');
+    });
+
+    test('Should blow the ball downwind', () => {
+        const h = box();
+        const west = { mph: 20, deg: 270, gustMph: 20, source: 'test' };
+        const calmShot = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: 0.5 }, calm, {});
+        const windShot = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: 0.5 }, west, {});
+        assert.ok(windShot.ball.x > calmShot.ball.x + 1,
+            `Wind from the west should push east: ${calmShot.ball.x} -> ${windShot.ball.x}`);
+    });
+
+    test('Should treat wind degrees as the direction it blows FROM', () => {
+        const v = Putt.windVector({ mph: 10, deg: 0, gustMph: 10 }, 0);
+        assert.ok(v.ay > 0, 'A north wind pushes down-screen');
+        assert.ok(Math.abs(v.ax) < 1e-9, `Expected no sideways push, got ${v.ax}`);
+    });
+
+    test('Should apply no force at all in calm air', () => {
+        assert.deepStrictEqual(Putt.windVector({ mph: 0, deg: 123 }, 5), { ax: 0, ay: 0 });
+        assert.deepStrictEqual(Putt.windVector(null, 5), { ax: 0, ay: 0 });
+    });
+
+    test('Should slow the ball more through sand', () => {
+        const clean = box();
+        const sandy = box([], [{ kind: 'sand', shape: 'rect', x: 2, y: 90, w: 96, h: 20 }]);
+        const a = Putt.simulateShot(clean, Putt.createBall(clean), { angle: -Math.PI / 2, power: 0.6 }, calm, {});
+        const b = Putt.simulateShot(sandy, Putt.createBall(sandy), { angle: -Math.PI / 2, power: 0.6 }, calm, {});
+        assert.ok(b.ball.y > a.ball.y + 1, `Sand should shorten the roll: ${a.ball.y} vs ${b.ball.y}`);
+    });
+
+    test('Should return the ball to the stroke origin on water', () => {
+        const h = box([], [{ kind: 'water', shape: 'rect', x: 2, y: 90, w: 96, h: 20 }]);
+        const start = Putt.createBall(h);
+        const r = Putt.simulateShot(h, start, { angle: -Math.PI / 2, power: 0.8 }, calm, {});
+        assert.strictEqual(r.event, 'water');
+        assert.deepStrictEqual({ x: r.ball.x, y: r.ball.y }, { x: h.tee.x, y: h.tee.y });
+    });
+
+    test('Should sink a ball that arrives slowly', () => {
+        const h = box();
+        h.tee = { x: 50, y: 40 };
+        const r = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: 0.35 }, calm, {});
+        assert.strictEqual(r.event, 'sunk', `Ended ${r.event} at ${r.ball.x},${r.ball.y}`);
+    });
+
+    test('Should lip out a ball that arrives too fast', () => {
+        const h = box();
+        h.tee = { x: 50, y: 40 };
+        const fast = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: 1 }, calm, {});
+        assert.notStrictEqual(fast.event, 'sunk', 'A rocket should not drop');
+        assert.ok(Math.hypot(fast.ball.x - h.cup.x, fast.ball.y - h.cup.y) > Putt.SIM.CUP_R,
+            'It should not come to rest in the cup either');
+        const paced = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: 0.35 }, calm, {});
+        assert.strictEqual(paced.event, 'sunk', 'The same line at a sane pace should drop');
+    });
+
+    // Per-frame sink detection would miss this: the ball crosses the whole cup
+    // between two renders.
+    test('Should catch a sink that happens mid-frame', () => {
+        const h = box();
+        h.tee = { x: 50, y: 100 };
+        const r = Putt.simulateShot(h, Putt.createBall(h), { angle: -Math.PI / 2, power: 0.52 }, calm, {});
+        assert.ok(['sunk', 'rest'].indexOf(r.event) >= 0);
+        if (r.event === 'rest') {
+            assert.ok(Math.hypot(r.ball.x - h.cup.x, r.ball.y - h.cup.y) > Putt.SIM.CUP_R,
+                'A ball that stopped should not be sitting in the cup unsunk');
+        }
+    });
+
+    test('Should replay a shot identically', () => {
+        const h = box();
+        const aim = { angle: 1.2, power: 0.77 };
+        const a = Putt.simulateShot(h, Putt.createBall(h), aim, calm, {});
+        const b = Putt.simulateShot(h, Putt.createBall(h), aim, calm, {});
+        assert.deepStrictEqual(a, b);
+    });
+});
+
+describe('ONE PUTT - Solvability probe', () => {
+    const seeds = [];
+    for (let d = 0; d < 64; d++) seeds.push(d);
+    const results = seeds.map(d => ({ d, r: Putt.probeSolvable(Putt.generateHole(Putt.seedForDay(d))) }));
+
+    test('Should be sinkable by a greedy player within par + 1', () => {
+        const fail = results.filter(x => !x.r.sinkable);
+        assert.strictEqual(fail.length, 0,
+            `Unsolvable: ${fail.slice(0, 5).map(x => `day ${x.d} (${x.r.best.dist.toFixed(1)}u short)`).join('; ')}`);
+    });
+
+    test('Should give the same verdict twice', () => {
+        const h = Putt.generateHole(Putt.seedForDay(3));
+        assert.deepStrictEqual(Putt.probeSolvable(h), Putt.probeSolvable(h));
+    });
+});
+
+describe('ONE PUTT - Wind from the weather API', () => {
+    // Shaped like a real /weather/api/bundle response: soft()-wrapped forecast,
+    // parallel hourly arrays, local wall-clock time strings.
+    const bundle = (hourly, offset) => ({
+        key: '34.052,-118.244', lat: 34.052, lon: -118.244, fetched: 0,
+        forecast: { ok: true, data: { utc_offset_seconds: offset === undefined ? 0 : offset, hourly } }
+    });
+    const base = {
+        time: ['2026-09-07T10:00', '2026-09-07T11:00'],
+        wind_speed_10m: [10, 20],
+        wind_direction_10m: [180, 180],
+        wind_gusts_10m: [15, 25]
+    };
+    const at = t => new Date(t);
+
+    test('Should interpolate speed between hourly samples', () => {
+        const w = Putt.extractWind(bundle(base), at('2026-09-07T10:30:00Z'));
+        assert.strictEqual(w.mph, 15);
+        assert.strictEqual(w.source, 'live');
+    });
+
+    test('Should take an exact sample at the exact hour', () => {
+        const w = Putt.extractWind(bundle(base), at('2026-09-07T11:00:00Z'));
+        assert.strictEqual(w.mph, 20);
+    });
+
+    // Averaging 350 and 10 arithmetically gives 180 - exactly backwards. This is
+    // invisible in the UI except as a ball drifting the wrong way.
+    test('Should interpolate direction the short way around the circle', () => {
+        const b = bundle(Object.assign({}, base, { wind_direction_10m: [350, 10] }));
+        const w = Putt.extractWind(b, at('2026-09-07T10:30:00Z'));
+        assert.strictEqual(w.deg, 0, `Wrapped the long way: got ${w.deg}`);
+    });
+
+    test('Should respect the timezone offset', () => {
+        const w = Putt.extractWind(bundle(base, -25200), at('2026-09-07T17:30:00Z'));
+        assert.strictEqual(w.mph, 15, 'Local 10:30 at UTC-7 is 17:30Z');
+    });
+
+    test('Should clamp to the ends of the series rather than give up', () => {
+        const before = Putt.extractWind(bundle(base), at('2026-09-01T00:00:00Z'));
+        const after = Putt.extractWind(bundle(base), at('2026-09-30T00:00:00Z'));
+        assert.strictEqual(before.mph, 10);
+        assert.strictEqual(after.mph, 20);
+    });
+
+    test('Should return null, not throw, for any malformed payload', () => {
+        const junk = [null, undefined, {}, [], 'nope', 42, true,
+            { forecast: null }, { forecast: {} }, { forecast: { ok: false, error: 'x' } },
+            { forecast: { ok: true, data: {} } },
+            { forecast: { ok: true, data: { hourly: {} } } },
+            { forecast: { ok: true, data: { hourly: { time: [] } } } }];
+        junk.forEach((j, i) => {
+            assert.doesNotThrow(() => Putt.extractWind(j, at('2026-09-07T10:30:00Z')), `Threw on fixture ${i}`);
+            assert.strictEqual(Putt.extractWind(j, at('2026-09-07T10:30:00Z')), null, `Fixture ${i} should be null`);
+        });
+    });
+
+    test('Should reject arrays that do not line up with the timestamps', () => {
+        const b = bundle(Object.assign({}, base, { wind_speed_10m: [10] }));
+        assert.strictEqual(Putt.extractWind(b, at('2026-09-07T10:30:00Z')), null);
+    });
+
+    test('Should reject nulls and non-numbers at the sample it needs', () => {
+        const nulls = bundle(Object.assign({}, base, { wind_speed_10m: [null, null] }));
+        const strs = bundle(Object.assign({}, base, { wind_direction_10m: ['n/a', 'n/a'] }));
+        assert.strictEqual(Putt.extractWind(nulls, at('2026-09-07T10:30:00Z')), null);
+        assert.strictEqual(Putt.extractWind(strs, at('2026-09-07T10:30:00Z')), null);
+    });
+
+    test('Should survive a missing gust series', () => {
+        const b = bundle({ time: base.time, wind_speed_10m: [10, 20], wind_direction_10m: [180, 180] });
+        const w = Putt.extractWind(b, at('2026-09-07T10:30:00Z'));
+        assert.strictEqual(w.mph, 15);
+        assert.strictEqual(w.gustMph, 15);
+    });
+
+    test('Should invent deterministic wind when there is no live data', () => {
+        assert.deepStrictEqual(Putt.syntheticWind(1234), Putt.syntheticWind(1234));
+        const specs = [];
+        for (let s = 0; s < 100; s++) specs.push(Putt.syntheticWind(s));
+        specs.forEach(w => {
+            assert.ok(w.mph >= 3 && w.mph <= 18, `mph out of range: ${w.mph}`);
+            assert.ok(w.deg >= 0 && w.deg < 360, `deg out of range: ${w.deg}`);
+            assert.strictEqual(w.source, 'synthetic');
+        });
+        assert.ok(new Set(specs.map(w => w.mph)).size >= 20, 'Synthetic wind should vary');
+    });
+
+    test('Should fall back to synthetic wind rather than expose an error path', () => {
+        const seed = 4242;
+        assert.deepStrictEqual(Putt.resolveWind(null, at('2026-09-07T10:30:00Z'), seed), Putt.syntheticWind(seed));
+        assert.deepStrictEqual(Putt.resolveWind({ forecast: { ok: false } }, at('2026-09-07T10:30:00Z'), seed),
+            Putt.syntheticWind(seed));
+        assert.strictEqual(Putt.resolveWind(bundle(base), at('2026-09-07T10:30:00Z'), seed).source, 'live');
+    });
+
+    test('Should clamp absurd wind into a playable range', () => {
+        assert.strictEqual(Putt.clampWind({ mph: 900, deg: 0 }).mph, Putt.SIM.WIND_MAX_MPH);
+        assert.strictEqual(Putt.clampWind({ mph: -5, deg: 10 }).mph, 0);
+        assert.strictEqual(Putt.clampWind({ mph: 10, deg: 725 }).deg, 5);
+        assert.strictEqual(Putt.clampWind({ mph: 'x', deg: 0 }), null);
+        assert.strictEqual(Putt.clampWind(null), null);
+    });
+});
+
+describe('ONE PUTT - Scoring and sharing', () => {
+    test('Should name every score', () => {
+        assert.strictEqual(Putt.scoreLabel(1, 3), 'Hole in one');
+        assert.strictEqual(Putt.scoreLabel(2, 4), 'Eagle');
+        assert.strictEqual(Putt.scoreLabel(2, 3), 'Birdie');
+        assert.strictEqual(Putt.scoreLabel(3, 3), 'Par');
+        assert.strictEqual(Putt.scoreLabel(4, 3), 'Bogey');
+        assert.strictEqual(Putt.scoreLabel(5, 3), 'Double bogey');
+        assert.strictEqual(Putt.scoreLabel(6, 3), 'Triple bogey');
+        assert.strictEqual(Putt.scoreLabel(9, 3), '+6');
+    });
+
+    test('Should give exactly one character per score badge', () => {
+        for (let s = 1; s <= 12; s++) {
+            for (let p = 2; p <= 5; p++) {
+                assert.strictEqual(Array.from(Putt.scoreEmoji(s, p)).length, 1,
+                    `scoreEmoji(${s},${p}) was not a single code point`);
+            }
+        }
+    });
+
+    test('Should read out a compass bearing', () => {
+        assert.strictEqual(Putt.compassFromDegrees(0), 'N');
+        assert.strictEqual(Putt.compassFromDegrees(11.25), 'NNE');
+        assert.strictEqual(Putt.compassFromDegrees(210), 'SSW');
+        assert.strictEqual(Putt.compassFromDegrees(348.75), 'N');
+        assert.strictEqual(Putt.compassFromDegrees(359.9), 'N');
+        assert.strictEqual(Putt.formatWind({ mph: 12, deg: 210 }), '12 mph SSW');
+    });
+
+    // The share text IS the product - it is what spreads. Lock it exactly.
+    const result = { day: 249, strokes: 3, par: 2, cells: ['green', 'sand', 'sunk'], windMph: 12, windDeg: 210, streak: 4 };
+
+    test('Should build the share card exactly', () => {
+        assert.strictEqual(Putt.buildShare(result),
+            'ONE PUTT #249 — 3 (+1)\n\u{1F7E9}\u{1F7E8}⛳\nWind 12 mph SSW\nStreak 4\nbranyontech.com/game/');
+    });
+
+    test('Should mark a level score with E rather than +0', () => {
+        const level = Object.assign({}, result, { strokes: 2, par: 2, cells: ['green', 'sunk'] });
+        assert.ok(Putt.buildShare(level).indexOf('2 (E)') > 0, Putt.buildShare(level));
+    });
+
+    test('Should stay short even on a disastrous hole', () => {
+        const bad = Object.assign({}, result, { strokes: 20, cells: new Array(20).fill('water') });
+        const text = Putt.buildShare(bad);
+        assert.ok(text.length <= 200, `Share was ${text.length} chars`);
+        assert.ok(text.indexOf('…') > 0, 'Long rounds should be elided');
+    });
+
+    // The wind comes from the player's location. The share must carry the
+    // weather without carrying where they are.
+    test('Should not leak the player location', () => {
+        const text = Putt.buildShare(result);
+        assert.ok(!/\d+\.\d{3,}/.test(text), 'Share should contain no coordinates');
+        assert.ok(text.indexOf('@') === -1, 'Share should contain no address');
+    });
+});
+
+describe('ONE PUTT - Saved state and streaks', () => {
+    const res = { strokes: 3, par: 3, windMph: 10, windDeg: 180, source: 'live' };
+
+    test('Should turn any corrupt blob into a clean empty state', () => {
+        ['', '{', 'null', '[]', '"hello"', '42', '{"v":99}', '{"v":1,"days":"nope"}',
+            '{"v":1,"streak":"x","days":{}}'].forEach(raw => {
+                let out;
+                assert.doesNotThrow(() => { out = Putt.parseState(raw); }, `Threw on ${raw}`);
+                assert.strictEqual(typeof out, 'object');
+                assert.strictEqual(out.v, 1);
+            });
+        assert.deepStrictEqual(Putt.parseState('{'), Putt.emptyState());
+        assert.deepStrictEqual(Putt.parseState('[]'), Putt.emptyState());
+    });
+
+    test('Should round-trip a real state', () => {
+        const s = Putt.recordDaily(Putt.emptyState(), 10, res);
+        assert.deepStrictEqual(Putt.parseState(Putt.serializeState(s)), s);
+    });
+
+    test('Should drop day entries that make no sense', () => {
+        const s = Putt.parseState('{"v":1,"days":{"5":{"strokes":"x","par":3},"6":{"strokes":2,"par":3}}}');
+        assert.deepStrictEqual(Object.keys(s.days), ['6']);
+    });
+
+    test('Should build a streak on consecutive days', () => {
+        let s = Putt.emptyState();
+        s = Putt.recordDaily(s, 10, res);
+        s = Putt.recordDaily(s, 11, res);
+        s = Putt.recordDaily(s, 12, res);
+        assert.strictEqual(s.streak, 3);
+        assert.strictEqual(s.played, 3);
+    });
+
+    test('Should reset the streak after a missed day', () => {
+        let s = Putt.emptyState();
+        s = Putt.recordDaily(s, 10, res);
+        s = Putt.recordDaily(s, 11, res);
+        s = Putt.recordDaily(s, 14, res);
+        assert.strictEqual(s.streak, 1);
+        assert.strictEqual(s.bestStreak, 2, 'The old streak should still be remembered');
+    });
+
+    // "The first attempt is the one that counts" is a property of the data, not
+    // a rule the UI has to remember - a replay physically cannot overwrite it.
+    test('Should ignore a second result for the same day', () => {
+        let s = Putt.recordDaily(Putt.emptyState(), 10, res);
+        const after = Putt.recordDaily(s, 10, { strokes: 1, par: 3, windMph: 0, windDeg: 0, source: 'live' });
+        assert.deepStrictEqual(after, s);
+        assert.strictEqual(after.days['10'].strokes, 3, 'The first score stands');
+    });
+
+    test('Should ignore a result for a day already behind us', () => {
+        let s = Putt.recordDaily(Putt.emptyState(), 10, res);
+        assert.deepStrictEqual(Putt.recordDaily(s, 9, res), s);
+    });
+
+    test('Should never lower the best streak', () => {
+        let s = Putt.emptyState();
+        for (let d = 1; d <= 5; d++) s = Putt.recordDaily(s, d, res);
+        const best = s.bestStreak;
+        s = Putt.recordDaily(s, 20, res);
+        assert.strictEqual(s.streak, 1);
+        assert.ok(s.bestStreak >= best);
+    });
+
+    test('Should count aces', () => {
+        let s = Putt.emptyState();
+        s = Putt.recordDaily(s, 1, Object.assign({}, res, { strokes: 1 }));
+        s = Putt.recordDaily(s, 2, res);
+        assert.strictEqual(s.aces, 1);
+    });
+
+    test('Should keep the history small', () => {
+        let s = Putt.emptyState();
+        for (let d = 1; d <= 100; d++) s = Putt.recordDaily(s, d, res);
+        assert.ok(Object.keys(s.days).length <= 30, `Kept ${Object.keys(s.days).length} days`);
+        assert.ok(s.days['100'], 'The most recent day should survive');
+    });
+
+    test('Should not mutate the state handed to it', () => {
+        const s = Putt.emptyState();
+        const snapshot = JSON.parse(JSON.stringify(s));
+        Putt.recordDaily(s, 10, res);
+        assert.deepStrictEqual(s, snapshot);
+    });
+});
+
+describe('ONE PUTT - Page structure', () => {
+    const fs = require('fs');
+    const gameHtml = fs.readFileSync(path.join(__dirname, 'game', 'index.html'), 'utf8');
+    const gameCss = fs.readFileSync(path.join(__dirname, 'game', 'styles.css'), 'utf8');
+
+    // These files document the very things they must not do ("no localStorage",
+    // "a relative ./api/ path would break"), so the assertions below look at
+    // code with the prose removed.
+    const codeOnly = src => src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n')
+        .filter(line => !/^\s*(\/\/|\*)/.test(line))
+        .join('\n');
+    const gameJs = codeOnly(fs.readFileSync(path.join(__dirname, 'game', 'script.js'), 'utf8'));
+    const puttJs = codeOnly(fs.readFileSync(path.join(__dirname, 'game', 'putt.js'), 'utf8'));
+
+    test('Should have a title and description', () => {
+        assert.ok(gameHtml.includes('<title>ONE PUTT'), 'Title should name the game');
+        assert.ok(gameHtml.includes('<meta name="description"'), 'Should have a meta description');
+    });
+
+    test('Should offer skip navigation and a way back to the site', () => {
+        assert.ok(gameHtml.includes('skip-link'), 'Should have a skip link');
+        assert.ok(gameHtml.includes('id="main-content"'), 'Skip link target should exist');
+        assert.ok(gameHtml.includes('class="back-link"'), 'Should link back to the site');
+    });
+
+    test('Should load the rules before the renderer', () => {
+        const rules = gameHtml.indexOf('putt.js');
+        const render = gameHtml.indexOf('script.js');
+        assert.ok(rules > 0 && render > 0, 'Both scripts should be referenced');
+        assert.ok(rules < render, 'putt.js must load before script.js');
+    });
+
+    // CSP is script-src 'self' with no unsafe-inline.
+    test('Should not use inline scripts', () => {
+        const inlineScript = /<script(?![^>]*\bsrc=)[^>]*>/i;
+        assert.ok(!inlineScript.test(gameHtml), 'No inline <script> blocks allowed under CSP');
+    });
+
+    test('Should not use inline event handlers', () => {
+        assert.ok(!/\son(click|load|input|change|pointerdown|keydown)\s*=/i.test(gameHtml),
+            'No inline on*= handlers allowed under CSP');
+    });
+
+    test('Should not evaluate strings as code', () => {
+        [['script.js', gameJs], ['putt.js', puttJs]].forEach(([name, src]) => {
+            assert.ok(!/\beval\s*\(/.test(src), `${name} should not call eval`);
+            assert.ok(!/new\s+Function\s*\(/.test(src), `${name} should not build functions from strings`);
+        });
+    });
+
+    test('Should carry the markup the renderer binds to', () => {
+        ['id="board"', 'id="aim"', 'id="power"', 'id="putt"', 'id="share"', 'aria-live']
+            .forEach(hook => assert.ok(gameHtml.includes(hook), `Missing ${hook}`));
+    });
+
+    // A relative './api/bundle' from /game/ resolves to /game/api/bundle, which
+    // is not routed to the Lambda - and it fails quietly into synthetic wind,
+    // which looks exactly like a slow API day. Assert it rather than remember it.
+    test('Should call the weather API by absolute path', () => {
+        assert.ok(gameJs.includes('/weather/api/bundle'), 'Should call /weather/api/bundle');
+        assert.ok(gameJs.includes('/weather/api/config'), 'Should call /weather/api/config');
+        assert.ok(!/['"`]\.\/api\//.test(gameJs), 'A relative ./api/ path would resolve under /game/');
+    });
+
+    test('Should export the rules to both a browser and Node', () => {
+        assert.ok(puttJs.includes("typeof module !== 'undefined' && module.exports"),
+            'Should export for require()');
+        assert.ok(puttJs.includes("typeof window !== 'undefined' ? window : null"),
+            'Should attach a global for the page');
+    });
+
+    // The whole determinism guarantee rests on this: no ambient state, no
+    // hidden clock. Everything the rules need is passed in.
+    test('Should keep the rules free of the DOM, storage, network and the clock', () => {
+        assert.ok(!/\bdocument\./.test(puttJs), 'putt.js must not touch the DOM');
+        assert.ok(!/\blocalStorage\b/.test(puttJs), 'putt.js must not touch localStorage');
+        assert.ok(!/\bfetch\s*\(/.test(puttJs), 'putt.js must not make network calls');
+        assert.ok(!/new Date\(\s*\)/.test(puttJs), 'putt.js must be handed "now", never read it');
+    });
+
+    test('Should keep the board usable on a touchscreen', () => {
+        assert.ok(gameCss.includes('touch-action'),
+            'The canvas needs touch-action or dragging scrolls the page');
+    });
+
+    test('Should respect a reduced-motion preference', () => {
+        assert.ok(gameCss.includes('prefers-reduced-motion'), 'Should honour reduced motion');
+    });
+
+    test('Should ship a favicon', () => {
+        const icon = fs.readFileSync(path.join(__dirname, 'game', 'favicon.svg'), 'utf8');
+        assert.ok(icon.includes('<svg'), 'favicon.svg should be an SVG');
+    });
+});
+
+describe('BUSINESS SITE - Deploy wiring', () => {
+    const fs = require('fs');
+    const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
+    const sitemap = fs.readFileSync(path.join(__dirname, 'sitemap.xml'), 'utf8');
+
+    // Two independent gates. Miss the paths filter and the workflow never runs;
+    // miss an --include and that one file is silently never uploaded. Both fail
+    // in production only, with everything green locally.
+    test('Should trigger a deploy when the game changes', () => {
+        assert.ok(/-\s*'game\/\*\*'/.test(deploy),
+            "deploy.yml paths filter needs 'game/**' or pushes to the game deploy nothing");
+    });
+
+    test('Should upload every game file', () => {
+        ['game/index.html', 'game/script.js', 'game/putt.js', 'game/styles.css', 'game/favicon.svg']
+            .forEach(f => {
+                assert.ok(deploy.includes("--include '" + f + "'"),
+                    `${f} is not in any --include list, so it would 404 in production`);
+            });
+    });
+
+    test('Should list every sitemap page as a real file', () => {
+        const locs = sitemap.match(/<loc>([^<]+)<\/loc>/g) || [];
+        assert.ok(locs.length >= 4, 'Sitemap should list the site pages');
+        locs.forEach(loc => {
+            const url = loc.replace(/<\/?loc>/g, '').replace('https://branyontech.com/', '');
+            const rel = url === '' ? 'index.html' : (url.endsWith('/') ? url + 'index.html' : url);
+            assert.ok(fs.existsSync(path.join(__dirname, rel)), `Sitemap lists ${rel}, which does not exist`);
+        });
     });
 });
 

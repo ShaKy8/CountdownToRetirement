@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, four links). The retirement clock at `/countdown/` is the main feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, five links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together.
 
 ## Tech Stack
 
@@ -27,10 +27,10 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (125 tests)
+# Run client-side tests (215 tests)
 node tests.js
 
-# Run server integration tests (44 tests)
+# Run server integration tests (52 tests)
 # Note: Stop any running server first, tests start their own
 node tests-server.js
 ```
@@ -42,6 +42,7 @@ node tests-server.js
 - **CloudFront Distribution:** `E1MBTRO86GIH7E`
 - **URL:** https://branyontech.com
 - **Countdown URL:** https://branyontech.com/countdown/index.html
+- **Game URL:** https://branyontech.com/game/
 
 ```bash
 # Deploy to S3
@@ -55,7 +56,12 @@ aws s3 sync . s3://branyontech.com/ \
   --include "countdown/calc.js" \
   --include "countdown/styles.css" \
   --include "countdown/favicon.svg" \
-  --include "countdown/stats.json"
+  --include "countdown/stats.json" \
+  --include "game/index.html" \
+  --include "game/putt.js" \
+  --include "game/script.js" \
+  --include "game/styles.css" \
+  --include "game/favicon.svg"
 
 # Invalidate CloudFront cache
 aws cloudfront create-invalidation --distribution-id E1MBTRO86GIH7E --paths "/*"
@@ -93,8 +99,14 @@ CountdownToRetirement/
 │   ├── stats.json          # Personal counters shown in count-up mode (edit + push)
 │   ├── styles.css          # Night theme (countdown) + dawn theme (count-up)
 │   └── favicon.svg         # Beach/sunset themed favicon
-├── tests.js                # Client-side unit tests (125 tests)
-├── tests-server.js         # Server integration tests (44 tests)
+├── game/                   # ONE PUTT - the daily putting game
+│   ├── index.html          # Board, HUD, sliders, result card
+│   ├── putt.js             # Pure rules: seeding, holes, physics, wind, state
+│   ├── script.js           # Canvas, input, weather fetch, localStorage
+│   ├── styles.css          # Console palette, borrowed from weather/css/core.css
+│   └── favicon.svg
+├── tests.js                # Client-side unit tests (215 tests)
+├── tests-server.js         # Server integration tests (52 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
     ├── deploy.yml          # Auto-deploy on push to main
@@ -116,6 +128,42 @@ CountdownToRetirement/
 - **Celebration:** The CONGRATULATIONS overlay only plays when a countdown reaches zero while the page is open, then transitions to count-up without a reload.
 - **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).
 - **Metric assumptions:** 8 work hours/day, 2 commutes of 30 minutes, 3 meetings and 1 alarm per workday, as constants at the top of `calc.js`.
+
+### ONE PUTT (/game/)
+- **One hole a day.** `putt.js` `dailyHole()` seeds from the **UTC** puzzle day, so
+  every player worldwide gets the identical hole. UTC rather than local date
+  because the share string carries a puzzle number, and two people comparing
+  "#249" while looking at different holes would be worse than a day's offset.
+- **The wind is the player's real wind.** `extractWind()` interpolates
+  `forecast.data.hourly` from `/weather/api/bundle` — never `current`, which
+  `weather/js/state.js` documents as the noisy 15-minute model step. Direction
+  interpolates the short way around the circle; averaging 350° and 10°
+  arithmetically gives 180°, exactly backwards.
+- **It is playable before the network answers.** Boot is synchronous on
+  `syntheticWind(seed)`; live wind upgrades it only *before the first stroke*,
+  because changing the wind mid-round would make the score meaningless. Every
+  malformed payload resolves to synthetic rather than an error path.
+- **Daily vs practice.** `recordDaily()` is idempotent per day and refuses days
+  at or before `lastDay`, so "the first attempt is the one that counts" is a
+  property of the data, not a rule the UI has to remember. `?seed=` forces
+  practice mode so a hand-picked hole can never be recorded.
+- **Holes are parameterised archetypes, not free-form geometry**, so the space is
+  bounded by construction. `generateHole()` validates and retries 32 times before
+  a hand-authored fallback, and cannot return an invalid hole. All coordinates
+  snap to a half-unit grid: `Math.sin/cos/pow` are not bit-identical across JS
+  engines, and the hole must be.
+- **Dev overrides:** `?seed=1234` and `?wind=12@210`.
+
+### Two things that will silently break it
+
+1. **`makeRng` and `ARCHETYPES` are frozen.** Changing either rewrites every hole
+   ever played and invalidates every share string ever posted. A test pins the
+   PRNG's first five outputs so it cannot happen by accident; a deliberate change
+   means a new `oneputt.v2` storage epoch.
+2. **The API must be called by absolute path.** A relative `./api/bundle` from
+   `/game/` resolves to `/game/api/bundle`, which CloudFront does not route to the
+   Lambda — and it fails *quietly* into synthetic wind, indistinguishable from a
+   slow API day. Asserted by a test rather than remembered.
 
 ## Security Features
 

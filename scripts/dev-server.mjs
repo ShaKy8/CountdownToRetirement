@@ -69,5 +69,6 @@ http.createServer(async (req, res) => {
   console.log(`  → http://localhost:${PORT}/           site`);
   console.log(`  → http://localhost:${PORT}/countdown/ retirement clock`);
   console.log(`  → http://localhost:${PORT}/weather/   weather console`);
+  console.log(`  → http://localhost:${PORT}/game/      one putt`);
   console.log(`  (\\/api\\/ routes are served by lambda/index.mjs)\n`);
 });

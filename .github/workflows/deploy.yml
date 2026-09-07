@@ -24,6 +24,7 @@ on:
       - 'robots.txt'
       - 'sitemap.xml'
       - 'countdown/**'
+      - 'game/**'
       - 'weather/**'
       - 'lambda/**'
       - '.github/workflows/deploy.yml'
@@ -65,6 +66,7 @@ jobs:
             --include 'index.html' --include '404.html' \
             --include 'robots.txt' --include 'sitemap.xml' \
             --include 'countdown/index.html' \
+            --include 'game/index.html' \
             --include 'weather/index.html' \
             --cache-control 'public, max-age=300'
 
@@ -76,6 +78,9 @@ jobs:
             --include 'countdown/script.js' --include 'countdown/calc.js' \
             --include 'countdown/styles.css' --include 'countdown/favicon.svg' \
             --include 'countdown/stats.json' \
+            --include 'game/script.js' \
+            --include 'game/putt.js' --include 'game/styles.css' \
+            --include 'game/favicon.svg' \
             --cache-control 'public, max-age=3600'
 
       - name: Sync weather console

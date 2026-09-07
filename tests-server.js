@@ -756,6 +756,85 @@ async function runSubdirectoryTests() {
     });
 }
 
+async function runGameTests() {
+    await describe('SERVER TESTS - Subdirectory Routing (One Putt)', async () => {
+        await test('Should serve game/index.html for /game/index.html', async () => {
+            const { res, data } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/game/index.html', method: 'GET'
+            });
+            assert.strictEqual(res.statusCode, 200, 'Should return 200 for the game page');
+            assert.ok(data.includes('ONE PUTT'), 'Should serve the game page');
+        });
+
+        await test('Should serve the game for /game/ (directory resolution)', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/game/', method: 'GET'
+            });
+            assert.strictEqual(res.statusCode, 200, 'Should return 200 for the game directory');
+            assert.strictEqual(res.headers['content-type'], 'text/html', 'Should serve HTML');
+        });
+
+        await test('Should serve the game for /game (no trailing slash)', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/game', method: 'GET'
+            });
+            assert.strictEqual(res.statusCode, 200, 'Should return 200 without a trailing slash');
+        });
+
+        // A file missing from the deploy --include list 404s in production while
+        // everything passes locally, so every asset is named here explicitly.
+        await test('Should serve every game asset with the right content type', async () => {
+            const assets = [
+                ['/game/putt.js', 'text/javascript'],
+                ['/game/script.js', 'text/javascript'],
+                ['/game/styles.css', 'text/css'],
+                ['/game/favicon.svg', 'image/svg+xml']
+            ];
+            for (const [assetPath, type] of assets) {
+                const { res } = await makeRequest({
+                    hostname: TEST_HOST, port: TEST_PORT, path: assetPath, method: 'GET'
+                });
+                assert.strictEqual(res.statusCode, 200, `${assetPath} should return 200`);
+                assert.strictEqual(res.headers['content-type'], type, `${assetPath} content type`);
+            }
+        });
+
+        await test('Should serve the rules module as runnable JavaScript', async () => {
+            const { data } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/game/putt.js', method: 'GET'
+            });
+            assert.ok(data.includes('OnePutt'), 'putt.js should define OnePutt');
+        });
+
+        // The game needs no widened CSP - only /weather does, for map tiles.
+        await test('Should apply the strict CSP to the game, not the weather one', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/game/index.html', method: 'GET'
+            });
+            const csp = res.headers['content-security-policy'];
+            assert.ok(csp, 'Game page should carry a CSP');
+            assert.ok(csp.includes("script-src 'self'"), 'Should restrict scripts to same origin');
+            assert.ok(!csp.includes('arcgisonline') && !csp.includes('rainviewer'),
+                'Game should not get the weather console tile-host widening');
+        });
+
+        await test('Should block traversal out of the game directory', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/game/../../../etc/passwd', method: 'GET'
+            });
+            assert.ok(res.statusCode === 403 || res.statusCode === 404,
+                `Traversal should be refused, got ${res.statusCode}`);
+        });
+
+        await test('Should 404 an unknown game file', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/game/nope.js', method: 'GET'
+            });
+            assert.strictEqual(res.statusCode, 404, 'Unknown asset should 404');
+        });
+    });
+}
+
 // =============================================================================
 // MAIN TEST EXECUTION
 // =============================================================================
@@ -782,6 +861,7 @@ async function runAllTests() {
         await runRateLimitingTests();
         await runRootPathTests();
         await runSubdirectoryTests();
+        await runGameTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);
