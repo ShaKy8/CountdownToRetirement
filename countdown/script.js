@@ -341,7 +341,7 @@ function renderCountup(now) {
     }
 
     renderThermometer(progress.percentage, days);
-    setText('thermo-prev-label', progress.prev);
+    setText('thermo-prev-label', 0); // tube starts at the retirement day
     setText('thermo-next-label', progress.next === null ? progress.prev : progress.next);
 
     renderMilestones(days, 'countup');

@@ -302,6 +302,11 @@
         });
     }
 
+    // Progress toward the next milestone, measured from retirement day itself
+    // (day 0), not from the previous milestone. The bar, hourglass and
+    // thermometer all label their span "Retired -> <next milestone>", so the
+    // fill has to be days/next: 191 days retired is 52% of the way to one
+    // year, not 5% of the 182-day gap between six months and one year.
     function nextMilestoneProgress(days, milestones) {
         const sorted = milestones.slice().sort((a, b) => a.threshold - b.threshold);
         let prevMilestone = null;
@@ -321,7 +326,7 @@
         }
 
         const next = nextMilestone.threshold;
-        const fraction = Math.max(0, Math.min(1, (days - prev) / (next - prev)));
+        const fraction = next > 0 ? Math.max(0, Math.min(1, days / next)) : 1;
         return { prev, next, prevMilestone, nextMilestone, fraction, percentage: fraction * 100, complete: false };
     }
 

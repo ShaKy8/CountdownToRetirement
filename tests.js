@@ -1082,13 +1082,48 @@ describe('COUNT-UP - Milestones', () => {
         });
     });
 
-    test('Should measure progress from the previous milestone to the next', () => {
+    test('Should measure progress from the retirement day to the next milestone', () => {
         const progress = Calc.nextMilestoneProgress(191, Calc.COUNTUP_MILESTONES);
         assert.strictEqual(progress.prev, 182);
         assert.strictEqual(progress.next, 365);
         assert.strictEqual(progress.nextMilestone.text, 'One Year');
-        assert.ok(Math.abs(progress.percentage - 4.918) < 0.01, `Expected ~4.9%, got ${progress.percentage}`);
+        assert.ok(Math.abs(progress.percentage - 52.329) < 0.01, `Expected ~52.3%, got ${progress.percentage}`);
         assert.strictEqual(progress.complete, false);
+    });
+
+    test('Should not restart the bar at zero when a milestone is crossed', () => {
+        // Day 182 is six months; the bar keeps climbing toward one year
+        // instead of dropping back to 0% of a fresh segment.
+        const before = Calc.nextMilestoneProgress(181, Calc.COUNTUP_MILESTONES);
+        const after = Calc.nextMilestoneProgress(182, Calc.COUNTUP_MILESTONES);
+        assert.strictEqual(before.next, 182);
+        assert.strictEqual(after.next, 365);
+        assert.ok(after.percentage > 49, `Expected ~50%, got ${after.percentage}`);
+    });
+
+    test('Should rise within a milestone segment and never restart near zero', () => {
+        // Crossing a milestone does move the goalpost, so the percentage dips
+        // when the denominator jumps. What must never happen is a drop back to
+        // an empty bar: the smallest ratio between adjacent milestones is
+        // 7/30, so every dip lands above 20%.
+        let previousPct = 0;
+        let previousNext = null;
+        for (let d = 0; d <= 3652; d++) {
+            const progress = Calc.nextMilestoneProgress(d, Calc.COUNTUP_MILESTONES);
+            const pct = progress.percentage;
+            assert.ok(pct >= 0 && pct <= 100, `Day ${d} out of range: ${pct}`);
+            if (previousNext !== null) {
+                if (progress.next === previousNext) {
+                    assert.ok(pct >= previousPct, `Day ${d} went backwards inside a segment: ${previousPct} -> ${pct}`);
+                } else {
+                    assert.ok(pct > 20, `Day ${d} restarted the bar near zero: ${pct}`);
+                }
+            }
+            previousPct = pct;
+            previousNext = progress.next;
+        }
+        assert.strictEqual(previousNext, null, 'The last day should have every milestone complete');
+        assert.strictEqual(previousPct, 100);
     });
 
     test('Should start from zero before the first milestone', () => {
