@@ -127,7 +127,7 @@
         while (px < start + WORLD.CHUNK_M) {
             out.push({
                 x: px,
-                r: 150 + rng() * 200,
+                r: cond.coreRadius * (0.75 + 0.5 * rng()),
                 strength: cond.wStarEff * (0.6 + 0.8 * rng()),
                 base: 60 + rng() * 80,
                 top: cond.cloudbase * (0.75 + 0.25 * rng())
@@ -226,15 +226,38 @@
     // ------------------------------------------------------------------
 
     /**
-     * CAPE is literally convective available potential energy, so it is the
-     * honest source for thermal strength - but parcel theory's sqrt(2*CAPE)
-     * gives 45 m/s at CAPE 1000, which is a thunderstorm updraft, not a
-     * boundary-layer thermal. This is the tempered version: 0.8 m/s against a
-     * 0.55 m/s min sink means you survive but do not thrive; 4 m/s is booming.
+     * Thermal strength from the depth of the mixing layer.
+     *
+     * This used CAPE, which was wrong and made most real days unplayable. CAPE
+     * measures potential for DEEP convection - thunderstorms - and across ten
+     * live forecasts it read 0-250 J/kg nearly everywhere, so flying perfectly
+     * scored the same as doing nothing in 27 of 30 conditions.
+     *
+     * What actually sets glider thermal strength is the convective velocity
+     * scale w* ~ (g/theta * H * zi)^(1/3): how deep the air is mixing, times how
+     * hard the sun is driving it. `boundary_layer_height` is zi directly, and
+     * across the same ten forecasts it ranged 80-2990 m - and ranked the places
+     * the way pilots would, with Phoenix, Albuquerque and Minden on top and
+     * Seattle, London and a marine-layer Los Angeles morning at the bottom.
+     *
+     * The cube root is the physics; the offset and gain are tuned so the real
+     * range maps onto a range the game can feel.
      */
-    function capeToWStar(cape) {
-        const c = typeof cape === 'number' && isFinite(cape) ? Math.max(0, cape) : 0;
-        return clamp(0.8 + 0.10 * Math.sqrt(c), 0.8, 6.0);
+    function blhToWStar(blhMetres, flux) {
+        const zi = typeof blhMetres === 'number' && isFinite(blhMetres) ? Math.max(0, blhMetres) : 0;
+        const f = clamp(typeof flux === 'number' && isFinite(flux) ? flux : 0, 0, 1);
+        return clamp(0.62 * (Math.cbrt(zi * f) - 3.1), 0.6, 6.0);
+    }
+
+    /**
+     * How hard the sun is driving the surface. Sun angle sets the ceiling;
+     * sunshine_duration (seconds of unblocked sun in the hour) is what cloud
+     * actually leaves of it - which is why a Los Angeles marine-layer morning
+     * reads dead even with the sun 30 degrees up.
+     */
+    function heatFlux(solar, sunshineFrac) {
+        const sf = clamp(typeof sunshineFrac === 'number' && isFinite(sunshineFrac) ? sunshineFrac : 1, 0, 1);
+        return clamp(solar, 0, 1) * (0.25 + 0.75 * sf);
     }
 
     // Deliberately non-monotonic, because the truth is: cumulus mark thermals,
@@ -268,10 +291,14 @@
         return clamp(Math.cbrt(s) * (0.15 + 0.85 * gate), 0, 1);
     }
 
-    function cloudbaseFrom(tempF, dewF) {
-        if (typeof tempF !== 'number' || typeof dewF !== 'number' ||
-            !isFinite(tempF) || !isFinite(dewF)) return 1500;
-        return clamp(125 * (tempF - dewF) * 5 / 9, 350, 3500);
+    function cloudbaseFrom(tempF, dewF, blhMetres) {
+        const lcl = (typeof tempF === 'number' && typeof dewF === 'number' &&
+            isFinite(tempF) && isFinite(dewF)) ? 125 * (tempF - dewF) * 5 / 9 : 1500;
+        const zi = typeof blhMetres === 'number' && isFinite(blhMetres) ? blhMetres : lcl;
+        // The working ceiling is the lower of the two. Phoenix can have a
+        // 3400 m condensation level over a 2450 m mixing layer; the thermals
+        // stop at the mixing layer.
+        return clamp(Math.min(lcl, Math.max(zi, 250)), 350, 3500);
     }
 
     const MPH_TO_MPS = 0.44704;
@@ -297,38 +324,50 @@
 
     function buildConditions(raw, sunAltRad, course) {
         const solar = solarFactor(sunAltRad);
-        const wStar = capeToWStar(raw.cape);
+        const flux = heatFlux(solar, raw.sunshine);
+        const blh = typeof raw.blh === 'number' && isFinite(raw.blh) ? raw.blh : 700;
+        const wStar = blhToWStar(blh, flux);
         const cloudFrac = clamp((typeof raw.cloudLow === 'number' && isFinite(raw.cloudLow)
             ? raw.cloudLow : 0) / 100, 0, 1);
-        // Spacing comes from cloud cover ALONE, never from the sun. Thermal
-        // triggers are ground features: they do not move between dawn and
-        // afternoon, they just stop working. Letting solar into the spacing
-        // shifted every thermal as the day went on, so the same seed was not
-        // quite the same course - and "only the strength changed" stopped
-        // being true.
-        const freq = cloudFrequency(cloudFrac);
-        const spacing = 1400 / Math.max(0.05, freq);
-        const wStarEff = wStar * (0.10 + 0.90 * solar);
+        /*
+         * Thermals sit roughly two boundary-layer depths apart and are about a
+         * fifth of that across - both real results, and together they mean a
+         * glider crossing them in a straight line is in lift about 15% of the
+         * time whatever the day. That is survivable if you can circle. This
+         * glider cannot, so on its own it makes every day equally unflyable,
+         * which is exactly what the first real-weather sweep measured.
+         *
+         * What makes straight-line soaring work in reality is ORGANISATION: on a
+         * deep day with some wind, thermals line up into streets, and a pilot
+         * flies along one for tens of kilometres barely turning. That is the
+         * mechanic this game is actually about, so it is modelled directly -
+         * deep mixing plus moderate wind lines the lift up, which draws the
+         * spacing in and stretches the cores until they nearly join.
+         */
+        const windMpsRaw = Math.max(0, (typeof raw.windMph === 'number' && isFinite(raw.windMph)
+            ? raw.windMph : 0)) * MPH_TO_MPS;
+        const street = clamp((blh - 250) / 900, 0, 1) * clamp((windMpsRaw - 0.8) / 3.5, 0, 1);
+        const base = clamp(2.0 * blh, 700, 2600) / Math.max(0.25, cloudFrequency(cloudFrac));
+        const spacing = base * (1 - 0.78 * street);
         const windMps = Math.max(0, (typeof raw.windMph === 'number' && isFinite(raw.windMph)
             ? raw.windMph : 0)) * MPH_TO_MPS;
         const windToward = (((typeof raw.windDeg === 'number' && isFinite(raw.windDeg)
             ? raw.windDeg : 0) + 180) % 360) * Math.PI / 180;
         return {
             wStar: wStar,
-            // Recomputed as the sun moves, so a flight begun at 19:20 measurably
-            // weakens as it goes.
-            wStarEff: wStarEff,
+            wStarEff: wStar,
             solar: solar,
+            flux: flux,
+            blh: blh,
+            street: street,
             cloudFrac: cloudFrac,
             thermalSpacing: spacing,
-            // Mass continuity: if thermals covering a fraction f of the ground
-            // rise at meanW, the air between them sinks at meanW*f/(1-f). Guessing
-            // this instead of deriving it made strong days WORSE than weak ones -
-            // more sink everywhere, with the extra lift confined to the cores.
-            // BALANCE just under 1 leaves the day a slight net loss, so altitude
-            // is a budget a good pilot stretches rather than a gift.
+            // Thermal diameter is about a fifth of the mixing depth; a street
+            // is far longer than it is wide, so along-track it reads as a much
+            // broader band of lift.
+            coreRadius: clamp(0.10 * blh, 90, 320) * (1 + 1.6 * street),
+            cloudbase: cloudbaseFrom(raw.tempF, raw.dewF, blh),
             ambient: ambientSink(solar),
-            cloudbase: cloudbaseFrom(raw.tempF, raw.dewF),
             windMps: windMps,
             windToward: windToward,
             windAlong: clamp(windMps * Math.cos(windToward - course),
@@ -340,34 +379,48 @@
     /** Reads any bundle shape; returns null - never throws - when it cannot. */
     function extractConditions(bundle, now) {
         const s = Daily.sampleHourly(bundle, now, {
-            cape: 'linear',
+            boundary_layer_height: 'linear',
             cloud_cover_low: 'linear',
             wind_speed_10m: 'linear',
             wind_direction_10m: 'angle',
+            sunshine_duration: 'linear?',
             temperature_2m: 'linear?',
-            dew_point_2m: 'linear?'
+            dew_point_2m: 'linear?',
+            cape: 'linear?'
         });
         if (!s) return null;
         return {
-            cape: s.values.cape,
+            // FEET. Open-Meteo is asked for inches of precipitation, and that
+            // silently switches EVERY length field to feet - visibility,
+            // freezing level and this one - declared only in hourly_units.
+            // Reading it as metres would make every mixing layer three times
+            // too deep and every day a booming one.
+            blh: s.values.boundary_layer_height * 0.3048,
+            sunshine: s.values.sunshine_duration === undefined
+                ? 1 : clamp(s.values.sunshine_duration / 3600, 0, 1),
             cloudLow: s.values.cloud_cover_low,
             windMph: s.values.wind_speed_10m,
             windDeg: s.values.wind_direction_10m,
             tempF: s.values.temperature_2m === undefined ? 70 : s.values.temperature_2m,
             dewF: s.values.dew_point_2m === undefined ? 48 : s.values.dew_point_2m,
+            cape: s.values.cape === undefined ? 0 : s.values.cape,
             source: 'live'
         };
     }
 
     function syntheticWeather(seed) {
         const rng = Daily.makeRng(Daily.mixSeed(seed, 4271));
+        // Spanning what the real forecasts actually do: 80-2990 m of mixing
+        // layer across ten cities, median 765.
         return {
-            cape: Math.round(200 + rng() * 1400),
-            cloudLow: Math.round(10 + rng() * 45),
+            blh: Math.round(300 + rng() * 2000),
+            sunshine: Math.round((0.5 + rng() * 0.5) * 100) / 100,
+            cloudLow: Math.round(rng() * 55),
             windMph: Math.round((3 + rng() * 14) * 10) / 10,
             windDeg: Math.floor(rng() * 360),
-            tempF: 70,
+            tempF: 78,
             dewF: 48,
+            cape: 0,
             source: 'synthetic'
         };
     }
@@ -634,7 +687,8 @@
         policyRelease: policyRelease,
 
         ambientSink: ambientSink,
-        capeToWStar: capeToWStar,
+        blhToWStar: blhToWStar,
+        heatFlux: heatFlux,
         cloudFrequency: cloudFrequency,
         solarFactor: solarFactor,
         cloudbaseFrom: cloudbaseFrom,

@@ -2681,14 +2681,46 @@ describe('THERMAL - Lift', () => {
 describe('THERMAL - Weather becomes gameplay', () => {
     const D = deg => deg * Math.PI / 180;
 
-    test('Should map CAPE to a thermal strength worth flying', () => {
-        [[0, 0.800], [100, 1.800], [500, 3.036], [1200, 4.264], [3000, 6.000]].forEach(([c, w]) => {
-            assert.ok(Math.abs(Thermal.capeToWStar(c) - w) < 0.001, `CAPE ${c} gave ${Thermal.capeToWStar(c)}`);
-        });
-        assert.strictEqual(Thermal.capeToWStar(1e6), 6, 'Capped, not a thunderstorm updraft');
-        assert.strictEqual(Thermal.capeToWStar(-5), 0.8);
-        assert.strictEqual(Thermal.capeToWStar('nonsense'), 0.8);
-        assert.strictEqual(Thermal.capeToWStar(NaN), 0.8);
+    // CAPE was the original model and it was wrong: it measures potential for
+    // DEEP convection, and across ten live forecasts it read 0-250 J/kg nearly
+    // everywhere, so flying perfectly scored the same as doing nothing in 27 of
+    // 30 real conditions. Boundary-layer depth is what actually sets glider
+    // thermal strength, and it ranged 80-2990 m over the same forecasts.
+    test('Should take thermal strength from the depth of the mixing layer', () => {
+        const deep = Thermal.blhToWStar(2500, 1);
+        const mid = Thermal.blhToWStar(900, 1);
+        const shallow = Thermal.blhToWStar(300, 1);
+        assert.ok(deep > mid && mid > shallow, 'Deeper mixing means stronger thermals');
+        assert.ok(deep > 4, `A 2500 m mixing layer should be a good day, got ${deep}`);
+        // Deliberately compressed against the real physics, which would put a
+        // 300 m layer near 0.5 m/s. The RANKING is honest; the floor is lifted
+        // so an ordinary day still has something to fly, because a daily game
+        // that is dead three days in four is not a game.
+        assert.ok(shallow < 2.5, `A 300 m mixing layer should be weak, got ${shallow}`);
+        assert.ok(deep > 2 * shallow, 'A deep day should be worth far more than a shallow one');
+        assert.strictEqual(Thermal.blhToWStar(2500, 0), 0.6, 'No sun, no thermals');
+        assert.strictEqual(Thermal.blhToWStar(NaN, 1), 0.6);
+        assert.strictEqual(Thermal.blhToWStar('nope', 1), 0.6);
+        assert.ok(Thermal.blhToWStar(1e9, 1) <= 6, 'Capped');
+    });
+
+    test('Should count only the sun that actually reaches the ground', () => {
+        // A Los Angeles marine-layer morning has the sun 30 degrees up and zero
+        // sunshine_duration. It must read as dead, not as a decent morning.
+        assert.ok(Thermal.heatFlux(0.8, 0) <= 0.26 * Thermal.heatFlux(0.8, 1),
+            'Total cloud should leave only a quarter of the heating');
+        assert.strictEqual(Thermal.heatFlux(0, 1), 0, 'No sun is no heat');
+        assert.strictEqual(Thermal.heatFlux(0.9, undefined), Thermal.heatFlux(0.9, 1),
+            'A missing series should assume clear, not dark');
+    });
+
+    test('Should cap the working ceiling at the mixing layer', () => {
+        // Phoenix can have a 3400 m condensation level over a 2450 m mixing
+        // layer. The thermals stop at the mixing layer.
+        const dryDeep = Thermal.cloudbaseFrom(100, 40, 2450);
+        assert.ok(dryDeep <= 2450 + 1, `Ceiling ${dryDeep} exceeded the mixing layer`);
+        const dryShallow = Thermal.cloudbaseFrom(100, 40, 600);
+        assert.ok(dryShallow < dryDeep, 'A shallower mixing layer means a lower ceiling');
     });
 
     // Non-monotonic on purpose: cumulus mark thermals, overcast kills them.
@@ -2729,10 +2761,10 @@ describe('THERMAL - Weather becomes gameplay', () => {
     // The headline mechanic, as an assertion: the same day at a different hour
     // is the same WORLD flown in different air.
     test('Should give the same course materially different air at dawn and midday', () => {
-        const raw = { cape: 1200, cloudLow: 30, windMph: 10, windDeg: 270, tempF: 80, dewF: 50 };
+        const raw = { blh: 1800, sunshine: 1, cloudLow: 30, windMph: 10, windDeg: 270, tempF: 80, dewF: 50 };
         const dawn = Thermal.buildConditions(raw, D(4), 0);
         const noon = Thermal.buildConditions(raw, D(58), 0);
-        assert.ok(noon.wStarEff > 4 * dawn.wStarEff,
+        assert.ok(noon.wStarEff > 3 * dawn.wStarEff,
             `Midday ${noon.wStarEff} should dwarf dawn ${dawn.wStarEff}`);
 
         const seed = Thermal.seedForDay(11);
@@ -2745,7 +2777,7 @@ describe('THERMAL - Weather becomes gameplay', () => {
         assert.deepStrictEqual(flat(dawn), flat(noon), 'The thermals are in the same places');
         const dawnW = Thermal.thermalsInChunk(seed, dawn, 3)[0];
         const noonW = Thermal.thermalsInChunk(seed, noon, 3)[0];
-        assert.ok(noonW.strength > 4 * dawnW.strength, 'Only the strength changed');
+        assert.ok(noonW.strength > 3 * dawnW.strength, 'Only the strength changed');
     });
 
     test('Should read conditions out of a real bundle shape', () => {
@@ -2754,7 +2786,8 @@ describe('THERMAL - Weather becomes gameplay', () => {
                 ok: true, data: {
                     utc_offset_seconds: 0, hourly: {
                         time: ['2026-09-07T10:00', '2026-09-07T11:00'],
-                        cape: [400, 800], cloud_cover_low: [20, 60],
+                        boundary_layer_height: [3280.84, 6561.68], cloud_cover_low: [20, 60],
+                        sunshine_duration: [3600, 3600],
                         wind_speed_10m: [10, 20], wind_direction_10m: [180, 180],
                         temperature_2m: [70, 80], dew_point_2m: [50, 50]
                     }
@@ -2762,7 +2795,12 @@ describe('THERMAL - Weather becomes gameplay', () => {
             }
         };
         const c = Thermal.extractConditions(bundle, new Date(Date.UTC(2026, 8, 7, 10, 30)));
-        assert.strictEqual(c.cape, 600);
+        // 4921.26 ft interpolated, and FEET is the trap: asking Open-Meteo for
+        // inches of precipitation silently switches every length field to feet.
+        // Reading it as metres would make every mixing layer three times too
+        // deep and every day a booming one.
+        assert.ok(Math.abs(c.blh - 1500) < 1, `Expected ~1500 m, got ${c.blh}`);
+        assert.strictEqual(c.sunshine, 1);
         assert.strictEqual(c.cloudLow, 40);
         assert.strictEqual(c.windMph, 15);
         assert.strictEqual(c.source, 'live');
@@ -2792,10 +2830,10 @@ describe('THERMAL - Weather becomes gameplay', () => {
         const seen = new Set();
         for (let s = 0; s < 100; s++) {
             const w = Thermal.syntheticWeather(s);
-            assert.ok(w.cape >= 200 && w.cape <= 1600, `CAPE ${w.cape}`);
-            assert.ok(w.cloudLow >= 10 && w.cloudLow <= 55);
+            assert.ok(w.blh >= 300 && w.blh <= 2300, `mixing layer ${w.blh}`);
+            assert.ok(w.cloudLow >= 0 && w.cloudLow <= 55);
             assert.strictEqual(w.source, 'synthetic');
-            seen.add(w.cape);
+            seen.add(w.blh);
         }
         assert.ok(seen.size > 50, 'Synthetic days should vary');
         assert.deepStrictEqual(Thermal.resolveWeather(null, new Date(), 77),

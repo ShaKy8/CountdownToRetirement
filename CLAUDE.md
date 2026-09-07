@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (304 tests)
+# Run client-side tests (311 tests)
 node tests.js
 
 # Run server integration tests (58 tests)
@@ -123,7 +123,7 @@ CountdownToRetirement/
 │   ├── astro.js            # VENDORED weather/js/lib/astro.js + shim
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (304 tests)
+├── tests.js                # Client-side unit tests (311 tests)
 ├── tests-server.js         # Server integration tests (58 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -199,11 +199,28 @@ right play and the button worth pressing.
 - **The sky is the real sky.** `thermal/sky.js` is the weather console's WebGL
   shader, drawing the sun and moon at their true altitude and azimuth, real
   cloud decks drifting at the real wind bearing, aurora when the KP index is up.
-- **The weather flies the glider.** `cape` sets thermal strength, `cloud_cover_low`
-  sets how often they occur (peaking at scattered cumulus and collapsing under
-  overcast, because cumulus mark thermals and overcast kills them), wind gives
-  head or tail, and **sun altitude switches the thermals on and off**. Dawn is a
-  glide; 2pm on a booming day is 4x the distance.
+- **The weather flies the glider.** `boundary_layer_height` sets thermal strength
+  (see below), `sunshine_duration` says how much sun actually reaches the ground,
+  `cloud_cover_low` and wind decide whether the lift organises into streets, and
+  **sun altitude switches the thermals on and off**. Dawn is a glide; a deep
+  afternoon is 25-30 km.
+- **Tune only against real weather.** `scripts/fetch-wx.sh` caches live bundles
+  for ten cities and `scripts/tune-thermal.js` sweeps them. The first tuning pass
+  used invented conditions and produced a game that simulated beautifully and was
+  dead on arrival: against real forecasts, flying perfectly scored the same as
+  doing nothing in 27 of 30 conditions. Re-run the sweep before changing any
+  weather constant.
+- **Not CAPE.** CAPE measures potential for deep convection - thunderstorms - and
+  reads 0-250 J/kg on nearly every real forecast, which is why it could not tell
+  a good soaring day from a dead one. Boundary-layer depth is what sets glider
+  thermal strength, ranges 80-2990 m in practice, and ranks places the way pilots
+  would: Phoenix, Albuquerque and Minden high, Seattle and London low.
+- **Straight-line soaring needs streets.** Thermals sit about two boundary-layer
+  depths apart and are a fifth of that across, so crossing them in a straight line
+  puts you in lift ~15% of the time whatever the day. That is fine if you can
+  circle, and this glider cannot. Real pilots fly cloud streets - lines of lift
+  you follow rather than cross - so deep air plus moderate wind draws the spacing
+  in and stretches the cores until they nearly join.
 - **The sun works with the API down.** `astro.js` needs only (date, lat, lon), so
   the time-of-day mechanic survives an outage on synthetic weather.
 - **Daily plus free flight**, the ONE PUTT split: `recordDaily` fires on landing,

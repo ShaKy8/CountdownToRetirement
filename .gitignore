@@ -20,3 +20,4 @@ Thumbs.db
 *.key
 credentials
 secrets/
+.wx-cache/
