@@ -799,6 +799,18 @@ async function runGameTests() {
             }
         });
 
+        // ONE PUTT now loads /shared/daily.js before putt.js. If that 404s the
+        // page throws "Daily is not defined" and goes blank - and it would do so
+        // only in production, since the file is obviously present locally.
+        await test('Should serve the shared daily module', async () => {
+            const { res, data } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/shared/daily.js', method: 'GET'
+            });
+            assert.strictEqual(res.statusCode, 200, '/shared/daily.js must be served');
+            assert.strictEqual(res.headers['content-type'], 'text/javascript');
+            assert.ok(data.includes('Daily'), 'It should define Daily');
+        });
+
         await test('Should serve the rules module as runnable JavaScript', async () => {
             const { data } = await makeRequest({
                 hostname: TEST_HOST, port: TEST_PORT, path: '/game/putt.js', method: 'GET'

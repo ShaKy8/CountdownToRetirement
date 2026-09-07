@@ -25,6 +25,7 @@ on:
       - 'sitemap.xml'
       - 'countdown/**'
       - 'game/**'
+      - 'shared/**'
       - 'weather/**'
       - 'lambda/**'
       - '.github/workflows/deploy.yml'
@@ -78,6 +79,7 @@ jobs:
             --include 'countdown/script.js' --include 'countdown/calc.js' \
             --include 'countdown/styles.css' --include 'countdown/favicon.svg' \
             --include 'countdown/stats.json' \
+            --include 'shared/daily.js' \
             --include 'game/script.js' \
             --include 'game/putt.js' --include 'game/styles.css' \
             --include 'game/favicon.svg' \

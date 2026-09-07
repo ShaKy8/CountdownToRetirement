@@ -13,95 +13,34 @@
 (function (root) {
     'use strict';
 
-    // ------------------------------------------------------------------
-    // Time and seeding
-    // ------------------------------------------------------------------
+    // In the browser root.Daily is already set by the preceding <script>, so
+    // the require() branch is never reached and `require` is never referenced.
+    const Daily = (root && root.Daily) || require('../shared/daily.js');
 
-    // The puzzle is keyed to the player's LOCAL CALENDAR DATE, so the hole rolls
-    // over at local midnight - as Wordle does.
-    //
-    // Note this still gives everyone the same hole, because the seed comes from
-    // the date itself (2026-09-07) and not from an instant: two people both
-    // playing their own Sep 7 derive the same seed and see the same hole, even
-    // though Tokyo starts sixteen hours before Los Angeles. The puzzle number
-    // travels with the date, so "#249" is never ambiguous either.
-    const EPOCH_UTC_MS = Date.UTC(2026, 0, 1);
-    const DAY_MS = 86400000;
+    // Names ONE PUTT has always used, now backed by the shared module. The
+    // wind helpers stay bound to SIM.WIND_MAX_MPH so the public arity here is
+    // unchanged - callers and 231 tests do not know anything moved.
+    const clamp = Daily.clamp;
+    const hashSeed = Daily.hashSeed;
+    const makeRng = Daily.makeRng;
+    const rngInt = Daily.rngInt;
+    const rngRange = Daily.rngRange;
+    const mixSeed = Daily.mixSeed;
+    const puzzleDay = Daily.puzzleDay;
+    const puzzleDateKey = Daily.puzzleDateKey;
+    const msUntilNextPuzzle = Daily.msUntilNextPuzzle;
+    const compassFromDegrees = Daily.compassFromDegrees;
+    const formatWind = Daily.formatWind;
+    const COMPASS = Daily.COMPASS;
+    const EPOCH_UTC_MS = Daily.EPOCH_UTC_MS;
+    const DAY_MS = Daily.DAY_MS;
+    const syntheticWind = Daily.syntheticWind;
 
-    /**
-     * Days from the epoch to the local calendar date `now` falls on.
-     *
-     * Date.UTC() of the LOCAL y/m/d normalises each date to a UTC midnight
-     * instant, so the subtraction is exact whole days regardless of the
-     * player's offset - and immune to DST, which would otherwise make some
-     * days 23 or 25 hours long and drift the count.
-     */
-    function puzzleDay(now) {
-        const localMidnightUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-        return Math.round((localMidnightUTC - EPOCH_UTC_MS) / DAY_MS);
-    }
-
-    function puzzleDateKey(day) {
-        const d = new Date(EPOCH_UTC_MS + day * DAY_MS);
-        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-        const dd = String(d.getUTCDate()).padStart(2, '0');
-        return d.getUTCFullYear() + '-' + m + '-' + dd;
-    }
-
-    /**
-     * Milliseconds until the next LOCAL midnight. Built from local date parts
-     * rather than by adding 24h, so the clocks-change days are still right.
-     */
-    function msUntilNextPuzzle(now) {
-        const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-        return next.getTime() - now.getTime();
-    }
-
-    /** xmur3 string hash - spreads a short string into a well-mixed uint32. */
-    function hashSeed(str) {
-        let h = 1779033703 ^ String(str).length;
-        for (let i = 0; i < String(str).length; i++) {
-            h = Math.imul(h ^ String(str).charCodeAt(i), 3432918353);
-            h = (h << 13) | (h >>> 19);
-        }
-        h = Math.imul(h ^ (h >>> 16), 2246822507);
-        h = Math.imul(h ^ (h >>> 13), 3266489909);
-        return (h ^ (h >>> 16)) >>> 0;
-    }
-
-    function seedForDay(day) {
-        return hashSeed('oneputt:' + day);
-    }
-
-    /**
-     * mulberry32. LOCKED BY TEST: changing this rewrites every hole that has
-     * ever been played and invalidates every share string ever posted. If it
-     * must change, that is a new storage epoch, not an edit.
-     */
-    function makeRng(seed) {
-        let a = seed >>> 0;
-        return function () {
-            a = (a + 0x6d2b79f5) >>> 0;
-            let t = a;
-            t = Math.imul(t ^ (t >>> 15), 1 | t);
-            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-    }
-
-    function rngInt(rng, min, max) {
-        return min + Math.floor(rng() * (max - min + 1));
-    }
-
-    /** Uniform in [min,max], snapped to `step` - see the 0.5-grid note below. */
-    function rngRange(rng, min, max, step) {
-        const v = min + rng() * (max - min);
-        const s = step || 0.5;
-        return Math.round(v / s) * s;
-    }
-
-    function mixSeed(seed, salt) {
-        return (seed ^ Math.imul(salt + 1, 0x9e3779b9)) >>> 0;
+    function seedForDay(day) { return Daily.seedForDay('oneputt', day); }
+    function clampWind(spec) { return Daily.clampWind(spec, SIM.WIND_MAX_MPH); }
+    function extractWind(bundle, now) { return Daily.extractWind(bundle, now, SIM.WIND_MAX_MPH); }
+    function resolveWind(bundle, now, seed) {
+        return Daily.resolveWind(bundle, now, seed, SIM.WIND_MAX_MPH);
     }
 
     // Every generated coordinate lands on a half-unit grid. The simulation does
@@ -138,13 +77,6 @@
         MIN_GAP: 6,
         LATTICE: 2
     };
-
-    const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-        'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-
-    function clamp(v, lo, hi) {
-        return v < lo ? lo : (v > hi ? hi : v);
-    }
 
     function borderWalls() {
         const t = FIELD.wall;
@@ -767,129 +699,6 @@
     }
 
     // ------------------------------------------------------------------
-    // Wind from the weather API
-    // ------------------------------------------------------------------
-
-    function compassFromDegrees(deg) {
-        const d = ((Number(deg) % 360) + 360) % 360;
-        return COMPASS[Math.round(d / 22.5) % 16];
-    }
-
-    function formatWind(spec) {
-        if (!spec) return 'calm';
-        return Math.round(spec.mph) + ' mph ' + compassFromDegrees(spec.deg);
-    }
-
-    function clampWind(spec) {
-        if (!spec || typeof spec !== 'object') return null;
-        const mph = Number(spec.mph);
-        const deg = Number(spec.deg);
-        if (!isFinite(mph) || !isFinite(deg)) return null;
-        const m = clamp(mph, 0, SIM.WIND_MAX_MPH);
-        const g = isFinite(Number(spec.gustMph)) ? clamp(Number(spec.gustMph), 0, 60) : m;
-        const out = {
-            mph: m,
-            deg: ((deg % 360) + 360) % 360,
-            gustMph: Math.max(m, g),
-            source: spec.source || 'live'
-        };
-        if (spec.at !== undefined) out.at = spec.at;
-        return out;
-    }
-
-    function syntheticWind(seed) {
-        const rng = makeRng(mixSeed(seed, 977));
-        const mph = Math.round((3 + rng() * 15) * 10) / 10;
-        const deg = Math.floor(rng() * 360);
-        const gust = Math.round((mph + rng() * 6) * 10) / 10;
-        return { mph: mph, deg: deg, gustMph: gust, source: 'synthetic' };
-    }
-
-    // Strict on purpose. Number(null) and Number('') are both 0, so a coercing
-    // check would turn a dropped upstream field into a confident "0 mph" rather
-    // than falling back to synthetic wind. Open-Meteo sends real JSON numbers.
-    function num(v) {
-        return typeof v === 'number' && isFinite(v) ? v : null;
-    }
-
-    /**
-     * Pull wind out of an /api/bundle payload. Returns null - never throws -
-     * for every malformed shape, so resolveWind's caller has no error path.
-     *
-     * Reads hourly, never `current`: weather/js/state.js:298-306 documents
-     * `current` as the noisy current step of a 15-minute model series.
-     */
-    function extractWind(bundle, now) {
-        if (!bundle || typeof bundle !== 'object' || Array.isArray(bundle)) return null;
-        const fc = bundle.forecast;
-        if (!fc || typeof fc !== 'object' || fc.ok !== true || !fc.data) return null;
-        const d = fc.data;
-        const h = d.hourly;
-        if (!h || typeof h !== 'object') return null;
-        const times = h.time;
-        if (!Array.isArray(times) || times.length === 0) return null;
-        const speeds = h.wind_speed_10m;
-        const dirs = h.wind_direction_10m;
-        if (!Array.isArray(speeds) || speeds.length !== times.length) return null;
-        if (!Array.isArray(dirs) || dirs.length !== times.length) return null;
-        const gusts = Array.isArray(h.wind_gusts_10m) && h.wind_gusts_10m.length === times.length
-            ? h.wind_gusts_10m : null;
-
-        // Open-Meteo returns local wall-clock strings; convert as
-        // weather/js/state.js:22 does.
-        const offset = isFinite(Number(d.utc_offset_seconds)) ? Number(d.utc_offset_seconds) : 0;
-        const at = now.getTime();
-        const stamp = function (i) {
-            const t = Date.parse(times[i] + 'Z');
-            return isFinite(t) ? t - offset * 1000 : NaN;
-        };
-
-        const first = stamp(0);
-        const last = stamp(times.length - 1);
-        if (!isFinite(first) || !isFinite(last)) return null;
-
-        let i0 = 0, i1 = 0, frac = 0;
-        if (at <= first) {
-            i0 = i1 = 0;
-        } else if (at >= last) {
-            i0 = i1 = times.length - 1;
-        } else {
-            for (let i = 0; i < times.length - 1; i++) {
-                const a = stamp(i), b = stamp(i + 1);
-                if (!isFinite(a) || !isFinite(b)) continue;
-                if (at >= a && at <= b) {
-                    i0 = i; i1 = i + 1;
-                    frac = b === a ? 0 : (at - a) / (b - a);
-                    break;
-                }
-            }
-        }
-
-        const s0 = num(speeds[i0]), s1 = num(speeds[i1]);
-        const d0 = num(dirs[i0]), d1 = num(dirs[i1]);
-        if (s0 === null || s1 === null || d0 === null || d1 === null) return null;
-
-        const mph = s0 + (s1 - s0) * frac;
-        // Interpolate the SHORT way around the circle. Averaging 350 and 10
-        // arithmetically gives 180 - exactly backwards, and invisible except as
-        // a ball drifting the wrong way.
-        const delta = ((d1 - d0 + 540) % 360) - 180;
-        const deg = ((d0 + delta * frac) % 360 + 360) % 360;
-
-        let gust = mph;
-        if (gusts) {
-            const g0 = num(gusts[i0]), g1 = num(gusts[i1]);
-            if (g0 !== null && g1 !== null) gust = g0 + (g1 - g0) * frac;
-        }
-
-        return clampWind({ mph: mph, deg: deg, gustMph: gust, source: 'live', at: at });
-    }
-
-    function resolveWind(bundle, now, seed) {
-        return extractWind(bundle, now) || syntheticWind(seed);
-    }
-
-    // ------------------------------------------------------------------
     // Scoring and sharing
     // ------------------------------------------------------------------
 
@@ -940,121 +749,37 @@
     }
 
     // ------------------------------------------------------------------
-    // Persisted state (pure transforms; the DOM layer does the IO)
+    // Persisted state
     // ------------------------------------------------------------------
 
     const STORAGE_KEY = 'oneputt.v1';
-    const MAX_DAYS = 30;
 
-    function emptyState() {
-        return {
-            v: 1, lastDay: null, days: {},
-            streak: 0, bestStreak: 0, played: 0, aces: 0,
-            settings: { sound: false, geo: null }
-        };
-    }
+    // Field order here is the key order of the serialised JSON, which the
+    // golden hashes in tests.js pin. Reordering it fails them, by design.
+    const store = Daily.makeStore({
+        version: 1,
+        counters: { played: 0, aces: 0 },
+        dayFields: {
+            strokes: { kind: 'int', min: 1, required: true },
+            par: { kind: 'int', required: true },
+            windMph: { kind: 'num', default: 0 },
+            windDeg: { kind: 'num', default: 0 },
+            source: { kind: 'enum', values: ['live', 'synthetic'], default: 'synthetic' }
+        },
+        settings: {
+            sound: { kind: 'bool', default: false },
+            geo: { kind: 'enum', values: ['set', 'denied'], default: null }
+        },
+        bump: function (state, result) {
+            return { played: state.played + 1, aces: state.aces + (result.strokes === 1 ? 1 : 0) };
+        },
+        maxDays: 30
+    });
 
-    function intOr(v, fallback) {
-        const n = Number(v);
-        return isFinite(n) ? Math.floor(n) : fallback;
-    }
-
-    /**
-     * Never returns the parsed blob - rebuilds a clean object field by field,
-     * so a corrupt or hostile value cannot reach the game. Anything unexpected
-     * degrades to emptyState(): the game plays, only history is lost.
-     */
-    function parseState(raw) {
-        let o;
-        try {
-            o = JSON.parse(raw);
-        } catch (e) {
-            return emptyState();
-        }
-        if (!o || typeof o !== 'object' || Array.isArray(o)) return emptyState();
-        if (o.v !== 1) return emptyState();
-
-        const out = emptyState();
-        out.lastDay = o.lastDay === null || o.lastDay === undefined ? null : intOr(o.lastDay, null);
-        out.streak = Math.max(0, intOr(o.streak, 0));
-        out.bestStreak = Math.max(0, intOr(o.bestStreak, 0));
-        out.played = Math.max(0, intOr(o.played, 0));
-        out.aces = Math.max(0, intOr(o.aces, 0));
-
-        if (o.days && typeof o.days === 'object' && !Array.isArray(o.days)) {
-            const keys = Object.keys(o.days);
-            for (let i = 0; i < keys.length; i++) {
-                const k = keys[i];
-                // A stored blob is attacker-controlled in the sense that
-                // anything with access to the origin can write localStorage.
-                // `out.days[k] = ...` with k === '__proto__' does not add a
-                // key - it reassigns the object's prototype, so later lookups
-                // return values that were never stored. JSON.parse creates a
-                // real own '__proto__' property, unlike an object literal.
-                if (k === '__proto__') continue;
-                const d = o.days[k];
-                if (!d || typeof d !== 'object') continue;
-                const strokes = intOr(d.strokes, null);
-                const par = intOr(d.par, null);
-                if (strokes === null || par === null || strokes < 1) continue;
-                out.days[k] = {
-                    strokes: strokes,
-                    par: par,
-                    windMph: isFinite(Number(d.windMph)) ? Number(d.windMph) : 0,
-                    windDeg: isFinite(Number(d.windDeg)) ? Number(d.windDeg) : 0,
-                    source: d.source === 'live' ? 'live' : 'synthetic'
-                };
-            }
-        }
-        if (o.settings && typeof o.settings === 'object' && !Array.isArray(o.settings)) {
-            out.settings.sound = o.settings.sound === true;
-            const g = o.settings.geo;
-            out.settings.geo = (g === 'set' || g === 'denied') ? g : null;
-        }
-        return out;
-    }
-
-    function serializeState(state) {
-        return JSON.stringify(state);
-    }
-
-    /**
-     * Idempotent per day, and a no-op for any day at or before lastDay. That is
-     * what makes "the first attempt is the one that counts" a property of the
-     * data rather than a rule the UI has to remember.
-     */
-    function recordDaily(state, day, result) {
-        const key = String(day);
-        if (Object.prototype.hasOwnProperty.call(state.days, key)) return state;
-        if (state.lastDay !== null && day <= state.lastDay) return state;
-
-        const next = {
-            v: 1,
-            lastDay: day,
-            days: {},
-            streak: state.lastDay !== null && day === state.lastDay + 1 ? state.streak + 1 : 1,
-            bestStreak: state.bestStreak,
-            played: state.played + 1,
-            aces: state.aces + (result.strokes === 1 ? 1 : 0),
-            settings: { sound: state.settings.sound, geo: state.settings.geo }
-        };
-        const keys = Object.keys(state.days);
-        for (let i = 0; i < keys.length; i++) next.days[keys[i]] = state.days[keys[i]];
-        next.days[key] = {
-            strokes: result.strokes,
-            par: result.par,
-            windMph: result.windMph,
-            windDeg: result.windDeg,
-            source: result.source === 'live' ? 'live' : 'synthetic'
-        };
-        next.bestStreak = Math.max(next.bestStreak, next.streak);
-
-        const all = Object.keys(next.days).map(Number).sort(function (a, b) { return a - b; });
-        while (all.length > MAX_DAYS) {
-            delete next.days[String(all.shift())];
-        }
-        return next;
-    }
+    const emptyState = store.emptyState;
+    const parseState = store.parseState;
+    const serializeState = store.serializeState;
+    const recordDaily = store.recordDaily;
 
     const OnePutt = {
         EPOCH_UTC_MS: EPOCH_UTC_MS,

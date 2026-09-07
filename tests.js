@@ -13,6 +13,7 @@ const http = require('http');
 const path = require('path');
 const Calc = require('./countdown/calc.js');
 const Putt = require('./game/putt.js');
+const Daily = require('./shared/daily.js');
 
 // ANSI color codes for pretty output
 const colors = {
@@ -2071,6 +2072,22 @@ describe('BUSINESS SITE - Deploy wiring', () => {
             });
     });
 
+    test('Should deploy the shared module ONE PUTT now depends on', () => {
+        assert.ok(/-\s*'shared\/\*\*'/.test(deploy),
+            "deploy.yml paths filter needs 'shared/**'");
+        assert.ok(deploy.includes("--include 'shared/daily.js'"),
+            'shared/daily.js missing from --include would 404 in production and ' +
+            'ONE PUTT would throw "Daily is not defined" on load');
+    });
+
+    test('Should load the shared module from the game page, by absolute path', () => {
+        const gameHtml = fs.readFileSync(path.join(__dirname, 'game', 'index.html'), 'utf8');
+        assert.ok(gameHtml.includes('src="/shared/daily.js"'),
+            'A relative daily.js would 404 from /game/');
+        assert.ok(gameHtml.indexOf('/shared/daily.js') < gameHtml.indexOf('putt.js'),
+            'The shared module must load before putt.js');
+    });
+
     test('Should list every sitemap page as a real file', () => {
         const locs = sitemap.match(/<loc>([^<]+)<\/loc>/g) || [];
         assert.ok(locs.length >= 4, 'Sitemap should list the site pages');
@@ -2262,6 +2279,100 @@ describe('DAILY SHARED - wind extraction characterisation', () => {
             assert.doesNotThrow(() => { out = Putt.extractWind(j, new Date()); }, `Threw on fixture ${i}`);
             assert.strictEqual(out, null, `Fixture ${i} should be null`);
         });
+    });
+});
+
+describe('DAILY SHARED - Extraction equivalence', () => {
+    test('Should back ONE PUTT seeds with the shared prefix form', () => {
+        for (let d = 0; d < 3650; d++) {
+            assert.strictEqual(Daily.seedForDay('oneputt', d), Putt.seedForDay(d),
+                `Seed diverged on day ${d}`);
+        }
+    });
+
+    test('Should expose the same PRNG through both modules', () => {
+        const a = Daily.makeRng(12345), b = Putt.makeRng(12345);
+        for (let i = 0; i < 200; i++) assert.strictEqual(a(), b());
+    });
+
+    test('Should keep the ONE PUTT wind clamp bound to its own maximum', () => {
+        // putt.js keeps its 1- and 2-argument arity; the cap moved into the call.
+        assert.strictEqual(Putt.clampWind({ mph: 900, deg: 0 }).mph, Putt.SIM.WIND_MAX_MPH);
+        assert.strictEqual(Daily.clampWind({ mph: 900, deg: 0 }, 75).mph, 75,
+            'The shared clamp takes a cap so a second game can want a different one');
+        assert.strictEqual(Daily.clampWind({ mph: 900, deg: 0 }).mph, 45, 'Default cap');
+    });
+
+    test('Should route ONE PUTT wind extraction through the shared sampler', () => {
+        const bundle = {
+            forecast: {
+                ok: true, data: {
+                    utc_offset_seconds: 0, hourly: {
+                        time: ['2026-09-07T10:00', '2026-09-07T11:00'],
+                        wind_speed_10m: [10, 20], wind_direction_10m: [350, 10]
+                    }
+                }
+            }
+        };
+        const now = new Date(Date.UTC(2026, 8, 7, 10, 30));
+        const viaPutt = Putt.extractWind(bundle, now);
+        const sampled = Daily.sampleHourly(bundle, now, {
+            wind_speed_10m: 'linear', wind_direction_10m: 'angle'
+        });
+        assert.strictEqual(viaPutt.mph, 15);
+        assert.strictEqual(viaPutt.deg, 0, 'Short way around the circle, not 180');
+        assert.strictEqual(sampled.values.wind_speed_10m, 15);
+        assert.strictEqual(sampled.values.wind_direction_10m, 0);
+    });
+
+    test('Should let the shared sampler read any hourly series', () => {
+        const bundle = {
+            forecast: {
+                ok: true, data: {
+                    utc_offset_seconds: 0, hourly: {
+                        time: ['2026-09-07T10:00', '2026-09-07T11:00'],
+                        cape: [400, 800], cloud_cover_low: [20, 60]
+                    }
+                }
+            }
+        };
+        const s = Daily.sampleHourly(bundle, new Date(Date.UTC(2026, 8, 7, 10, 30)),
+            { cape: 'linear', cloud_cover_low: 'linear' });
+        assert.strictEqual(s.values.cape, 600);
+        assert.strictEqual(s.values.cloud_cover_low, 40);
+    });
+
+    test('Should return null from the shared sampler for a required series that is missing', () => {
+        const bundle = {
+            forecast: {
+                ok: true, data: {
+                    utc_offset_seconds: 0,
+                    hourly: { time: ['2026-09-07T10:00', '2026-09-07T11:00'], cape: [1, 2] }
+                }
+            }
+        };
+        const now = new Date(Date.UTC(2026, 8, 7, 10, 30));
+        assert.strictEqual(Daily.sampleHourly(bundle, now, { cape: 'linear', nope: 'linear' }), null);
+        const optional = Daily.sampleHourly(bundle, now, { cape: 'linear', nope: 'linear?' });
+        assert.strictEqual(optional.values.cape, 1.5);
+        assert.strictEqual(optional.values.nope, undefined, 'Optional series simply absent');
+    });
+
+    test('Should build a store whose empty state matches the one already shipped', () => {
+        // 378302632 is the pinned hash of ONE PUTT's emptyState() from before
+        // the extraction. Same number here means the same key order and the
+        // same defaults - which is what the stored blobs on real devices expect.
+        assert.strictEqual(Putt.hashSeed(JSON.stringify(Putt.emptyState())), 378302632);
+    });
+
+    test('Should keep putt.js free of the code that moved', () => {
+        const fs = require('fs');
+        const src = fs.readFileSync(path.join(__dirname, 'game', 'putt.js'), 'utf8');
+        assert.ok(src.indexOf("require('../shared/daily.js')") > 0,
+            'putt.js should resolve the shared module');
+        assert.ok(!/function makeRng\s*\(/.test(src), 'makeRng should have moved out');
+        assert.ok(!/function sampleHourly\s*\(/.test(src), 'The sampler should live in shared');
+        assert.ok(!/function parseState\s*\(/.test(src), 'parseState should come from makeStore');
     });
 });
 
