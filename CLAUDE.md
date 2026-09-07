@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, six links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/thermal/` is THERMAL — a one-button glider flown against that same live sky, with thermals driven by the real CAPE and the real sun angle.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, six links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/thermal/` is THERMAL — a one-button glider flown against that same live sky, with thermals driven by the real mixing depth and the real sun angle.
 
 ## Tech Stack
 
@@ -67,6 +67,7 @@ aws s3 sync . s3://branyontech.com/ \
   --include "thermal/index.html" \
   --include "thermal/flight.js" \
   --include "thermal/script.js" \
+  --include "thermal/audio.js" \
   --include "thermal/sky.js" \
   --include "thermal/astro.js" \
   --include "thermal/styles.css" \
@@ -119,6 +120,7 @@ CountdownToRetirement/
 │   ├── index.html          # Two canvases (WebGL sky under, 2D stage over) plus HUD
 │   ├── flight.js           # Pure rules: terrain, thermals, polar, energy, weather
 │   ├── script.js           # Canvas, camera, input, weather fetch, localStorage
+│   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── sky.js              # VENDORED weather/js/gl/sky.js + uSkyline + shim
 │   ├── astro.js            # VENDORED weather/js/lib/astro.js + shim
 │   ├── styles.css
@@ -191,11 +193,21 @@ CountdownToRetirement/
 
 ### THERMAL (/thermal/)
 
-A glider. **HOLD to circle and climb** wherever the air is rising; release to glide
-forward and lose height. Distance in a fixed time is the score, so it is
-cross-country speed, and the decision is the one real pilots fly: leave a thermal
-when your climb drops below the average climb you expect to find next.
+A glider, and the button is the stick. **HOLD to pull up:** you slow down and the
+speed comes back as height. **RELEASE to push over:** you speed up and pay for it in
+height. Total energy is conserved exactly — the button only chooses how it is split
+— while the air adds energy through lift and the polar takes it back as drag.
+Distance in a fixed time is the score, so the optimal play is MacCready
+speed-to-fly: slow in the green, fast through the red.
 
+- **Neither extreme survives, and that is the design.** `V_HOLD` (18 m/s) is
+  deliberately *below* `V_STALL` (21), so holding does not settle at min-sink — it
+  drives you through it into a stall in about three seconds. And 55 m/s costs
+  3.6 m/s of sink, so never holding puts you on the ground in ninety.
+- **The ground is the antagonist.** Measured over ten live forecasts, a well-flown
+  flight comes within **0.2 m of the terrain** at some point and spends 21% of its
+  time below 100 m AGL, where the ground rises at 5–20 m/s in front of you. 60% of
+  flights end on it rather than on the clock.
 - **The sky is the real sky** — `thermal/sky.js` is the weather console's WebGL
   shader, sun and moon at true altitude, cloud decks drifting at the real bearing.
 - **The weather flies the glider.** `boundary_layer_height` sets thermal strength,
@@ -203,34 +215,51 @@ when your climb drops below the average climb you expect to find next.
   columns occur, and **sun altitude switches thermals on and off**.
 - **The sun works with the API down** — `astro.js` needs only (date, lat, lon).
 - **Rings** stack up the middle of every column, placed from the same profile the
-  lift uses, so every ring provably sits where `thermalW > 0`. They are how the
-  invisible air is made visible: chasing them IS learning to read lift. They give a
-  small altitude bonus and a chain multiplier; distance stays the only score.
+  lift uses, so every ring provably sits where `thermalW > 0`. Under a hold-to-climb
+  button they are Flappy Bird's pipe geometry: the line you fly, not a hint layer.
+- **Sound is synthesised, never loaded.** `server.js`'s `allowedExtensions` has no
+  audio MIME type, so any `.mp3` 404s in dev and is silently absent in production.
+  `thermal/audio.js` is oscillators and one shared noise buffer, with the
+  `AudioContext` created lazily on the Launch click — the guaranteed first gesture
+  of every session. Events are DIFFED out of consecutive states in `script.js`;
+  `flight.js` does not know audio exists.
 - **Dev overrides:** `?seed=`, `?wx=<mixing layer m>@<mph>@<deg>@<cloud %>`, `?t=14:30`.
 
-### Why it is circle-to-climb, and not what it was
+### Why it is energy, and not what it was twice before
 
-The first version mapped HOLD to *dive* and the glider flew a fixed line through
-every thermal on it. Measured across 40 daily seeds, **holding the button forever
-was the outright best strategy on 15 days and never touching it won on 5 more** —
-on half of all days the optimal play was no input at all. A one-second input error
-cost 0.3% of the score and was frequently an improvement. The owner played it twice
-and said, correctly, that it was boring and that he could not tell what to do.
+The first version mapped HOLD to *dive* along a fixed line through every thermal.
+Measured across 40 daily seeds, **holding the button forever was outright best on 15
+days and never touching it won on 5 more** — on half of all days the optimal play was
+no input at all.
 
-Three things were also simply broken: the vario read the AIR's velocity rather than
-the glider's, so it did not respond to the button at all (a held step dropped the
-glider at −17.98 m/s while the tape showed −1.21); the sprite pitched nose-**up**
-while diving; and the camera sat at the glider's own altitude, welding it to one
-pixel — burning the entire altitude budget moved the horizon 70 px.
+The second version made HOLD mean *circle and climb*. That fixed the strategy
+(holding stopped winning) and broke the presentation, because in a side-scrolling 1-D
+world "surrender all forward speed and rise slowly" is a mechanic whose entire
+expression is the **absence of motion**. Measured on the real render loop: the nose
+swung its whole 32° of pitch in a quarter second while the sprite translated 0.8 px,
+and over a two-minute flight the glider moved 10–27 px vertically. The owner reported
+it as "the plane tilts up but it doesn't move on the screen", which was exactly right.
+Optimal play was **2.1 button transitions per minute**, and 3 of 12 days needed zero.
 
-Circling fixes the mapping and, more importantly, gives the player a reason to be
-**at** a place rather than merely passing through it. Measured on the same ten live
-forecasts: skilled play now beats doing nothing by 1.8×, beats holding forever by
-45×, and beats naive circling by 45×. Naive play — circle in anything that rises —
-finds a stable equilibrium at the top of a column, climbing a few metres over
-several minutes and travelling almost nowhere. That trap is the skill gradient.
+Deleting the airspeed dimension was the mistake. Airspeed is the only variable that
+is worth changing every few seconds, and it makes the world scroll while you climb.
+Restored, and measured on the same ten live forecasts: **96 inputs/minute** (from
+2.1), skilled play beats doing nothing by **2.8×** and holding forever by **8.0×** —
+and holding wins on **0 of 29** rows, where it used to win on 15 of 40. No day
+requires zero inputs; three of twelve used to.
 
-### Four things that will silently break it### Four things that will silently break it
+The gate suite is `node scripts/tune-thermal.js`, which prints all eleven as named
+checks with the failure each one defends against. `--fail-under` exits non-zero.
+**Run it against `.wx-cache/`, never against invented weather** — the first tuning
+pass used `cape 1200, tempF 80` and produced a game that was dead on arrival.
+
+Two traps in reading it. The autopilot grid is part of the measurement, not scenery:
+pinning the terrain margin at one value made a gate measure the AUTOPILOT'S
+conservatism rather than the game, and it read 23% for three different worlds. And
+prefer *closest approach* over *time below a line* — on a booming day climbing away
+really is correct soaring, so a median time-low gate encodes a design wish.
+
+### Four things that will silently break it
 
 0. **The camera must not sit at the glider's altitude**, and the vario must read
    the glider's climb rather than the air's. Both were true once and both made the

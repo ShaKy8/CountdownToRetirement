@@ -86,6 +86,7 @@ jobs:
             --include 'game/putt.js' --include 'game/styles.css' \
             --include 'game/favicon.svg' \
             --include 'thermal/flight.js' --include 'thermal/script.js' \
+            --include 'thermal/audio.js' \
             --include 'thermal/sky.js' --include 'thermal/astro.js' \
             --include 'thermal/styles.css' --include 'thermal/favicon.svg' \
             --cache-control 'public, max-age=3600'

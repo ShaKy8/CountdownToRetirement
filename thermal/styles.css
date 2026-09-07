@@ -133,7 +133,7 @@ html, body {
 
 .dot { color: var(--faint); margin: 0 5px; }
 
-.gauges { display: flex; gap: 8px; max-width: 430px; }
+.gauges { display: flex; gap: 8px; max-width: 560px; }
 
 .gauge {
     flex: 1;
@@ -279,4 +279,34 @@ button.primary:hover { background: #6df3ff; }
     .title { font-size: 1.05rem; }
     .g-v { font-size: .9rem; }
     .hud { padding: 10px; }
+}
+
+/* The sound toggle lives in the badge row, so it is styled as a badge that
+   happens to be a button rather than as a control bolted on beside them. */
+.badge-btn {
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .1em;
+    text-transform: none;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.badge-btn[aria-pressed="true"] { color: var(--lm); border-color: var(--lm); }
+
+/* Four gauges no longer fit at 430px once SPD is there. */
+
+/*
+ * Five gauges do not fit one row on a phone, and letting them wrap gave VARIO
+ * a full-width row of its own - the HUD took half the screen and buried the
+ * game underneath it. A three-up grid keeps every readout visible in two tight
+ * rows.
+ */
+@media (max-width: 560px) {
+    .gauges { flex-wrap: wrap; gap: 5px; }
+    .gauge { flex: 1 1 28%; padding: 4px 7px; --cut: 7px; }
+    .g-k { font-size: .5rem; letter-spacing: .12em; }
+    .g-v { font-size: .82rem; }
+    .g-sub { font-size: .46rem; }
+    .hint { font-size: .58rem; }
 }

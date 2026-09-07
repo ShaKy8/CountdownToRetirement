@@ -2098,10 +2098,78 @@ describe('BUSINESS SITE - Deploy wiring', () => {
     test('Should deploy every THERMAL file', () => {
         assert.ok(/-\s*'thermal\/\*\*'/.test(deploy),
             "deploy.yml paths filter needs 'thermal/**'");
-        ['thermal/index.html', 'thermal/flight.js', 'thermal/script.js', 'thermal/sky.js',
-            'thermal/astro.js', 'thermal/styles.css', 'thermal/favicon.svg'].forEach(f => {
+        ['thermal/index.html', 'thermal/flight.js', 'thermal/script.js', 'thermal/audio.js',
+            'thermal/sky.js', 'thermal/astro.js', 'thermal/styles.css',
+            'thermal/favicon.svg'].forEach(f => {
                 assert.ok(deploy.includes("--include '" + f + "'"), `${f} would 404 in production`);
             });
+    });
+
+    /*
+     * The four lists have to agree, and nothing else catches it.
+     *
+     * A new file under thermal/ has to be named in index.html (or nothing loads
+     * it), in deploy.yml's --include list (or it 404s in production while
+     * working perfectly on localhost), in tests-server.js (or nothing checks it
+     * is served at all) and in CLAUDE.md (or the next person does not know it
+     * exists). Every one of those failures is invisible until production.
+     */
+    test('Should keep the four THERMAL asset lists agreeing', () => {
+        const dir = path.join(__dirname, 'thermal');
+        const onDisk = fs.readdirSync(dir).filter(f => f.endsWith('.js'));
+        const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+        const server = fs.readFileSync(path.join(__dirname, 'tests-server.js'), 'utf8');
+        const claude = fs.readFileSync(path.join(__dirname, 'CLAUDE.md'), 'utf8');
+        assert.ok(onDisk.length >= 5, 'Expected the THERMAL scripts to be found');
+        onDisk.forEach(f => {
+            assert.ok(html.includes('src="' + f + '"') || html.includes('/thermal/' + f),
+                `thermal/${f} exists but index.html never loads it`);
+            assert.ok(deploy.includes("--include 'thermal/" + f + "'"),
+                `thermal/${f} is not in deploy.yml, so it would 404 in production only`);
+            assert.ok(server.includes("'/thermal/" + f + "'"),
+                `thermal/${f} is not checked by tests-server.js`);
+            assert.ok(claude.includes(f),
+                `thermal/${f} is undocumented in CLAUDE.md`);
+        });
+    });
+
+    /*
+     * Sound has to be synthesised. server.js's allowedExtensions has no audio
+     * MIME type, so a committed .mp3 404s in development and is silently absent
+     * in production - the game would simply be quiet for everyone but the
+     * person who added it.
+     */
+    test('Should synthesise every sound, never load one', () => {
+        const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e =>
+            e.isDirectory() ? (e.name === 'node_modules' || e.name.startsWith('.') ? [] :
+                walk(path.join(d, e.name))) : [path.join(d, e.name)]);
+        const audioFiles = walk(__dirname)
+            .filter(f => /\.(mp3|ogg|wav|m4a|aac|flac|webm)$/i.test(f));
+        assert.deepStrictEqual(audioFiles, [],
+            'Audio files cannot be served: server.js has no audio MIME type');
+
+        const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+        const allowed = server.slice(server.indexOf('allowedExtensions'),
+            server.indexOf('allowedExtensions') + 400);
+        ['.mp3', '.ogg', '.wav'].forEach(ext => {
+            assert.ok(!allowed.includes(ext),
+                `server.js now allows ${ext}; the assertion above is no longer the reason`);
+        });
+    });
+
+    // Browsers refuse to start audio without a user gesture, and the failure is
+    // silent - the context is created suspended and never plays.
+    test('Should not create an AudioContext before a gesture', () => {
+        const audio = fs.readFileSync(path.join(__dirname, 'thermal', 'audio.js'), 'utf8');
+        const script = fs.readFileSync(path.join(__dirname, 'thermal', 'script.js'), 'utf8');
+        assert.ok(/function init\(\)[\s\S]{0,200}if \(ctx\) return/.test(audio),
+            'The context must be created lazily, guarded on already existing');
+        assert.ok(!/^\s*(const|let|var)\s+ctx\s*=\s*new/m.test(audio),
+            'No AudioContext at module scope');
+        // Every path into init() has to come from a click or a key.
+        assert.ok(/byId\('launch'\)\.addEventListener\('click'/.test(script),
+            'Launch is the guaranteed first gesture of every session');
+        assert.ok(/Audio\.setEnabled/.test(script), 'and it is what turns sound on');
     });
 
     test('Should keep the game HTML on the short cache, not the asset one', () => {
@@ -2484,29 +2552,60 @@ describe('THERMAL - Flight model', () => {
     };
     const deadWorld = () => Thermal.makeWorld(Thermal.seedForDay(2), deadCond);
 
-    // The single most important assertion in the file. The old model's two
-    // control states differed by 0.43 m/s of sink - a 0.6 px/sec change on
-    // screen - and on half of all days the best strategy was no input at all.
-    test('Should make the button the difference between going somewhere and not', () => {
+    // The single most important assertion in the file, and it has caught two
+    // different shipped games. The first model's two control states differed by
+    // 0.43 m/s of sink and on half of all days the best strategy was no input;
+    // an early draft of this one made the hold target min-sink instead of below
+    // the stall, and flying always-slow tied the best terrain-aware policy
+    // exactly. Neither extreme may be a viable way to play.
+    test('Should make neither extreme of the button a strategy', () => {
         const world = deadWorld();
         const glide = Thermal.simulate(world, Thermal.policyRelease, {}).score.distance;
-        const circle = Thermal.simulate(world, Thermal.policyHold, {}).score.distance;
-        assert.ok(glide > 3000, `Gliding should cover ground, got ${glide} m`);
-        assert.ok(circle < 0.02 * glide,
-            `Circling in dead air should go nowhere: ${circle} m against ${glide} m`);
+        const held = Thermal.simulate(world, Thermal.policyHold, {}).score.distance;
+        assert.ok(glide > 2000, `Gliding should cover ground, got ${glide} m`);
+        assert.ok(held < 0.4 * glide,
+            `Holding into the stall should not pay: ${held} m against ${glide} m`);
     });
 
-    test('Should climb only while circling in lift, and by exactly the air less the sink', () => {
+    // Total energy is conserved EXACTLY: the button only chooses how it is
+    // split between height and speed. A pull-up from 55 to 24 m/s must hand
+    // back all 125 m of it, no more and no less, or the whole trade is a lie.
+    test('Should conserve total energy across the trade, exactly', () => {
         const world = deadWorld();
-        let s = Thermal.createFlight(world);
-        s = Object.assign({}, s, { hold: true, bank: 1 });
-        const a = Thermal.step(world, s, Thermal.FLY.DT);
-        assert.ok(Math.abs(a.w - (a.wAir - Thermal.FLY.SINK_CIRCLE)) < 1e-9,
-            'Fully banked, the vario is the air less the circling sink');
-        let g = Object.assign({}, Thermal.createFlight(world), { hold: false, bank: 0 });
-        const b = Thermal.step(world, g, Thermal.FLY.DT);
-        assert.ok(Math.abs(b.w - (b.wAir - Thermal.FLY.SINK_CRUISE)) < 1e-9,
-            'Wings level, it is the air less the cruising sink');
+        const F = Thermal.FLY;
+        const E = st => st.h + st.v * st.v / (2 * F.G);
+        for (const hold of [true, false]) {
+            const a = Object.assign({}, Thermal.createFlight(world), { hold: hold, v: 40 });
+            const b = Thermal.step(world, a, F.DT);
+            // In dead air the only energy change is drag, at the polar's rate.
+            const drag = Thermal.sinkAt(a.v) * F.DT;
+            assert.ok(Math.abs((E(b) - E(a)) + drag) < 1e-9,
+                `hold=${hold}: energy changed by more than drag, ${(E(b) - E(a) + drag)}`);
+        }
+    });
+
+    test('Should read the glider climb on the vario, including the energy trade', () => {
+        const world = deadWorld();
+        const F = Thermal.FLY;
+        // Pulling up out of a fast cruise climbs hard even in dead air, which is
+        // correct and is the whole reason the move is legible.
+        let s = Object.assign({}, Thermal.createFlight(world), { hold: true, v: 55 });
+        s = Thermal.step(world, s, F.DT);
+        assert.ok(s.w > 5, `A pull-up from 55 m/s should show a big climb, got ${s.w}`);
+        assert.ok(s.wAir <= 0.001, 'and the AIR is doing none of it');
+    });
+
+    // The stall is the fail state, so it has to actually hurt.
+    test('Should punish the stall far harder than any normal speed', () => {
+        const F = Thermal.FLY;
+        const minSink = Thermal.sinkAt(F.POLAR_VM);
+        assert.ok(minSink < 0.7, `Min sink should be a real glider's, got ${minSink}`);
+        assert.ok(Thermal.sinkAt(30) / 30 < minSink / F.POLAR_VM,
+            'Best glide should be faster than min sink');
+        assert.ok(Thermal.sinkAt(F.V_HOLD) > 6 * Thermal.sinkAt(F.V_STALL),
+            'Below the stall the polar must fall off a cliff');
+        assert.ok(F.V_HOLD < F.V_STALL,
+            'The hold target must be BELOW the stall, or holding is free');
     });
 
     // This was a real bug: step() returned the AIR's velocity in `w`, so the
@@ -2523,26 +2622,54 @@ describe('THERMAL - Flight model', () => {
         assert.ok(s.w < s.wAir, 'and is always slower than the air');
     });
 
-    test('Should trade all of its forward speed for the climb', () => {
+    // The circling model's fatal flaw as an assertion. Holding stopped the
+    // glider dead, so the one mechanic the player was told to use was the one
+    // that froze the screen: measured, the sprite moved 0.8 px in the quarter
+    // second the nose swung its entire 32 degrees of pitch.
+    test('Should never stop moving forward, whatever the button is doing', () => {
         const world = deadWorld();
-        const base = Thermal.createFlight(world);
-        const level = Thermal.step(world, Object.assign({}, base, { bank: 0 }), 1);
-        const turn = Thermal.step(world, Object.assign({}, base, { bank: 1, hold: true }), 1);
-        assert.ok(Math.abs((level.x - base.x) - Thermal.FLY.V_CRUISE) < 0.5,
-            'Wings level it cruises');
-        assert.ok(Math.abs(turn.x - base.x) < 0.5, 'Fully banked it goes nowhere');
+        const F = Thermal.FLY;
+        let s = Object.assign({}, Thermal.createFlight(world), { hold: true });
+        let slowest = Infinity;
+        for (let i = 0; i < 120 * 30; i++) {
+            const before = s.x;
+            s = Thermal.step(world, s, F.DT);
+            if (!s.alive) break;
+            slowest = Math.min(slowest, (s.x - before) / F.DT);
+        }
+        assert.ok(slowest > 10,
+            `Ground speed must never collapse; slowest was ${slowest} m/s`);
     });
 
-    test('Should roll in and out smoothly, and identically at any timestep', () => {
+    test('Should trade speed for height and back again', () => {
+        const world = deadWorld();
+        const F = Thermal.FLY;
+        const fast = Object.assign({}, Thermal.createFlight(world), { hold: false, v: 24 });
+        const slow = Object.assign({}, Thermal.createFlight(world), { hold: true, v: 50 });
+        const a = Thermal.step(world, fast, 1);
+        const b = Thermal.step(world, slow, 1);
+        assert.ok(a.v > fast.v && a.h < fast.h, 'Releasing buys speed with height');
+        assert.ok(b.v < slow.v && b.h > slow.h, 'Holding buys height with speed');
+        // And the pull-up is quicker than the push-over, because you can pull
+        // more g than you can bunt. Symmetric, the push-over dumped 80 m in
+        // three seconds and every flight was over in eleven.
+        assert.ok(F.V_HALF_UP < F.V_HALF_DN, 'Pulling up must be faster than pushing over');
+    });
+
+    // v(t) is a true exponential, so four steps of dt/4 land on the same number
+    // as one of dt. A linear (target - v) * RATE * dt does not, and this is what
+    // catches it.
+    test('Should change airspeed smoothly, and identically at any timestep', () => {
         const world = deadWorld();
         const run = dt => {
             let s = Object.assign({}, Thermal.createFlight(world), { hold: true });
             for (let i = 0; i < Math.round(1 / dt); i++) s = Thermal.step(world, s, dt);
-            return s.bank;
+            return s.v;
         };
         const a = run(1 / 120), b = run(1 / 480);
-        assert.ok(a > 0 && a < 1, `Bank should ease, got ${a}`);
-        assert.ok(Math.abs(a - b) < 1e-9, `Bank depends on the timestep: ${a} vs ${b}`);
+        assert.ok(a < Thermal.FLY.V_START && a > Thermal.FLY.V_HOLD,
+            `Airspeed should ease down, got ${a}`);
+        assert.ok(Math.abs(a - b) < 1e-9, `Airspeed depends on the timestep: ${a} vs ${b}`);
     });
 
     test('Should not depend on the size of the timestep', () => {
@@ -2586,7 +2713,7 @@ describe('THERMAL - Flight model', () => {
                 s = Object.assign({}, s, { hold: k % 37 < 18 });
                 s = Thermal.step(world, s, Thermal.FLY.DT);
             }
-            ['x', 'h', 'bank', 't', 'climbTotal', 'peakX'].forEach(f => {
+            ['x', 'h', 'v', 't', 'climbTotal', 'peakX'].forEach(f => {
                 assert.ok(isFinite(s[f]), `${f} went non-finite on case ${i}`);
             });
         }
@@ -2629,15 +2756,23 @@ describe('THERMAL - Flight model', () => {
     // Circling in anything that rises finds a stable equilibrium at the top of
     // the column, where it climbs a few metres over several minutes and travels
     // almost nowhere. That trap IS the skill gradient.
+    // The shape of the real gate suite (scripts/tune-thermal.js), which runs
+    // this over ten cached live forecasts. A single condition is not enough:
+    // on a booming day naive play is nearly as good as skilled, and it is the
+    // WEAK days where knowing what you are doing shows.
     test('Should punish flying it naively, and reward flying it well', () => {
-        const cond = Thermal.buildConditions(
-            { blh: 1800, sunshine: 1, cloudLow: 30, windMph: 8, windDeg: 180, tempF: 80, dewF: 50 },
-            1.0, 0);
+        const conds = [[900, 0.5, 55], [1400, 0.8, 30], [1800, 1, 30]].map(([blh, sun, cl]) =>
+            Thermal.buildConditions(
+                { blh, sunshine: sun, cloudLow: cl, windMph: 8, windDeg: 180, tempF: 80, dewF: 50 },
+                1.0, 0));
         const med = a => a.slice().sort((x, y) => x - y)[a.length >> 1];
-        const run = pol => med([0, 1, 2, 3, 4].map(d =>
-            Thermal.simulate(Thermal.makeWorld(Thermal.seedForDay(d), cond), pol, { dt: 1 / 60 })
-                .score.distance));
-        const skilled = run(Thermal.policyMacCready(1.2, 0.9));
+        const run = pol => med([].concat(...conds.map(c => [0, 1, 2, 3].map(d =>
+            Thermal.simulate(Thermal.makeWorld(Thermal.seedForDay(d), c), pol, { dt: 1 / 60 })
+                .score.distance))));
+        // "Skilled" is the best of a small grid, exactly as the gate suite
+        // defines it: mc alone cannot express "keep speed in hand near terrain".
+        const skilled = Math.max(...[[0, 26], [0.8, 31], [1.8, 36]]
+            .map(([mc, vf]) => run(Thermal.policyMacCready(mc, vf, 130))));
         const idle = run(Thermal.policyRelease);
         const naive = run(Thermal.policyGreedy);
         const held = run(Thermal.policyHold);
@@ -2645,8 +2780,8 @@ describe('THERMAL - Flight model', () => {
             `Skill must beat doing nothing: ${skilled} vs ${idle}`);
         assert.ok(skilled > 3 * held,
             `Holding forever must not compete: ${skilled} vs ${held}`);
-        assert.ok(skilled > 1.5 * naive,
-            `Naive circling must be visibly worse: ${skilled} vs ${naive}`);
+        assert.ok(skilled > 1.25 * naive,
+            `Naive play must be visibly worse: ${skilled} vs ${naive}`);
     });
 });
 
@@ -2699,9 +2834,17 @@ describe('THERMAL - Lift', () => {
             'Ridge lift is wind times slope; no wind, no lift');
     });
 
-    // The height profile is the whole risk/reward of ridge running: the band has
-    // to be REACHABLE from the launch or nobody can use it, and it has to fall
-    // away fast enough that working it means flying low.
+    /*
+     * The height profile is the whole risk/reward of ridge running: the band has
+     * to be REACHABLE from the release or nobody can use it, and it has to fall
+     * away fast enough that working it means flying low.
+     *
+     * Concentrating it lower and stronger (decay 120, gain 2.8) was tried, to
+     * make the deck pay against thermals and pull skilled play down. Measured
+     * against the ten cached forecasts it changed NOTHING outside noise - skill
+     * 2.76 both ways, time below 100 m 21.1% against 21.8% - so these are the
+     * original, physically derived values. Do not re-run that experiment.
+     */
     test('Should reward getting low without being usable from height', () => {
         const g = Thermal.terrain(seed, 1234);
         const at = agl => Math.abs(Thermal.ridgeW(seed, 1234, g + agl, 10));
@@ -2967,7 +3110,7 @@ describe('THERMAL - Scoring, sharing and state', () => {
     });
 
     test('Should keep its own storage, separate from ONE PUTT', () => {
-        assert.strictEqual(Thermal.STORAGE_KEY, 'thermal.v2',
+        assert.strictEqual(Thermal.STORAGE_KEY, 'thermal.v3',
             'The flight model changed, so the old distances are not comparable');
         assert.notStrictEqual(Thermal.STORAGE_KEY, Putt.STORAGE_KEY);
     });
@@ -3053,11 +3196,14 @@ describe('THERMAL - Rings', () => {
     test('Should collect a ring once, however many times it is crossed', () => {
         const world = Thermal.makeWorld(Thermal.seedForDay(3), cond);
         let s = Thermal.createFlight(world);
+        // Fly it the way the game intends: pull up in lift, push over before the
+        // stall. Holding forever no longer climbs - it stalls into the ground.
+        const climb = st => st.v > 30 && st.wAir > 0.4;
         for (let i = 0; i < 30000 && s.alive && s.rings < 2; i++) {
-            s = Object.assign({}, s, { hold: true });
+            s = Object.assign({}, s, { hold: climb(s) });
             s = Thermal.step(world, s, 1 / 60);
         }
-        assert.ok(s.rings >= 1, 'Circling in the release thermal should collect');
+        assert.ok(s.rings >= 1, 'Climbing through the release thermal should collect');
         const before = s.rings;
         // Descend back through them - nothing should re-count.
         for (let i = 0; i < 6000 && s.alive; i++) {
@@ -3073,20 +3219,35 @@ describe('THERMAL - Rings', () => {
         assert.ok(s.rings >= before, 'and the count never goes down');
     });
 
+    // A chain is what a good flight looks like: consecutive rings taken while
+    // climbing, broken by dropping RING.DROP below the last one. Flown by the
+    // game's OWN definition of good flying rather than a hand-rolled heuristic,
+    // so a constants change cannot make the assertion quietly untestable.
     test('Should build a chain climbing and drop it on the way down', () => {
-        const world = Thermal.makeWorld(Thermal.seedForDay(3), cond);
-        let s = Thermal.createFlight(world);
-        for (let i = 0; i < 30000 && s.alive && s.chain < 3; i++) {
-            s = Object.assign({}, s, { hold: true });
-            s = Thermal.step(world, s, 1 / 60);
+        let best = 0, bestState = null;
+        for (let d = 0; d < 6; d++) {
+            const world = Thermal.makeWorld(Thermal.seedForDay(d), cond);
+            let s = Thermal.createFlight(world);
+            const pol = Thermal.policyMacCready(0.4, 28, 130);
+            let top = null;
+            for (let i = 0; i < 40000 && s.alive; i++) {
+                s = Object.assign({}, s, { hold: !!pol(s, s.wAir, world) });
+                s = Thermal.step(world, s, 1 / 60);
+                if (s.chain > best) { best = s.chain; bestState = s; top = s.h; }
+            }
+            if (best >= 3) break;
         }
-        assert.ok(s.chain >= 3, `Chain should build while climbing, got ${s.chain}`);
+        assert.ok(best >= 3, `A well-flown climb should chain rings, got ${best}`);
+
+        // And the chain has to actually break on the way down.
+        const world = Thermal.makeWorld(Thermal.seedForDay(3), cond);
+        let s = Object.assign({}, bestState, { alive: true, landed: false });
         const top = s.h;
-        for (let i = 0; i < 30000 && s.alive && s.h > top - Thermal.RING.DROP - 30; i++) {
+        for (let i = 0; i < 40000 && s.alive && s.h > top - Thermal.RING.DROP - 40; i++) {
             s = Object.assign({}, s, { hold: false });
             s = Thermal.step(world, s, 1 / 60);
         }
-        assert.strictEqual(s.chain, 0, 'Dropping below the last ring breaks it');
+        assert.strictEqual(s.chain, 0, 'Dropping below the last ring breaks the chain');
     });
 
     test('Should count the ring bonus as climb, so the shared glide stays honest', () => {
@@ -3095,7 +3256,7 @@ describe('THERMAL - Rings', () => {
         let last = s;
         for (let i = 0; i < 30000 && s.alive && s.rings < 1; i++) {
             last = s;
-            s = Object.assign({}, s, { hold: true });
+            s = Object.assign({}, s, { hold: s.v > 30 && s.wAir > 0.4 });
             s = Thermal.step(world, s, 1 / 60);
         }
         assert.ok(s.rings === 1, 'Should have taken exactly one');
@@ -3104,12 +3265,17 @@ describe('THERMAL - Rings', () => {
             'The bonus must land in climbTotal, or the shared L/D would be inflated');
     });
 
+    // Rings are information, not altitude. Their real reward is showing where
+    // the core is at each height; the bonus must never be what keeps a flight
+    // alive, or the game becomes collect-the-coins.
     test('Should never let rings rescue a flight', () => {
         const world = Thermal.makeWorld(Thermal.seedForDay(3), cond);
-        const r = Thermal.simulate(world, Thermal.policyMacCready(1.2, 0.9), { dt: 1 / 60 });
+        const r = Thermal.simulate(world, Thermal.policyMacCready(0.8, 31, 130), { dt: 1 / 60 });
         const bonus = r.state.rings * Thermal.RING.ALT * Thermal.RING.MAX_MULT;
-        assert.ok(bonus < 0.25 * r.state.climbTotal,
-            `Rings gave ${Math.round(bonus)} m of ${Math.round(r.state.climbTotal)} m climbed`);
+        const distance = r.score.distance;
+        assert.ok(bonus < 0.2 * distance / 25,
+            `Rings gave ${Math.round(bonus)} m against ${Math.round(distance)} m flown`);
+        assert.ok(bonus < 200, `A perfect ring run must stay small, got ${Math.round(bonus)} m`);
     });
 });
 
@@ -3355,12 +3521,37 @@ describe('THERMAL - Page structure', () => {
             js.indexOf('trace.push('))), 'The trail test should consider altitude');
     });
 
-    test('Should keep the turn in the renderer, never in the physics', () => {
+    // The sim is one-dimensional and stays that way: simulate(), every
+    // autopilot and the tuning harness all depend on it.
+    test('Should keep the renderer out of the physics', () => {
         const rules = fs.readFileSync(path.join(__dirname, 'thermal', 'flight.js'), 'utf8');
-        assert.ok(!/TURN_RADIUS\s*\*/.test(rules.replace(/TURN_RADIUS: \d+/, '')),
-            'flight.js must not use the turn radius - the sim is one-dimensional');
-        assert.ok(/function lat\(\)/.test(js) && /function dep\(\)/.test(js),
-            'The circle offsets belong to the renderer');
+        for (const leak of ['TURN_RADIUS', 'BANK_ANGLE', 'ctx.', 'document.', 'requestAnimationFrame']) {
+            assert.ok(!rules.includes(leak),
+                `flight.js must not mention ${leak} - the rules are pure`);
+        }
+    });
+
+    // The camera cannot be co-altitude with the glider, and it cannot be a bare
+    // exponential follower either. Both shipped, and both pinned the sprite:
+    // against a steady climb an exponential converges to a CONSTANT offset, so
+    // it is a rate meter, not a position display. Measured at 7.9 px, forever.
+    test('Should not weld the camera to the glider altitude', () => {
+        assert.ok(!/camH\s*=\s*flight\.h\s*\+\s*\(camH - flight\.h\)/.test(js),
+            'A plain exponential follower saturates and stops showing the climb');
+        assert.ok(/CAM\.BOX/.test(js) && /Math\.abs\(px\) > CAM\.BOX/.test(js),
+            'The camera must use a deadzone, which does not saturate');
+        assert.ok(!/0\.55 \* agl/.test(js),
+            'The standoff must not grow with altitude - it cancels the climb signal');
+    });
+
+    // The trail is drawn from the air it flew through, so it maps invisible
+    // lift. A single constant-alpha polyline over the whole flight was the
+    // thing on screen the owner could not identify.
+    test('Should draw the trail as an energy trace, not a flat line', () => {
+        assert.ok(/TRAIL_SPAN/.test(js), 'The trail must be time-bounded');
+        assert.ok(/wa:\s*flight\.wAir/.test(js), 'and must record the air it flew through');
+        assert.ok(!/rgba\(0,234,255,0\.35\)/.test(js),
+            'The flat constant-alpha cyan polyline is gone');
     });
 
     test('Should make the vario a primary instrument', () => {
@@ -3376,11 +3567,12 @@ describe('THERMAL - Page structure', () => {
     test('Should teach the loop, not just the controls', () => {
         assert.ok(html.includes('id="card-teach"'), 'The pre-flight card should explain the game');
         const teach = js.slice(js.indexOf("card-teach"));
+        // Concepts, not phrasing - the copy should stay free to change.
         [[/hold/i, 'what the button does'],
-         [/circl/i, 'that holding circles'],
-         [/climb/i, 'that circling climbs'],
-         [/ring/i, 'what to aim at'],
-         [/glide/i, 'what letting go does']].forEach(([re, what]) => {
+         [/climb|height|up/i, 'that holding climbs'],
+         [/speed|fast|dive/i, 'that letting go buys speed'],
+         [/stall/i, 'the fail state'],
+         [/green|lift|rising/i, 'where the lift is']].forEach(([re, what]) => {
             assert.ok(re.test(teach), `The teach copy should say ${what}`);
         });
     });
@@ -3390,8 +3582,9 @@ describe('THERMAL - Page structure', () => {
         // down and the hint said "hold to dive", which is the instruction that
         // ends your flight.
         assert.ok(!/hold[^.]*dive/i.test(html), 'The hint must not still say hold-to-dive');
-        assert.ok(/hold/i.test(html) && /circle/i.test(html),
-            'The hint should say holding circles');
+        assert.ok(/hold/i.test(html) && /(pull up|climb)/i.test(html),
+            'The hint should say holding pulls up and climbs');
+        assert.ok(/stall/i.test(html), 'and must name the fail state');
     });
 
     test('Should keep the weather override in step with the model', () => {

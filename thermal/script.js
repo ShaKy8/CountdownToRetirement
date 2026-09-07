@@ -11,6 +11,7 @@
     const T = window.Thermal;
     const Sky = window.ThermalSky;
     const Astro = window.ThermalAstro;
+    const Audio = window.ThermalAudio;
     const FLY = T.FLY;
     const clamp = window.Daily.clamp;
 
@@ -52,6 +53,10 @@
     let running = false;
     let lastFrame = 0;
     let acc = 0;
+    // The previous flight state, kept only so script.js can DIFF consecutive
+    // states into events. flight.js never learns that audio exists - the
+    // pure-rules / DOM split is asserted by tests.js.
+    let prev = null;
     let tier = reduceMotion ? 1 : 2;
     let fps = { n: 0, sum: 0, low: 0, high: 0 };
 
@@ -241,32 +246,46 @@
     let W = 0, H = 0, dpr = 1;
 
     /*
-     * The camera used to sit at the glider's exact altitude, which pinned the
-     * sprite to one pixel forever: burning the ENTIRE altitude budget moved the
-     * horizon 70 px, and the two control states differed by 0.6 px/sec. The
-     * elevation scale is about 0.4*H px per radian, so at D=600 a hundred
-     * metres of climb is ~45 px - the signal was always there and the code
-     * threw it away.
+     * The camera is a DEADZONE box, not a follower.
      *
-     * Two slow followers fix it. The altitude one lags by seconds, so a climb
-     * lifts the glider visibly up the frame and releasing drops it back. The
-     * standoff one is deliberately slower still: within a single climb the
-     * framing is effectively frozen, so nothing cancels the movement.
+     * Two earlier versions both failed the same way. Sitting at the glider's
+     * exact altitude pinned the sprite to one pixel forever. Replacing that
+     * with an exponential follower was no better in practice: against a steady
+     * climb an exponential converges to a CONSTANT offset, so it is a rate
+     * meter, not a position display. Measured, a typical 1.6 m/s climb parked
+     * the glider 7.9 px off centre and held it there - the sprite moved 0.8 px
+     * in the quarter second the nose swung its entire 32 degrees of pitch.
+     *
+     * A deadzone does not saturate. camH does not move at all until the glider
+     * leaves the box, so a climb spends its whole first 30 seconds visibly
+     * rising - measured at 13-93 px, median ~50, against the follower's 15.
+     * Geometry says the glider needs 372 m at D=700 to reach the top edge, so
+     * nothing can fly out of frame.
      */
-    const CAM = { ALT_HALF: 4.0, D_HALF: 9.0, LEAD: 120 };
-    let camH = null, camD = 700, phase = 0;
+    const CAM = { BOX: 120, CATCH: 0.7, D_HALF: 9.0 };
+    // Sim seconds of flight the energy trace remembers.
+    const TRAIL_SPAN = 26;
+    let camH = null, camD = 700;
 
     function targetD() {
-        // No longer shrinks as you descend - that cancelled the one channel
-        // that showed height.
-        const agl = Math.max(0, flight.h - T.terrain(world.seed, flight.x));
-        return clamp(500 + 0.55 * agl, 550, 1800);
+        // Deliberately does NOT grow with altitude. It used to add 0.55 m of
+        // standoff per metre climbed, which quietly ate 17% of the one channel
+        // that showed height - the same class of bug twice over.
+        return 700;
     }
 
     function easeCam(dtSec) {
         if (camH === null) { camH = flight.h; camD = targetD(); return; }
-        camH = flight.h + (camH - flight.h) * Math.pow(0.5, dtSec / CAM.ALT_HALF);
-        camH = clamp(camH, flight.h - CAM.LEAD, flight.h + CAM.LEAD);
+        // Pixels the glider currently sits off the rest line, at this standoff.
+        const px = Math.atan2(flight.h - camH, camD) * (H / (2 * Sky.EL_PER_NDC));
+        if (Math.abs(px) > CAM.BOX) {
+            // Outside the box: ease the camera just enough to put the glider
+            // back ON the edge, never past it, so it keeps moving with you.
+            const edge = camD * Math.tan((px > 0 ? CAM.BOX : -CAM.BOX) /
+                (H / (2 * Sky.EL_PER_NDC)));
+            const want = flight.h - edge;
+            camH = want + (camH - want) * Math.pow(0.5, dtSec / CAM.CATCH);
+        }
         camD = targetD() + (camD - targetD()) * Math.pow(0.5, dtSec / CAM.D_HALF);
     }
 
@@ -291,12 +310,6 @@
             y: HORIZON_FRAC * H - el * (H / (2 * Sky.EL_PER_NDC))
         };
     }
-
-    // Renderer only. The simulation is one-dimensional and stays that way -
-    // simulate(), every autopilot and the tuning harness depend on it. These
-    // offsets never feed back into physics and ring collection never uses them.
-    function lat() { return FLY.TURN_RADIUS * Math.sin(phase) * flight.bank; }
-    function dep() { return FLY.TURN_RADIUS * (1 - Math.cos(phase)) * flight.bank; }
 
     function draw() {
         if (!W) fitStage();
@@ -429,9 +442,10 @@
                 const rx = T.ringX(th, rs[r], cond.windAlong);
                 const cpt = project(rx, alt, D);
                 if (cpt.x < -80 || cpt.x > W + 80) continue;
-                const halfW = (T.RING.R / D) * (H / (2 * Sky.AZ_PER_NDC));
+                const rr = T.ringRadius(th);
+                const halfW = (rr / D) * (H / (2 * Sky.AZ_PER_NDC));
                 const halfH = Math.max(1.2,
-                    Math.abs(project(rx, alt, D - T.RING.R).y - project(rx, alt, D + T.RING.R).y) / 2);
+                    Math.abs(project(rx, alt, D - rr).y - project(rx, alt, D + rr).y) / 2);
                 const got = (flight.taken[th.id] || 0) & (1 << r);
                 if (got) {
                     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
@@ -462,52 +476,106 @@
             }
         }
 
-        // trail
+        /*
+         * The trail, as an ENERGY TRACE.
+         *
+         * It used to be one constant-alpha cyan polyline over the whole 15 km
+         * flight, which during a glide rose 4.5 px over its nearest 500 m - a
+         * two-degree slope, i.e. a horizontal rule - while 78% of its points
+         * were crushed by atan2 into a 64 px smear at the left edge. It said
+         * nothing, and it was the thing on screen Kyle could not identify.
+         *
+         * Now it is short, it fades, and it is coloured by the air it flew
+         * through: green where the air was lifting, red where it was sinking.
+         * That is the one thing the player cannot otherwise see, and it is a
+         * map of where to come back to.
+         */
         if (!reduceMotion && trace.length > 1) {
-            ctx.strokeStyle = 'rgba(0,234,255,0.35)';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            for (let i = 0; i < trace.length; i++) {
-                const tp = trace[i];
-                const tl = FLY.TURN_RADIUS * Math.sin(tp.ph || 0);
-                const p = project(tp.x + tl, tp.h, D);
-                if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+            ctx.lineCap = 'round';
+            for (let i = 1; i < trace.length; i++) {
+                const a = trace[i - 1], b = trace[i];
+                const age = (flight.t - b.t) / TRAIL_SPAN;
+                if (age > 1) continue;
+                const fade = (1 - age) * 0.55;
+                const lift = clamp(b.wa / 2, -1, 1);
+                const col = lift > 0
+                    ? '109,255,74'      // --lm, rising
+                    : (lift < -0.25 ? '255,59,87' : '159,182,200');
+                ctx.strokeStyle = 'rgba(' + col + ',' + (fade * (0.4 + 0.6 * Math.abs(lift))).toFixed(3) + ')';
+                ctx.lineWidth = 1 + 2.2 * clamp((b.v - 20) / 35, 0, 1);
+                const pa = project(a.x, a.h, D), pb = project(b.x, b.h, D);
+                ctx.beginPath();
+                ctx.moveTo(pa.x, pa.y);
+                ctx.lineTo(pb.x, pb.y);
+                ctx.stroke();
             }
-            ctx.stroke();
+            ctx.lineCap = 'butt';
         }
 
-        // The glider is projected like everything else now, so it rises and
-        // falls in frame as it climbs and sinks.
-        const gp = project(flight.x + lat(), flight.h, camD + dep());
-        const gspeed = FLY.V_CRUISE * (1 - flight.bank) + cond.windAlong;
+        // The glider is projected like everything else, so it rises and falls in
+        // frame as it climbs and sinks.
+        const gp = project(flight.x, flight.h, camD);
+        const gspeed = Math.max(8, flight.v + cond.windAlong);
         // canvas +rotate is clockwise, which is nose-DOWN for a sprite pointing
         // +x, and gamma is negative when sinking - so the rotation is -gamma.
-        // The old code used airspeed error and had both quantity and sign wrong,
-        // pitching the nose UP in a dive.
-        const gamma = Math.atan2(flight.w, Math.max(4, gspeed));
-        const pitch = clamp(-gamma * 2.5, -0.45, 0.45);
+        const gamma = Math.atan2(flight.w, gspeed);
+        const pitch = clamp(-gamma * 1.6, -0.5, 0.5);
 
         ctx.save();
         ctx.translate(gp.x, gp.y);
         ctx.rotate(pitch);
         if (flight.w > 0.2) {
             ctx.shadowColor = '#6dff4a';
-            ctx.shadowBlur = Math.min(26, 8 + flight.w * 5);
+            ctx.shadowBlur = Math.min(26, 8 + flight.w * 4);
+        } else if (flight.stalled) {
+            ctx.shadowColor = '#ff3b57';
+            ctx.shadowBlur = 22;
         }
-        const lit = flight.w > 0.2 ? '#d8ffcc' : '#ffffff';
-        // A banked wing rather than a rotated dart: the tips foreshorten to
-        // edge-on twice a circle and tip with the bank, which reads as turning
-        // without any new art.
-        const S = 14, ct = Math.cos(phase), st = Math.sin(phase);
-        const b = FLY.BANK_ANGLE * flight.bank;
+        const lit = flight.stalled ? '#ff8fa0' : (flight.w > 0.2 ? '#d8ffcc' : '#ffffff');
+        // A straight wing seen from the side. The airspeed is shown by the
+        // streaks off the tips rather than by the shape, so the silhouette
+        // stays readable at 40 m AGL against terrain.
+        const S = 15;
+        // A dark outline under the whole silhouette. Without it the glider
+        // vanishes against the terrain exactly when it matters most - at 40 m
+        // AGL, which is where the game is meant to be played.
+        ctx.strokeStyle = 'rgba(2,8,16,0.9)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(-S, 0);
+        ctx.lineTo(S * 0.6, 0);
+        ctx.stroke();
         ctx.strokeStyle = lit;
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(-S * ct, S * st * Math.sin(b));
-        ctx.lineTo(S * ct, -S * st * Math.sin(b));
+        ctx.moveTo(-S, 0);
+        ctx.lineTo(S * 0.6, 0);
         ctx.stroke();
+        ctx.fillStyle = 'rgba(2,8,16,0.9)';
+        ctx.fillRect(-5, -3.5, 16, 7);
         ctx.fillStyle = lit;
-        ctx.fillRect(-3, -1.5, 12, 3);
+        ctx.fillRect(-3, -2, 12, 4);
+        // A tail fin, so the nose direction is unambiguous when it pitches.
+        // Drawn as a triangle off the tail rather than a bar above it, which
+        // read as a hook hanging in mid-air.
+        ctx.beginPath();
+        ctx.moveTo(-S + 1, 0);
+        ctx.lineTo(-S + 1, -6);
+        ctx.lineTo(-S + 6, 0);
+        ctx.closePath();
+        ctx.fill();
+        // Speed streaks: nothing at min sink, a hard rake at 55.
+        const fast = clamp((flight.v - 30) / 25, 0, 1);
+        if (fast > 0.02 && !reduceMotion) {
+            ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 * fast).toFixed(2) + ')';
+            ctx.lineWidth = 1;
+            for (let i = -1; i <= 1; i += 2) {
+                ctx.beginPath();
+                ctx.moveTo(-S - 2, i * 4);
+                ctx.lineTo(-S - 2 - 26 * fast, i * 4);
+                ctx.stroke();
+            }
+        }
         ctx.shadowBlur = 0;
         ctx.restore();
 
@@ -530,6 +598,9 @@
         // glider at -17.98 m/s while the tape showed -1.21.
         const w = flight.w || 0;
         const air = flight.wAir || 0;
+        // Skipped on a phone: at 360 px the tape lands on top of the gauge
+        // block, and the VARIO gauge is already showing the same number.
+        if (W < 520) return;
         const x = W - 30, top = H * 0.28, bot = H * 0.72, mid = (top + bot) / 2;
 
         ctx.fillStyle = 'rgba(4,10,20,0.55)';
@@ -547,7 +618,7 @@
         ctx.fillRect(x - 7, w >= 0 ? mid - h : mid, 14, h);
 
         // The air's own climb, as a hairline. The gap between the two IS the
-        // cost of circling, drawn.
+        // cost of flying slow, drawn.
         const af = clamp(air / 5, -1, 1);
         ctx.strokeStyle = 'rgba(160,255,140,0.85)';
         ctx.lineWidth = 1.5;
@@ -586,14 +657,15 @@
                 flight = T.step(world, flight, FLY.DT);
                 acc -= stepMs;
             }
-            // By PATH, not by ground covered. While circling x advances only at
-            // the wind speed - zero in calm air - so a distance test recorded
-            // nothing at all and the loops never appeared.
+            // Sampled by PATH, and kept only for TRAIL_SPAN seconds of flight.
+            // The old 900-point buffer held the whole 15 km flight, of which
+            // 78% ended up in a 64 px smear against the left edge.
             const last = trace[trace.length - 1];
-            if (!last || Math.hypot(flight.x - last.x, flight.h - last.h) > 22 ||
-                flight.t - last.t > 1.5) {
-                trace.push({ x: flight.x, h: flight.h, t: flight.t, ph: phase });
-                if (trace.length > 900) trace.shift();
+            if (!last || Math.hypot(flight.x - last.x, flight.h - last.h) > 18 ||
+                flight.t - last.t > 0.6) {
+                trace.push({ x: flight.x, h: flight.h, t: flight.t,
+                             wa: flight.wAir, v: flight.v });
+                while (trace.length && flight.t - trace[0].t > TRAIL_SPAN) trace.shift();
             }
             if (!flight.alive) finish();
         }
@@ -601,11 +673,11 @@
         // dtSec, not dtMs: sky.render eases with pow(0.0016, dt), and
         // milliseconds underflow that to zero so every parameter snaps and the
         // easing silently dies.
-        phase += FLY.TURN_RATE * flight.bank * dtSec * FLY.TIME_SCALE;
         easeCam(dtSec);
         if (skyOk) sky.render(now, dtSec);
         draw();
         paintGauges();
+        emitEvents(dtSec);
         sampleFps(dtSec);
         window.requestAnimationFrame(frame);
     }
@@ -648,11 +720,20 @@
         scored = mode === 'preflight';
         mode = 'flying';
         byId('card').hidden = true;
-        say('Released. HOLD to circle and climb — let go to glide on.');
+        // The Launch button is the guaranteed first user gesture of every
+        // session - the card is shown at boot and nothing flies before it is
+        // clicked - which is exactly what a browser requires before audio.
+        if (saved.settings.sound) Audio.setEnabled(true);
+        Audio.event('launch');
+        prev = null;
+        say('HOLD to pull up and climb — let go to dive and go fast.');
     }
 
     function finish() {
         const score = T.scoreFlight(flight);
+        // Read the old best BEFORE recordDaily bumps it, or every flight is a
+        // personal best.
+        const wasBest = scored && score.distance > saved.best;
         if (scored) {
             saved = T.recordDaily(saved, day, {
                 dist: score.distance, glide: Math.round(score.glide * 10),
@@ -664,6 +745,7 @@
             writeState();
         }
         mode = scored ? 'done' : 'free';
+        if (wasBest) Audio.event('pb');
         showResult(score, scored);
     }
 
@@ -696,8 +778,10 @@
         // the point, not that the mouse does something.
         byId('card-line').textContent = conditions;
         byId('card-teach').textContent =
-            'HOLD to circle and climb inside the green columns — fly the rings. ' +
-            'Let go to glide on. Leave when the climb slows.';
+            'HOLD to pull up: you trade speed for height and climb. ' +
+            'LET GO to dive: you trade height for speed. ' +
+            'Green air lifts, red air sinks — be slow in the green and fast through the red. ' +
+            'Hold too long and you stall.';
         byId('card-teach').hidden = false;
         byId('launch').textContent = 'Launch';
         card.hidden = false;
@@ -722,7 +806,34 @@
         byId('free').hidden = false;
         byId('launch').hidden = true;
         byId('card').hidden = false;
+        Audio.event('land');
+        Audio.quiet();
         say('Down after ' + T.formatDistance(score.distance) + '.');
+    }
+
+    /**
+     * Turn consecutive flight states into sound.
+     *
+     * Every event is a DIFF computed here, never something step() returns:
+     * flight.js has no notion of audio, of the DOM, or of wall-clock time, and
+     * a test asserts it stays that way.
+     */
+    function emitEvents(dtSec) {
+        if (!flight || !Audio) return;
+        Audio.update({
+            v: flight.v, w: flight.w,
+            agl: flight.h - T.terrain(world.seed, flight.x),
+            stalled: flight.stalled
+        }, dtSec);
+        if (prev) {
+            if (flight.rings > prev.rings) Audio.event('ring', flight.chain - 1);
+            if (flight.chain > prev.chain && (flight.chain === 3 || flight.chain === 5 ||
+                flight.chain === 8)) Audio.event('chain');
+            // A hard pull-up: the move the whole control scheme exists for.
+            if (flight.v < prev.v - 4 * dtSec * FLY.TIME_SCALE && prev.v > 38 &&
+                flight.v <= 38) Audio.event('pullup');
+        }
+        prev = flight;
     }
 
     // ------------------------------------------------------------------
@@ -744,7 +855,18 @@
 
     function paintGauges() {
         byId('g-dist').textContent = T.formatDistance(flight.x);
-        byId('g-alt').textContent = Math.round(flight.h - T.terrain(world.seed, flight.x)) + ' m';
+        const agl = flight.h - T.terrain(world.seed, flight.x);
+        const alt = byId('g-alt');
+        alt.textContent = Math.round(agl) + ' m';
+        // Under 60 m the ground is the thing about to end the flight, so the
+        // altimeter stops being a statistic and starts being a warning.
+        alt.style.color = agl < 60 ? 'var(--rd)' : (agl < 120 ? 'var(--am)' : '');
+        const spd = byId('g-spd');
+        spd.textContent = Math.round(flight.v) + '';
+        spd.style.color = flight.v < FLY.V_STALL ? 'var(--rd)'
+            : (flight.v < FLY.V_STALL + 3 ? 'var(--am)' : '');
+        byId('g-spd-sub').textContent = flight.v < FLY.V_STALL ? 'STALL'
+            : (flight.v < FLY.V_STALL + 3 ? 'slow' : 'm/s');
         const w = flight.w || 0;
         byId('g-vario').textContent = (w >= 0 ? '+' : '') + w.toFixed(1);
         const mult = Math.min(T.RING.MAX_MULT, 1 + 0.25 * Math.max(0, flight.chain - 1));
@@ -791,6 +913,28 @@
     });
 
     byId('launch').addEventListener('click', launch);
+
+    // Sound. The toggle is itself a valid gesture, so a player who turns it on
+    // from the pre-flight card gets audio immediately rather than on the next
+    // click. Persisted through the settings field that has existed in the
+    // storage schema, unread, since the first version.
+    const soundBtn = byId('sound');
+    function paintSound() {
+        const on = !!saved.settings.sound;
+        soundBtn.textContent = (on ? '🔊' : '🔇') + ' SOUND';
+        soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    if (!Audio || !Audio.available()) {
+        soundBtn.hidden = true;
+    } else {
+        soundBtn.addEventListener('click', function () {
+            const want = !saved.settings.sound;
+            saved.settings.sound = want ? Audio.setEnabled(true) : (Audio.setEnabled(false), false);
+            writeState();
+            paintSound();
+        });
+    }
+    paintSound();
     byId('free').addEventListener('click', function () {
         mode = 'free';
         scored = false;

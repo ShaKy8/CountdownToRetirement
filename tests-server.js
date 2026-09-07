@@ -862,6 +862,7 @@ async function runThermalTests() {
             const assets = [
                 ['/thermal/flight.js', 'text/javascript'],
                 ['/thermal/script.js', 'text/javascript'],
+                ['/thermal/audio.js', 'text/javascript'],
                 ['/thermal/sky.js', 'text/javascript'],
                 ['/thermal/astro.js', 'text/javascript'],
                 ['/thermal/styles.css', 'text/css'],
