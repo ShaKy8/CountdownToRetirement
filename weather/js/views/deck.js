@@ -10,7 +10,7 @@ import { store } from '../state.js';
 import { meteogram } from '../plots.js';
 import {
   SERIES, STATUS, INK, DIM, FAINT, mount, gauge, windRose, spark, bars,
-  alpha, tempColor, capBar, tag, mixHex, moonDisc,
+  alpha, tempColor, capBar, tag, mixHex, moonDisc, fitLabel,
 } from '../charts.js';
 import {
   fmt as F, wx, wxGlyph, compass, dur, clamp, aqiCategory, uvCategory,
@@ -127,7 +127,10 @@ export function createDeck(root) {
     ctx.font = "500 8px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     for (let i = 0; i < rows.length; i += 6) {
-      ctx.fillText(store.fmt.hour(rows[i].t).replace(/\s/g, ''), (i / (rows.length - 1)) * w, h);
+      // The first and last are centred on x = 0 and x = w, so half of each
+      // was off the canvas: "11AM" rendered as "PM" at both ends.
+      fitLabel(ctx, store.fmt.hour(rows[i].t).replace(/\s/g, ''),
+        (i / (rows.length - 1)) * w, h, 0, w);
     }
     ctx.restore();
     if (pts?.length) {

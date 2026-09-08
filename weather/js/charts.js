@@ -240,12 +240,20 @@ export function gridY(ctx, box, ticks, fmt = String, { color = GHOST, label = tr
   ctx.strokeStyle = color; ctx.lineWidth = 1;
   ctx.font = MONO_SM; ctx.fillStyle = FAINT;
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  let lastY = -1e9;
   for (const { v, y } of ticks) {
     ctx.beginPath();
     ctx.moveTo(box.x, Math.round(y) + 0.5);
     ctx.lineTo(box.x + box.w, Math.round(y) + 0.5);
     ctx.stroke();
-    if (label) ctx.fillText(fmt(v), box.x + box.w - 2, y - 5);
+    if (!label) continue;
+    // The top line's number sits above the box by default, which is the row
+    // the panel's title and legend live in. Put that one inside instead.
+    const ly = y - box.y < 9 ? y + 6 : y - 5;
+    // MONO_SM is 9px, so anything closer than this is two numbers touching.
+    if (Math.abs(ly - lastY) < 11) continue;
+    ctx.fillText(fmt(v), box.x + box.w - 2, ly);
+    lastY = ly;
   }
   ctx.restore();
 }
@@ -404,6 +412,83 @@ export function marker(ctx, x, box, color, label, { dash = null, flagTop = true 
 /* ------------------------------------------------------------- nice ticks */
 
 /** Human-friendly axis steps (1/2/5 x 10^n) covering [lo, hi]. */
+/* ----------------------------------------------------- fitting to the box */
+
+/*
+ * Density decided from measured pixels rather than from a constant.
+ *
+ * The console was built for one 27-inch screen, so every axis, legend and
+ * label took its density from a number typed at the call site: three y-ticks
+ * on a panel 40px tall, a legend drawn beside a title with neither knowing
+ * how wide the other was, hour labels centred on x = 0. Measured at 390x844
+ * that came to ten overlapping label pairs and five labels running off the
+ * canvas — and three of those were wrong on the desktop too.
+ *
+ * Each of these is a CEILING and never a floor: given desktop room they
+ * return exactly what the call site asked for, so the wide layout is
+ * unchanged and this cannot make any chart denser than it already was.
+ */
+
+/** Gridlines a box this tall can carry. Never more than `want`. */
+export function fitTicks(h, want = 4) {
+  return clamp(Math.floor(h / 26), 1, want);
+}
+
+/**
+ * Draw every nth of `count` items spread across `span` px, so two neighbours
+ * keep `gap` px of clear air between them. Never finer than `least`.
+ */
+export function fitStride(count, span, widest, { gap = 8, least = 1 } = {}) {
+  if (count < 2 || span <= 0) return least;
+  const per = span / (count - 1);
+  return Math.max(least, Math.ceil((widest + gap) / Math.max(per, 0.5)));
+}
+
+/**
+ * A centre-aligned label kept inside [x0, x1]: nudged in when it would hang
+ * over an edge, skipped when it cannot fit at all. Returns whether it drew.
+ * The caller sets textAlign 'center' — this is the axis-label case, where a
+ * label centred on the first or last point is half off the canvas.
+ */
+export function fitLabel(ctx, text, x, y, x0, x1) {
+  const w = ctx.measureText(text).width;
+  if (w > x1 - x0) return false;
+  ctx.fillText(text, clamp(x, x0 + w / 2, x1 - w / 2), y);
+  return true;
+}
+
+/**
+ * A panel's title and its legend share one row: title left, legend right.
+ * They are drawn together because neither can otherwise see how much room
+ * the other left — at 390px "FORECAST VS CLIMATE RECORD °F" and its legend
+ * overlapped by 53px. Too narrow for both and the title falls back to
+ * `short`; still too narrow and the legend goes, because the title is the
+ * part you cannot recover by looking at the picture.
+ */
+export function tagRow(ctx, box, y, text, items = [], { short = null } = {}) {
+  const span = (spacing, str) => {
+    ctx.save();
+    ctx.font = UI_LBL; ctx.letterSpacing = spacing;
+    const w = ctx.measureText(String(str).toUpperCase()).width;
+    ctx.restore();
+    return w;
+  };
+  const rowW = (t, list) =>
+    span('1.4px', t) + list.reduce((n, it) => n + span('1.2px', it.label) + 16, 0) + 14;
+  const brief = items.map((it) => (it.short ? { ...it, label: it.short } : it));
+  /*
+   * What to give up, in order: nothing, then the long legend words, then the
+   * long title, then the legend itself. The title survives longest because
+   * it is the one thing you cannot recover by looking at the picture — and
+   * with the readouts now tappable, the legend is recoverable.
+   */
+  const [title, list] = [
+    [text, items], [text, brief], [short ?? text, brief], [short ?? text, []],
+  ].find(([t, l]) => rowW(t, l) <= box.w) ?? [short ?? text, []];
+  tag(ctx, box.x + 2, y, title);
+  if (list.length) legend(ctx, box.x + box.w, y + 5, list, { align: 'right' });
+}
+
 export function niceTicks(lo, hi, count = 4) {
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo === hi) return [lo || 0];
   const span = hi - lo;
@@ -492,10 +577,20 @@ export function gauge(ctx, cx, cy, r, {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = INK;
   ctx.font = `700 ${Math.round(r * 0.62)}px 'JetBrains Mono', monospace`;
-  ctx.fillText(value == null ? '--' : value.toFixed(decimals), cx, cy + r * 0.18);
+  const text = value == null ? '--' : value.toFixed(decimals);
+  const vy = cy + r * 0.18;
+  const vDrop = ctx.measureText(text).actualBoundingBoxDescent;
+  ctx.fillText(text, cx, vy);
   if (unit) {
     ctx.font = MONO_SM; ctx.fillStyle = DIM;
-    ctx.fillText(unit, cx, cy + r * 0.46);
+    /*
+     * Under the value's ink rather than at a fixed fraction of the radius.
+     * Both are sized from r, but the unit is not: MONO_SM is 9px whatever r
+     * is, so below about r = 26 -- the six gauges on a phone -- the two ran
+     * into each other. Measured at 390px: all six overlapped.
+     */
+    const rise = ctx.measureText(unit).actualBoundingBoxAscent;
+    ctx.fillText(unit, cx, Math.max(cy + r * 0.46, vy + vDrop + rise + 3));
   }
   if (label) {
     ctx.font = UI_LBL; ctx.fillStyle = FAINT;
@@ -616,9 +711,15 @@ export function windRose(ctx, cx, cy, r, { dir, speed, gust, color = SERIES[0] }
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = INK;
   ctx.font = `700 ${Math.round(r * 0.44)}px 'JetBrains Mono', monospace`;
-  ctx.fillText(speed == null ? '--' : String(Math.round(speed)), cx, cy + r * 0.06);
+  const spd = speed == null ? '--' : String(Math.round(speed));
+  const sy = cy + r * 0.06;
+  const sDrop = ctx.measureText(spd).actualBoundingBoxDescent;
+  ctx.fillText(spd, cx, sy);
   ctx.font = MONO_SM; ctx.fillStyle = DIM;
-  ctx.fillText('mph', cx, cy + r * 0.30);
+  // As in gauge(): the unit is a fixed 9px while the number scales with r,
+  // so a small rose ran the two together.
+  ctx.fillText('mph', cx, Math.max(cy + r * 0.30,
+    sy + sDrop + ctx.measureText('mph').actualBoundingBoxAscent + 3));
   if (gust != null && gust > (speed ?? 0) + 1) {
     ctx.font = MONO_SM; ctx.fillStyle = STATUS.serious;
     ctx.fillText(`G${Math.round(gust)}`, cx, cy - r * 0.26);

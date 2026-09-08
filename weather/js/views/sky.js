@@ -11,7 +11,7 @@ import { store } from '../state.js';
 import { api } from '../api.js';
 import {
   SERIES, STATUS, INK, DIM, FAINT, mount, skyDome, moonDisc, spark,
-  alpha, capBar, tag, gauge,
+  alpha, capBar, tag, gauge, fitLabel,
 } from '../charts.js';
 import { kpChart } from '../plots.js';
 import { neonLine } from '../charts.js';
@@ -157,7 +157,8 @@ export function createSkyView(root) {
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     for (let hh = 0; hh <= 24; hh += 6) {
       if (hh === 24) continue;
-      ctx.fillText(String(hh).padStart(2, '0'), xOf((hh / 24) * (moon.length - 1)), h - pad.b + 1);
+      fitLabel(ctx, String(hh).padStart(2, '0'),
+        xOf((hh / 24) * (moon.length - 1)), h - pad.b + 1, 0, w);
     }
     ctx.restore();
     tag(ctx, box.x + 2, 1, 'altitude — sun solid, moon dashed');
@@ -201,7 +202,7 @@ export function createSkyView(root) {
     for (let hh = 0; hh <= 24; hh += 3) {
       const x = (hh / 24) * w;
       ctx.beginPath(); ctx.moveTo(x, barY + barH); ctx.lineTo(x, barY + barH + 3); ctx.stroke();
-      if (hh % 6 === 0 && hh < 24) ctx.fillText(String(hh).padStart(2, '0'), x, barY + barH + 5);
+      if (hh % 6 === 0 && hh < 24) fitLabel(ctx, String(hh).padStart(2, '0'), x, barY + barH + 5, 0, w);
     }
     ctx.restore();
 

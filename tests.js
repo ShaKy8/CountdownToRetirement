@@ -3194,6 +3194,80 @@ describe('WEATHER CONSOLE - tap to inspect', () => {
     });
 });
 
+describe('WEATHER CONSOLE - charts fitted to their box', () => {
+    const fs = require('fs');
+    const dir = path.join(__dirname, 'weather', 'js');
+    const charts = fs.readFileSync(path.join(dir, 'charts.js'), 'utf8');
+    const plots = fs.readFileSync(path.join(dir, 'plots.js'), 'utf8');
+    const views = ['deck', 'sky', 'air', 'data']
+        .map(v => fs.readFileSync(path.join(dir, 'views', v + '.js'), 'utf8')).join('\n');
+
+    /*
+     * Every axis, legend and label used to decide its density from a number
+     * typed at the call site. Measured with scripts/label-audit.mjs at
+     * 390x844: ten overlapping label pairs and five labels running off the
+     * canvas; at 1440x900, three and five. Both are zero now.
+     */
+    test('Should size the helpers as ceilings, never floors', () => {
+        // This is what keeps the desktop console exactly as it was: given
+        // room they return what the call site asked for.
+        assert.ok(/export function fitTicks\(h, want = 4\)[\s\S]{0,120}clamp\(Math\.floor\(h \/ \d+\), 1, want\)/.test(charts),
+            'fitTicks should be capped at the requested count');
+        assert.ok(/export function fitStride\([\s\S]{0,400}Math\.max\(least,/.test(charts),
+            'fitStride should never go finer than the caller asked');
+    });
+
+    test('Should never centre an axis label half off the canvas', () => {
+        // "11AM" rendered as "PM" at both ends of the deck sparkline, and
+        // "00" hung off the left of two sky charts and the UV chart.
+        assert.ok(/export function fitLabel\(ctx, text, x, y, x0, x1\)/.test(charts),
+            'charts.js should expose fitLabel');
+        const uses = (views.match(/fitLabel\(/g) || []).length;
+        assert.ok(uses >= 4, `expected the four edge-clipped axes to use it, saw ${uses}`);
+    });
+
+    test('Should let a title and its legend see each other', () => {
+        // Drawn separately they could not: at 390px "FORECAST VS CLIMATE
+        // RECORD °F" and its legend overlapped by 53px.
+        assert.ok(/export function tagRow\(/.test(charts), 'charts.js should expose tagRow');
+        assert.ok(/\[text, items\], \[text, brief\]/.test(charts),
+            'tagRow should try the long legend words before shortening the title');
+        // Every legend in plots.js goes through it now.
+        assert.ok(!/^\s*legend\(ctx/m.test(plots),
+            'no chart should place a legend without knowing what is beside it');
+        assert.ok((plots.match(/tagRow\(/g) || []).length >= 4,
+            'the four titled-and-legended charts should use tagRow');
+    });
+
+    test('Should not stack two axis numbers on top of each other', () => {
+        // The UV panel's ticks are a hard-coded [3, 6, 8, 11]; on a panel
+        // 40px tall that is four numbers in 40px. gridY thins them itself so
+        // no call site has to remember.
+        assert.ok(/MONO_SM is 9px/.test(charts), 'gridY should say why the gap is what it is');
+        assert.ok(/if \(Math\.abs\(ly - lastY\) < 11\) continue;/.test(charts),
+            'gridY should skip a label that would touch the last one');
+        assert.ok(/y - box\.y < 9 \? y \+ 6 : y - 5/.test(charts),
+            'the top gridline label belongs inside the box, not in the title row');
+    });
+
+    test('Should keep the gauge unit clear of the value', () => {
+        // Both are sized from r, except the unit, which is a fixed 9px. All
+        // six gauges on a phone ran the two together.
+        assert.ok(/actualBoundingBoxDescent/.test(charts),
+            'the unit should be placed under the value\'s measured ink');
+        assert.ok((charts.match(/actualBoundingBoxAscent/g) || []).length >= 2,
+            'gauge() and windRose() both need it');
+    });
+
+    test('Should ship the audit that measured all of it', () => {
+        const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'label-audit.mjs'), 'utf8');
+        assert.ok(/actualBoundingBox/.test(audit),
+            'the audit must measure ink, not guess a height from the font size');
+        assert.ok(/CENSUS/.test(audit),
+            'it must also count labels, so a chart cannot pass by dropping its axis');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

@@ -10,7 +10,7 @@
 import { store } from '../state.js';
 import {
   SERIES, STATUS, INK, DIM, FAINT, mount, gauge, spark, capBar, alpha, tag, mixHex,
-  tooltip,
+  tooltip, fitLabel,
 } from '../charts.js';
 import {
   fmt as F, clamp, aqiCategory, uvCategory, pollenCategory, dewpointComfort, burnTime,
@@ -133,7 +133,8 @@ export function createAir(root) {
     rows.forEach((d, i) => {
       const hod = store.fmt.hourOfDay(d.t);
       if (Math.round(hod) % 4 || Math.abs(hod - Math.round(hod)) > 0.02) return;
-      ctx.fillText(store.fmt.hm(d.t), box.x + (i * box.w) / n + bw / 2, h - pad.b + 3);
+      fitLabel(ctx, store.fmt.hm(d.t),
+        box.x + (i * box.w) / n + bw / 2, h - pad.b + 3, 0, w);
     });
     ctx.restore();
     tag(ctx, box.x + 2, 1, 'uv index today · dashed = clear sky');

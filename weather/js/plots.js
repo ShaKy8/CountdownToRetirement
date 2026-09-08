@@ -9,7 +9,7 @@
 import {
   SERIES, STATUS, INK, DIM, FAINT, GHOST, SURFACE, MONO, MONO_SM, UI_LBL,
   tempColor, alpha, mixHex, neonLine, smoothPath, gridY, capBar, tag, tooltip,
-  legend, nightBands, marker, niceTicks,
+  legend, nightBands, marker, niceTicks, fitTicks, fitStride, fitLabel, tagRow,
 } from './charts.js';
 import { clamp, fmt as F, compass, wx } from './lib/util.js';
 
@@ -88,7 +88,7 @@ export function meteogram(ctx, w, h, hover, opts) {
     const lo = Math.min(...all) - 2, hi = Math.max(...all) + 2;
     const yOf = (v) => b.y + b.h - ((v - lo) / (hi - lo)) * b.h;
 
-    gridY(ctx, b, niceTicks(lo, hi, 3).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
+    gridY(ctx, b, niceTicks(lo, hi, fitTicks(b.h, 3)).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
 
     // Feels-like sits behind, dashed, so the two never read as one series.
     if (feels.length > 1) {
@@ -140,18 +140,21 @@ export function meteogram(ctx, w, h, hover, opts) {
       for (const [p, dy, al] of [[mx, -6, 'bottom'], [mn, 13, 'top']]) {
         const x = xOf(p.t);
         if (x < padL + 12 || x > padL + plotW - 12) continue;
-        ctx.textBaseline = al;
+        // An extreme at the very top or bottom of the panel would put its
+        // label outside it, on the neighbouring panel's title. Flip instead.
+        const ly = yOf(p.temp) + dy;
+        const flip = al === 'top' ? ly + 9 > b.y + b.h : ly - 9 < b.y;
+        ctx.textBaseline = flip ? (al === 'top' ? 'bottom' : 'top') : al;
         ctx.fillStyle = tempColor(p.temp);
-        ctx.fillText(`${Math.round(p.temp)}°`, x, yOf(p.temp) + dy);
+        ctx.fillText(`${Math.round(p.temp)}°`, x, flip ? yOf(p.temp) - dy : ly);
       }
     }
     ctx.restore();
 
-    tag(ctx, b.x + 2, b.y - 11, 'temperature °F');
-    legend(ctx, padL + plotW, b.y - 6, [
+    tagRow(ctx, b, b.y - 11, 'temperature °F', [
       { label: 'actual', color: SERIES[0] },
-      { label: 'feels like', color: SERIES[1], dash: true },
-    ], { align: 'right' });
+      { label: 'feels like', short: 'feels', color: SERIES[1], dash: true },
+    ], { short: 'temp °F' });
     drawn.push({ key: 'temp', box: b, yOf });
   }
 
@@ -203,7 +206,7 @@ export function meteogram(ctx, w, h, hover, opts) {
     const b = boxes.wind;
     const maxW = Math.max(...visible.map((d) => d.gust ?? d.wind ?? 0), 10) * 1.12;
     const yOf = (v) => b.y + b.h - (clamp(v, 0, maxW) / maxW) * b.h;
-    gridY(ctx, b, niceTicks(0, maxW, 2).map((v) => ({ v, y: yOf(v) })), (v) => String(Math.round(v)));
+    gridY(ctx, b, niceTicks(0, maxW, fitTicks(b.h, 2)).map((v) => ({ v, y: yOf(v) })), (v) => String(Math.round(v)));
 
     // Gusts as a filled envelope beneath the sustained-wind line.
     const gp = visible.map((d) => [xOf(d.t), yOf(d.gust ?? d.wind ?? 0)]);
@@ -233,11 +236,10 @@ export function meteogram(ctx, w, h, hover, opts) {
     }
     ctx.restore();
 
-    tag(ctx, b.x + 2, b.y - 11, 'wind mph');
-    legend(ctx, padL + plotW, b.y - 6, [
-      { label: 'sustained', color: SERIES[3] },
+    tagRow(ctx, b, b.y - 11, 'wind mph', [
+      { label: 'sustained', short: 'wind', color: SERIES[3] },
       { label: 'gusts', color: STATUS.serious },
-    ], { align: 'right' });
+    ], { short: 'wind' });
     drawn.push({ key: 'wind', box: b, yOf });
   }
 
@@ -283,7 +285,7 @@ export function meteogram(ctx, w, h, hover, opts) {
     const vals = visible.map((d) => d.pressure).filter((v) => v != null);
     const lo = Math.min(...vals) - 1, hi = Math.max(...vals) + 1;
     const yOf = (v) => b.y + b.h - ((v - lo) / (hi - lo)) * b.h;
-    gridY(ctx, b, niceTicks(lo, hi, 2).map((v) => ({ v, y: yOf(v) })), (v) => (v * 0.02953).toFixed(2));
+    gridY(ctx, b, niceTicks(lo, hi, fitTicks(b.h, 2)).map((v) => ({ v, y: yOf(v) })), (v) => (v * 0.02953).toFixed(2));
     neonLine(ctx, visible.filter((d) => d.pressure != null).map((d) => [xOf(d.t), yOf(d.pressure)]),
       SERIES[3], { width: 1.8, glow: 8 });
     tag(ctx, b.x + 2, b.y - 11, 'pressure inHg');
@@ -313,7 +315,7 @@ export function meteogram(ctx, w, h, hover, opts) {
     const b = boxes.cape;
     const maxC = Math.max(...visible.map((d) => d.cape ?? 0), 500) * 1.1;
     const yOf = (v) => b.y + b.h - (clamp(v, 0, maxC) / maxC) * b.h;
-    gridY(ctx, b, niceTicks(0, maxC, 2).map((v) => ({ v, y: yOf(v) })), (v) => String(Math.round(v)));
+    gridY(ctx, b, niceTicks(0, maxC, fitTicks(b.h, 2)).map((v) => ({ v, y: yOf(v) })), (v) => String(Math.round(v)));
     const pts = visible.map((d) => [xOf(d.t), yOf(d.cape ?? 0)]);
     ctx.save();
     ctx.beginPath(); smoothPath(ctx, pts);
@@ -331,7 +333,17 @@ export function meteogram(ctx, w, h, hover, opts) {
     ctx.font = MONO_SM; ctx.fillStyle = FAINT;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const hoursSpan = (span.hi - span.lo) / 3600e3;
-    const stepH = hoursSpan > 200 ? 24 : hoursSpan > 96 ? 12 : hoursSpan > 40 ? 6 : hoursSpan > 16 ? 3 : 1;
+    /*
+     * The span alone cannot decide this: the same 48 hours are a thousand
+     * pixels on a desktop and 340 on a phone. Start from what the span asks
+     * for and coarsen until neighbours have clear air — never the reverse,
+     * so the wide layout keeps exactly the axis it had.
+     */
+    const bySpan = hoursSpan > 200 ? 24 : hoursSpan > 96 ? 12 : hoursSpan > 40 ? 6 : hoursSpan > 16 ? 3 : 1;
+    const need = ctx.measureText('00:00').width + 8;
+    const perHour = plotW / Math.max(hoursSpan, 1);
+    const stepH = [1, 3, 6, 12, 24, 48]
+      .filter((v) => v >= bySpan).find((v) => v * perHour >= need) ?? 48;
     for (const d of visible) {
       const hod = tf.hourOfDay(d.t);
       if (Math.abs(hod - Math.round(hod)) > 0.01) continue;
@@ -426,7 +438,7 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
   const xOf = (t) => box.x + ((t - rows[0].t) / (rows.at(-1).t - rows[0].t)) * box.w;
   const yOf = (v) => box.y + box.h - ((v - lo) / (hi - lo)) * box.h;
 
-  gridY(ctx, box, niceTicks(lo, hi, 4).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
+  gridY(ctx, box, niceTicks(lo, hi, fitTicks(box.h, 4)).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
 
   // Envelope
   ctx.save();
@@ -449,13 +461,19 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
   ctx.strokeStyle = GHOST; ctx.font = MONO_SM; ctx.fillStyle = FAINT;
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   let lastDay = '';
+  // A rule on every day boundary, but a weekday label only where the last
+  // one left room for it: sixteen days across a phone is 21px per day.
+  const gapD = ctx.measureText('WED').width + 8;
+  let lastLx = -1e9;
   for (const r of rows) {
     const day = tf.isoDate(r.t);
     if (day === lastDay) continue;
     lastDay = day;
     const x = xOf(r.t);
     ctx.beginPath(); ctx.moveTo(x + .5, box.y); ctx.lineTo(x + .5, box.y + box.h); ctx.stroke();
-    if (x > box.x + 12 && x < box.x + box.w - 12) ctx.fillText(tf.weekday(r.t).toUpperCase(), x, h - padB + 5);
+    if (x < box.x + 12 || x > box.x + box.w - 12 || x - lastLx < gapD) continue;
+    ctx.fillText(tf.weekday(r.t).toUpperCase(), x, h - padB + 5);
+    lastLx = x;
   }
   ctx.restore();
 
@@ -463,11 +481,10 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
     marker(ctx, xOf(now), box, alpha(STATUS.good, .9), 'NOW', { dash: [3, 3] });
   }
 
-  tag(ctx, box.x + 2, 3, 'model agreement °F');
-  legend(ctx, box.x + box.w, 8, [
-    { label: 'ensemble mean', color: SERIES[0] },
-    { label: 'model range', color: alpha(SERIES[0], .35) },
-  ], { align: 'right' });
+  tagRow(ctx, box, 3, 'model agreement °F', [
+    { label: 'ensemble mean', short: 'mean', color: SERIES[0] },
+    { label: 'model range', short: 'range', color: alpha(SERIES[0], .35) },
+  ], { short: 'model spread °F' });
 
   if (hover && hover.x > box.x && hover.x < box.x + box.w) {
     const t = rows[0].t + ((hover.x - box.x) / box.w) * (rows.at(-1).t - rows[0].t);
@@ -517,7 +534,7 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
   const xOf = (i) => box.x + colW * (i + 0.5);
   const yOf = (v) => box.y + box.h - ((v - lo) / (hi - lo)) * box.h;
 
-  gridY(ctx, box, niceTicks(lo, hi, 4).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
+  gridY(ctx, box, niceTicks(lo, hi, fitTicks(box.h, 4)).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
 
   // Record envelope: the widest band, faintest ink.
   ctx.save();
@@ -584,19 +601,19 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
   ctx.save();
   ctx.font = MONO_SM; ctx.fillStyle = FAINT;
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  const stepD = n > 12 ? 2 : 1;
+  const stepD = fitStride(n, box.w, ctx.measureText('WED').width,
+    { least: n > 12 ? 2 : 1 });
   rows.forEach((r, i) => {
     if (i % stepD) return;
-    ctx.fillText(tf.weekday(r.t).toUpperCase(), xOf(i), h - padB + 5);
+    fitLabel(ctx, tf.weekday(r.t).toUpperCase(), xOf(i), h - padB + 5, 0, w);
   });
   ctx.restore();
 
-  tag(ctx, box.x + 2, 3, 'forecast vs climate record °F');
-  legend(ctx, box.x + box.w, 8, [
+  tagRow(ctx, box, 3, 'forecast vs climate record °F', [
     { label: 'forecast', color: '#ffb02e' },
     { label: 'normal', color: 'rgba(123,151,173,.7)', dash: true },
-    { label: 'record range', color: 'rgba(255,255,255,.2)' },
-  ], { align: 'right' });
+    { label: 'record range', short: 'record', color: 'rgba(255,255,255,.2)' },
+  ], { short: 'climate record °F' });
 
   if (hover && hover.x > box.x && hover.x < box.x + box.w) {
     const i = clamp(Math.floor((hover.x - box.x) / colW), 0, n - 1);
@@ -650,12 +667,16 @@ export function kpChart(ctx, w, h, hover, { rows, tf, now }) {
   ctx.font = MONO_SM; ctx.fillStyle = FAINT;
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   let last = '';
+  const gapK = ctx.measureText('WED').width + 8;
+  let lastKx = -1e9;
   rows.forEach((r, i) => {
     const d = tf.isoDate(r.t);
     if (d === last) return;
     last = d;
     const x = box.x + (i * box.w) / n + bw / 2;
-    if (x > box.x + 10 && x < box.x + box.w - 10) ctx.fillText(tf.weekday(r.t).toUpperCase(), x, h - padB + 4);
+    if (x < box.x + 10 || x > box.x + box.w - 10 || x - lastKx < gapK) return;
+    ctx.fillText(tf.weekday(r.t).toUpperCase(), x, h - padB + 4);
+    lastKx = x;
   });
   ctx.restore();
 

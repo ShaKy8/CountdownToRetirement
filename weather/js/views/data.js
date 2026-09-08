@@ -11,7 +11,8 @@ import { store } from '../state.js';
 import { meteogram, spreadFan, climateEnvelope } from '../plots.js';
 import {
   SERIES, STATUS, INK, DIM, FAINT, mount, spark, neonLine, smoothPath,
-  alpha, tag, niceTicks, gridY, mixHex, capBar,
+  alpha, tag, niceTicks, gridY, mixHex, capBar, fitTicks, fitStride, fitLabel,
+  UI_LBL,
 } from '../charts.js';
 import { fmt as F, clamp, dayOfYearOf, dur } from '../lib/util.js';
 
@@ -97,7 +98,7 @@ export function createData(root) {
     const xOf = (i) => box.x + (i / (a.length - 1)) * box.w;
     const yOf = (v) => box.y + box.h - ((v - lo) / (hi - lo)) * box.h;
 
-    gridY(ctx, box, niceTicks(lo, hi, 3).map((v) => ({ v, y: yOf(v) })), (v) => `${v.toFixed(1)}°`);
+    gridY(ctx, box, niceTicks(lo, hi, fitTicks(box.h, 3)).map((v) => ({ v, y: yOf(v) })), (v) => `${v.toFixed(1)}°`);
 
     // Bars coloured by departure from the period mean: diverging, warm/cool.
     const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
@@ -128,20 +129,34 @@ export function createData(root) {
     ctx.save();
     ctx.font = "500 8px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    // Every fifth year, or fewer where five years is not five labels wide.
+    const yearStep = 5 * fitStride(Math.ceil(a.length / 5), box.w,
+      ctx.measureText('2020').width);
     a.forEach((d, i) => {
-      if (d.year % 5) return;
-      ctx.fillText(String(d.year), xOf(i), h - pad.b + 4);
+      if (d.year % yearStep) return;
+      fitLabel(ctx, String(d.year), xOf(i), h - pad.b + 4, 0, w);
     });
     ctx.restore();
 
-    tag(ctx, box.x + 2, 3, 'annual mean temperature °F');
     ctx.save();
     ctx.font = "600 9px 'Chakra Petch', sans-serif";
     ctx.letterSpacing = '1.2px';
+    const trend = `TREND ${slope >= 0 ? '+' : '−'}${Math.abs(slope * 10).toFixed(2)}°F / DECADE`;
+    const trendW = ctx.measureText(trend).width;
     ctx.fillStyle = slope >= 0 ? '#ffb02e' : '#8ab6ff';
     ctx.textAlign = 'right'; ctx.textBaseline = 'top';
-    ctx.fillText(`TREND ${slope >= 0 ? '+' : '−'}${Math.abs(slope * 10).toFixed(2)}°F / DECADE`, box.x + box.w, 3);
+    ctx.fillText(trend, box.x + box.w, 3);
     ctx.restore();
+    // The trend is the headline of this chart, so the axis title is what
+    // gives way when the two will not fit on one row.
+    ctx.save();
+    ctx.font = UI_LBL; ctx.letterSpacing = '1.4px';
+    const full = 'annual mean temperature °F', brief = 'annual mean °F';
+    const width = (t) => ctx.measureText(t.toUpperCase()).width;
+    const title = width(full) + trendW + 14 <= box.w ? full
+      : width(brief) + trendW + 14 <= box.w ? brief : null;
+    ctx.restore();
+    if (title) tag(ctx, box.x + 2, 3, title);
 
     if (hover && hover.x > box.x && hover.x < box.x + box.w) {
       const i = clamp(Math.round(((hover.x - box.x) / box.w) * (a.length - 1)), 0, a.length - 1);

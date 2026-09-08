@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (317 tests)
+# Run client-side tests (323 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (317 tests)
+├── tests.js                # Client-side unit tests (323 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -301,6 +301,32 @@ never `../Weather`'s own server. `inject-backlink.py` adds a top-bar child that
 the source does not have, and that one extra element pushed the settings button
 off screen and widened every view by 26px — the source passed while production
 failed.
+
+**Chart density is decided from measured pixels, never from a constant.**
+Every axis, legend and label used to take its density from a number typed at
+the call site — three y-ticks on a panel 40px tall, a legend drawn beside a
+title with neither knowing how wide the other was, hour labels centred on
+x = 0. `node scripts/label-audit.mjs` wraps `fillText` so each label reports
+its own ink box, and counts the pairs that collide: **ten pairs and five
+labels off the canvas at 390px, three and five at 1440px**, now zero at both.
+Run it at *both* widths — a third of those were desktop bugs.
+
+`fitTicks`, `fitStride`, `fitLabel` and `tagRow` in `charts.js` are all
+**ceilings and never floors**: given desktop room they return exactly what the
+call site asked for, so this cannot make any chart denser than it was. Two of
+them are worth knowing about:
+
+- **`gridY` thins its own labels**, so no call site has to. It also draws the
+  top gridline's number *inside* the box — by default it landed above, which
+  is where the panel's title and legend live.
+- **`tagRow` gives things up in a fixed order**: the long legend words, then
+  the long title, then the legend itself. The title survives longest because
+  it is the one thing you cannot recover by looking at the picture — and the
+  legend is now recoverable by tapping.
+
+`CENSUS=1 node scripts/label-audit.mjs` also prints the label count per
+canvas. That is how you tell a fix from a regression: a chart that stopped
+colliding by dropping half its axis is not fixed.
 
 **A finger cannot hover, so the readouts are sticky.** Six charts hold numbers
 that appear nowhere else — model confidence, the record high and the year it was
