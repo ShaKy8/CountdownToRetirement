@@ -349,6 +349,10 @@ nav button[aria-selected="true"] kbd { opacity: .65; }
 }
 .clock small { display: block; font-size: .52rem; color: var(--faint); letter-spacing: .18em; text-align: right; text-shadow: none; }
 
+/* The four bar icons travel together, so a narrow viewport can fold them as a
+   group instead of orphaning one onto a second row. */
+.bar-tools { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+
 .iconbtn {
   background: transparent; border: 1px solid rgba(0,234,255,.16);
   color: var(--dim); cursor: pointer;

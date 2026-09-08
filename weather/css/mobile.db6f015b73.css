@@ -45,6 +45,15 @@
 
   #app {
     grid-template-rows: auto 1fr auto;
+    /*
+     * An implicit grid column is `auto`, which sizes to max-content — so an
+     * overflowing top bar silently widened the ENTIRE shell and every view
+     * with it. The deployed copy has one more top-bar child than the source
+     * (scripts/inject-backlink.py adds a back link), which is exactly how that
+     * went unnoticed locally. The shell can never be wider than the viewport.
+     */
+    grid-template-columns: minmax(0, 100%);
+    max-width: 100vw;
     /* Reserve the bottom tab bar, which is fixed and out of flow. */
     padding-bottom: calc(var(--navh) + env(safe-area-inset-bottom));
   }
@@ -52,9 +61,14 @@
   /* --- top bar ---------------------------------------------- */
 
   #topbar {
-    gap: 8px;
-    padding: 0 10px;
-    padding-top: env(safe-area-inset-top);
+    /* Wrap rather than overflow. How many children this bar has is not fully
+       under this file's control, so it must fold gracefully. */
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 5px;
+    padding: 5px 10px;
+    padding-top: calc(env(safe-area-inset-top) + 5px);
+    height: auto;
     min-height: var(--bar);
   }
 
@@ -66,7 +80,14 @@
   /* The scrubber readout below shows the time far more legibly. */
   .clock { display: none; }
 
-  .loc { flex: 1 1 auto; min-width: 0; min-height: var(--tap); }
+  .loc { flex: 1 1 90px; min-width: 0; min-height: var(--tap); overflow: hidden; }
+  .bar-tools { gap: 5px; flex: 0 0 auto; }
+  /* The bar is tight enough that a long place name has to truncate; do it
+     with an ellipsis rather than a hard cut mid-word. */
+  .loc .name, .loc .sub {
+    display: block; max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .loc .name { font-size: .82rem; }
   .loc .sub { font-size: .62rem; }
 

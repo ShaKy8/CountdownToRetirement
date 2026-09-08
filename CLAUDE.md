@@ -283,6 +283,37 @@ Developed in the sibling repo `../Weather`; `scripts/sync-weather.sh` copies its
 `weather/` is generated output. Change the console in `../Weather`, re-run the
 sync, commit the result.
 
+**The stylesheets are content-hashed by the sync** (`core.<hash>.css`), so a CSS
+change is a new URL and is cached for a year. The JS cannot be — 21 ES modules
+importing each other by relative specifier with no bundler — so it ships with
+`max-age=60, stale-while-revalidate`. That combination is what stops a deploy
+serving new HTML against hour-old CSS and JS.
+
+### It has a phone layout, and it is easy to break
+
+`css/mobile.css` is a second form factor behind one `max-width: 700px` query;
+the desktop console is untouched. Run `node scripts/mobile-audit.mjs` before
+changing any console layout — it loads all five views at 390x844 and checks for
+overflow, unreachable controls, sub-44px targets and sub-12px text.
+
+**Audit the DEPLOYED copy** (`localhost:8000/weather/` via `dev-server.mjs`),
+never `../Weather`'s own server. `inject-backlink.py` adds a top-bar child that
+the source does not have, and that one extra element pushed the settings button
+off screen and widened every view by 26px — the source passed while production
+failed.
+
+Three things there are load-bearing and non-obvious:
+
+1. **The phone views are flex columns, not reflowed grids.** An `auto` grid
+   track sizes from the item's intrinsic contribution, and these panels are
+   nested flex columns whose contribution resolved to 61px against content
+   needing 418 — they overflowed their own tracks and drew on top of each other.
+2. **`#app` sets `grid-template-columns: minmax(0, 100%)`.** An implicit column
+   is `auto`, so an overflowing top bar silently widened the entire shell.
+3. **`viewport-fit=cover` requires `env(safe-area-inset-*)`.** Without it the
+   top bar sits under the status bar and the scrubber under the home indicator,
+   which is exactly where its drag gesture lives.
+
 ### API — `lambda/index.mjs`
 
 Derived from `../Weather/server.mjs`, so the twelve route bodies are the same
