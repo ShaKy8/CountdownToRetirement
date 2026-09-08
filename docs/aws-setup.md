@@ -241,7 +241,7 @@ else on CloudFront. Run it with credentials that can update the distribution.
 
 This used to serve an invalid certificate from a second CloudFront distribution
 carrying a stale copy of the site. As of 2026-09-07 `https://www.branyontech.com/`
-serves a valid certificate and the current site, including `/thermal/`, so
+serves a valid certificate and the current site, so
 whatever it points at is reading the live bucket.
 
 Worth knowing before enabling HSTS `includeSubDomains`: that would cover `www`
