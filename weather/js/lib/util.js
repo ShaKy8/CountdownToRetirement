@@ -239,18 +239,40 @@ export function makeTimeFmt(tz) {
   const md = o({ month: 'short', day: 'numeric' });
   const full = o({ weekday: 'long', month: 'long', day: 'numeric' });
   const hms = o({ hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  const safe = (f) => (d) => (d == null || Number.isNaN(+new Date(d)) ? '--' : f.format(new Date(d)));
+  /*
+   * Intl.DateTimeFormat.format() THROWS on an Invalid Date rather than
+   * returning a placeholder, so every one of these has to be guarded. The
+   * hm/hour/weekday family always was; isoDate and hourOfDay were not, and a
+   * single unparseable upstream timestamp reaching either of them threw during
+   * boot and killed the entire console with FATAL rather than blanking one
+   * readout. A bad value should cost you a cell, never the page.
+   */
+  const at = (d) => {
+    if (d == null) return null;
+    const x = new Date(d);
+    return Number.isNaN(+x) ? null : x;
+  };
+  const safe = (f) => (d) => { const x = at(d); return x ? f.format(x) : '--'; };
+  const isoCA = new Intl.DateTimeFormat('en-CA', { timeZone: tz });
+  const hodFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
+  });
   return {
     hm: safe(hm), hm12: safe(hm12), hour: safe(hr), weekday: safe(wd),
     monthDay: safe(md), full: safe(full), hms: safe(hms),
-    /** Local calendar date string (YYYY-MM-DD) in the target timezone. */
-    isoDate: (d) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(d)),
-    /** Fractional hour-of-day, 0..24, in the target timezone. */
+    /**
+     * Local calendar date string (YYYY-MM-DD) in the target timezone, or '--'.
+     * Callers compare the result for equality, so a placeholder simply fails to
+     * match and the record is skipped - which is the right thing to do with a
+     * timestamp nobody can read.
+     */
+    isoDate: (d) => { const x = at(d); return x ? isoCA.format(x) : '--'; },
+    /** Fractional hour-of-day, 0..24, in the target timezone; NaN if unreadable. */
     hourOfDay: (d) => {
-      const p = new Intl.DateTimeFormat('en-US', {
-        timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
-      }).formatToParts(new Date(d));
-      const g = (t) => +p.find((x) => x.type === t)?.value;
+      const x = at(d);
+      if (!x) return NaN;
+      const p = hodFmt.formatToParts(x);
+      const g = (t) => +p.find((y) => y.type === t)?.value;
       return (g('hour') % 24) + g('minute') / 60;
     },
   };
@@ -258,7 +280,9 @@ export function makeTimeFmt(tz) {
 
 /** Day-of-year using the same calendar-aligned buckets the server uses. */
 export function dayOfYearOf(date, tz) {
-  const s = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(date));
+  const at = new Date(date);
+  if (Number.isNaN(+at)) return NaN;      // format() would throw, not return
+  const s = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(at);
   const [, m, d] = s.split('-').map(Number);
   const cum = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];
   return cum[m - 1] + d - 1;

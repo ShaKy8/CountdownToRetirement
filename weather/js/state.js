@@ -19,8 +19,21 @@ const LS = 'atmos.v1';
 /**
  * Open-Meteo returns local wall-clock strings when timezone=auto. Combine
  * them with the reported UTC offset to get a real instant.
+ *
+ * The hourly and 15-minute blocks carry a time ("2026-09-06T00:00"), but the
+ * DAILY block is date-only ("2026-09-06"). Appending "Z" to that builds
+ * "2026-09-06Z", and the ECMAScript date-time grammar permits a timezone offset
+ * ONLY when a time is present — so that string is not a date-time string at
+ * all. V8 parses it anyway through its legacy fallback, which is why it worked
+ * on every desktop and Android browser it was tested in. JavaScriptCore does
+ * not, so on iOS every daily timestamp became an Invalid Date and the first
+ * Intl.DateTimeFormat.format() call threw "date value is not finite", taking
+ * the whole console down at boot with FATAL.
  */
-const epochFrom = (offsetSec) => (s) => Date.parse(s + 'Z') - offsetSec * 1000;
+const utcIso = (s) => (typeof s === 'string' && s
+  ? `${s.includes('T') ? s : `${s}T00:00:00`}Z`
+  : '');
+const epochFrom = (offsetSec) => (s) => Date.parse(utcIso(s)) - offsetSec * 1000;
 
 /** Zip Open-Meteo's parallel arrays into records, renaming to short keys. */
 function zip(block, offsetSec, map) {
@@ -293,8 +306,8 @@ class Store {
 
       this.days = zip(f.daily, off, DAILY_MAP).map((d) => ({
         ...d,
-        sunrise: d.sunriseS ? Date.parse(d.sunriseS + 'Z') - off * 1000 : null,
-        sunset: d.sunsetS ? Date.parse(d.sunsetS + 'Z') - off * 1000 : null,
+        sunrise: d.sunriseS ? Date.parse(utcIso(d.sunriseS)) - off * 1000 : null,
+        sunset: d.sunsetS ? Date.parse(utcIso(d.sunsetS)) - off * 1000 : null,
       }));
       /*
        * Open-Meteo's `current` block is deliberately NOT used. It is the

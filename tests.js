@@ -2846,6 +2846,99 @@ describe('SLINGSHOT - Page structure', () => {
     });
 });
 
+// =============================================================================
+// WEATHER CONSOLE - timestamp parsing
+//
+// weather/ is generated output (scripts/sync-weather.sh); the fix for anything
+// here belongs in ../Weather. These tests guard the SYNCED result, because that
+// is what ships, and they exist because of a bug that was invisible on every
+// machine it was developed on.
+// =============================================================================
+
+describe('WEATHER CONSOLE - Safari-safe timestamps', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'state.js'), 'utf8');
+
+    /*
+     * The ECMAScript date-time grammar permits a timezone offset ONLY when a
+     * time is present. Open-Meteo's hourly block carries one ("2026-09-06T00:00")
+     * but its DAILY block is date-only ("2026-09-06"), so appending "Z" built
+     * "2026-09-06Z" — not a date-time string at all.
+     *
+     * V8 parses it anyway through its legacy fallback, which is why it worked on
+     * every desktop and Android browser. JavaScriptCore returns NaN, so on iOS
+     * every daily timestamp became an Invalid Date and the first
+     * Intl.DateTimeFormat.format() call threw "date value is not finite",
+     * killing the whole console at boot with FATAL.
+     */
+    const ES_DATETIME =
+        /^[+-]?\d{4,6}(-\d{2}(-\d{2})?)?(T\d{2}:\d{2}(:\d{2}(\.\d{3})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+
+    test('Should know which strings the spec actually defines', () => {
+        assert.ok(!ES_DATETIME.test('2026-09-06Z'),
+            'A timezone on a date-only string is not a date-time string');
+        assert.ok(ES_DATETIME.test('2026-09-06'), 'Date-only alone is valid');
+        assert.ok(ES_DATETIME.test('2026-09-06T00:00Z'), 'Date + time + zone is valid');
+        assert.ok(ES_DATETIME.test('2026-09-06T00:00:00Z'));
+    });
+
+    // Pull the shipped helper out of the synced file and run it, so this tests
+    // the code that actually deploys rather than a copy of it.
+    const m = src.match(/const utcIso = ([\s\S]*?);\n/);
+    const utcIso = m ? new Function('return ' + m[1])() : null;
+
+    test('Should normalise every real Open-Meteo shape to a valid string', () => {
+        assert.ok(utcIso, 'weather/js/state.js should define utcIso');
+        // The four shapes the live API actually returns, checked against the
+        // bundle on the day this was written.
+        [
+            ['2026-09-06', 'daily.time — the one that broke iOS'],
+            ['2026-09-06T00:00', 'hourly.time and minutely_15.time'],
+            ['2026-09-06T06:30', 'daily.sunrise'],
+            ['2026-09-08T09:00', 'current.time']
+        ].forEach(([input, what]) => {
+            const out = utcIso(input);
+            assert.ok(ES_DATETIME.test(out),
+                `${what}: utcIso(${JSON.stringify(input)}) produced ${JSON.stringify(out)}, ` +
+                'which Safari will reject');
+            assert.ok(!Number.isNaN(Date.parse(out)), `${what}: should parse`);
+        });
+    });
+
+    test('Should place a date-only day at midnight, not shift it', () => {
+        assert.strictEqual(Date.parse(utcIso('2026-09-06')),
+            Date.parse('2026-09-06T00:00:00Z'),
+            'A date-only day must still land on midnight of that day');
+    });
+
+    test('Should degrade a junk timestamp rather than throw', () => {
+        [null, undefined, '', 'not a date', 42].forEach(bad => {
+            assert.doesNotThrow(() => utcIso(bad), `utcIso(${JSON.stringify(bad)}) threw`);
+        });
+    });
+
+    test('Should not append a bare Z to a possibly date-only value anywhere', () => {
+        // The exact shape of the original bug, so it cannot come back by hand.
+        assert.ok(!/Date\.parse\(\s*[A-Za-z0-9_.]+\s*\+\s*'Z'\s*\)/.test(src),
+            "state.js still builds a timestamp with `+ 'Z'`; route it through utcIso");
+    });
+
+    /*
+     * Intl.DateTimeFormat.format() THROWS on an Invalid Date rather than
+     * returning a placeholder, so a single unreadable timestamp reaching an
+     * unguarded formatter takes down the entire page. It did.
+     */
+    test('Should guard every formatter that can reach Intl', () => {
+        const util = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'lib', 'util.js'), 'utf8');
+        assert.ok(/isoDate:\s*\(d\)\s*=>\s*\{[\s\S]{0,120}return x \?/.test(util),
+            'isoDate must return a placeholder for an unreadable date, not throw');
+        assert.ok(/hourOfDay:[\s\S]{0,200}if \(!x\) return NaN/.test(util),
+            'hourOfDay must return NaN for an unreadable date, not throw');
+        assert.ok(/dayOfYearOf[\s\S]{0,220}Number\.isNaN\(\+at\)/.test(util),
+            'dayOfYearOf must check before calling format()');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
