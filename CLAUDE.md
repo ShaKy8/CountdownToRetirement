@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (323 tests)
+# Run client-side tests (329 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (323 tests)
+├── tests.js                # Client-side unit tests (329 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -347,6 +347,33 @@ Two traps in that mechanism:
   the gesture with `pointercancel`, which is where the readout is dropped. The
   scrubber is the exception: it runs its own drag, so it passes
   `mount(..., { inspect: false })` and keeps `touch-action: none`.
+
+**The radar map pinches, and the map owns the gesture.** `map.js` tracks
+pointers by id — the first version kept one `drag` and ignored `pointerId`, so
+a second finger overwrote the first and its movement was then measured from
+wherever that second finger landed. One pointer pans, two pinch, and both are
+the same operation: `_placeAt` holds one geographic point under the midpoint
+of whatever is down. `node scripts/pinch-audit.mjs` is the gate.
+
+- **The anchor is recomputed whenever the pointer count changes**, on down and
+  on up. Without that, lifting one finger out of a pinch jumps the map.
+- **Safari's `gesturestart`/`gesturechange` must be prevented.**
+  `touch-action: none` stops the page scrolling but not those, and the
+  viewport meta allows scaling, so a pinch would zoom the whole document.
+- **The radar layer declares `maxTileZoom: 7`.** RainViewer's public tiles
+  stop there and return the same 1370-byte "Zoom Level Not Supported"
+  placeholder above it, worldwide — which pinch reaches in one gesture, and
+  which then tiled itself across the map in letters a hundred pixels tall.
+  The renderer scales the deepest tiles up instead.
+- **CDP cannot release one of two fingers** — `Input.dispatchTouchEvent`'s
+  `touchEnd` takes no touch points and ends the whole sequence — so the two
+  gates that cover the 2→1 transition dispatch `PointerEvent`s directly. And
+  the tile-cap gate spies on `layer.url` rather than on the network: tiles are
+  cached for the whole session, so a broken cap would simply make no requests
+  and a network check would pass.
+
+`window.ATMOS.views` exists so that gate can reach the map; there is no DOM
+readout of where the map is.
 
 Three things there are load-bearing and non-obvious:
 

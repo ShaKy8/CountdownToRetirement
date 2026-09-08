@@ -3268,6 +3268,84 @@ describe('WEATHER CONSOLE - charts fitted to their box', () => {
     });
 });
 
+describe('WEATHER CONSOLE - pinch zoom on the radar', () => {
+    const fs = require('fs');
+    const dir = path.join(__dirname, 'weather', 'js');
+    const map = fs.readFileSync(path.join(dir, 'map.js'), 'utf8');
+    const radar = fs.readFileSync(path.join(dir, 'views', 'radar.js'), 'utf8');
+    const main = fs.readFileSync(path.join(dir, 'main.js'), 'utf8');
+
+    /*
+     * The map panned on touch from the first version but could not be
+     * zoomed by it at all: it kept ONE `drag` and ignored pointerId, so a
+     * second finger overwrote the first and its movement was then measured
+     * from wherever that second finger had landed.
+     */
+    test('Should track touch pointers by id', () => {
+        assert.ok(/const live = new Map\(\)/.test(map),
+            'pointers should be kept per id, not as a single drag');
+        assert.ok(/live\.set\(e\.pointerId/.test(map) && /live\.delete\(e\.pointerId\)/.test(map),
+            'both ends of a pointer should be keyed by its id');
+        assert.ok(/if \(live\.size >= 2\) return;/.test(map),
+            'a third finger should be ignored rather than confuse the pinch');
+    });
+
+    test('Should zoom by the ratio of the two fingers', () => {
+        // Doubling the gap is one zoom level, which is what log2 says.
+        assert.ok(/Math\.log2\(m\.span \/ gesture\.span\)/.test(map),
+            'the zoom delta should be log2 of the span ratio');
+        assert.ok(/gesture\.span > 20/.test(map),
+            'two fingers closer than this are mostly noise');
+    });
+
+    test('Should hold one geographic point under the hand', () => {
+        // Pan and pinch are the same operation, which is why there is one
+        // function for both and the anchor never jumps between them.
+        assert.ok(/_placeAt\(lat, lon, sx, sy\)/.test(map), 'map.js should expose _placeAt');
+        assert.ok(/_placeAt\(gesture\.lat, gesture\.lon, m\.x, m\.y\)/.test(map),
+            'every move should re-place the anchor under the midpoint');
+        const anchorCalls = (map.match(/^\s*anchor\(\);$/gm) || []).length;
+        assert.ok(anchorCalls >= 2,
+            'the anchor must be recomputed on pointerdown AND pointerup, or '
+            + 'lifting one finger out of a pinch jumps the map');
+    });
+
+    test('Should refuse Safari own pinch gesture', () => {
+        // touch-action stops the page scrolling but not these, and the
+        // viewport meta allows scaling, so a pinch would zoom the document.
+        assert.ok(/'gesturestart', 'gesturechange', 'gestureend'/.test(map),
+            'the map should preventDefault the WebKit gesture events');
+        assert.ok(/touchAction = 'none'/.test(map), 'the map surface owns its gestures');
+    });
+
+    test('Should not zoom the radar past the tiles that exist', () => {
+        /*
+         * Measured against the live cache: RainViewer's public radar serves
+         * real tiles to z 7 and the same 1370-byte "Zoom Level Not
+         * Supported" placeholder at every zoom above it, worldwide. Pinch
+         * reaches z 8 in one gesture, and that placeholder then tiled itself
+         * across the map in letters a hundred pixels tall.
+         */
+        assert.ok(/maxTileZoom: 7/.test(radar), 'the radar layer should declare its deepest tile');
+        assert.ok(/Math\.min\(zi, layer\.maxTileZoom \?\? zi\)/.test(map),
+            'the renderer should scale a capped layer up rather than skip it');
+        assert.ok(/layer\.url\(lz, wx, ty\)/.test(map),
+            'tiles must be requested at the capped zoom, not the map zoom');
+    });
+
+    test('Should let a gesture test reach the map', () => {
+        // There is no DOM readout of where the map is; a gesture test has to
+        // be able to ask it.
+        assert.ok(/window\.ATMOS = \{[^}]*views[^}]*\}/.test(main),
+            'main.js should expose the view registry');
+        assert.ok(/^\s*map,\s*\/\//m.test(radar), 'the radar view should hand out its map');
+        const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'pinch-audit.mjs'), 'utf8');
+        assert.ok(/const seen=\[\]; const orig=l\.url;/.test(audit),
+            'the tile-cap gate must spy on the layer, not the network: tiles are '
+            + 'cached for the session, so a broken cap would make no requests at all');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

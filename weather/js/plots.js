@@ -132,6 +132,10 @@ export function meteogram(ctx, w, h, hover, opts) {
     // Direct labels on the day's extremes rather than a number on every point.
     ctx.save();
     ctx.font = MONO_SM; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    // gridY writes its numbers in a column at the right edge. A direct label
+    // reaching into it prints one temperature on top of another, which is
+    // exactly as confusing as it sounds.
+    const axisW = ctx.measureText('100°').width + 6;
     for (const d of days || []) {
       const seg = visible.filter((x) => tf.isoDate(x.t) === tf.isoDate(d.t) && x.temp != null);
       if (seg.length < 3) continue;
@@ -139,7 +143,8 @@ export function meteogram(ctx, w, h, hover, opts) {
       const mn = seg.reduce((a, c) => (c.temp < a.temp ? c : a));
       for (const [p, dy, al] of [[mx, -6, 'bottom'], [mn, 13, 'top']]) {
         const x = xOf(p.t);
-        if (x < padL + 12 || x > padL + plotW - 12) continue;
+        const lw = ctx.measureText(`${Math.round(p.temp)}°`).width;
+        if (x - lw / 2 < padL + 4 || x + lw / 2 > padL + plotW - axisW) continue;
         // An extreme at the very top or bottom of the panel would put its
         // label outside it, on the neighbouring panel's title. Flip instead.
         const ly = yOf(p.temp) + dy;
@@ -186,12 +191,14 @@ export function meteogram(ctx, w, h, hover, opts) {
     ctx.font = MONO_SM; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillStyle = SERIES[0];
     let lastX = -999;
+    const popAxisW = ctx.measureText('100%').width + 6;
     for (let i = 1; i < visible.length - 1; i++) {
       const d = visible[i];
       if ((d.precip ?? 0) < 0.02) continue;
       if ((d.precip ?? 0) <= (visible[i - 1].precip ?? 0) || (d.precip ?? 0) < (visible[i + 1].precip ?? 0)) continue;
       const x = xOf(d.t);
-      if (x - lastX < 46 || x < padL + 14 || x > padL + plotW - 14) continue;
+      const lw = ctx.measureText(`${d.precip.toFixed(2)}"`).width;
+      if (x - lastX < 46 || x - lw / 2 < padL + 4 || x + lw / 2 > padL + plotW - popAxisW) continue;
       ctx.fillText(`${d.precip.toFixed(2)}"`, x, yOf(d.pop ?? 0) - 4);
       lastX = x;
     }

@@ -91,6 +91,14 @@ export function createRadar(root) {
         return `${host}${f.path}/256/${z}/${x}/${y}/4/1_1.png`;
       },
       opacity: 0.82, blend: 'screen',
+      /*
+       * Measured against the live tile cache: RainViewer's public radar
+       * serves real tiles to z 7 and the same 1370-byte "Zoom Level Not
+       * Supported" placeholder at every zoom above it, everywhere in the
+       * world. The map upscales z 7 instead — which is honest, since the
+       * data behind it is a 1km grid either way.
+       */
+      maxTileZoom: 7,
     },
     {
       name: 'labels',
@@ -313,6 +321,7 @@ export function createRadar(root) {
   loadFrames();
 
   return {
+    map,                     // the pan/pinch surface, reachable from ATMOS.views
     update() { renderSide(); map.invalidate(); },
     onShow() { map.resize(); strip.render(); },
   };

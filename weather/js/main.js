@@ -589,4 +589,7 @@ start().catch((err) => {
 });
 
 // Expose for console debugging; harmless and very useful while iterating.
-window.ATMOS = { store, sky, perf, setView };
+// `views` is also how scripts/pinch-audit.mjs reaches the radar map: there is
+// no DOM readout of where the map is, and a gesture test has to be able to
+// ask.
+window.ATMOS = { store, sky, perf, setView, views };

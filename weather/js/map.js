@@ -55,7 +55,8 @@ function loadTile(url, onReady) {
 
 export class SlippyMap {
   /**
-   * @param layers array of {url(z,x,y)->string|null, opacity, filter, blend, enabled}
+   * @param layers array of
+   *   {url(z,x,y)->string|null, opacity, filter, blend, enabled, maxTileZoom}
    */
   constructor(canvas, { center = [0, 0], zoom = 7, minZoom = 2, maxZoom = 12, onMove } = {}) {
     this.canvas = canvas;
@@ -117,30 +118,93 @@ export class SlippyMap {
     ];
   }
 
+  /**
+   * Move the centre so that (lat, lon) lands on the canvas point (sx, sy).
+   *
+   * This is the whole of panning and pinching: hold one geographic point
+   * under one screen point, whatever the zoom did in between.
+   */
+  _placeAt(lat, lon, sx, sy) {
+    const z = this.zoom;
+    this.lon = proj.worldToLon(proj.lonToWorld(lon, z) + this.w / 2 - sx, z);
+    this.lat = Math.max(-85, Math.min(85,
+      proj.worldToLat(proj.latToWorld(lat, z) + this.h / 2 - sy, z)));
+  }
+
+  /** Change zoom while keeping the geography under (sx, sy) where it is. */
+  _zoomAbout(sx, sy, zoom) {
+    const [lat, lon] = this.unproject(sx, sy);
+    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, zoom));
+    this._placeAt(lat, lon, sx, sy);
+  }
+
   _bind() {
     const c = this.canvas;
-    let drag = null;
+
+    /*
+     * Pointers are tracked BY ID. The first version kept a single `drag` and
+     * ignored pointerId, so on a phone a second finger simply overwrote the
+     * first and a pinch read as a wild pan — the map was pannable but not
+     * zoomable by touch at all.
+     *
+     * One pointer pans, two pinch, and both are the same operation: hold the
+     * anchor under the midpoint of whatever is down.
+     */
+    const live = new Map();
+    let gesture = null;
+    let rect = null;
+
+    const local = (e) => ({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    const mid = () => {
+      const ps = [...live.values()];
+      return {
+        n: ps.length,
+        x: ps.reduce((t, p) => t + p.x, 0) / ps.length,
+        y: ps.reduce((t, p) => t + p.y, 0) / ps.length,
+        span: ps.length < 2 ? 0 : Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y),
+      };
+    };
+
+    /*
+     * Re-anchor whenever the number of pointers changes, so lifting one
+     * finger out of a pinch carries on panning from where it is instead of
+     * jumping to wherever the remaining finger happens to be.
+     */
+    const anchor = () => {
+      if (!live.size) { gesture = null; return; }
+      const m = mid();
+      const [lat, lon] = this.unproject(m.x, m.y);
+      gesture = { lat, lon, span: m.span, zoom: this.zoom };
+    };
 
     c.addEventListener('pointerdown', (e) => {
-      drag = { x: e.clientX, y: e.clientY, lat: this.lat, lon: this.lon };
-      c.setPointerCapture(e.pointerId);
+      if (live.size >= 2) return;              // two is all a pinch needs
+      rect = c.getBoundingClientRect();
+      live.set(e.pointerId, local(e));
+      try { c.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+      anchor();
       c.style.cursor = 'grabbing';
     });
+
     c.addEventListener('pointermove', (e) => {
-      if (!drag) return;
-      const z = this.zoom;
-      const wx = proj.lonToWorld(drag.lon, z) - (e.clientX - drag.x);
-      const wy = proj.latToWorld(drag.lat, z) - (e.clientY - drag.y);
-      this.lon = proj.worldToLon(wx, z);
-      this.lat = Math.max(-85, Math.min(85, proj.worldToLat(wy, z)));
+      if (!gesture || !live.has(e.pointerId)) return;
+      live.set(e.pointerId, local(e));
+      const m = mid();
+      // Below 20px apart the ratio of two finger positions is mostly noise.
+      if (m.n > 1 && gesture.span > 20 && m.span > 8) {
+        this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom,
+          gesture.zoom + Math.log2(m.span / gesture.span)));
+      }
+      this._placeAt(gesture.lat, gesture.lon, m.x, m.y);
       this.invalidate();
       this.onMove?.(this);
     });
+
     const end = (e) => {
-      if (!drag) return;
-      drag = null;
-      c.style.cursor = 'grab';
-      try { c.releasePointerCapture(e.pointerId); } catch { /* fine */ }
+      if (!live.delete(e.pointerId)) return;
+      try { c.releasePointerCapture(e.pointerId); } catch { /* already gone */ }
+      anchor();
+      if (!live.size) c.style.cursor = 'grab';
     };
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
@@ -148,18 +212,21 @@ export class SlippyMap {
     c.addEventListener('wheel', (e) => {
       e.preventDefault();
       const r = c.getBoundingClientRect();
-      const mx = e.clientX - r.left, my = e.clientY - r.top;
-      // Zoom about the cursor: keep the geographic point under it fixed.
-      const [blat, blon] = this.unproject(mx, my);
       const dz = -e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0022);
-      this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom + dz));
-      const [alat, alon] = this.unproject(mx, my);
-      this.lon += blon - alon;
-      this.lat += blat - alat;
-      this.lat = Math.max(-85, Math.min(85, this.lat));
+      this._zoomAbout(e.clientX - r.left, e.clientY - r.top, this.zoom + dz);
       this.invalidate();
       this.onMove?.(this);
     }, { passive: false });
+
+    /*
+     * Safari's own pinch gesture. `touch-action: none` stops the page from
+     * scrolling but NOT these, and the page's viewport meta allows scaling,
+     * so without this a pinch on the map zooms the whole document instead.
+     * They do not exist in any other engine, hence no feature test.
+     */
+    for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+      c.addEventListener(type, (e) => e.preventDefault());
+    }
 
     c.style.cursor = 'grab';
     c.style.touchAction = 'none';
@@ -173,23 +240,29 @@ export class SlippyMap {
     ctx.fillRect(0, 0, w, h);
 
     const zi = Math.max(0, Math.min(this.maxZoom, Math.round(this.zoom)));
-    const scale = Math.pow(2, this.zoom - zi);
-    const size = TILE * scale;
-    const n = Math.pow(2, zi);
 
-    // World pixel of the viewport's top-left corner at integer zoom zi.
-    const cx = proj.lonToWorld(this.lon, zi) * scale;
-    const cy = proj.latToWorld(this.lat, zi) * scale;
-    const originX = cx - w / 2;
-    const originY = cy - h / 2;
-
-    const x0 = Math.floor(originX / size), x1 = Math.floor((originX + w) / size);
-    const y0 = Math.floor(originY / size), y1 = Math.floor((originY + h) / size);
+    // World pixel of the viewport's top-left corner, at the fractional zoom.
+    const originX = proj.lonToWorld(this.lon, this.zoom) - w / 2;
+    const originY = proj.latToWorld(this.lat, this.zoom) - h / 2;
 
     const again = () => this.invalidate();
 
     for (const layer of this.layers) {
       if (layer.enabled === false || layer.opacity === 0) continue;
+
+      /*
+       * A layer whose source runs out of zoom levels is drawn from its
+       * deepest tiles, scaled up, rather than not at all. RainViewer's
+       * public radar stops at z 7 and hands back a "Zoom Level Not
+       * Supported" placeholder above it — which used to tile itself across
+       * the map in letters a hundred pixels tall.
+       */
+      const lz = Math.min(zi, layer.maxTileZoom ?? zi);
+      const size = TILE * Math.pow(2, this.zoom - lz);
+      const n = Math.pow(2, lz);
+      const x0 = Math.floor(originX / size), x1 = Math.floor((originX + w) / size);
+      const y0 = Math.floor(originY / size), y1 = Math.floor((originY + h) / size);
+
       ctx.save();
       ctx.globalAlpha = layer.opacity ?? 1;
       if (layer.filter) ctx.filter = layer.filter;
@@ -200,7 +273,7 @@ export class SlippyMap {
         if (ty < 0 || ty >= n) continue;
         for (let tx = x0; tx <= x1; tx++) {
           const wx = ((tx % n) + n) % n;   // wrap east-west
-          const url = layer.url(zi, wx, ty);
+          const url = layer.url(lz, wx, ty);
           if (!url) continue;
           const img = loadTile(url, again);
           if (!img) continue;
