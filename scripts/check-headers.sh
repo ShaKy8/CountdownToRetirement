@@ -69,7 +69,7 @@ fi
 
 echo
 echo "Games keep the strict policy"
-for p in /game/; do
+for p in /game/ /slingshot/; do
   csp=$(hdr "$SITE$p" content-security-policy)
   printf '  %-26s ' "$p"
   if [ -z "$csp" ]; then printf 'no CSP yet\n'

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, five links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, six links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon.
 
 ## Tech Stack
 
@@ -43,6 +43,7 @@ node tests-server.js
 - **URL:** https://branyontech.com
 - **Countdown URL:** https://branyontech.com/countdown/index.html
 - **Game URL:** https://branyontech.com/game/
+- **Slingshot URL:** https://branyontech.com/slingshot/
 
 ```bash
 # Deploy to S3
@@ -63,7 +64,19 @@ aws s3 sync . s3://branyontech.com/ \
   --include "game/styles.css" \
   --include "game/favicon.svg" \
   --include "shared/daily.js" \
-  --include "shared/daily.js"
+  --include "slingshot/index.html" \
+  --include "slingshot/orbit.js" \
+  --include "slingshot/script.js" \
+  --include "slingshot/audio.js" \
+  --include "slingshot/styles.css" \
+  --include "slingshot/favicon.svg" \
+  --include "shared/daily.js" \
+  --include "slingshot/index.html" \
+  --include "slingshot/orbit.js" \
+  --include "slingshot/script.js" \
+  --include "slingshot/audio.js" \
+  --include "slingshot/styles.css" \
+  --include "slingshot/favicon.svg"
 
 # Invalidate CloudFront cache
 aws cloudfront create-invalidation --distribution-id E1MBTRO86GIH7E --paths "/*"
@@ -108,6 +121,14 @@ CountdownToRetirement/
 │   ├── styles.css          # Console palette, borrowed from weather/css/core.css
 │   └── favicon.svg
 ├── shared/daily.js         # Seeding, API sampling, storage - shared by the games
+├── slingshot/              # SLINGSHOT - a daily orbital puzzle
+│   ├── index.html          # One canvas, HUD, result card
+│   ├── orbit.js            # Pure rules: level generation + validation, gravity,
+│   │                       #   flight, par, scoring, share, storage schema
+│   ├── script.js           # Canvas, aiming, ghost trails, localStorage
+│   ├── audio.js            # Web Audio synthesis - NO audio files, see below
+│   ├── styles.css
+│   └── favicon.svg
 ├── tests.js                # Client-side unit tests (248 tests)
 ├── tests-server.js         # Server integration tests (53 tests)
 ├── countdown-retirement.service  # Systemd service file
@@ -173,6 +194,65 @@ CountdownToRetirement/
    `/game/` resolves to `/game/api/bundle`, which CloudFront does not route to the
    Lambda — and it fails *quietly* into synthetic wind, indistinguishable from a
    slow API day. Asserted by a test rather than remembered.
+
+### SLINGSHOT (/slingshot/)
+
+One orbital puzzle a day. Launch a probe from the pad and reach the beacon; the
+direct line is always blocked by a body, so every level has to be flown *around*
+something and gravity is what gets you there. **Score is shots, exactly as ONE
+PUTT scores strokes**, against a par derived from the level.
+
+- **You cannot lose.** Keep firing until you arrive; a bad day is a high score,
+  not a game over.
+- **Predictable aim, unpredictable consequence.** The preview shows only the
+  first fraction of the path. You know exactly where you are pointing; what the
+  planets do about it is the entire product, and previewing the whole trajectory
+  would hand over the answer.
+- **Ghost trails are the teaching mechanism.** Every previous attempt stays on
+  screen, faint, red if it hit a body. That turns the error gradient into
+  something you can see rather than a number you have to interpret.
+- **Failure is nameable** — "into the planet, go wider", "out of the system,
+  closest approach 40". This is the property THERMAL never had.
+- **`?level=N`** loads a specific level as unscored practice, and free play never
+  records; a hand-picked level must never become the day's score.
+
+### The three constants that decide whether it is a game
+
+Every one of these was measured, and each has a failure mode that looks like
+working code:
+
+1. **`MASS_SCALE = 70`.** Deflection of a flyby is `tan(θ/2) = GM/(b·v²)`. At
+   MASS_SCALE 1 that is about one degree, and measured across 30 levels **the
+   median path curved a total of 2°** — the probe flew straight past every planet
+   and the slingshot slung nothing. At 70 the median path curves 41°. Raising it
+   trades drama for chaos: stronger gravity bends more but fewer levels pass
+   `validateLevel`, which only costs generation retries.
+2. **The timescale (`G`, `V_MIN`, `V_MAX`).** Trajectory shape depends only on
+   speed over `sqrt(GM)`, so scaling speeds by *k* and `G` by *k²* leaves paths
+   identical and flies them *k* times faster. An earlier scale put a solved shot
+   at a median 14.5 s with the hard ones at 25–37 s, which is dead time you
+   cannot influence. It is now about 2 s — a ONE PUTT roll.
+3. **`validateLevel`'s smoothness test.** About half of all generated levels have
+   a *flat* error surface: miss by 1° and you land 150 units away, miss by 5° and
+   you land 153 away, so nothing tells you which way to correct. Those are thrown
+   away. Generation retries up to 14 times, at ~19 ms and a median of 2 attempts.
+
+Measured over 40 daily levels: **40/40 playable, median aim window 1.8°** (ONE
+PUTT's ace window is 1.6–1.9°), median flight 2.0 s, median 48 distinct
+solutions per level. `node tests.js` asserts all of it — reverting MASS_SCALE to
+1 fails two tests by name.
+
+### Two things that will silently break it
+
+1. **The rules must stay pure** and the level must stay bit-identical. `fly()`
+   takes a unit vector rather than an angle, and every coordinate snaps to a
+   half-unit grid, because `Math.sin` is not correctly rounded across JS engines
+   while `+ - * /` and `sqrt` are. Two people playing day 251 must fly the same
+   day 251. A test greps `fly()` for transcendentals.
+2. **Sound must be synthesised.** `server.js`'s `allowedExtensions` has no audio
+   MIME type, so any `.mp3` 404s in dev and is silently absent in production. A
+   test walks the whole repo and fails on one. The `AudioContext` is created
+   lazily on the Launch click — the guaranteed first gesture of a session.
 
 ## Security Features
 

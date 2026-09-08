@@ -851,6 +851,67 @@ async function runGameTests() {
 // MAIN TEST EXECUTION
 // =============================================================================
 
+async function runSlingshotTests() {
+    await describe('SERVER TESTS - Subdirectory Routing (Slingshot)', async () => {
+        // All three URL forms, because CloudFront and the dev server resolve
+        // directories differently and only one of them is exercised locally.
+        for (const p of ['/slingshot/index.html', '/slingshot/', '/slingshot']) {
+            await test(`Should serve the game for ${p}`, async () => {
+                const { res, data } = await makeRequest({
+                    hostname: TEST_HOST, port: TEST_PORT, path: p, method: 'GET'
+                });
+                assert.strictEqual(res.statusCode, 200, `Should return 200 for ${p}`);
+                if (data) assert.ok(data.includes('SLINGSHOT'), 'Should serve the game page');
+            });
+        }
+
+        // A file missing from the deploy --include list 404s in production while
+        // everything passes locally, so every asset is named here explicitly.
+        await test('Should serve every slingshot asset with the right content type', async () => {
+            const assets = [
+                ['/slingshot/orbit.js', 'text/javascript'],
+                ['/slingshot/script.js', 'text/javascript'],
+                ['/slingshot/audio.js', 'text/javascript'],
+                ['/slingshot/styles.css', 'text/css'],
+                ['/slingshot/favicon.svg', 'image/svg+xml']
+            ];
+            for (const [p, type] of assets) {
+                const { res } = await makeRequest({
+                    hostname: TEST_HOST, port: TEST_PORT, path: p, method: 'GET'
+                });
+                assert.strictEqual(res.statusCode, 200, `${p} should be served`);
+                assert.strictEqual(res.headers['content-type'], type, `${p} content type`);
+            }
+        });
+
+        await test('Should load the shared module by absolute path', async () => {
+            const { data } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/slingshot/index.html', method: 'GET'
+            });
+            // A relative daily.js would resolve to /slingshot/daily.js and 404,
+            // and the page would throw "Daily is not defined" on load.
+            assert.ok(data.includes('src="/shared/daily.js"'), 'Must be an absolute path');
+        });
+
+        await test('Should keep the strict CSP on the game page', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/slingshot/index.html', method: 'GET'
+            });
+            const csp = res.headers['content-security-policy'] || '';
+            assert.ok(csp.includes("script-src 'self'"), 'Scripts must be same-origin only');
+            assert.ok(!csp.includes('arcgisonline'),
+                'Only /weather/ gets the tile hosts; widening it here is a mistake');
+        });
+
+        await test('Should refuse traversal out of the game directory', async () => {
+            const { res } = await makeRequest({
+                hostname: TEST_HOST, port: TEST_PORT, path: '/slingshot/../../../etc/passwd', method: 'GET'
+            });
+            assert.ok(res.statusCode >= 400, 'Traversal must not be served');
+        });
+    });
+}
+
 async function runAllTests() {
     console.log(`\n${'='.repeat(60)}`);
     console.log(`${colors.blue}Server Integration Test Suite${colors.reset}`);
@@ -874,6 +935,7 @@ async function runAllTests() {
         await runRootPathTests();
         await runSubdirectoryTests();
         await runGameTests();
+        await runSlingshotTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);

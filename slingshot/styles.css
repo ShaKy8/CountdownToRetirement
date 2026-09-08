@@ -1,0 +1,264 @@
+/*
+ * SLINGSHOT.
+ *
+ * One 2D canvas under a pointer-transparent HUD. Palette borrowed from
+ * game/styles.css so the two games read as siblings.
+ */
+
+@font-face {
+    font-family: 'Chakra Petch';
+    src: url('/weather/assets/fonts/chakrapetch-600.woff2') format('woff2');
+    font-weight: 600;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/weather/assets/fonts/jetbrainsmono-400.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+
+:root {
+    --ink: #eaf4ff;
+    --dim: #9fb6c8;
+    --faint: #5b7288;
+    --cy: #00eaff;
+    --am: #ffb02e;
+    --lm: #6dff4a;
+    --rd: #ff3b57;
+    --panel: rgba(4, 10, 20, .78);
+    --edge: rgba(0, 234, 255, .28);
+    --cut: 10px;
+    --ui: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #04070f;
+    color: var(--ink);
+    font-family: var(--ui);
+}
+
+/* An explicit layout size: getBoundingClientRect drives the backing store, and
+   without it the canvas measures zero and renders nothing at all. */
+#stage {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* Without this a drag to aim scrolls the page and the game is unplayable
+       on a phone. */
+    touch-action: none;
+    cursor: crosshair;
+}
+
+#stage:focus-visible { outline: 2px solid var(--cy); outline-offset: -4px; }
+
+.hud {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    pointer-events: none;
+}
+
+.hud button, .hud a { pointer-events: auto; }
+
+.back-link {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    color: var(--dim);
+    text-decoration: none;
+    font-size: .72rem;
+    letter-spacing: .08em;
+    padding: 6px 11px;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+}
+
+.back-link:hover, .back-link:focus { color: var(--cy); }
+
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus {
+    left: 8px; top: 8px; z-index: 200;
+    background: var(--cy); color: #04121d; padding: 10px 16px; font-weight: 600;
+}
+
+.top { text-align: left; }
+
+.title {
+    margin: 0;
+    font-size: 1.25rem;
+    letter-spacing: .3em;
+    color: var(--cy);
+    text-shadow: 0 0 8px rgba(0, 234, 255, .45);
+}
+
+.sub {
+    margin: 3px 0 0;
+    font-family: var(--mono);
+    font-size: .66rem;
+    letter-spacing: .14em;
+    color: var(--dim);
+    text-transform: uppercase;
+}
+
+.dot { color: var(--faint); margin: 0 5px; }
+
+/* The one line that says what you are trying to DO. */
+.goal {
+    margin: 0;
+    padding: 7px 12px;
+    align-self: flex-start;
+    max-width: 560px;
+    background: var(--panel);
+    border-left: 3px solid var(--am);
+    font-size: .8rem;
+    line-height: 1.5;
+}
+
+.goal b { color: var(--am); }
+
+.gauges { display: flex; gap: 8px; max-width: 470px; }
+
+.gauge {
+    flex: 1;
+    padding: 6px 10px;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    clip-path: polygon(0 var(--cut), var(--cut) 0, 100% 0,
+        100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+}
+
+.g-k { display: block; font-size: .55rem; letter-spacing: .2em; color: var(--faint); }
+
+.g-v {
+    display: block;
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.g-sub { display: block; font-size: .52rem; letter-spacing: .12em; color: var(--faint); }
+
+.pow-bar { margin-top: 4px; height: 3px; background: rgba(255, 255, 255, .12); }
+.pow-bar i { display: block; height: 100%; width: 50%; background: var(--am); }
+
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.badge {
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .1em;
+    color: var(--dim);
+    padding: 4px 8px;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+}
+
+.badge-btn { text-transform: none; cursor: pointer; }
+.badge-btn[aria-pressed="true"] { color: var(--lm); border-color: var(--lm); }
+
+.card[hidden] { display: none; }
+
+.card {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    width: min(92vw, 400px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 18px;
+    text-align: center;
+    background: rgba(3, 8, 16, .94);
+    border: 1px solid var(--edge);
+    pointer-events: auto;
+}
+
+.card-title { margin: 0; font-size: 1.2rem; letter-spacing: .1em; color: var(--cy); }
+.card-line { margin: 0; font-family: var(--mono); font-size: .76rem; color: var(--dim); line-height: 1.6; }
+
+.card-share {
+    margin: 4px 0 0;
+    padding: 9px 12px;
+    font-family: var(--mono);
+    font-size: .7rem;
+    line-height: 1.6;
+    background: rgba(0, 0, 0, .45);
+    border: 1px solid var(--edge);
+    white-space: pre;
+    text-align: left;
+}
+
+.card-share[hidden] { display: none; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-top: 4px; }
+.card-next { margin: 2px 0 0; font-family: var(--mono); font-size: .64rem; color: var(--faint); }
+
+button {
+    font-family: var(--ui);
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: rgba(6, 14, 26, .9);
+    border: 1px solid var(--edge);
+    padding: 9px 16px;
+    cursor: pointer;
+}
+
+button[hidden] { display: none; }
+button:hover:not(:disabled) { color: var(--cy); border-color: var(--cy); }
+button.primary { color: #04121d; background: var(--cy); border-color: var(--cy); }
+button.primary:hover { background: #6df3ff; }
+
+.say, .hint {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: .68rem;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .85), 0 0 10px rgba(0, 0, 0, .7);
+}
+
+.say { color: var(--ink); min-height: 1.5em; margin-top: auto; }
+.hint { margin-top: 4px; font-size: .62rem; color: var(--faint); }
+.hint b { color: var(--dim); }
+
+.good { color: var(--lm); }
+.warn { color: var(--am); }
+.bad { color: var(--rd); }
+
+/*
+ * Reduced motion keeps the game, drops the animation: the probe jumps straight
+ * to its destination instead of being flown, and the beacon stops pulsing. The
+ * result and the trail are unchanged, because they ARE the game.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .title { text-shadow: none; }
+    * { transition: none !important; }
+}
+
+@media (max-width: 560px) {
+    .title { font-size: 1.05rem; }
+    .goal { font-size: .74rem; }
+    .gauges { flex-wrap: wrap; gap: 5px; }
+    .gauge { flex: 1 1 30%; padding: 4px 7px; --cut: 7px; }
+    .g-k { font-size: .5rem; letter-spacing: .12em; }
+    .g-v { font-size: .85rem; }
+    .hud { padding: 10px; }
+    .hint { font-size: .58rem; }
+}

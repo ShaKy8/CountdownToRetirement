@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SLINGSHOT - a daily orbital puzzle. Reach the beacon by letting gravity bend your shot.">
+    <title>SLINGSHOT</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <canvas id="stage" role="application" tabindex="0"
+            aria-label="Orbital puzzle. Aim the probe with the left and right arrow keys, set speed with up and down, and press space to launch. Gravity from the planets will bend its path toward the beacon."></canvas>
+
+    <main id="main-content" class="hud">
+        <a href="/" class="back-link" aria-label="Back to BranyonTech.com">&larr; BranyonTech.com</a>
+
+        <header class="top">
+            <h1 class="title">SLINGSHOT</h1>
+            <p class="sub">
+                <span id="puzzle-no">#—</span>
+                <span class="dot" aria-hidden="true">·</span>
+                <span id="mode-label">today's launch</span>
+            </p>
+        </header>
+
+        <p class="goal" id="goal">
+            Reach the <b>beacon</b>. You can't fly straight there &mdash; something's in the way.
+            <b>Let the planets bend your shot.</b>
+        </p>
+
+        <div class="gauges">
+            <div class="gauge"><span class="g-k">SHOTS</span><span class="g-v" id="g-shots">0</span>
+                <span class="g-sub" id="g-par">par —</span></div>
+            <div class="gauge"><span class="g-k">CLOSEST YET</span><span class="g-v" id="g-near">—</span></div>
+            <div class="gauge"><span class="g-k">SPEED</span><span class="g-v" id="g-speed">—</span>
+                <div class="pow-bar" aria-hidden="true"><i id="pow-fill"></i></div></div>
+        </div>
+
+        <div class="badges">
+            <span class="badge" id="b-bodies">🪐 —</span>
+            <span class="badge" id="b-streak">🔥 —</span>
+            <button type="button" class="badge badge-btn" id="sound" aria-pressed="false">🔇 SOUND</button>
+        </div>
+
+        <div class="card" id="card" hidden>
+            <p class="card-title" id="card-title">Ready</p>
+            <p class="card-line" id="card-line"></p>
+            <pre class="card-share" id="card-share" hidden></pre>
+            <div class="card-actions">
+                <button type="button" id="launch" class="primary">Launch</button>
+                <button type="button" id="share" hidden>Copy result</button>
+                <button type="button" id="free" hidden>Free play</button>
+            </div>
+            <p class="card-next">Next launch in <span id="next-in">—</span></p>
+        </div>
+
+        <p class="say" id="say" role="status" aria-live="polite"></p>
+        <p class="hint" id="hint">
+            <b>DRAG</b> from the pad to aim &mdash; further out is faster.
+            <b>&larr; &rarr;</b> nudge, <b>&uarr; &darr;</b> speed, <b>SPACE</b> launch.
+        </p>
+    </main>
+
+    <script src="/shared/daily.js"></script>
+    <script src="orbit.js"></script>
+    <script src="audio.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

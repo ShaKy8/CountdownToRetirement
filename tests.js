@@ -14,6 +14,7 @@ const path = require('path');
 const Calc = require('./countdown/calc.js');
 const Putt = require('./game/putt.js');
 const Daily = require('./shared/daily.js');
+const Sling = require('./slingshot/orbit.js');
 
 // ANSI color codes for pretty output
 const colors = {
@@ -2112,10 +2113,63 @@ describe('BUSINESS SITE - Deploy wiring', () => {
         });
     });
 
+
+    test('Should deploy every slingshot file', () => {
+        assert.ok(/-\s*'slingshot\/\*\*'/.test(deploy),
+            "deploy.yml paths filter needs 'slingshot/**' or pushes deploy nothing");
+        ['slingshot/index.html', 'slingshot/orbit.js', 'slingshot/script.js',
+            'slingshot/audio.js', 'slingshot/styles.css', 'slingshot/favicon.svg']
+            .forEach(f => {
+                assert.ok(deploy.includes("--include '" + f + "'"), `${f} would 404 in production`);
+            });
+    });
+
+    /*
+     * The four lists have to agree, and nothing else catches it.
+     *
+     * A new file under slingshot/ has to be named in index.html (or nothing
+     * loads it), in deploy.yml's --include list (or it 404s in production while
+     * working perfectly on localhost), in tests-server.js (or nothing checks it
+     * is served at all) and in CLAUDE.md (or the next person does not know it
+     * exists). Every one of those failures is invisible until production, which
+     * is why this scans the DIRECTORY rather than a hardcoded list.
+     */
+    test('Should keep the four slingshot asset lists agreeing', () => {
+        const dir = path.join(__dirname, 'slingshot');
+        const onDisk = fs.readdirSync(dir).filter(f => f.endsWith('.js'));
+        const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+        const server = fs.readFileSync(path.join(__dirname, 'tests-server.js'), 'utf8');
+        const claude = fs.readFileSync(path.join(__dirname, 'CLAUDE.md'), 'utf8');
+        assert.ok(onDisk.length >= 3, 'Expected the slingshot scripts to be found');
+        onDisk.forEach(f => {
+            assert.ok(html.includes('src="' + f + '"') || html.includes('/slingshot/' + f),
+                `slingshot/${f} exists but index.html never loads it`);
+            assert.ok(deploy.includes("--include 'slingshot/" + f + "'"),
+                `slingshot/${f} is not in deploy.yml, so it would 404 in production only`);
+            assert.ok(server.includes("'/slingshot/" + f + "'"),
+                `slingshot/${f} is not checked by tests-server.js`);
+            assert.ok(claude.includes(f), `slingshot/${f} is undocumented in CLAUDE.md`);
+        });
+    });
+
+    // Browsers refuse to start audio without a user gesture, and the failure is
+    // silent - the context is created suspended and never plays.
+    test('Should not create an AudioContext before a gesture', () => {
+        const audio = fs.readFileSync(path.join(__dirname, 'slingshot', 'audio.js'), 'utf8');
+        const script = fs.readFileSync(path.join(__dirname, 'slingshot', 'script.js'), 'utf8');
+        assert.ok(/function init\(\)[\s\S]{0,200}if \(ctx\) return/.test(audio),
+            'The context must be created lazily, guarded on already existing');
+        assert.ok(!/^\s*(const|let|var)\s+ctx\s*=\s*new/m.test(audio),
+            'No AudioContext at module scope');
+        assert.ok(/byId\('launch'\)\.addEventListener\('click', start\)/.test(script),
+            'Launch is the guaranteed first gesture of every session');
+        assert.ok(/Audio\.arm\(/.test(script), 'and it is what arms the sound');
+    });
+
     test('Should keep the game HTML on the short cache, not the asset one', () => {
         const htmlStep = deploy.slice(deploy.indexOf('Sync HTML'), deploy.indexOf('Sync assets'));
         const assetStep = deploy.slice(deploy.indexOf('Sync assets'), deploy.indexOf('Sync weather'));
-        ['game/index.html'].forEach(f => {
+        ['game/index.html', 'slingshot/index.html'].forEach(f => {
             assert.ok(htmlStep.includes("--include '" + f + "'"), `${f} belongs in the HTML step`);
             assert.ok(!assetStep.includes("--include '" + f + "'"),
                 `${f} in the asset step would overwrite its 5-minute cache with an hour`);
@@ -2409,6 +2463,389 @@ describe('DAILY SHARED - Extraction equivalence', () => {
         assert.ok(!/function parseState\s*\(/.test(src), 'parseState should come from makeStore');
     });
 });
+// =============================================================================
+// SLINGSHOT
+// =============================================================================
+
+describe('SLINGSHOT - Determinism', () => {
+    const fs = require('fs');
+    test('Should key its own seeds separately from ONE PUTT', () => {
+        for (let d = 1; d < 40; d++) {
+            assert.notStrictEqual(Sling.seedForDay(d), Putt.seedForDay(d),
+                'A shared seed would couple the two games forever');
+        }
+    });
+
+    test('Should build the identical level from the identical seed', () => {
+        for (const d of [1, 17, 250]) {
+            const a = Sling.makeLevel(Sling.seedForDay(d));
+            const b = Sling.makeLevel(Sling.seedForDay(d));
+            assert.deepStrictEqual(
+                { l: a.launch, t: a.target, p: a.planets, par: a.par },
+                { l: b.launch, t: b.target, p: b.planets, par: b.par });
+        }
+    });
+
+    /*
+     * Every level coordinate must be bit-identical on every engine, because two
+     * people playing day 251 have to be playing the SAME day 251. Math.sin and
+     * friends are not correctly rounded across engines; +, *, / and sqrt are.
+     * Snapping to a half-unit grid is the same guarantee ONE PUTT gives its
+     * holes.
+     */
+    test('Should snap every level coordinate to a half-unit grid', () => {
+        for (let d = 1; d < 60; d++) {
+            const lv = Sling.makeLevel(Sling.seedForDay(d));
+            const nums = [lv.launch.x, lv.launch.y, lv.target.x, lv.target.y]
+                .concat(...lv.planets.map(p => [p.x, p.y, p.r, p.m]));
+            nums.forEach(n => assert.strictEqual(n * 2, Math.round(n * 2),
+                `${n} is off the half-unit grid`));
+        }
+    });
+
+    test('Should fly a trajectory built only from correctly rounded arithmetic', () => {
+        const src = fs.readFileSync(path.join(__dirname, 'slingshot', 'orbit.js'), 'utf8');
+        const fnStart = src.indexOf('function fly(');
+        const fnEnd = src.indexOf('\n    }', src.indexOf('return { outcome: \'timeout\''));
+        const body = src.slice(fnStart, fnEnd);
+        ['Math.sin', 'Math.cos', 'Math.tan', 'Math.atan', 'Math.pow', 'Math.exp'].forEach(bad => {
+            assert.ok(!body.includes(bad),
+                `fly() uses ${bad}, which is not bit-identical across JS engines`);
+        });
+    });
+
+    test('Should give the same result whatever the timestep', () => {
+        const lv = Sling.makeLevel(Sling.seedForDay(5));
+        const s = lv.solution;
+        const a = Sling.fly(lv, Math.cos(s.a), Math.sin(s.a), s.v, { dt: 1 / 120 });
+        const b = Sling.fly(lv, Math.cos(s.a), Math.sin(s.a), s.v, { dt: 1 / 240 });
+        assert.strictEqual(a.outcome, b.outcome, 'The outcome must not depend on the timestep');
+        assert.ok(Math.abs(a.t - b.t) < 0.25, `Arrival time drifted: ${a.t} vs ${b.t}`);
+    });
+});
+
+describe('SLINGSHOT - Levels are worth playing', () => {
+    const days = [];
+    for (let d = 1; d <= 30; d++) days.push(Sling.makeLevel(Sling.seedForDay(d)));
+
+    /*
+     * The single most important assertion in this file, and the one the two
+     * previous games could not have passed. A demolition prototype was measured
+     * at 0 good outcomes out of 92 possible cut combinations - it was literally
+     * unwinnable, and nothing in the code said so.
+     */
+    test('Should make every day solvable', () => {
+        days.forEach((lv, i) => {
+            assert.ok(lv.solution, `Day ${i + 1} has no solution at all`);
+            const s = lv.solution;
+            const r = Sling.fly(lv, Math.cos(s.a), Math.sin(s.a), s.v, {});
+            assert.strictEqual(r.outcome, 'hit', `Day ${i + 1}'s own solution does not arrive`);
+        });
+    });
+
+    test('Should block the direct line, or there is no puzzle', () => {
+        // Measured: without this, 14 of 24 levels could simply be shot straight
+        // at the beacon and the gravity was decoration.
+        const blocked = days.filter(lv => lv.blocked).length;
+        assert.ok(blocked >= days.length - 1,
+            `${days.length - blocked} levels can be solved by aiming straight`);
+    });
+
+    /*
+     * A window this size is what makes the game a game. ONE PUTT's ace window is
+     * 1.6-1.9 degrees out of 360 and that is the target being matched here.
+     */
+    test('Should leave an aim window you can actually hit', () => {
+        const wins = days.filter(l => l.solution).map(l => l.solution.win).sort((a, b) => a - b);
+        const median = wins[wins.length >> 1];
+        assert.ok(median >= 1.2, `Median aim window ${median.toFixed(2)}° is too tight to find`);
+        assert.ok(median <= 6, `Median aim window ${median.toFixed(2)}° is so wide it is not a puzzle`);
+        assert.ok(wins[0] >= 0.8, `The hardest level's window is ${wins[0].toFixed(2)}°`);
+    });
+
+    /*
+     * Reject levels you cannot LEARN from. About half of all generated levels
+     * have a flat error surface: miss by 1 degree and you land 150 units away,
+     * miss by 5 and you land 153 away, so the number never tells you which way
+     * to correct. validateLevel exists to throw those away.
+     */
+    test('Should only ship levels whose error surface teaches you something', () => {
+        const smooth = days.filter(l => l.solution && l.solution.smooth).length;
+        assert.ok(smooth >= days.length * 0.9,
+            `Only ${smooth}/${days.length} levels have a learnable error gradient`);
+    });
+
+    test('Should resolve a shot in about the time a putt rolls', () => {
+        const ts = days.filter(l => l.solution).map(l => l.solution.t).sort((a, b) => a - b);
+        const median = ts[ts.length >> 1];
+        assert.ok(median <= 6, `Median flight ${median.toFixed(1)}s is dead time`);
+        assert.ok(median >= 0.5, `Median flight ${median.toFixed(1)}s is over before you see it`);
+    });
+
+    /*
+     * Gravity has to visibly BEND the shot. At an earlier mass scale the median
+     * path curved a total of two degrees - the probe flew straight past every
+     * planet and the slingshot slung nothing.
+     */
+    test('Should actually bend the path around the bodies', () => {
+        const turns = days.filter(l => l.solution).map(lv => {
+            const s = lv.solution;
+            const p = Sling.fly(lv, Math.cos(s.a), Math.sin(s.a), s.v, { path: true }).path;
+            let turn = 0;
+            for (let i = 2; i + 3 < p.length; i += 2) {
+                const ax = p[i] - p[i - 2], ay = p[i + 1] - p[i - 1];
+                const bx = p[i + 2] - p[i], by = p[i + 3] - p[i + 1];
+                const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+                if (la < 1e-9 || lb < 1e-9) continue;
+                turn += Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb))));
+            }
+            return turn * 180 / Math.PI;
+        }).sort((a, b) => a - b);
+        const median = turns[turns.length >> 1];
+        assert.ok(median > 15, `Median path curves only ${median.toFixed(0)}° - that is a straight line`);
+    });
+
+    test('Should never place a body on top of the pad, the beacon or another body', () => {
+        days.forEach((lv, i) => {
+            lv.planets.forEach((p, j) => {
+                assert.ok(Math.hypot(p.x - lv.launch.x, p.y - lv.launch.y) > p.r,
+                    `Day ${i + 1} body ${j} swallows the launch pad`);
+                assert.ok(Math.hypot(p.x - lv.target.x, p.y - lv.target.y) > p.r + lv.target.r,
+                    `Day ${i + 1} body ${j} swallows the beacon`);
+                lv.planets.slice(j + 1).forEach(q => {
+                    assert.ok(Math.hypot(p.x - q.x, p.y - q.y) > p.r + q.r,
+                        `Day ${i + 1} has overlapping bodies`);
+                });
+            });
+        });
+    });
+
+    test('Should vary the day', () => {
+        const bodies = new Set(days.map(l => l.planets.length));
+        const pars = new Set(days.map(l => l.par));
+        assert.ok(bodies.size >= 2, 'Every day has the same number of bodies');
+        assert.ok(pars.size >= 2, 'Every day has the same par');
+    });
+
+    test('Should derive par from how wide the aim window really is', () => {
+        assert.strictEqual(Sling.parFor({ win: 4.0 }), 2, 'A wide window is an easy day');
+        assert.strictEqual(Sling.parFor({ win: 1.5 }), 3);
+        assert.strictEqual(Sling.parFor({ win: 1.2 }), 4, 'A narrow window is a hard day');
+        assert.strictEqual(Sling.parFor(null), 3, 'A level with no solution still needs a par');
+    });
+});
+
+describe('SLINGSHOT - Flight', () => {
+    const lv = Sling.makeLevel(Sling.seedForDay(9));
+
+    test('Should report one of four outcomes and always a closest approach', () => {
+        const seen = new Set();
+        for (let deg = 0; deg < 360; deg += 7) {
+            const a = deg * Math.PI / 180;
+            const r = Sling.fly(lv, Math.cos(a), Math.sin(a), 60, {});
+            assert.ok(['hit', 'crash', 'lost', 'timeout'].includes(r.outcome), r.outcome);
+            assert.ok(isFinite(r.near) || r.outcome === 'hit', 'near must be a real number');
+            assert.ok(isFinite(r.t) && r.t > 0, 't must be a real number');
+            seen.add(r.outcome);
+        }
+        assert.ok(seen.size >= 2, 'Every shot cannot have the same outcome');
+    });
+
+    test('Should stay finite across the whole input space', () => {
+        for (let i = 0; i < 200; i++) {
+            const level = Sling.makeLevel((i * 7919) >>> 0);
+            const a = (i / 200) * Math.PI * 2;
+            const r = Sling.fly(level, Math.cos(a), Math.sin(a),
+                Sling.SIM.V_MIN + (i % 20) * 4, {});
+            ['t', 'x', 'y'].forEach(f => assert.ok(isFinite(r[f]), `${f} went non-finite on case ${i}`));
+        }
+    });
+
+    test('Should not let the softening term swallow the probe', () => {
+        // A 1/r^2 force with no softening returns Infinity at the centre and
+        // NaNs the whole flight. SOFT keeps it finite without making the bodies
+        // pass-through, which the crash test above proves still works.
+        const a = [0, 0];
+        Sling.accel(lv, lv.planets[0].x, lv.planets[0].y, a);
+        assert.ok(isFinite(a[0]) && isFinite(a[1]), 'Acceleration at a body centre must be finite');
+    });
+
+    test('Should pull harder from a bigger body', () => {
+        const small = { planets: [{ x: 100, y: 100, r: 9, m: 9 * 9 * 1.15 * Sling.MASS_SCALE }] };
+        const big = { planets: [{ x: 100, y: 100, r: 19, m: 19 * 19 * 1.15 * Sling.MASS_SCALE }] };
+        const a = [0, 0], b = [0, 0];
+        Sling.accel(small, 100, 60, a);
+        Sling.accel(big, 100, 60, b);
+        assert.ok(Math.abs(b[1]) > Math.abs(a[1]) * 2, 'A bigger body must visibly pull harder');
+    });
+
+    test('Should never mutate the level it is flying', () => {
+        const before = JSON.stringify(lv.planets);
+        Sling.fly(lv, 1, 0, 50, { path: true });
+        assert.strictEqual(JSON.stringify(lv.planets), before);
+    });
+});
+
+describe('SLINGSHOT - Scoring, sharing and state', () => {
+    test('Should tell the round as a story, one glyph per shot', () => {
+        assert.strictEqual(Sling.glyphFor('hit'), '🎯');
+        assert.strictEqual(Sling.glyphFor('crash'), '🟥');
+        assert.strictEqual(Sling.glyphFor('lost', 10), '🟨', 'A close miss should read as close');
+        assert.strictEqual(Sling.glyphFor('lost', 200), '🟦');
+    });
+
+    test('Should build a share card', () => {
+        const out = Sling.buildShare({
+            day: 251, shots: 3, par: 3, bodies: 2, streak: 6,
+            cells: ['🟥', '🟨', '🎯']
+        });
+        assert.strictEqual(out,
+            'SLINGSHOT #251 — 3 (E)\n🟥🟨🎯\n2 bodies · par 3\nStreak 6\nbranyontech.com/slingshot/');
+    });
+
+    test('Should show the score relative to par', () => {
+        const s = o => Sling.buildShare(Object.assign(
+            { day: 1, par: 3, bodies: 1, streak: 0, cells: ['🎯'] }, o)).split('\n')[0];
+        assert.ok(s({ shots: 1 }).endsWith('(-2)'));
+        assert.ok(s({ shots: 3 }).endsWith('(E)'));
+        assert.ok(s({ shots: 5 }).endsWith('(+2)'));
+    });
+
+    test('Should truncate a very long round rather than spraying glyphs', () => {
+        const cells = new Array(30).fill('🟦');
+        const out = Sling.buildShare({ day: 1, shots: 30, par: 3, bodies: 1, streak: 0, cells });
+        assert.ok(out.split('\n')[1].endsWith('…'), 'A 30-shot round should be truncated');
+    });
+
+    test('Should omit the streak line until there is a streak', () => {
+        const one = Sling.buildShare({ day: 1, shots: 2, par: 3, bodies: 1, streak: 1, cells: ['🎯'] });
+        assert.ok(!one.includes('Streak'), 'A streak of one is not worth a line');
+    });
+
+    test('Should keep its own storage, separate from ONE PUTT', () => {
+        assert.strictEqual(Sling.STORAGE_KEY, 'slingshot.v1');
+        assert.notStrictEqual(Sling.STORAGE_KEY, Putt.STORAGE_KEY);
+    });
+
+    test('Should record only the first attempt at a day', () => {
+        let st = Sling.emptyState();
+        st = Sling.recordDaily(st, 5, { shots: 2, par: 3, bodies: 2 });
+        const again = Sling.recordDaily(st, 5, { shots: 1, par: 3, bodies: 2 });
+        assert.strictEqual(again, st, 'A replay must not overwrite the day');
+        assert.strictEqual(st.days['5'].shots, 2);
+    });
+
+    test('Should count a first-shot arrival as a bullseye', () => {
+        let st = Sling.emptyState();
+        st = Sling.recordDaily(st, 1, { shots: 1, par: 3, bodies: 1 });
+        st = Sling.recordDaily(st, 2, { shots: 4, par: 3, bodies: 1 });
+        assert.strictEqual(st.bullseyes, 1);
+        assert.strictEqual(st.played, 2);
+        assert.strictEqual(st.streak, 2, 'Consecutive days should build a streak');
+    });
+
+    test('Should survive a corrupt or hostile blob', () => {
+        ['', 'null', '{', '[]', '{"v":99}', '{"v":1,"days":{"__proto__":{"x":1}}}']
+            .forEach(blob => {
+                const st = Sling.parseState(blob);
+                assert.ok(st && typeof st === 'object', `parseState choked on ${blob}`);
+                assert.strictEqual(typeof st.streak, 'number');
+            });
+        assert.strictEqual({}.x, undefined, 'The prototype must not have been touched');
+    });
+
+    test('Should label the result', () => {
+        assert.strictEqual(Sling.scoreLabel(1, 3), 'BULLSEYE');
+        assert.strictEqual(Sling.scoreLabel(3, 3), 'ON PAR');
+        assert.strictEqual(Sling.scoreLabel(9, 3), 'LONG WAY ROUND');
+    });
+});
+
+describe('SLINGSHOT - Page structure', () => {
+    const fs = require('fs');
+    // These files document the very things they must not do ("no localStorage",
+    // "an absolute path"), so the assertions below look at code with the prose
+    // removed.
+    const codeOnly = src => src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n')
+        .filter(line => !/^\s*(\/\/|\*)/.test(line))
+        .join('\n');
+    const html = fs.readFileSync(path.join(__dirname, 'slingshot', 'index.html'), 'utf8');
+    const css = fs.readFileSync(path.join(__dirname, 'slingshot', 'styles.css'), 'utf8');
+    const rules = fs.readFileSync(path.join(__dirname, 'slingshot', 'orbit.js'), 'utf8');
+    const js = codeOnly(fs.readFileSync(path.join(__dirname, 'slingshot', 'script.js'), 'utf8'));
+
+    test('Should keep the rules free of the DOM, storage, network and the clock', () => {
+        const code = codeOnly(rules);
+        assert.ok(!/\bdocument\./.test(code), 'orbit.js must not touch the DOM');
+        assert.ok(!/\blocalStorage\b/.test(code), 'orbit.js must not touch storage');
+        assert.ok(!/\bfetch\s*\(/.test(code), 'orbit.js must not make network calls');
+        assert.ok(!/new Date\(\s*\)/.test(code), 'orbit.js must be handed "now", never read it');
+    });
+
+    test('Should carry the dual-export shim so Node can require it', () => {
+        assert.ok(rules.includes("typeof module !== 'undefined' && module.exports"));
+        assert.ok(rules.includes("typeof window !== 'undefined' ? window : null"));
+    });
+
+    test('Should load the shared module first, by absolute path', () => {
+        // A relative daily.js resolves to /slingshot/daily.js, 404s, and the
+        // page throws "Daily is not defined" on load.
+        assert.ok(html.includes('src="/shared/daily.js"'));
+        assert.ok(html.indexOf('/shared/daily.js') < html.indexOf('orbit.js'),
+            'daily.js must load before orbit.js');
+        assert.ok(html.indexOf('orbit.js') < html.indexOf('script.js'),
+            'orbit.js must load before script.js');
+    });
+
+    test('Should satisfy the strict CSP', () => {
+        assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'No inline <script>');
+        assert.ok(!/\son(click|load|input|change|pointerdown|keydown)\s*=/i.test(html),
+            'No inline event handlers');
+        [rules, js].forEach(src => {
+            assert.ok(!/\beval\s*\(/.test(src), 'No eval');
+            assert.ok(!/new Function\s*\(/.test(src), 'No new Function');
+        });
+    });
+
+    test('Should state the goal on the page, not just the controls', () => {
+        // "Click a block to cut it" told a previous prototype's player what the
+        // BUTTON did and never what they were for. The goal element is the fix.
+        assert.ok(/id="goal"/.test(html), 'There must be a goal line');
+        const goal = html.slice(html.indexOf('id="goal"'), html.indexOf('id="goal"') + 400);
+        assert.ok(/beacon/i.test(goal), 'The goal should name the target');
+        assert.ok(/(bend|gravity|planet)/i.test(goal), 'The goal should say how you get there');
+    });
+
+    test('Should be playable on a phone and with reduced motion', () => {
+        assert.ok(/touch-action\s*:\s*none/.test(css),
+            'Without touch-action a drag to aim scrolls the page');
+        assert.ok(/prefers-reduced-motion/.test(css));
+        assert.ok(/reduceMotion/.test(js), 'The script should honour reduced motion too');
+    });
+
+    test('Should ship a favicon', () => {
+        assert.ok(fs.readFileSync(path.join(__dirname, 'slingshot', 'favicon.svg'), 'utf8')
+            .includes('<svg'));
+    });
+
+    test('Should never record a hand-picked level as the daily score', () => {
+        // ?level= and free play are practice. ONE PUTT applies the same rule to
+        // ?seed=, and without it a chosen easy level becomes today's result.
+        assert.ok(/scored\s*=\s*isScored/.test(js) || /loadLevel\([^)]*false\)/.test(js),
+            'Free play and ?level= must load unscored');
+        assert.ok(/if \(scored\)/.test(js), 'recordDaily must be gated on scored');
+    });
+
+    test('Should show only a short preview of the shot', () => {
+        // Previewing the whole path would hand over the answer, which is the one
+        // thing this game has to withhold.
+        assert.ok(/mode === 'aim'/.test(js), 'The preview should only be drawn while aiming');
+        assert.ok(/0\.45 \+ 0\.55 \* pw/.test(js), 'The preview length should stay bounded');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

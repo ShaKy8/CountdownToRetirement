@@ -25,6 +25,7 @@ on:
       - 'sitemap.xml'
       - 'countdown/**'
       - 'game/**'
+      - 'slingshot/**'
       - 'shared/**'
       - 'weather/**'
       - 'lambda/**'
@@ -68,6 +69,7 @@ jobs:
             --include 'robots.txt' --include 'sitemap.xml' \
             --include 'countdown/index.html' \
             --include 'game/index.html' \
+            --include 'slingshot/index.html' \
             --include 'weather/index.html' \
             --cache-control 'public, max-age=300'
 
@@ -83,6 +85,9 @@ jobs:
             --include 'game/script.js' \
             --include 'game/putt.js' --include 'game/styles.css' \
             --include 'game/favicon.svg' \
+            --include 'slingshot/orbit.js' --include 'slingshot/script.js' \
+            --include 'slingshot/audio.js' --include 'slingshot/styles.css' \
+            --include 'slingshot/favicon.svg' \
             --cache-control 'public, max-age=3600'
 
       - name: Sync weather console
