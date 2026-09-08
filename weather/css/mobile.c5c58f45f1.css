@@ -80,15 +80,36 @@
   /* The scrubber readout below shows the time far more legibly. */
   .clock { display: none; }
 
-  .loc { flex: 1 1 90px; min-width: 0; min-height: var(--tap); overflow: hidden; }
-  .bar-tools { gap: 5px; flex: 0 0 auto; }
+  .loc {
+    flex: 1 1 90px; min-width: 0; min-height: var(--tap);
+    overflow: hidden;
+    padding-inline: 6px; gap: 5px;
+  }
+  .bar-tools { gap: 4px; flex: 0 0 auto; }
+  /*
+   * The spacer and the location are both flexible, so they split the slack
+   * in the bar between them. On a phone there is no slack to spare.
+   */
+  #topbar .spacer { flex: 0 0 0; }
   /* The bar is tight enough that a long place name has to truncate; do it
      with an ellipsis rather than a hard cut mid-word. */
   .loc .name, .loc .sub {
     display: block; max-width: 100%;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .loc .name { font-size: .82rem; }
+  /*
+   * ...and that only works if the wrapper between them and .loc can shrink.
+   * A flex item does not go below its content width unless told to, so the
+   * unnamed span sized itself to its widest line ("California - US", 118px),
+   * `max-width: 100%` on the children measured against THAT rather than the
+   * 92px actually on offer, and .loc hard-clipped the result. "Los Angeles /
+   * California - US" reached a phone as "Los Ang / CALIFORNI", cut mid-word
+   * with no ellipsis anywhere -- and no overflow, so nothing caught it.
+   */
+  .loc > span:not(.pin) { min-width: 0; }
+  /* The desktop size. Bumping it here only bought a shorter name before the
+     ellipsis: at 390px the bar has room for about twelve characters. */
+  .loc .name { font-size: .78rem; }
   .loc .sub { font-size: .62rem; }
 
   .iconbtn {
@@ -368,4 +389,17 @@
   nav button { min-height: 40px; }
   #app { padding-bottom: env(safe-area-inset-bottom); }
   .tl-canvas { height: 38px; }
+}
+
+/*
+ * The narrowest phones still in use are 320px wide.
+ *
+ * Seven playback controls at 44px each need 341px, so on an iPhone SE the
+ * two faster rates sat off the right edge -- invisibly, because `body` is
+ * `overflow: hidden` and nothing could scroll to reach them. Playback still
+ * runs at 1x, and dragging the timeline is the primary way through the
+ * forecast in any case.
+ */
+@media (max-width: 359px) {
+  .tl-rate { display: none; }
 }

@@ -1452,6 +1452,29 @@ body {
    REDUCED MOTION SUPPORT
    For users who prefer reduced motion
    ======================================== */
+/*
+ * A finger is not a mouse pointer. The date form is a stack of adjacent
+ * controls -- summary, input, Update, Reset -- and they ran 29 to 39px tall.
+ * Scoped to a coarse pointer, so the desktop is untouched.
+ */
+@media (pointer: coarse) {
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+    }
+    /* Safe to make this a flex box: the disclosure marker is already
+       suppressed with list-style and ::-webkit-details-marker. */
+    #date-setter-summary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+    }
+    #retirement-date,
+    .date-setter button { min-height: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

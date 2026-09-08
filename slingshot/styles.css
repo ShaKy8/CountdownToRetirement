@@ -247,6 +247,26 @@ button.primary:hover { background: #6df3ff; }
  * to its destination instead of being flown, and the beacon stops pulsing. The
  * result and the trail are unchanged, because they ARE the game.
  */
+/*
+ * A finger is not a mouse pointer. WCAG 2.5.8 asks for 24x24 CSS px; Apple
+ * asks for 44x44 on a control, and every one of these sits next to another
+ * control, so they get 44. Scoped to a coarse pointer, which leaves the
+ * desktop layout exactly as it was.
+ */
+@media (pointer: coarse) {
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+    }
+    button { min-height: 44px; }
+    .badge-btn {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .title { text-shadow: none; }
     * { transition: none !important; }

@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (329 tests)
+# Run client-side tests (334 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (329 tests)
+├── tests.js                # Client-side unit tests (334 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -264,6 +264,31 @@ The server implements:
 - Subdirectory index.html resolution
 - Security headers (X-Frame-Options, CSP, X-Content-Type-Options, etc.)
 - HTTP method validation (GET/HEAD only)
+
+## The whole site on a phone
+
+`node scripts/site-audit.mjs` loads `/`, `/countdown/`, `/game/`, `/slingshot/`
+and `/weather/` at 390x844 and checks four things per page. Run it at 320x700
+too — the narrowest phones still in use are where things break.
+
+**Touch targets are judged by WCAG 2.5.8, not by a flat 44px.** 24x24 CSS px
+always, and 44x44 only where another target sits within 12px. A flat 44 would
+have forced the landing page's six text links — 36px tall with 16px of air and
+nothing else near them — to grow boxes that pull their underlines off the
+words. That is a worse page, not a more accessible one. Controls that sit
+beside other controls do get 44, in `@media (pointer: coarse)` blocks so the
+desktop layout is untouched.
+
+**It also checks for text hard-clipped inside its own box**, which is the one
+thing neither the overflow check nor the label audit could see: nothing leaves
+the viewport, so the page measures clean. Truncation with
+`text-overflow: ellipsis` is a decision and passes; truncation without one is
+a bug. That check is what found "Los Angeles / California · US" arriving on a
+phone as "Los Ang / CALIFORNI" — an unnamed wrapper span between `.loc` and
+its two lines sized itself to its widest line, so `max-width: 100%` on the
+children measured against 118px instead of the 92px on offer and `.loc`
+hard-clipped the lot. The same shape of bug as `#app`'s implicit `auto`
+column: **an intermediate box that was never told it could shrink.**
 
 ## Weather console (`/weather/`)
 

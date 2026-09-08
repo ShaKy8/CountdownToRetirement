@@ -237,20 +237,30 @@ button.primary:hover:not(:disabled) { color: var(--void); background: #6df3ff; }
     color: var(--dim);
 }
 
+/*
+ * The input IS the touch target, and it was three pixels tall: the whole
+ * control was the width of the line it draws. The visible 3px rail moves to
+ * the track pseudo-element so the element itself can be as tall as a finger
+ * without the slider looking any different.
+ */
 input[type="range"] {
     flex: 1;
     -webkit-appearance: none;
     appearance: none;
     height: 3px;
-    background: var(--faint);
+    background: transparent;
     outline: none;
 }
+
+input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: var(--faint); }
+input[type="range"]::-moz-range-track { height: 3px; background: var(--faint); }
 
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 15px;
     height: 15px;
+    margin-top: -6px;          /* centre the thumb on the 3px rail */
     background: var(--cy);
     cursor: pointer;
 }
@@ -281,6 +291,22 @@ input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset
  * mechanic - teleporting it to its resting place would make the hole
  * unreadable, not more comfortable. Only the glow and the trail go.
  */
+/*
+ * A finger is not a mouse pointer. WCAG 2.5.8 asks for 24x24 CSS px; Apple
+ * asks 44x44 on a control, and these all sit beside other controls. Scoped
+ * to a coarse pointer, so the desktop layout is exactly as it was -- which
+ * matters most for the sliders, whose rail stays 3px either way.
+ */
+@media (pointer: coarse) {
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+    }
+    button { min-height: 44px; }
+    input[type="range"] { height: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .title { text-shadow: none; }
     * { transition: none !important; }

@@ -3346,6 +3346,83 @@ describe('WEATHER CONSOLE - pinch zoom on the radar', () => {
     });
 });
 
+describe('WHOLE SITE - a finger, on every page', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const wdir = path.join(__dirname, 'weather', 'css');
+    const wcss = fs.readdirSync(wdir).filter(f => f.endsWith('.css'))
+        .map(f => fs.readFileSync(path.join(wdir, f), 'utf8')).join('\n');
+
+    /*
+     * scripts/mobile-audit.mjs covers /weather/; scripts/site-audit.mjs
+     * covers the other four pages and adds the check neither had: text hard
+     * clipped INSIDE its own box. Nothing leaves the viewport when that
+     * happens, so an overflow check sees a clean page.
+     */
+    test('Should not clip the place name out of the top bar', () => {
+        // "Los Angeles / California - US" reached a phone as
+        // "Los Ang / CALIFORNI", cut mid-word with no ellipsis: the unnamed
+        // wrapper between .loc and .name/.sub sized itself to its widest
+        // line, so max-width:100% on the children measured against 118px
+        // rather than the 92px on offer, and .loc hard-clipped the result.
+        assert.ok(/\.loc > span:not\(\.pin\) \{ min-width: 0; \}/.test(wcss),
+            'the wrapper between .loc and its lines must be allowed to shrink');
+        assert.ok(/#topbar \.spacer \{ flex: 0 0 0; \}/.test(wcss),
+            'the spacer should not take slack the location needs');
+    });
+
+    test('Should keep the narrowest phone inside the scrubber', () => {
+        // Seven 44px controls need 341px; an iPhone SE gives 320, and body
+        // is overflow:hidden so nothing could scroll to reach the rest.
+        assert.ok(/@media \(max-width: 359px\)[\s\S]{0,200}\.tl-rate \{ display: none; \}/.test(wcss),
+            'the extra playback rates should stand down below 360px');
+    });
+
+    test('Should make the putting sliders wider than their own rail', () => {
+        // The input IS the touch target and it was three pixels tall.
+        const css = read('game', 'styles.css');
+        assert.ok(/::-webkit-slider-runnable-track \{ height: 3px;/.test(css)
+            && /::-moz-range-track \{ height: 3px;/.test(css),
+            'the visible rail belongs to the track, not to the element');
+        assert.ok(/input\[type="range"\] \{[^}]*background: transparent;/s.test(css),
+            'the element itself should paint nothing');
+        const coarse = css.slice(css.indexOf('@media (pointer: coarse)'));
+        assert.ok(/input\[type="range"\] \{ height: 44px; \}/.test(coarse),
+            'and it should be a finger tall on a touch screen');
+    });
+
+    test('Should size controls for a finger on every page', () => {
+        // Scoped to a coarse pointer so the desktop layout is untouched.
+        for (const f of [['game', 'styles.css'], ['slingshot', 'styles.css'],
+            ['countdown', 'styles.css']]) {
+            const css = read(...f);
+            assert.ok(/@media \(pointer: coarse\)/.test(css),
+                `${f.join('/')} should carry a coarse-pointer block`);
+            assert.ok(/min-height: 44px/.test(css.slice(css.indexOf('@media (pointer: coarse)'))),
+                `${f.join('/')} should raise its controls to 44px`);
+        }
+    });
+
+    test('Should judge targets by the standard, not by one number', () => {
+        /*
+         * WCAG 2.5.8 is 24x24 CSS px, with an exception for anything that
+         * has room around it. A flat 44 would have forced the landing
+         * page's six text links - 36px tall, 16px of air, nothing else near
+         * - to grow boxes that pull their underlines off the words. That is
+         * a worse page, not a more accessible one.
+         */
+        const audit = read('scripts', 'site-audit.mjs');
+        assert.ok(/WCAG 2\.5\.8 floor/.test(audit), 'the 24px floor should be named');
+        assert.ok(/near\(a\)<12/.test(audit),
+            'and 44px should apply only where a neighbour is close');
+        assert.ok(/textOverflow==='ellipsis'/.test(audit),
+            'truncation by choice is not the same as truncation by accident');
+        const home = read('styles.css');
+        assert.ok(!/@media \(pointer: coarse\)/.test(home),
+            'the landing page passes on spacing and should be left alone');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
