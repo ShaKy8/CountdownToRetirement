@@ -21,7 +21,7 @@
 
     let W = 0, H = 0, dpr = 1, k = 1, ox = 0, oy = 0;
     let level = null, day = 0, saved = null;
-    let shots = 0, best = Infinity, cells = [], ghosts = [], probe = null;
+    let shots = 0, best = Infinity, codes = [], ghosts = [], probe = null;
     let aim = { a: 0, v: 60 };
     let mode = 'preflight';       // preflight | aim | flying | done
     let scored = true;            // does this level count for the daily?
@@ -73,7 +73,7 @@
     function loadLevel(seed, isScored) {
         level = S.makeLevel(seed);
         scored = isScored;
-        shots = 0; best = Infinity; cells = []; ghosts = []; probe = null;
+        shots = 0; best = Infinity; codes = []; ghosts = []; probe = null;
         // Open aimed straight at the beacon. It is the guess anyone would make,
         // and the first shot then demonstrates exactly why it does not work.
         aim = {
@@ -105,14 +105,15 @@
         const r = probe.res;
         ghosts.push({ path: probe.path, outcome: r.outcome });
         if (ghosts.length > 6) ghosts.shift();
-        cells.push(S.glyphFor(r.outcome, r.near));
+        codes.push(S.shotCode(r.outcome, r.near));
 
         if (r.outcome === 'hit') {
             mode = 'done';
             Audio.event('arrive');
             if (scored) {
                 saved = S.recordDaily(saved, day, {
-                    shots: shots, par: level.par, bodies: level.planets.length
+                    shots: shots, par: level.par, bodies: level.planets.length,
+                    outcomes: S.packShots(codes)
                 });
                 writeState();
             }
@@ -148,18 +149,31 @@
         paintGauges();
     }
 
-    function showResult() {
-        byId('card-title').textContent =
-            S.scoreEmoji(shots, level.par) + ' ' + S.scoreLabel(shots, level.par);
-        byId('card-line').textContent = shots + (shots === 1 ? ' shot' : ' shots') +
-            ' · par ' + level.par + (scored ? '' : ' · not scored');
+    /**
+     * One renderer for both a fresh arrival and a day you already played.
+     *
+     * Splitting them is how the share card went missing: the revisit path used
+     * to print a score and hide the share, so once you closed the tab your
+     * result was unrecoverable.
+     */
+    function showResult(stored) {
+        const n = stored ? stored.shots : shots;
+        const par = stored ? stored.par : level.par;
+        const bodies = stored ? stored.bodies : level.planets.length;
+        const glyphs = stored ? S.cellsFromDay(stored) : codes.map(S.glyphForCode);
+        byId('card-title').textContent = S.scoreEmoji(n, par) + ' ' + S.scoreLabel(n, par);
+        byId('card-line').textContent = n + (n === 1 ? ' shot' : ' shots') + ' · par ' + par +
+            (stored ? ' · already played today' : (scored ? '' : ' · not scored'));
         if (scored) {
             byId('card-share').textContent = S.buildShare({
-                day: day, shots: shots, par: level.par,
-                bodies: level.planets.length, cells: cells, streak: saved.streak
+                day: day, shots: n, par: par, bodies: bodies,
+                cells: glyphs, streak: saved.streak
             });
             byId('card-share').hidden = false;
             byId('share').hidden = false;
+        } else {
+            byId('card-share').hidden = true;
+            byId('share').hidden = true;
         }
         byId('free').hidden = false;
         byId('launch').hidden = true;
@@ -169,26 +183,22 @@
 
     function showPreflight() {
         mode = 'preflight';
-        const prev = saved.days[String(day)];
-        if (scored && prev) {
-            // Already played today: show what happened, do not let it be replayed.
-            byId('card-title').textContent = S.scoreEmoji(prev.shots, prev.par) + ' Done for today';
-            byId('card-line').textContent = prev.shots + (prev.shots === 1 ? ' shot' : ' shots') +
-                ' · par ' + prev.par;
-            byId('launch').hidden = true;
-            byId('free').hidden = false;
-            byId('share').hidden = true;
-            byId('card-share').hidden = true;
-        } else {
-            byId('card-title').textContent = 'Launch #' + day;
-            byId('card-line').textContent = level.planets.length +
-                (level.planets.length === 1 ? ' body' : ' bodies') + ' · par ' + level.par +
-                (scored ? '' : ' · free play');
-            byId('launch').hidden = false;
-            byId('free').hidden = true;
-            byId('share').hidden = true;
-            byId('card-share').hidden = true;
+        const prev = scored ? saved.days[String(day)] : null;
+        if (prev) {
+            // Already played today. Show the whole result, share included, so
+            // you can still copy it hours later.
+            shots = prev.shots;
+            showResult(prev);
+            return;
         }
+        byId('card-title').textContent = 'Launch #' + day;
+        byId('card-line').textContent = level.planets.length +
+            (level.planets.length === 1 ? ' body' : ' bodies') + ' · par ' + level.par +
+            (scored ? '' : ' · free play');
+        byId('launch').hidden = false;
+        byId('free').hidden = true;
+        byId('share').hidden = true;
+        byId('card-share').hidden = true;
         byId('card').hidden = false;
     }
 

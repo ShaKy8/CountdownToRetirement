@@ -2722,6 +2722,69 @@ describe('SLINGSHOT - Scoring, sharing and state', () => {
         assert.ok(!one.includes('Streak'), 'A streak of one is not worth a line');
     });
 
+
+    /*
+     * A round has to survive a reload. Four outcomes is two bits, so a whole
+     * round packs into one integer and fits the schema's existing `int` kind -
+     * no string field, no storage version bump.
+     */
+    test('Should pack and unpack a round exactly', () => {
+        const S2 = Sling.SHOT;
+        const rounds = [
+            [S2.HIT],
+            [S2.CRASH, S2.HIT],
+            [S2.CRASH, S2.LOST, S2.NEAR, S2.HIT],
+            new Array(Sling.PACK_MAX).fill(S2.NEAR)
+        ];
+        rounds.forEach(codes => {
+            const back = Sling.unpackShots(Sling.packShots(codes), codes.length);
+            assert.deepStrictEqual(back, codes, 'A round must round-trip through storage');
+        });
+    });
+
+    test('Should rebuild the share glyphs from a stored day', () => {
+        const codes = [Sling.SHOT.CRASH, Sling.SHOT.NEAR, Sling.SHOT.HIT];
+        const day = { shots: 3, par: 3, bodies: 2, outcomes: Sling.packShots(codes) };
+        assert.strictEqual(Sling.cellsFromDay(day).join(''), '🟥🟨🎯',
+            'Revisiting a day you played must give back the same story');
+    });
+
+    /*
+     * A real round always ends in an arrival, whose code is 3, so a packed zero
+     * cannot be a genuine round - it means the day predates outcome storage.
+     */
+    test('Should approximate rather than invent for a day with no outcomes', () => {
+        const out = Sling.cellsFromDay({ shots: 3, par: 3, outcomes: 0 });
+        assert.strictEqual(out.length, 3);
+        assert.strictEqual(out[out.length - 1], '🎯', 'A recorded round did arrive');
+        assert.ok(!out.slice(0, -1).includes('🎯'), 'Only the last shot arrives');
+    });
+
+    test('Should survive a junk outcomes value', () => {
+        [null, undefined, -5, 1e18, 'x'].forEach(bad => {
+            assert.doesNotThrow(() => Sling.cellsFromDay({ shots: 2, outcomes: bad }));
+        });
+        assert.deepStrictEqual(Sling.cellsFromDay(null), []);
+    });
+
+    test('Should keep the shot glyph and its code in step', () => {
+        assert.strictEqual(Sling.glyphFor('hit'), Sling.glyphForCode(Sling.SHOT.HIT));
+        assert.strictEqual(Sling.glyphFor('crash'), Sling.glyphForCode(Sling.SHOT.CRASH));
+        assert.strictEqual(Sling.glyphFor('lost', 5), Sling.glyphForCode(Sling.SHOT.NEAR));
+        assert.strictEqual(Sling.glyphFor('lost', 500), Sling.glyphForCode(Sling.SHOT.LOST));
+    });
+
+    test('Should store the outcomes alongside the score', () => {
+        let st = Sling.emptyState();
+        st = Sling.recordDaily(st, 7, {
+            shots: 2, par: 3, bodies: 1,
+            outcomes: Sling.packShots([Sling.SHOT.CRASH, Sling.SHOT.HIT])
+        });
+        const round = Sling.parseState(Sling.serializeState(st)).days['7'];
+        assert.strictEqual(Sling.cellsFromDay(round).join(''), '🟥🎯',
+            'The story must survive serialise/parse, not just live memory');
+    });
+
     test('Should keep its own storage, separate from ONE PUTT', () => {
         assert.strictEqual(Sling.STORAGE_KEY, 'slingshot.v1');
         assert.notStrictEqual(Sling.STORAGE_KEY, Putt.STORAGE_KEY);
@@ -2836,6 +2899,16 @@ describe('SLINGSHOT - Page structure', () => {
         assert.ok(/scored\s*=\s*isScored/.test(js) || /loadLevel\([^)]*false\)/.test(js),
             'Free play and ?level= must load unscored');
         assert.ok(/if \(scored\)/.test(js), 'recordDaily must be gated on scored');
+    });
+
+    test('Should give back the share card on a day already played', () => {
+        // The revisit path used to print a score and hide the share, so once you
+        // closed the tab your result was unrecoverable.
+        assert.ok(/showResult\(prev\)/.test(js),
+            'A revisit must render the full result, not a bespoke score-only branch');
+        assert.ok(/cellsFromDay/.test(js), 'and rebuild the glyphs from storage');
+        assert.ok(/outcomes: S\.packShots\(codes\)/.test(js),
+            'recordDaily must persist the shot outcomes');
     });
 
     test('Should show only a short preview of the shot', () => {

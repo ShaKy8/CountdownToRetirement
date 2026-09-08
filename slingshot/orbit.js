@@ -302,16 +302,66 @@
 
     const NEAR_MISS = 30;
 
-    /**
+    /*
      * One glyph per shot, so the share string reads as a story rather than a
      * number. This is the single most portable idea in ONE PUTT, whose
      * "green, sand, water, green, in" says what the round felt like.
+     *
+     * Each shot is one of four outcomes, which is exactly two bits - so a whole
+     * round packs into a single integer and survives a reload through the
+     * existing `int` field kind. Without that, revisiting the page after you had
+     * played showed a score with no share card and no way to get one back.
      */
-    function glyphFor(outcome, near) {
-        if (outcome === 'hit') return '🎯';                 // dart: arrived
-        if (outcome === 'crash') return '🟥';               // red: into a body
-        if (near !== undefined && near < NEAR_MISS) return '🟨';  // yellow: close
-        return '🟦';                                        // blue: out into space
+    const SHOT = { CRASH: 0, LOST: 1, NEAR: 2, HIT: 3 };
+    const SHOT_GLYPH = ['🟥', '🟦', '🟨', '🎯'];
+    const PACK_MAX = 12;                  // the share truncates here anyway
+
+    function shotCode(outcome, near) {
+        if (outcome === 'hit') return SHOT.HIT;
+        if (outcome === 'crash') return SHOT.CRASH;
+        return (near !== undefined && near < NEAR_MISS) ? SHOT.NEAR : SHOT.LOST;
+    }
+
+    function glyphForCode(code) { return SHOT_GLYPH[code] || SHOT_GLYPH[SHOT.LOST]; }
+    function glyphFor(outcome, near) { return glyphForCode(shotCode(outcome, near)); }
+
+    /** Base-4, least significant shot first. Zero means "nothing recorded". */
+    function packShots(codes) {
+        let v = 0;
+        for (let i = Math.min(codes.length, PACK_MAX) - 1; i >= 0; i--) {
+            v = v * 4 + (codes[i] & 3);
+        }
+        return v;
+    }
+
+    function unpackShots(packed, n) {
+        const out = [];
+        let v = Math.max(0, Math.floor(packed) || 0);
+        for (let i = 0; i < Math.min(n, PACK_MAX); i++) {
+            out.push(v % 4);
+            v = Math.floor(v / 4);
+        }
+        return out;
+    }
+
+    /**
+     * Rebuild a round's glyphs from a stored day.
+     *
+     * A real round always ends in an arrival, whose code is 3, so a packed
+     * value of 0 cannot be a genuine round - it means the day was recorded
+     * before outcomes were stored. Those fall back to an approximation, which
+     * is what ONE PUTT does for the same situation, rather than inventing a
+     * detailed story that never happened.
+     */
+    function cellsFromDay(d) {
+        if (!d || !d.shots) return [];
+        if (d.outcomes) {
+            return unpackShots(d.outcomes, d.shots).map(glyphForCode);
+        }
+        const n = Math.min(d.shots, PACK_MAX);
+        const out = new Array(Math.max(0, n - 1)).fill(SHOT_GLYPH[SHOT.LOST]);
+        out.push(SHOT_GLYPH[SHOT.HIT]);
+        return out;
     }
 
     function scoreLabel(shots, par) {
@@ -383,7 +433,10 @@
         dayFields: {
             shots: { kind: 'int', min: 1, required: true },
             par: { kind: 'int', required: true },
-            bodies: { kind: 'int', default: 1 }
+            bodies: { kind: 'int', default: 1 },
+            // The round's shots, packed two bits each, so the share card can be
+            // rebuilt when you come back to a day you have already played.
+            outcomes: { kind: 'int', default: 0 }
         },
         settings: {
             sound: { kind: 'bool', default: false }
@@ -419,7 +472,14 @@
         fly: fly,
         accel: accel,
 
+        SHOT: SHOT,
+        PACK_MAX: PACK_MAX,
         glyphFor: glyphFor,
+        glyphForCode: glyphForCode,
+        shotCode: shotCode,
+        packShots: packShots,
+        unpackShots: unpackShots,
+        cellsFromDay: cellsFromDay,
         scoreLabel: scoreLabel,
         scoreEmoji: scoreEmoji,
         buildShare: buildShare,
