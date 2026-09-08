@@ -3117,6 +3117,83 @@ describe('WEATHER CONSOLE - phone layout', () => {
     });
 });
 
+describe('WEATHER CONSOLE - tap to inspect', () => {
+    const fs = require('fs');
+    const dir = path.join(__dirname, 'weather', 'js');
+    const charts = fs.readFileSync(path.join(dir, 'charts.js'), 'utf8');
+    const plots = fs.readFileSync(path.join(dir, 'plots.js'), 'utf8');
+    const air = fs.readFileSync(path.join(dir, 'views', 'air.js'), 'utf8');
+    const main = fs.readFileSync(path.join(dir, 'main.js'), 'utf8');
+    const timeline = fs.readFileSync(path.join(dir, 'timeline.js'), 'utf8');
+
+    /*
+     * Six charts hold numbers that appear nowhere else in the console -
+     * model confidence, the record highs and the year they were set, Kp,
+     * pollutant concentrations hours ahead. All six lived in a hover
+     * tooltip, which on a phone appeared under the finger that summoned it
+     * and vanished when the finger lifted.
+     */
+    test('Should keep a readout on screen after the finger lifts', () => {
+        // pointerleave fires on every touch lift. Clearing on it is what made
+        // the readout impossible to read.
+        const leave = charts.match(/const leave = \(e\) => \{[^}]*\}/s);
+        assert.ok(leave, 'mount() should name its pointerleave handler');
+        assert.ok(/!coarse\(e\)/.test(leave[0]),
+            'a coarse pointer leaving must not clear the readout');
+        assert.ok(/const pinned = new Set\(\)/.test(charts),
+            'the pinned readouts need to be tracked so another tap can clear them');
+    });
+
+    test('Should put the readout where the hand is not', () => {
+        assert.ok(/export function tooltip\([^)]*\{ pin = false \} = \{\}\)/.test(charts),
+            'tooltip() should take a pin option');
+        // Pinned, it goes to the corner diagonally opposite the touch.
+        assert.ok(/if \(pin\)[\s\S]{0,200}x > w \/ 2[\s\S]{0,120}y < h \/ 2/.test(charts),
+            'pin should mirror the box away from the touch on both axes');
+        const calls = (plots.match(/\btooltip\(ctx,/g) || []).length;
+        const pinned = (plots.match(/pin: hover\.coarse/g) || []).length;
+        assert.strictEqual(pinned, calls,
+            'every readout in plots.js should pass the pin flag');
+        assert.ok(calls >= 4, 'expected the four time-series readouts');
+        assert.ok(/pin: hover\.coarse/.test(air),
+            'the air quality readout should pin too');
+    });
+
+    test('Should have one readout box, not two', () => {
+        // air.js carried a private near-copy of tooltip() that drifted.
+        assert.ok(!/function drawTip/.test(air), 'air.js should not redefine the readout box');
+        assert.ok(/\btooltip\b/.test(air), 'air.js should use the shared tooltip');
+    });
+
+    test('Should let a phone scroll past a chart', () => {
+        // pan-y hands vertical scrolling back to the browser and keeps
+        // horizontal movement, so a finger can slide along the chart to read
+        // it without trapping the page.
+        assert.ok(/canvas\.style\.touchAction = 'pan-y'/.test(charts),
+            'mounted charts should allow vertical panning');
+        assert.ok(/inspect: false/.test(timeline),
+            'the scrubber runs its own drag and must opt out');
+    });
+
+    test('Should tell a tap from a scroll before moving the cursor', () => {
+        // onPick used to fire on pointerdown with no movement threshold, so
+        // the first pixel of a scroll gesture moved the time cursor.
+        assert.ok(!/addEventListener\('pointerdown'[\s\S]{0,120}onPick\(/.test(charts),
+            'onPick must not fire straight out of pointerdown');
+        assert.ok(/d\.moved < TAP_SLOP\) onPick\(/.test(charts),
+            'onPick should require the pointer to have stayed put');
+    });
+
+    test('Should drop the readout when the view changes', () => {
+        assert.ok(/export function clearInspect\(\)/.test(charts),
+            'charts.js should expose clearInspect()');
+        const setView = main.slice(main.indexOf('function setView'),
+            main.indexOf('function setView') + 900);
+        assert.ok(/clearInspect\(\)/.test(setView),
+            'setView should drop a readout belonging to the view being left');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

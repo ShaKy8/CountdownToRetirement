@@ -10,6 +10,7 @@
 import { store } from '../state.js';
 import {
   SERIES, STATUS, INK, DIM, FAINT, mount, gauge, spark, capBar, alpha, tag, mixHex,
+  tooltip,
 } from '../charts.js';
 import {
   fmt as F, clamp, aqiCategory, uvCategory, pollenCategory, dewpointComfort, burnTime,
@@ -198,36 +199,15 @@ export function createAir(root) {
       ctx.strokeStyle = 'rgba(255,255,255,.3)';
       ctx.beginPath(); ctx.moveTo(xOf(d.t), box.y); ctx.lineTo(xOf(d.t), box.y + box.h); ctx.stroke();
       ctx.restore();
-      drawTip(ctx, xOf(d.t), hover.y, [
+      tooltip(ctx, xOf(d.t), hover.y, [
         `${store.fmt.weekday(d.t)} ${store.fmt.hm(d.t)}|`,
         `AQI|${Math.round(d.aqi ?? 0)}`,
         `CATEGORY|${c.name}`,
         `PM2.5|${d.pm25?.toFixed(1) ?? '--'}`,
         `OZONE|${d.o3?.toFixed(0) ?? '--'}`,
-      ], w, h, c.color);
+      ], w, h, c.color, { pin: hover.coarse });
     }
   });
-
-  function drawTip(ctx, x, y, lines, w, h, accent) {
-    const pad = 7, lh = 13;
-    ctx.save();
-    ctx.font = "500 10px 'JetBrains Mono', monospace";
-    const tw = Math.max(...lines.map((l) => ctx.measureText(l.replace('|', '  ')).width)) + pad * 2;
-    const th = lines.length * lh + pad * 2 - 2;
-    let bx = x + 12; if (bx + tw > w - 4) bx = x - tw - 12;
-    bx = clamp(bx, 4, Math.max(4, w - tw - 4));
-    const by = clamp(y - th - 8, 4, h - th - 4);
-    ctx.fillStyle = 'rgba(4,9,19,.94)'; ctx.strokeStyle = alpha(accent, .5);
-    ctx.beginPath(); ctx.rect(bx, by, tw, th); ctx.fill(); ctx.stroke();
-    ctx.textBaseline = 'top';
-    lines.forEach((l, i) => {
-      const [a, b] = l.split('|');
-      ctx.textAlign = 'left'; ctx.fillStyle = i === 0 ? accent : DIM;
-      ctx.fillText(a, bx + pad, by + pad + i * lh);
-      if (b) { ctx.textAlign = 'right'; ctx.fillStyle = i === 0 ? accent : INK; ctx.fillText(b, bx + tw - pad, by + pad + i * lh); }
-    });
-    ctx.restore();
-  }
 
   function noData(ctx, w, h, msg) {
     ctx.save();

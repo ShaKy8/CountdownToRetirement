@@ -392,7 +392,7 @@ export function meteogram(ctx, w, h, hover, opts) {
       if (boxes.uv) lines.push(`UV|${d.uv?.toFixed(1) ?? '--'}`);
       if (boxes.cape) lines.push(`CAPE|${Math.round(d.cape ?? 0)}`);
       lines.push(`SKY|${wx(Math.round(d.code ?? 0)).label}`);
-      tooltip(ctx, x, hover.y, lines, w, h);
+      tooltip(ctx, x, hover.y, lines, w, h, '#00eaff', { pin: hover.coarse });
     }
   }
 
@@ -486,7 +486,7 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
         `SPREAD|${r.spread.toFixed(1)}°`,
         `CONFIDENCE|${conf}`,
         r.precipAgree != null ? `MODELS WET|${Math.round(r.precipAgree * 100)}%` : null,
-      ].filter(Boolean), w, h);
+      ].filter(Boolean), w, h, '#00eaff', { pin: hover.coarse });
     }
   }
 }
@@ -609,7 +609,7 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
       `HIGH vs NORMAL|${F.signed(anomalyH)}°`,
       `RECORD HIGH|${F.temp(r.c.recordHigh)} (${r.c.recordHighYear})`,
       `RECORD LOW|${F.temp(r.c.recordLow)} (${r.c.recordLowYear})`,
-    ], w, h, anomalyH >= 0 ? '#ffb02e' : '#8ab6ff');
+    ], w, h, anomalyH >= 0 ? '#ffb02e' : '#8ab6ff', { pin: hover.coarse });
   }
 }
 
@@ -668,6 +668,6 @@ export function kpChart(ctx, w, h, hover, { rows, tf, now }) {
       `${tf.weekday(r.t)} ${tf.hm(r.t)}|`,
       `Kp|${r.kp.toFixed(2)}`,
       `STATUS|${(r.observed || 'predicted').toUpperCase()}`,
-    ], w, h, SERIES[3]);
+    ], w, h, SERIES[3], { pin: hover.coarse });
   }
 }

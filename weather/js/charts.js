@@ -60,12 +60,43 @@ export function alpha(hex, a) {
 
 /* ------------------------------------------------------------------ mount */
 
+/* ------------------------------------------------------- tap to inspect */
+
+/**
+ * Charts currently holding a pinned readout.
+ *
+ * A mouse hovers and the readout follows it. A finger cannot hover: it
+ * arrives, covers the thing it summoned, and leaves. So on a coarse pointer
+ * the readout is STICKY — placed by a tap, dragged by a slide, and left on
+ * screen when the finger lifts, until something else is tapped. Several of
+ * these charts hold numbers that appear nowhere else in the console, and
+ * before this they were unreadable on a phone.
+ */
+const pinned = new Set();
+
+/** Drop every pinned readout. Called when the view changes. */
+export function clearInspect() {
+  for (const c of pinned) { c.hover = null; c.render(); }
+  pinned.clear();
+}
+
+/** How far a finger may travel and still count as a tap rather than a drag. */
+const TAP_SLOP = 10;
+
 /**
  * Bind a draw function to a canvas: handles device-pixel ratio, resize, and
  * pointer tracking. `draw(ctx, w, h, hover)` is called whenever anything
  * that affects the picture changes.
+ *
+ * `hover.coarse` tells the draw function it is being read by a finger. That
+ * is a placement problem rather than a data one: the readout has to go
+ * somewhere the hand is not, which is what `tooltip`'s `pin` option does.
+ *
+ * Pass `inspect: false` for a canvas that runs its own drag gesture — the
+ * time scrubber — which keeps `touch-action: none` and must not hold a
+ * readout after the finger lifts.
  */
-export function mount(canvas, draw, { onPick } = {}) {
+export function mount(canvas, draw, { onPick, inspect = true } = {}) {
   const ctx = canvas.getContext('2d');
   const chart = { canvas, ctx, hover: null, data: null, draw, dirty: true };
 
@@ -94,22 +125,75 @@ export function mount(canvas, draw, { onPick } = {}) {
   const ro = new ResizeObserver(resize);
   ro.observe(canvas);
 
-  const move = (e) => {
-    const r = canvas.getBoundingClientRect();
-    chart.hover = { x: e.clientX - r.left, y: e.clientY - r.top };
-    chart.render();
-  };
-  canvas.addEventListener('pointermove', move);
-  canvas.addEventListener('pointerleave', () => { chart.hover = null; chart.render(); });
-  if (onPick) {
-    canvas.addEventListener('pointerdown', (e) => {
-      const r = canvas.getBoundingClientRect();
-      onPick({ x: e.clientX - r.left, y: e.clientY - r.top, w: chart.w, h: chart.h }, e);
-    });
-    canvas.style.cursor = 'crosshair';
-  }
+  // `pan-y` hands vertical scrolling back to the browser — the views scroll
+  // on a phone — while keeping horizontal movement, so a finger can slide
+  // along the chart to read it. The browser announces that it has taken the
+  // gesture with `pointercancel`, which is where the readout is dropped.
+  if (inspect) canvas.style.touchAction = 'pan-y';
 
-  chart.destroy = () => { ro.disconnect(); canvas.removeEventListener('pointermove', move); };
+  const at = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const coarse = (e) => !!e.pointerType && e.pointerType !== 'mouse';
+  const show = (p, c) => { chart.hover = { x: p.x, y: p.y, coarse: c }; chart.render(); };
+  const hide = () => { pinned.delete(chart); chart.hover = null; chart.render(); };
+
+  let down = null;
+
+  const move = (e) => {
+    if (!coarse(e)) { show(at(e), false); return; }
+    if (!down) return;
+    down.moved = Math.max(down.moved, Math.hypot(e.clientX - down.cx, e.clientY - down.cy));
+    if (inspect) show(at(e), true);
+  };
+
+  const start = (e) => {
+    const p = at(e);
+    down = { x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, moved: 0, coarse: coarse(e) };
+    if (!down.coarse || !inspect) return;
+    // Tapping the same spot again puts the readout away; tapping anywhere
+    // else simply re-aims it. Tapping a different chart clears this one.
+    const prev = chart.hover;
+    down.dismiss = !!prev && !!prev.coarse
+      && Math.abs(prev.x - p.x) < 14 && Math.abs(prev.y - p.y) < 14;
+    for (const c of pinned) if (c !== chart) { c.hover = null; c.render(); }
+    pinned.clear(); pinned.add(chart);
+    show(p, true);
+  };
+
+  const end = (e) => {
+    const d = down;
+    down = null;
+    if (!d) return;
+    if (d.coarse && inspect && d.dismiss && d.moved < TAP_SLOP) hide();
+    // Firing on release under a movement threshold is what stops a scroll,
+    // or a slide along the chart to read it, from being taken as a pick.
+    if (onPick && d.moved < TAP_SLOP) onPick({ x: d.x, y: d.y, w: chart.w, h: chart.h }, e);
+  };
+
+  // The browser claimed the gesture for scrolling: nothing here happened.
+  const cancel = () => { if (down && down.coarse && inspect) hide(); down = null; };
+
+  // A finger "leaves" on every lift, which is exactly what must not clear it.
+  const leave = (e) => { if (!coarse(e)) { chart.hover = null; chart.render(); } };
+
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerdown', start);
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', cancel);
+  canvas.addEventListener('pointerleave', leave);
+  if (onPick) canvas.style.cursor = 'crosshair';
+
+  chart.destroy = () => {
+    ro.disconnect();
+    pinned.delete(chart);
+    canvas.removeEventListener('pointermove', move);
+    canvas.removeEventListener('pointerdown', start);
+    canvas.removeEventListener('pointerup', end);
+    canvas.removeEventListener('pointercancel', cancel);
+    canvas.removeEventListener('pointerleave', leave);
+  };
   resize();
   return chart;
 }
@@ -193,16 +277,30 @@ export function tag(ctx, x, y, text, color = FAINT, align = 'left') {
   ctx.restore();
 }
 
-/** Floating readout box. Flips side near the right edge so it never clips. */
-export function tooltip(ctx, x, y, lines, w, h, accent = '#00eaff') {
+/**
+ * Floating readout box. Flips side near the right edge so it never clips.
+ *
+ * `pin` is for a finger: instead of following the pointer it goes to the
+ * corner diagonally opposite it, so the box is never under the hand that
+ * asked for it. Following the pointer is right for a mouse, where the
+ * cursor is a few pixels wide and the hand is somewhere else entirely.
+ */
+export function tooltip(ctx, x, y, lines, w, h, accent = '#00eaff', { pin = false } = {}) {
   const pad = 7, lh = 13;
   ctx.save();
   ctx.font = MONO;
   const tw = Math.max(...lines.map((l) => ctx.measureText(l.replace(/\|/g, '  ')).width)) + pad * 2;
   const th = lines.length * lh + pad * 2 - 2;
-  let bx = x + 12, by = clamp(y - th - 10, 4, h - th - 4);
-  if (bx + tw > w - 4) bx = x - tw - 12;
-  bx = clamp(bx, 4, Math.max(4, w - tw - 4));
+  let bx, by;
+  if (pin) {
+    bx = x > w / 2 ? 4 : Math.max(4, w - tw - 4);
+    by = y < h / 2 ? Math.max(4, h - th - 4) : 4;
+  } else {
+    bx = x + 12;
+    by = clamp(y - th - 10, 4, h - th - 4);
+    if (bx + tw > w - 4) bx = x - tw - 12;
+    bx = clamp(bx, 4, Math.max(4, w - tw - 4));
+  }
 
   ctx.fillStyle = 'rgba(4,9,19,.94)';
   ctx.strokeStyle = alpha(accent, 0.5);

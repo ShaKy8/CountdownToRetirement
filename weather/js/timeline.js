@@ -44,7 +44,9 @@ export function createTimeline(root) {
 
   let dragging = false;
 
-  const chart = mount(canvas, draw);
+  // The scrubber runs its own drag, keeps `touch-action: none`, and must not
+  // leave a crosshair behind when the finger lifts.
+  const chart = mount(canvas, draw, { inspect: false });
 
   function geom(w) {
     const { lo, hi } = store.span;

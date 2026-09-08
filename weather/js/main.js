@@ -12,6 +12,7 @@ import { escapeHtml } from './lib/util.js';
 import { perf, initPerf, sampleFrame, setManualQuality } from './perf.js';
 import { Sky } from './gl/sky.js';
 import { createTimeline } from './timeline.js';
+import { clearInspect } from './charts.js';
 import { createDeck } from './views/deck.js';
 import { createRadar } from './views/radar.js';
 import { createSkyView } from './views/sky.js';
@@ -185,6 +186,8 @@ function refreshChrome() {
 function setView(v, { push = true } = {}) {
   if (!VIEWS.includes(v) || store.view === v) return;
   store.view = v;
+  // A readout tapped onto a chart belongs to the view you were looking at.
+  clearInspect();
   // Deep-linkable: reload or bookmark lands on the same view.
   if (push && location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v);
   for (const b of el.nav.querySelectorAll('button')) {

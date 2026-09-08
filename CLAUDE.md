@@ -27,10 +27,10 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (248 tests)
+# Run client-side tests (317 tests)
 node tests.js
 
-# Run server integration tests (53 tests)
+# Run server integration tests (60 tests)
 # Note: Stop any running server first, tests start their own
 node tests-server.js
 ```
@@ -129,8 +129,8 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (248 tests)
-├── tests-server.js         # Server integration tests (53 tests)
+├── tests.js                # Client-side unit tests (317 tests)
+├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
     ├── deploy.yml          # Auto-deploy on push to main
@@ -301,6 +301,26 @@ never `../Weather`'s own server. `inject-backlink.py` adds a top-bar child that
 the source does not have, and that one extra element pushed the settings button
 off screen and widened every view by 26px — the source passed while production
 failed.
+
+**A finger cannot hover, so the readouts are sticky.** Six charts hold numbers
+that appear nowhere else — model confidence, the record high and the year it was
+set, Kp, pollutant concentrations hours ahead. All six lived in a hover tooltip,
+which on a phone drew *under the finger that summoned it* and vanished on the
+lift. `mount()` now keeps a tapped readout on screen until something else is
+tapped, and `tooltip()`'s `pin` option puts the box in the corner diagonally
+opposite the touch. `node scripts/tap-audit.mjs` is the gate, and it asserts on
+pixels of the readout box rather than on whole-canvas equality — the console
+keeps loading while it runs, and a model update moves every bar.
+
+Two traps in that mechanism:
+
+- **`pointerleave` fires on every touch lift**, so clearing on it is exactly
+  what made the readout unreadable. It is guarded by pointer type.
+- **Chart canvases are `touch-action: pan-y`** — vertical scrolling stays the
+  browser's, horizontal movement is ours, and the browser announces that it took
+  the gesture with `pointercancel`, which is where the readout is dropped. The
+  scrubber is the exception: it runs its own drag, so it passes
+  `mount(..., { inspect: false })` and keeps `touch-action: none`.
 
 Three things there are load-bearing and non-obvious:
 

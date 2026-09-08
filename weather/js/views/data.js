@@ -152,10 +152,12 @@ export function createData(root) {
       const txt = `${d.year}  ${d.mean.toFixed(2)}°F  ${d.mean - mean >= 0 ? '+' : '−'}${Math.abs(d.mean - mean).toFixed(2)} vs period mean`;
       ctx.font = "500 10px 'JetBrains Mono', monospace";
       const tw = ctx.measureText(txt).width + 14;
-      const bx = clamp(xOf(i) - tw / 2, 4, w - tw - 4);
-      ctx.beginPath(); ctx.rect(bx, box.y + 2, tw, 18); ctx.fill(); ctx.stroke();
+      const bx = clamp(xOf(i) - tw / 2, 4, Math.max(4, w - tw - 4));
+      // A finger in the top half would sit on a box pinned to the top.
+      const by = hover.coarse && hover.y < h / 2 ? box.y + box.h - 20 : box.y + 2;
+      ctx.beginPath(); ctx.rect(bx, by, tw, 18); ctx.fill(); ctx.stroke();
       ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(txt, bx + 7, box.y + 11);
+      ctx.fillText(txt, bx + 7, by + 9);
       ctx.restore();
     }
   });
