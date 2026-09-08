@@ -375,7 +375,7 @@ export function createSkyView(root) {
             ${Math.round(p.value * 100)}
           </dd>
         </div>`).join('')}
-      <div style="margin-top:8px;font-size:.66rem;color:var(--dim);line-height:1.5">
+      <div style="margin-top:8px;font-size:max(.66rem,var(--fs-floor,0px));color:var(--dim);line-height:1.5">
         ${best
           ? `Best window tonight: <b style="color:${INK}">${tf.weekday(best.t)} ${tf.hm(best.t)}</b> at ${best.score}/100${best.limiter ? `, held back by ${best.limiter}` : ''}.`
           : 'No astronomical darkness in the next 30 hours.'}

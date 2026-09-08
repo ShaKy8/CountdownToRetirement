@@ -262,7 +262,7 @@ export function createRadar(root) {
         ${kv('Inhibition', cin != null ? `${Math.round(cin)} J/kg` : '--')}
         ${kv('Peak CAPE 24h', `${Math.round(peakCape)} J/kg`)}
       </dl>
-      <div style="font-size:.58rem;color:var(--faint);line-height:1.5;margin-top:7px">
+      <div style="font-size:max(.58rem,var(--fs-floor,0px));color:var(--faint);line-height:1.5;margin-top:7px">
         CAPE is the energy available to a rising parcel. Above ~1000 J/kg with a
         negative lifted index, thunderstorms become plausible.
       </div>`;

@@ -46,10 +46,35 @@ export function sampleFrame(dt) {
   if (want !== perf.tier) apply(want);
 }
 
+/*
+ * A phone is a battery device that cannot say so.
+ *
+ * The tier ladder below infers "plugged in" from navigator.getBattery, which
+ * Safari does not implement — so perf.onBattery stays false forever and every
+ * iPhone booted at tier 3: the six-octave shader at full device resolution,
+ * under six to eight backdrop-filter layers and three animated overlays. It
+ * only clawed back one tier per three seconds of sub-40fps, so the first ten
+ * seconds on a phone were the most expensive configuration in the app.
+ *
+ * A coarse pointer on a small viewport is the reliable signal Safari does give
+ * us. The adaptive ladder still applies on top, and Settings still overrides.
+ */
+function isHandheld() {
+  if (typeof matchMedia !== 'function') return false;
+  return matchMedia('(pointer: coarse)').matches && matchMedia('(max-width: 820px)').matches;
+}
+
 function decide() {
   if (perf.manual != null) return perf.manual;
   if (perf.hidden) return 0;
   if (perf.reducedMotion) return 1;
+  if (isHandheld()) {
+    // Start low and let sustainedHigh climb if the device turns out to cope.
+    let h = 1;
+    if (sustainedLow >= 3) h = Math.max(0, perf.tier - 1);
+    if (sustainedHigh >= 6 && perf.tier < 2) h = perf.tier + 1;
+    return Math.max(0, Math.min(2, h));
+  }
 
   let t = perf.onBattery ? 2 : 3;
   if (perf.onBattery && perf.batteryLevel < 0.25) t = 1;

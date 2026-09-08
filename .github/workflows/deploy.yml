@@ -92,10 +92,21 @@ jobs:
 
       - name: Sync weather console
         run: |
+          # JS keeps a short TTL with revalidation. Its 21 modules import each
+          # other by relative specifier with no bundler, so the filenames
+          # cannot be hashed without rewriting the whole graph. CloudFront is
+          # invalidated below, so the origin is always current and a
+          # revalidation is a cheap 304 rather than a re-download.
           aws s3 sync weather/ "s3://${S3_BUCKET}/weather/" \
             --exclude 'index.html' \
-            --cache-control 'public, max-age=3600' \
+            --cache-control 'public, max-age=60, stale-while-revalidate=300' \
             --delete
+          # Stylesheets ARE content-hashed by scripts/sync-weather.sh, so a
+          # change is a new URL and these can never be served stale.
+          aws s3 cp "s3://${S3_BUCKET}/weather/css/" "s3://${S3_BUCKET}/weather/css/" \
+            --recursive --metadata-directive REPLACE \
+            --cache-control 'public, max-age=31536000, immutable' \
+            --content-type 'text/css'
           # Fonts are content-addressed by name and never change in place.
           aws s3 cp "s3://${S3_BUCKET}/weather/assets/" "s3://${S3_BUCKET}/weather/assets/" \
             --recursive --metadata-directive REPLACE \

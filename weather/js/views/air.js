@@ -279,13 +279,13 @@ export function createAir(root) {
         <div style="margin-bottom:7px">
           <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
             <span class="lbl" style="color:var(--dim)">${p.label}</span>
-            <span class="num" style="font-size:.72rem;color:${col}">${v.toFixed(v < 10 ? 1 : 0)}<span style="color:var(--faint);font-size:.85em"> ${p.unit}</span></span>
+            <span class="num" style="font-size:.72rem;color:${col}">${v.toFixed(v < 10 ? 1 : 0)}<span style="color:var(--faint);font-size:max(.85em,var(--fs-floor,0px))"> ${p.unit}</span></span>
           </div>
           <div class="meter" style="--ac:${col};margin:3px 0 2px;position:relative">
             <i style="width:${pct}%"></i>
             <span style="position:absolute;left:${clamp((p.who / p.ref) * 100, 0, 100)}%;top:-2px;bottom:-2px;width:1px;background:rgba(255,255,255,.5)"></span>
           </div>
-          <div style="font-size:.52rem;color:var(--faint)">${p.note}${overWho ? ' · <b style="color:' + STATUS.serious + '">above WHO guideline</b>' : ''}</div>
+          <div style="font-size:max(.52rem,var(--fs-floor,0px));color:var(--faint)">${p.note}${overWho ? ' · <b style="color:' + STATUS.serious + '">above WHO guideline</b>' : ''}</div>
         </div>`;
     }).join('') || '<div class="nodata">no pollutant data</div>';
 
@@ -325,10 +325,10 @@ export function createAir(root) {
           }).join('');
         })()}
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:.46rem;color:var(--faint);letter-spacing:.08em;margin-top:2px">
+      <div style="display:flex;justify-content:space-between;font-size:max(.46rem,var(--fs-floor,0px));color:var(--faint);letter-spacing:.08em;margin-top:2px">
         <span>DRY</span><span>COMFORTABLE</span><span>OPPRESSIVE</span>
       </div>
-      <div style="font-size:.62rem;color:var(--dim);margin:6px 0 8px">${cmf.note}</div>
+      <div style="font-size:max(.62rem,var(--fs-floor,0px));color:var(--dim);margin:6px 0 8px">${cmf.note}</div>
       <dl style="margin:0">
         ${kv('Air temperature', F.temp(f.temp))}
         ${kv('Feels like', `${F.temp(f.feels)}${spreadV != null && Math.abs(spreadV) >= 1 ? ` (${F.signed(spreadV, 0)}°)` : ''}`)}
@@ -336,7 +336,7 @@ export function createAir(root) {
         ${kv('Wet bulb', F.temp(f.wetbulb))}
         ${kv('Vapour deficit', f.vpd != null ? `${f.vpd.toFixed(2)} kPa` : '—')}
       </dl>
-      <div style="font-size:.56rem;color:var(--faint);line-height:1.5;margin-top:7px">
+      <div style="font-size:max(.56rem,var(--fs-floor,0px));color:var(--faint);line-height:1.5;margin-top:7px">
         Dew point predicts how the air feels far better than relative humidity,
         which only tells you how close the air is to saturation at its own temperature.
       </div>`;
@@ -373,7 +373,7 @@ export function createAir(root) {
         <span class="num" style="font-size:1.9rem;font-weight:700;color:${cat.color}">${p.index?.toFixed(1) ?? '--'}</span>
         <div>
           <div class="chip" style="--ac:${cat.color}">${cat.name}</div>
-          <div style="font-size:.54rem;color:var(--faint);margin-top:2px">of 12${trend != null ? ` · ${F.signed(trend, 1)} vs yesterday` : ''}</div>
+          <div style="font-size:max(.54rem,var(--fs-floor,0px));color:var(--faint);margin-top:2px">of 12${trend != null ? ` · ${F.signed(trend, 1)} vs yesterday` : ''}</div>
         </div>
       </div>
       <div class="meter" style="--ac:${cat.color};margin:7px 0 9px"><i style="width:${clamp((p.index / 12) * 100, 0, 100)}%"></i></div>

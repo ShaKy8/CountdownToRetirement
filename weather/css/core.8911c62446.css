@@ -58,6 +58,9 @@ html, body {
   font-size: 15px;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  /* Safari otherwise inflates text in some layouts, and 48 of the 66 font
+     sizes here are under 12px, so it has plenty to get wrong. */
+  -webkit-text-size-adjust: 100%;
   text-rendering: optimizeLegibility;
 }
 
@@ -94,6 +97,15 @@ body { overscroll-behavior: none; }
   height: 100dvh;
   display: grid;
   grid-template-rows: var(--bar) 1fr auto;
+  /*
+   * index.html sets viewport-fit=cover, which extends the layout under the
+   * notch and the home indicator. Without this padding the 46px top bar sits
+   * beneath the status bar and the bottom of the scrubber sits beneath the
+   * home indicator - which is exactly where its drag gesture lives. Paying the
+   * cost of `cover` with none of the benefit.
+   */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Dim the sky behind the data-dense views so text stays readable. */
@@ -258,6 +270,7 @@ html[data-q="0"] .chroma { text-shadow: 0 0 12px rgba(0,234,255,.3); }
 #topbar {
   display: flex; align-items: center; gap: 14px;
   padding: 0 14px;
+  padding-top: env(safe-area-inset-top);
   background: linear-gradient(180deg, rgba(4,9,19,.92), rgba(4,9,19,.66));
   border-bottom: 1px solid rgba(0,234,255,.18);
   backdrop-filter: blur(10px);

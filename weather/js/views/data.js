@@ -178,7 +178,7 @@ export function createData(root) {
       const pctToRecord = clamp(
         ((day.tmax - cd.normalHigh) / Math.max(0.1, cd.recordHigh - cd.normalHigh)) * 100, 0, 100);
       $('d2-rec').innerHTML = `
-        <div style="font-size:.62rem;color:var(--dim);margin-bottom:7px">
+        <div style="font-size:max(.62rem,var(--fs-floor,0px));color:var(--dim);margin-bottom:7px">
           ${tf.weekday(store.cursor)} ${tf.monthDay(store.cursor)} · forecast against every
           ${tf.monthDay(store.cursor)} since ${c.start.slice(0, 4)}
         </div>
@@ -193,7 +193,7 @@ export function createData(root) {
         <div class="lbl" style="margin:9px 0 3px">high, normal → record</div>
         <div class="meter" style="--ac:${pctToRecord > 85 ? STATUS.crit : STATUS.serious}">
           <i style="width:${pctToRecord}%"></i></div>
-        <div style="display:flex;justify-content:space-between;font-size:.52rem;color:var(--faint);margin-top:2px">
+        <div style="display:flex;justify-content:space-between;font-size:max(.52rem,var(--fs-floor,0px));color:var(--faint);margin-top:2px">
           <span>${F.temp(cd.normalHigh)} normal</span><span>${F.temp(cd.recordHigh)} record</span>
         </div>
         <dl style="margin:9px 0 0">
@@ -241,7 +241,7 @@ export function createData(root) {
         ${kv('Cooling (base 65°F)', Math.round(cdd))}
         ${kv('Growing (50/86°F)', Math.round(gdd))}
       </dl>
-      <div style="font-size:.55rem;color:var(--faint);line-height:1.5;margin-top:7px">
+      <div style="font-size:max(.55rem,var(--fs-floor,0px));color:var(--faint);line-height:1.5;margin-top:7px">
         Degree days accumulate how far each day's mean sits from a base
         temperature — the standard proxy for heating load, cooling load and
         crop development.

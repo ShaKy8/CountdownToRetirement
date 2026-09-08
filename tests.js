@@ -3012,6 +3012,111 @@ describe('WEATHER CONSOLE - Safari-safe timestamps', () => {
     });
 });
 
+
+describe('WEATHER CONSOLE - phone layout', () => {
+    const fs = require('fs');
+    const dir = path.join(__dirname, 'weather');
+    const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+    const cssFiles = fs.readdirSync(path.join(dir, 'css')).filter(f => f.endsWith('.css'));
+    const css = cssFiles.map(f => fs.readFileSync(path.join(dir, 'css', f), 'utf8')).join('\n');
+
+    /*
+     * The console was built as a desktop kiosk. Measured at 390x844 before this
+     * work: content 983px wide, the clock and all four icon buttons off-screen
+     * with body{overflow:hidden} so no scroll could reach them, 48 of 66 font
+     * sizes under 12px, and zero interactive elements meeting 44x44.
+     */
+    test('Should ship a phone stylesheet, and load it', () => {
+        const mobile = cssFiles.find(f => f.startsWith('mobile.'));
+        assert.ok(mobile, 'weather/css should contain a mobile stylesheet');
+        assert.ok(html.includes('href="css/' + mobile + '"'),
+            'index.html must load ' + mobile);
+    });
+
+    test('Should keep clear of the notch and the home indicator', () => {
+        // index.html sets viewport-fit=cover, which extends the layout under
+        // both. Without env() padding that is worse than not setting it.
+        assert.ok(/viewport-fit=cover/.test(html), 'viewport-fit=cover is expected');
+        assert.ok(/env\(safe-area-inset-top\)/.test(css), 'the top bar needs the top inset');
+        assert.ok(/env\(safe-area-inset-bottom\)/.test(css), 'the bottom bar needs the bottom inset');
+    });
+
+    test('Should let the scrubber be dragged on touch', () => {
+        // Without touch-action iOS fires pointercancel the moment the finger
+        // moves: tap-to-jump worked, dragging never did.
+        assert.ok(/\.tl-canvas[^}]*touch-action:\s*none/s.test(css),
+            'the scrubber canvas must opt out of browser gesture handling');
+    });
+
+    test('Should not let iOS auto-zoom the search field', () => {
+        // Any input under 16px zooms the viewport on focus, on a page whose
+        // body cannot scroll back.
+        const m = css.match(/\.search-input\s*\{[^}]*\}/s);
+        assert.ok(m, '.search-input rule should exist');
+        assert.ok(/font-size:\s*16px/.test(m[0]),
+            '.search-input must be exactly 16px, not 1rem');
+    });
+
+    test('Should give the small type a floor the inline styles can reach', () => {
+        // Eleven caption sizes are set inline in the view JS where CSS cannot
+        // reach them, written max(<original>, var(--fs-floor, 0px)) so the
+        // desktop resolves to the original exactly.
+        assert.ok(/--fs-floor/.test(css), 'the mobile block should set --fs-floor');
+        const js = fs.readFileSync(path.join(dir, 'js', 'views', 'air.js'), 'utf8');
+        assert.ok(/font-size:max\(\.\d+rem,var\(--fs-floor,0px\)\)/.test(js),
+            'inline caption sizes should carry the floor');
+        const bare = [...js.matchAll(/font-size:(\.\d\d)rem[;"]/g)]
+            .map(m => parseFloat('0' + m[1])).filter(v => v < 0.72);
+        assert.deepStrictEqual(bare, [],
+            'every inline size under .72rem should carry the floor');
+    });
+
+    test('Should start a phone at a cheap render tier', () => {
+        // navigator.getBattery does not exist in Safari, so onBattery stayed
+        // false and decide() returned 3 - every iPhone booted at the most
+        // expensive configuration in the app.
+        const perf = fs.readFileSync(path.join(dir, 'js', 'perf.js'), 'utf8');
+        assert.ok(/pointer:\s*coarse/.test(perf),
+            'perf.js should detect a handheld by pointer, not by the battery API');
+    });
+
+    test('Should stride the timeline day labels', () => {
+        // 18 weekday labels across ~360px rendered as "SUNMONTUEWED".
+        const tl = fs.readFileSync(path.join(dir, 'js', 'timeline.js'), 'utf8');
+        assert.ok(/stride/.test(tl), 'the day labels need a stride');
+        assert.ok(/dayGap/.test(tl),
+            'the stride should come from measured spacing, not from a count');
+    });
+
+    /*
+     * Fingerprinting is what makes a fix reach a returning phone at once. The
+     * old one-hour TTL on unhashed names meant new HTML against old CSS.
+     */
+    test('Should content-hash every stylesheet it links', () => {
+        const hrefs = [...html.matchAll(/href="(css\/[^"]+\.css)"/g)].map(m => m[1]);
+        assert.ok(hrefs.length >= 3, 'expected several stylesheets');
+        hrefs.forEach(h => {
+            assert.ok(/\.[0-9a-f]{10}\.css$/.test(h), `${h} is not fingerprinted`);
+            assert.ok(fs.existsSync(path.join(dir, h)), `${h} does not exist on disk`);
+        });
+        const onDisk = cssFiles.filter(f => !/\.[0-9a-f]{10}\.css$/.test(f));
+        assert.deepStrictEqual(onDisk, [], 'every shipped stylesheet should be hashed');
+    });
+
+    test('Should cache hashed stylesheets hard and unhashed scripts briefly', () => {
+        const deploy = fs.readFileSync(
+            path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
+        const step = deploy.slice(deploy.indexOf('Sync weather console'),
+            deploy.indexOf('Invalidate CloudFront'));
+        assert.ok(/weather\/css\/[\s\S]*?max-age=31536000, immutable/.test(step),
+            'hashed CSS should be immutable');
+        assert.ok(/stale-while-revalidate/.test(step),
+            'unhashed JS should revalidate rather than sit stale for an hour');
+        assert.ok(!/max-age=3600/.test(step),
+            'the one-hour TTL is what made a fix take an hour to arrive');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

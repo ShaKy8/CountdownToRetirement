@@ -1,0 +1,350 @@
+/* ============================================================
+   ATMOS//NET — the phone layout
+   ------------------------------------------------------------
+   The console was built as a desktop kiosk: a fixed shell whose
+   top bar needs ~810px and whose scrubber needs ~508px, with a
+   single breakpoint at 1250px that only ever reduces the views
+   to two columns. On a 390px phone that left content 983px wide
+   inside a `body { overflow: hidden }` — so the clock and all
+   four icon buttons (alerts, audio, briefing, settings) were not
+   merely cramped, they were off-screen with no scroll to reach
+   them, and every label/value row showed the label and clipped
+   the number.
+
+   This file is the second form factor. It changes layout only —
+   no view loses a panel, no readout is dropped. Everything below
+   is inside one media query so the desktop console is untouched.
+   ============================================================ */
+
+@media (max-width: 700px) {
+
+  :root {
+    --gap: 9px;
+    --bar: 58px;              /* was 46 — room for 44px targets   */
+    --scrub: auto;            /* the scrubber stacks and grows    */
+    --navh: 54px;             /* the new bottom tab bar           */
+    --tap: 44px;              /* Apple's minimum touch target     */
+    /*
+     * Eleven caption sizes are set inline in the view JS, where CSS cannot
+     * reach them. Each is written max(<original>, var(--fs-floor, 0px)), so
+     * on desktop the floor is unset, resolves to 0px, and the original wins
+     * exactly. Here it lifts them all at once.
+     */
+    --fs-floor: 12.5px;
+  }
+
+  /*
+   * 15px root with 57 of 66 sizes in rem means this one number
+   * rescales essentially the whole type system. The console runs
+   * from 7px to 12px, which is a kiosk viewed at arm's length,
+   * not a phone held at 30cm.
+   */
+  html, body { font-size: 17px; }
+
+  /* --- shell ------------------------------------------------ */
+
+  #app {
+    grid-template-rows: auto 1fr auto;
+    /* Reserve the bottom tab bar, which is fixed and out of flow. */
+    padding-bottom: calc(var(--navh) + env(safe-area-inset-bottom));
+  }
+
+  /* --- top bar ---------------------------------------------- */
+
+  #topbar {
+    gap: 8px;
+    padding: 0 10px;
+    padding-top: env(safe-area-inset-top);
+    min-height: var(--bar);
+  }
+
+  /* The wordmark costs ~84px that the location name needs more.
+     The LED stays: it is the connection state. */
+  .brand span, .brand b, .brand i { display: none; }
+  .brand { gap: 0; }
+
+  /* The scrubber readout below shows the time far more legibly. */
+  .clock { display: none; }
+
+  .loc { flex: 1 1 auto; min-width: 0; min-height: var(--tap); }
+  .loc .name { font-size: .82rem; }
+  .loc .sub { font-size: .62rem; }
+
+  .iconbtn {
+    width: var(--tap); height: var(--tap);
+    font-size: 1.05rem;
+  }
+
+  /* --- nav becomes a bottom tab bar -------------------------- */
+
+  /*
+   * Out of the top bar entirely and into the thumb zone. The five
+   * tabs are already role="tab" buttons, so this is presentation
+   * only — no markup change, no script change.
+   */
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    z-index: 20;
+    gap: 0;
+    background: linear-gradient(0deg, rgba(4,9,19,.97), rgba(6,12,24,.92));
+    border-top: 1px solid rgba(0,234,255,.22);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  nav button {
+    flex: 1 1 0;
+    min-height: var(--navh);
+    padding: 6px 2px;
+    font-size: .58rem;
+    letter-spacing: .1em;
+    justify-content: center;
+    clip-path: none;
+    border-top: 2px solid transparent;
+  }
+
+  nav button[aria-selected="true"] { border-top-color: var(--cy); }
+
+  /* The keyboard badges are meaningless without a keyboard. */
+  nav button kbd { display: none; }
+
+  /* --- scrubber --------------------------------------------- */
+
+  /*
+   * Was `auto auto 1fr` in 508px of minimum content, which
+   * collapsed the canvas track — the primary interaction of the
+   * whole app — to nothing. Now the strip is the full width and
+   * the controls sit under it.
+   */
+  #scrub {
+    grid-template-columns: 1fr;
+    grid-template-areas: "strip" "row";
+    height: auto;
+    gap: 6px;
+    padding: 8px 10px 10px;
+  }
+
+  .tl-canvas {
+    grid-area: strip;
+    width: 100%;
+    height: 54px;
+    /*
+     * Without this iOS treats the first touch as a possible scroll
+     * or back-swipe: it fires pointerdown, then pointercancel the
+     * moment the finger moves. Tap-to-jump worked; dragging never
+     * did.
+     */
+    touch-action: none;
+  }
+
+  #scrub .tl-readout { display: none; }
+
+  .tl-controls {
+    grid-area: row;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .tl-btn { min-width: var(--tap); min-height: var(--tap); font-size: .66rem; }
+  .tl-btn.sm { min-width: var(--tap); min-height: var(--tap); font-size: .62rem; padding: 4px 6px; }
+  .tl-rate { margin-left: 0; gap: 4px; }
+  .tl-rate .lbl { display: none; }
+
+  /* --- every view: one column -------------------------------- */
+
+  /*
+   * A stack, not a grid.
+   *
+   * Overriding the grid templates was not enough: an `auto` track sizes from
+   * the item's intrinsic contribution, and these panels are nested flex
+   * columns whose contribution resolved to 61px against content needing 418.
+   * The panels then overflowed their own tracks and drew on top of each other.
+   * A flex column has none of that ambiguity - each panel is simply as tall as
+   * it needs to be, and the view scrolls.
+   */
+  .deck, .airview, .dataview, .skyview, .radar-wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    gap: var(--gap);
+  }
+
+  .deck > *, .airview > *, .dataview > *, .skyview > *, .radar-wrap > * {
+    flex: 0 0 auto !important;
+    grid-area: auto !important;
+    width: auto !important;
+    min-height: 0;
+  }
+
+  /*
+   * .side is a nested flex COLUMN wrapper holding three panels.
+   * Left alone it stacks them inside one narrow grid cell;
+   * display:contents dissolves it so its children join the parent
+   * flow as siblings.
+   */
+  .deck > .side { display: contents; }
+
+  /* Panels that force a horizontal body must stop. */
+  .sunmoon-body, .moon-body, .aqi-body {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .sunmoon-body canvas, .moon-body canvas {
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    height: 120px;
+    align-self: center;
+    max-width: 180px;
+  }
+  .aqi-body canvas { flex: 0 0 auto !important; min-width: 0 !important; height: 170px; }
+
+  /* Six gauges at 56px each were illegible; two rows of three. */
+  .gauge .body {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .gauge-cell { min-width: 0; }
+
+  /*
+   * Sixteen day columns in 114px is 7.6px per day. Give them a
+   * real width and let the strip scroll sideways instead.
+   */
+  .tenday .body { overflow-x: auto !important; overscroll-behavior-x: contain; }
+  .tenday-grid { grid-auto-columns: 62px !important; min-width: max-content; }
+  .tenday-col { min-height: var(--tap); }
+
+  /*
+   * Panels size to their content and the VIEW scrolls, rather than each panel
+   * being a little scroll box of its own - which on a phone means a nested
+   * scroll you cannot discover and a body clipped mid-sentence.
+   */
+  .panel { height: auto; min-height: min-content; }
+
+  /*
+   * The body is `flex: 1 1 auto; min-height: 0` so it can be squeezed inside a
+   * fixed-height kiosk panel. On a phone the panel follows the body, not the
+   * other way round.
+   */
+  .body { flex: 0 0 auto !important; min-height: auto !important; }
+
+  /* Full-bleed chart panels have no intrinsic height at all - the deck's
+     meteogram measured 0px - so they need one stated. */
+  .panel.bare { min-height: 220px; }
+  .panel.bare > canvas, .meteo canvas { height: 100%; min-height: 200px; }
+  /* Only the vertical axis: `overflow: visible` also cancelled the ten-day
+     strip's deliberate sideways scroll. */
+  .panel .body, .act .body { overflow-y: visible !important; }
+  .view { padding: var(--gap); }
+
+  /* The hero temperature's clamp floor is 4.6rem — desktop-calibrated. */
+  .hero-temp { font-size: clamp(3rem, 16vw, 4.4rem) !important; }
+
+  /* --- radar ------------------------------------------------- */
+
+  /* The map is `.panel bare radar-main`; the generic .panel.bare rule below
+     would otherwise cap it at 220px, which is not a map. */
+  .radar-main { min-height: 52dvh !important; flex: 0 0 auto !important; }
+  .radar-main > canvas.fill { height: 100%; }
+  .radar-side { flex-direction: column !important; }
+  /* `1 1 auto` let the rail divide a 122px row between three panels needing
+     457px; on a phone they take their content and the view scrolls. */
+  .radar-side > *, .radar-side > .grow { flex: 0 0 auto !important; }
+
+  /* Six swatches on one nowrap line measured ~426px. */
+  .radar-legend { flex-wrap: wrap !important; row-gap: 4px; max-width: 70vw; }
+  .radar-tools .tl-btn { min-width: var(--tap); min-height: var(--tap); }
+  .radar-frames canvas { height: 34px; touch-action: none; }
+
+
+  /* --- the small end of the type scale ----------------------- *
+   *
+   * The console's labels run from 0.46rem to 0.62rem, which is a
+   * kiosk read at arm's length. Raising the root alone cannot fix
+   * it: the scale spans 2.5x, so a root large enough to lift the
+   * captions past 12px would make the hero temperature absurd.
+   * The floor is applied to the small end only, and this list is
+   * derived from every rule in core.css and views.css declaring a
+   * size under 0.72rem rather than guessed at.
+   */
+  .act-name,
+  .act-when,
+  .alert-item b,
+  .alert-item span,
+  .alertbtn[data-n]:not([data-n="0"])::after,
+  .aqi-note,
+  .burngrid b,
+  .clock small,
+  .gauge-note,
+  .hd .val,
+  .hero-obs,
+  .keyhelp div,
+  .keyhelp kbd,
+  .kv dt,
+  .loc .sub,
+  .modal h3,
+  .nowcast-scale,
+  .pollen-fc b,
+  .pollen-fc span,
+  .radar-legend b, .radar-legend .lg-title,
+  .radar-stamp span,
+  .res-item .coord,
+  .res-item span,
+  .seg button,
+  .setrow .hint,
+  .stat .c,
+  .td-date,
+  .td-day,
+  .td-lo,
+  .td-pop,
+  .tl-btn,
+  .tl-btn.sm,
+  .tl-delta,
+  .tl-rate .lbl,
+  .tl-when span,
+  /* ============================================================ Type ============================================================ */ .lbl,
+  /* Empty / error state inside a panel. */ .nodata,
+  /* Panel heading: tiny caps label + rule + optional right-hand value. */ .hd,
+  /* Status chip. */ .chip,
+  nav button,
+  nav button kbd {
+    font-size: max(.72rem, 12.5px);
+    letter-spacing: .08em;
+  }
+
+  /* Two exceptions: badges and keyboard help, which should stay small. */
+  .alertbtn[data-n]:not([data-n="0"])::after { font-size: .5rem; }
+  .keyhelp div, .keyhelp kbd { font-size: .68rem; }
+
+  /* --- touch targets everywhere else ------------------------- */
+
+  .seg button { min-height: var(--tap); }
+  .res-item { min-height: var(--tap); }
+  .res-item .rm { min-width: var(--tap); min-height: var(--tap); }
+  .site-back { width: var(--tap) !important; height: var(--tap) !important; }
+
+  /* --- cost ---------------------------------------------------
+     A phone GPU is already carrying the sky shader; six to eight
+     blurred compositing layers and three animated full-screen
+     overlays on top of it is what turns warm into throttled. */
+
+  #fx .grain, #fx .sweep, #fx .scan { display: none; }
+  .panel, #topbar, #scrub, .modal-card, .radar-hud, .radar-legend, .radar-frames {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  #topbar { background: rgba(4,9,19,.96); }
+  #scrub { background: rgba(4,9,19,.96); }
+}
+
+/* Landscape on a phone: the bottom bar eats too much of a short
+   viewport, so the tabs go back inline and the scrubber shrinks. */
+@media (max-width: 900px) and (max-height: 480px) {
+  nav { position: static; padding-bottom: 0; border-top: 0; background: none; }
+  nav button { min-height: 40px; }
+  #app { padding-bottom: env(safe-area-inset-bottom); }
+  .tl-canvas { height: 38px; }
+}

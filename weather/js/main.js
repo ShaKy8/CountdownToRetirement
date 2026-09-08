@@ -441,7 +441,7 @@ function openSettings() {
         .map(([k, d]) => `<div><span>${d}</span><kbd>${k}</kbd></div>`).join('')}
     </div>
     <h3>Data sources</h3>
-    <div style="font-size:.66rem;color:var(--dim);line-height:1.7">
+    <div style="font-size:max(.66rem,var(--fs-floor,0px));color:var(--dim);line-height:1.7">
       Open-Meteo (forecast · air quality · 1994– archive · multi-model ensemble) ·
       NWS api.weather.gov (US alerts) · RainViewer (radar) ·
       NOAA SWPC (space weather) · pollen.com (US pollen) · Esri (map tiles)

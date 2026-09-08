@@ -119,19 +119,34 @@ export function createTimeline(root) {
     }
     ctx.restore();
 
-    /* --- day rules and labels --- */
+    /* --- day rules and labels ---
+     *
+     * The rules are drawn for every day; the LABELS are strided to fit. A
+     * weekday at this size needs about 30px, and the strip carries up to 18
+     * days - on a phone that is 18 labels in 360px, which rendered as an
+     * unbroken run of "SUNMONTUEWED". The stride is derived from the measured
+     * spacing between days rather than from their count. */
     ctx.save();
     ctx.font = UI_LBL; ctx.letterSpacing = '1.2px';
     ctx.textBaseline = 'top';
+    const dayGap = store.days.length > 1
+      ? Math.abs(g.xOf(store.days[1].t) - g.xOf(store.days[0].t))
+      : box.w;
+    const LABEL_PX = 34;
+    const stride = Math.max(1, Math.ceil(LABEL_PX / Math.max(1, dayGap)));
+    let i = 0;
     for (const d of store.days) {
       const x = g.xOf(d.t);
+      const show = i++ % stride === 0;
       if (x < box.x || x > box.x + box.w) continue;
-      ctx.strokeStyle = 'rgba(255,255,255,.10)';
+      ctx.strokeStyle = show ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.05)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(Math.round(x) + .5, box.y);
       ctx.lineTo(Math.round(x) + .5, box.y + box.h);
       ctx.stroke();
+      // Skip a label that would run off the right edge rather than clip it.
+      if (!show || x + LABEL_PX > box.x + box.w) continue;
       ctx.fillStyle = FAINT;
       ctx.textAlign = 'left';
       ctx.fillText(tf.weekday(d.t).toUpperCase(), x + 3, h - PAD_B + 3);
