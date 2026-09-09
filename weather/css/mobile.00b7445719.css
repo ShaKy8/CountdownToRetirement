@@ -301,6 +301,17 @@
   .radar-tools .tl-btn { min-width: var(--tap); min-height: var(--tap); }
   .radar-frames canvas { height: 34px; touch-action: none; }
 
+  /* --- sky ---------------------------------------------------- */
+
+  /*
+   * On a phone the observing panel comes first. It is the answer somebody
+   * arrives for -- the landing page links straight here with "find out if
+   * tonight is worth going outside" -- and it was four panels down a
+   * scrolling column, behind the dome, the moon and the solar day. The
+   * desktop grid places by area and is unaffected.
+   */
+  .skyview > .panel:nth-of-type(5) { order: -1; }
+
   /* --- overhead ---------------------------------------------- */
 
   /* Same reasoning as the radar: .panel.bare would cap the map at 220px. */
