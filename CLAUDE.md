@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (341 tests)
+# Run client-side tests (347 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (341 tests)
+├── tests.js                # Client-side unit tests (347 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -353,6 +353,39 @@ Three things that will silently break it:
 3. **The basemap constants are exported from `map.js`**, not redeclared per view.
    Two views drawing the same Esri tiles through different filters would be
    visibly wrong and nobody would know which was intended.
+
+### TONIGHT — the rules exist, the sentence does not yet
+
+`weather/js/lib/tonight.js` answers "is tonight worth going outside for, and if
+not, which night is". Pure rules, in the same spirit as `putt.js` and
+`orbit.js`: no DOM, no network, no zero-argument `new Date()`, and astro is
+injected rather than imported. `node scripts/tonight-check.mjs` runs it against
+live forecasts for five places and asserts the invariants.
+
+**It is calibrated for the naked eye**, which is a different question rather
+than a simpler one. Seeing, transparency and dew point decide whether a
+telescope is worth setting up; they have nothing to do with whether it is worth
+stepping outside. Cloud, moonlight and how long the sky is dark do. The
+headline is the number a person would actually ask for: **hours of clear,
+moonless dark**, and the longest unbroken run of them, because you only go
+outside once.
+
+Three things learned the hard way, all of them from running it on real data:
+
+1. **Clamp each score term, not the sum.** The first version clamped only the
+   total, so every night with a four-hour clear run scored 100 — five clear
+   nights in a row ranked identically, which is the one question the feature
+   exists to answer. The gate now fails if scores stop discriminating.
+2. **Say the better night in both branches.** A serviceable two-hour gap
+   tonight was suppressing "Thursday is clear from dusk to dawn".
+3. **Anchor the day in the place's timezone, not the viewer's.** Harmless for
+   the console, wrong the moment ELSEWHERE asks about somewhere else, so
+   `assessNights` takes an optional UTC offset.
+
+**`verdict()` is the deterministic floor and it ships without any API key.** It
+is what gets served when the model is unreachable or the month's budget is
+spent, and it is the bar the model has to beat to earn the call. The rules
+module must not know an LLM exists — a test asserts it.
 
 ### It has a phone layout, and it is easy to break
 

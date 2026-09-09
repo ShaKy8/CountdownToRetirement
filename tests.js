@@ -3509,6 +3509,88 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
     });
 });
 
+describe('TONIGHT - the rules', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const rules = read('weather', 'js', 'lib', 'tonight.js');
+    /*
+     * Grep the CODE, not the prose. Comments explain the rules, and a rule is
+     * usually explained by naming the thing it forbids — the first version of
+     * the purity test below failed on this file's own doc block, which says
+     * "no zero-argument `new Date()`".
+     */
+    const code = rules
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    /*
+     * Behaviour is checked by scripts/tonight-check.mjs against live
+     * forecasts, because this is an ES module and package.json has no
+     * "type": "module" — Node reads a .js file here as CommonJS and chokes on
+     * `export`. What these pin is the shape that makes that possible.
+     */
+    test('Should stay pure enough to run outside a browser', () => {
+        for (const banned of ['document.', 'localStorage', 'fetch(', 'window.']) {
+            assert.ok(!code.includes(banned), `tonight.js must not reach for ${banned}`);
+        }
+        // A zero-argument `new Date()` would make the same forecast produce
+        // different answers on two machines, exactly as it would in putt.js.
+        assert.ok(!/new Date\(\s*\)/.test(code), 'the clock must be passed in, not read');
+        assert.ok(!/^import /m.test(code),
+            'astro is injected, so the gate can load this from a data: URL');
+    });
+
+    test('Should be calibrated for a naked eye, not a telescope', () => {
+        // Kyle observes with his eyes. Seeing, transparency and dew point are
+        // telescope problems and would be noise in this answer.
+        for (const t of ['seeing', 'transparency', 'dewPoint', 'dew_point', '.vis', '.rh']) {
+            assert.ok(!code.includes(t), `${t} is a telescope concern, not a naked-eye one`);
+        }
+        // Cloud and the clock are the only things it reads off an hour.
+        const fields = [...new Set((code.match(/\bh\.[a-z]+/g) || []))].sort();
+        assert.deepStrictEqual(fields, ['h.cloud', 'h.t'],
+            `reads ${fields.join(', ')} from the forecast; should read only cloud and time`);
+        assert.ok(/CLEAR_CLOUD = 30/.test(code), 'cloud is the first thing that decides it');
+        assert.ok(/MOON_IGNORE = 0\.25/.test(code), 'and moonlight is the second');
+    });
+
+    test('Should clamp each score term, not just the sum', () => {
+        /*
+         * The first version clamped only the total, so every night with a
+         * four-hour clear run scored 100 and five clear nights in a row
+         * ranked identically — which is the one question the feature exists
+         * to answer.
+         */
+        assert.ok(/0\.65 \* Math\.min\(1, runH \/ 4\)/.test(code),
+            'the run term needs its own ceiling');
+        assert.ok(/0\.08 \* moonUpFrac \* lit/.test(code),
+            'and a continuous moon term so two clear nights still rank');
+    });
+
+    test('Should ask about the night where the place is, not where you are', () => {
+        assert.ok(/offsetMs = null/.test(code) && /nowMs \+ offsetMs/.test(code),
+            'ELSEWHERE needs "tonight" to mean tonight there');
+    });
+
+    test('Should fall back through the twilights rather than give up', () => {
+        // Above ~49 degrees there are summer weeks with no astronomical night
+        // at all. The sky is still worth looking at; it is just never dark.
+        assert.ok(/\['night', 'nauticalDusk', 'dusk'\]/.test(code)
+            && /\['nightEnd', 'nauticalDawn', 'dawn'\]/.test(code),
+            'astronomical, then nautical, then civil');
+    });
+
+    test('Should ship a verdict that needs no model at all', () => {
+        assert.ok(/export function verdict/.test(code),
+            'the deterministic sentence is the floor the feature stands on');
+        assert.ok(!/anthropic|claude/i.test(code),
+            'and the rules must not know an LLM exists');
+        const gate = read('scripts', 'tonight-check.mjs');
+        assert.ok(/scores discriminate/.test(gate), 'the gate should catch score saturation');
+        assert.ok(/Reykjavik|Tromso/.test(gate), 'and exercise a latitude where darkness runs out');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
