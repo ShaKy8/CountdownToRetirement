@@ -413,6 +413,55 @@
 .skyview > .panel:nth-of-type(4) { grid-area: kp; }
 .skyview > .panel:nth-of-type(5) { grid-area: see; overflow-y: auto; }
 
+/* --- TONIGHT: the planning strip under the observing score --------------- */
+
+/*
+ * A sibling of .body rather than inside it, because the score above rewrites
+ * its own innerHTML wholesale on every frame and this does not need to be
+ * rebuilt with it.
+ */
+.tn {
+  border-top: 1px solid rgba(255,255,255,.08);
+  margin: 8px 12px 0;
+  padding: 8px 0 10px;
+}
+.tn-verdict {
+  margin: 0 0 9px;
+  font-size: max(.72rem, var(--fs-floor, 0px));
+  line-height: 1.5;
+  color: var(--ink);
+}
+.tn-week { display: flex; gap: 3px; align-items: flex-end; }
+.tn-n {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.tn-bar {
+  width: 100%; height: 34px;
+  display: flex; align-items: flex-end;
+  background: rgba(255,255,255,.05);
+}
+.tn-bar > i { display: block; width: 100%; min-height: 2px; opacity: .85; }
+.tn-h, .tn-d {
+  font-family: var(--mono);
+  font-size: max(.54rem, var(--fs-floor, 0px));
+  letter-spacing: .04em;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.tn-n.pick .tn-h, .tn-n.pick .tn-d { color: var(--ink); font-weight: 600; }
+.tn-n.pick .tn-bar { outline: 1px solid rgba(0,234,255,.45); }
+/* Tonight is always first; underlining it saves abbreviating "tonight" into
+   something cryptic inside a 44px column. */
+.tn-n.now .tn-d { color: var(--ink); border-bottom: 1px solid var(--cy); }
+.tn-bar > i { transition: height .2s var(--ease, ease); }
+.tn-key {
+  margin: 7px 0 0;
+  font-size: max(.56rem, var(--fs-floor, 0px));
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint);
+}
+
 .dome-cap {
   position: absolute; left: 12px; right: 12px; bottom: 9px;
   display: flex; justify-content: space-between; pointer-events: none;

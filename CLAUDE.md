@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, seven links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a text-only landing page (name, one sentence, eight links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
 
 ## Tech Stack
 
@@ -142,7 +142,13 @@ CountdownToRetirement/
 ### Landing Page (/)
 - **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and four text links: email, GitHub, the retirement clock, and the weather console
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, no JavaScript
-- **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
+- **Layout:** body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
+- **It no longer fits one screen on the smallest phones, and that is the link
+  count.** Measured: at 390x844 it fits at six, seven or eight links. At
+  375x667 six fit, seven scroll by 8px, eight by 60px; at 320x700, by 9px and
+  87px. Six was the last count that fit everywhere. The real smell is that
+  three of the eight now point into `/weather/` — the page is turning into a
+  menu, and trimming is a design decision rather than a bug fix.
 
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
@@ -354,7 +360,7 @@ Three things that will silently break it:
    Two views drawing the same Esri tiles through different filters would be
    visibly wrong and nobody would know which was intended.
 
-### TONIGHT — the rules exist, the sentence does not yet
+### TONIGHT — in the SKY view's observing panel
 
 `weather/js/lib/tonight.js` answers "is tonight worth going outside for, and if
 not, which night is". Pure rules, in the same spirit as `putt.js` and
@@ -386,6 +392,18 @@ Three things learned the hard way, all of them from running it on real data:
 is what gets served when the model is unreachable or the month's budget is
 spent, and it is the bar the model has to beat to earn the call. The rules
 module must not know an LLM exists — a test asserts it.
+
+**It lives in SKY's OBSERVING CONDITIONS panel, not in a view of its own.**
+That panel already scored stargazing *this second* and named the single best
+hour in the next thirty; TONIGHT is the planning layer for the same question,
+so it extends that panel rather than competing with it with a second opinion.
+A seventh nav tab would also have been about 45px wide on a 320px phone, which
+is the touch-target floor with "TONIGHT" to fit inside it.
+
+**The strip's bar height is hours, not score.** Scoring the bars made every
+good night full height, so a settled week drew seven identical blocks and the
+strip said nothing at all. Height is the number printed above it — hours of
+clear moonless dark — and colour carries the score.
 
 ### It has a phone layout, and it is easy to break
 

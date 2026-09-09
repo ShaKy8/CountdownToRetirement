@@ -16,11 +16,12 @@ import {
 import { kpChart } from '../plots.js';
 import { neonLine } from '../charts.js';
 import {
-  fmt as F, compass, dur, clamp, kpCategory, relTime,
-} from '../lib/util.js';
+  fmt as F, compass, dur, clamp, kpCategory, relTime, escapeHtml as esc } from '../lib/util.js';
 import {
   sunPosition, moonPosition, moonIllumination, moonPhaseName, toCompass, toDeg, topocentric,
+  sunTimes,
 } from '../lib/astro.js';
+import { assessNights, verdict, bestOther, NIGHTS } from '../lib/tonight.js';
 import { scoreHour } from '../activity.js';
 
 export function createSkyView(root) {
@@ -59,6 +60,7 @@ export function createSkyView(root) {
     <div class="panel" style="--ac:var(--lm)">
       <div class="hd">OBSERVING CONDITIONS<span class="rule"></span><span class="val" id="s-seenow">—</span></div>
       <div class="body" id="s-seeing"></div>
+      <div class="tn" id="s-tonight"></div>
     </div>
   `;
 
@@ -380,11 +382,57 @@ export function createSkyView(root) {
         </div>`).join('')}
       <div style="margin-top:8px;font-size:max(.66rem,var(--fs-floor,0px));color:var(--dim);line-height:1.5">
         ${best
-          ? `Best window tonight: <b style="color:${INK}">${tf.weekday(best.t)} ${tf.hm(best.t)}</b> at ${best.score}/100${best.limiter ? `, held back by ${best.limiter}` : ''}.`
+          ? `Best hour right now: <b style="color:${INK}">${tf.weekday(best.t)} ${tf.hm(best.t)}</b> at ${best.score}/100${best.limiter ? `, held back by ${best.limiter}` : ''}.`
           : 'No astronomical darkness in the next 30 hours.'}
       </div>`;
 
+    renderTonight();
     domeChart.render(); moonChart.render(); moonAlt.render(); dayBar.render(); kpC.render();
+  }
+
+  /*
+   * TONIGHT: the planning layer under the "right now" score above it.
+   *
+   * The panel already answers how good the sky is this second and which
+   * single hour in the next thirty is best. This answers the different
+   * question you actually act on — which of the next seven nights is worth
+   * going outside for, and for how long.
+   *
+   * The viewer is standing at store.loc, so the day is anchored in their own
+   * timezone and no offset is passed. ELSEWHERE will need one.
+   */
+  function renderTonight() {
+    const el = $('s-tonight');
+    if (!store.loc || !store.hours?.length) { el.innerHTML = ''; return; }
+    const tf = store.fmt;
+    const nights = assessNights(store.hours, store.loc.lat, store.loc.lon, Date.now(), {
+      sunTimes, moonPosition, moonIllumination, toDeg,
+    });
+    const pick = bestOther(nights);
+    /*
+     * Height is the number printed above it -- hours of clear moonless dark --
+     * not the score. Scoring the bars made every good night full height, so a
+     * week of clear weather drew seven identical blocks and the strip said
+     * nothing. Colour carries the score instead.
+     */
+    const topH = Math.max(4, ...nights.map((n) => n.goodHours));
+
+    const bar = (n) => {
+      const on = pick && n.index === pick.index && n.score > nights[0].score;
+      const c = n.score >= 75 ? STATUS.good : n.score >= 45 ? STATUS.warn : STATUS.crit;
+      return `
+        <div class="tn-n${on ? ' pick' : ''}${n.index === 0 ? ' now' : ''}"
+             title="${n.goodHours} clear moonless hours of ${n.dark ? n.dark.hours.toFixed(1) : 0} dark">
+          <span class="tn-h">${n.dark ? `${n.goodHours}h` : '—'}</span>
+          <span class="tn-bar"><i style="height:${Math.round((n.goodHours / topH) * 100)}%;background:${c}"></i></span>
+          <span class="tn-d">${tf.weekday(n.day).slice(0, 3).toUpperCase()}</span>
+        </div>`;
+    };
+
+    el.innerHTML = `
+      <p class="tn-verdict">${esc(verdict(nights, tf))}</p>
+      <div class="tn-week">${nights.map(bar).join('')}</div>
+      <p class="tn-key">clear, moonless hours per night · next ${NIGHTS}</p>`;
   }
 
   function maxAlt() {
