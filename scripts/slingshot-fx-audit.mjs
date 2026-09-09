@@ -28,7 +28,10 @@ const ORIGIN = (process.argv[2] || 'http://localhost:8000').replace(/\/$/, '');
 const port = 8800 + (process.pid % 90);
 
 const chrome = spawn('/usr/bin/chromium', ['--headless=new', `--remote-debugging-port=${port}`,
-  '--no-sandbox', '--window-size=900,900', '--use-gl=angle', '--use-angle=swiftshader',
+  // Small, at device scale 1. Every forced paint is software-rendered, and at
+  // 900x900 with dpr 2 that is 1800x2000 pixels a frame — which made this gate
+  // take five minutes. None of the invariants below depend on the size.
+  '--no-sandbox', '--window-size=520,620', '--use-gl=angle', '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader', '--disable-gpu-sandbox',
   '--disable-background-timer-throttling', '--disable-renderer-backgrounding', 'about:blank'],
   { stdio: 'ignore' });
@@ -48,6 +51,8 @@ const { result: { targetId } } = await send('Target.createTarget', { url: 'about
 const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
 const S = (m, p) => send(m, p, sessionId);
 await S('Runtime.enable'); await S('Page.enable'); await S('Log.enable');
+await S('Emulation.setDeviceMetricsOverride',
+  { width: 520, height: 620, deviceScaleFactor: 1, mobile: false });
 
 const E = async e => {
   const r = await S('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true });

@@ -488,7 +488,13 @@
             // fillRect, not arc: this is the only per-frame allocation in the
             // game and it runs on a phone.
             ctx.fillStyle = 'rgba(' + q.col + ',' + (0.85 * a).toFixed(3) + ')';
-            const sz = Math.max(1, q.r * k * a);
+            /*
+             * Sized in SCREEN pixels, not world units. Position has to be in
+             * world units so debris travels a consistent fraction of a planet
+             * radius, but size scaled by k made a phone's debris under two
+             * pixels across — the effect existed and could not be seen.
+             */
+            const sz = Math.max(2, q.r * 3 * a);
             ctx.fillRect(X(q.x) - sz / 2, Y(q.y) - sz / 2, sz, sz);
         }
 
