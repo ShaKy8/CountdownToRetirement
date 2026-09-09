@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (358 tests)
+# Run client-side tests (360 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (358 tests)
+├── tests.js                # Client-side unit tests (360 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -464,6 +464,40 @@ Three things learned the hard way, all of them from running it on real data:
 is what gets served when the model is unreachable or the month's budget is
 spent, and it is the bar the model has to beat to earn the call. The rules
 module must not know an LLM exists — a test asserts it.
+
+**A model was measured against it, and did not beat it.**
+`node scripts/model-bake-off.mjs` runs Haiku 4.5, Sonnet 5 and Opus 5 against
+live forecasts, prints `verdict()` first as the bar, and flags invented
+figures, register slips and over-long sentences. Two rounds, 8.6 cents:
+
+- **Round 1** — every model reached for words the house voice does not use
+  ("washout", "excellent viewing"), and on a night that was already good one
+  volunteered a *better* night, which is noise.
+- **Round 2**, with `brief.js` sample lines and a ban list, fixed the register
+  completely (zero slips in twelve calls) and made the models suppress the
+  week ahead when tonight already works. But Haiku over-obeyed "shorter is
+  better" and stopped writing sentences, and its Tromso line put **Friday's
+  cloud figure on tonight** — a misattribution, not an invention, which the
+  gate's hallucination check structurally cannot catch.
+- **The rules still won on content.** "About 8 hours" and "2 clear moonless
+  hours" are the numbers a person wants; the models traded them for cloud
+  percentages. And round 2's prompt had to spell out the decision rule — at
+  which point the decision belongs in code, and all the model adds is phrasing.
+
+If it is ever revisited: **Sonnet 5**, not Haiku, on that evidence. Opus is out
+on latency alone — 3.9s median, 10.9s worst, in a request path.
+
+**The sentence takes its shape from the night**, in four forms, because one
+template read daily says less each time: a run that fills the dark window is
+*the night* rather than a window ("clear and moonless all night"); a run under
+three hours is the only case with a real decision in it, so it names the cloud
+that closes it; anything between is the plain window; and no window at all
+leads with the better night. All four are chosen by measurement, not by score.
+
+**One pluralisation helper serves every count.** The run branch pluralised and
+the alternative-night branch did not, so Tromso read *"Fri is the better night:
+1 clear moonless hours"* — visible only on a one-hour night, which is why
+`tonight-check.mjs` now checks every night rather than today's.
 
 **It lives in SKY's OBSERVING CONDITIONS panel, not in a view of its own.**
 That panel already scored stargazing *this second* and named the single best

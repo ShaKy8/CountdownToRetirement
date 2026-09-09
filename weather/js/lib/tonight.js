@@ -205,15 +205,47 @@ export function verdict(nights, tf) {
    * Said in both branches, not just the bad one. A serviceable two-hour gap
    * tonight is still worth knowing you could have all of Thursday instead.
    */
+  /*
+   * One helper for both sites. The run branch pluralised and this one did
+   * not, so a one-hour night at Tromso read "1 clear moonless hours".
+   */
+  const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
   const alt = better
-    ? ` ${when(better)} is the better night: ${better.goodHours} clear moonless hours.` : '';
+    ? ` ${when(better)} is the better night: ${plural(better.goodHours, 'clear moonless hour')}.` : '';
 
   if (t.best && t.best.to - t.best.from >= 2 * HOUR) {
-    const run = Math.round((t.best.to - t.best.from) / HOUR);
+    const runH = (t.best.to - t.best.from) / HOUR;
+    const run = Math.round(runH);
     const moon = t.moonLit >= MOON_IGNORE && t.moonUpHours
       ? `, and the moon is ${Math.round(t.moonLit * 100)}% lit` : '';
+
+    /*
+     * A run that fills the dark window is not a window, it is the night:
+     * nothing is given up by going out early or late. Phrasing it the same
+     * way as a two-hour gap throws that away, and it is the difference
+     * between "any time" and "be outside by 23:00".
+     */
+    if (t.dark.hours - runH < 1) {
+      return `Clear and moonless all night — about ${plural(run, 'hour')},`
+        + ` ${hm(t.best.from)} to ${hm(t.best.to)}${moon}.` + alt;
+    }
+
+    /*
+     * A short run is the only case where the reader has a real decision, so
+     * say what closes it. The window on its own does not tell you whether it
+     * is worth going out for, which is the entire question.
+     */
+    if (run < 3) {
+      const limit = t.cloudMean != null && t.cloudMean > CLEAR_CLOUD
+        ? `, in a night averaging ${Math.round(t.cloudMean)}% cloud`
+        : t.dark.hours < 4
+          ? `, which is most of the ${plural(Math.round(t.dark.hours), 'hour')} of darkness`
+          : '';
+      return `A ${run}-hour window from ${hm(t.best.from)}${limit}${moon}.` + alt;
+    }
+
     return `Clear and moonless from ${hm(t.best.from)} to ${hm(t.best.to)}`
-      + ` — about ${run} hour${run === 1 ? '' : 's'}${moon}.` + alt;
+      + ` — about ${plural(run, 'hour')}${moon}.` + alt;
   }
 
   const why = t.cloudMean != null && t.cloudMean > CLEAR_CLOUD

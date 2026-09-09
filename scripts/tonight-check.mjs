@@ -109,6 +109,9 @@ for (const [name, lat, lon] of PLACES) {
 
   const v = T.verdict(nights, tf);
   check(name, 'verdict is a sentence', typeof v === 'string' && v.length > 20 && v.endsWith('.'), JSON.stringify(v));
+  /* "1 clear moonless hours" shipped because one branch pluralised and the
+   * other did not. Only a one-hour night shows it, so check every night. */
+  check(name, 'verdict counts in plain English', !/\b1 [a-z ]*hours\b/.test(v), v);
   // Whenever tonight has a real window, the verdict must say when it is.
   if (nights[0]?.best && nights[0].best.to - nights[0].best.from >= 2 * HOUR) {
     check(name, 'verdict names the window', v.includes(tf.hm(nights[0].best.from)), v);

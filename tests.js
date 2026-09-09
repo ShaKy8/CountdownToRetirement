@@ -3633,6 +3633,36 @@ describe('TONIGHT - the rules', () => {
             'astronomical, then nautical, then civil');
     });
 
+    test('Should count in plain English', () => {
+        /*
+         * "Fri is the better night: 1 clear moonless hours." shipped because
+         * the run branch pluralised and the alternative-night branch did not.
+         * One helper now serves both, and only a one-hour night ever showed
+         * it — which is why the live gate checks every night, not just today.
+         */
+        assert.ok(/const plural = \(n, noun\)/.test(code),
+            'one pluralisation helper, used everywhere a count is printed');
+        assert.ok(!/\$\{better\.goodHours\} clear moonless hours/.test(code),
+            'the alternative night must not hard-code the plural');
+        assert.ok(/plural\(better\.goodHours, 'clear moonless hour'\)/.test(code)
+            && /plural\(run, 'hour'\)/.test(code), 'both counts go through it');
+    });
+
+    test('Should shape the sentence to the night it describes', () => {
+        /*
+         * A run that fills the dark window is not a window, it is the night:
+         * nothing is traded by going out early or late. And a short run is
+         * the only case with a real decision in it, so it names what closes
+         * it. Read daily, one template for all three would say less each time.
+         */
+        assert.ok(/all night/.test(code), 'a full-night run should say so');
+        assert.ok(/t\.dark\.hours - runH < 1/.test(code),
+            'and that is decided by measurement, not by the score');
+        assert.ok(/in a night averaging/.test(code),
+            'a short window should name the cloud that closes it');
+        assert.ok(/run < 3/.test(code), 'short being the case the reader must judge');
+    });
+
     test('Should ship a verdict that needs no model at all', () => {
         assert.ok(/export function verdict/.test(code),
             'the deterministic sentence is the floor the feature stands on');
