@@ -576,15 +576,52 @@ function showTrips() {
     const ul = byId('trip-list');
     if (!card || !panel || !ul || !ul.children.length) return;
 
-    // The panel spans the grid so it cannot run off a narrow screen; the caret
-    // is what still points at the tile you asked about.
+    /*
+     * Horizontally the panel spans the GRID, so it can never run off the side
+     * of a narrow screen. Vertically it anchors to the TILE.
+     *
+     * Anchoring both to the grid was the bug: at 320px the grid collapses to
+     * one column and is four tiles tall, so "above the grid" put the panel off
+     * the top of the viewport and "below the grid" put it off the bottom. The
+     * tile is the thing the panel is about, and in a single-column layout it
+     * is already full width, so there is nothing to gain by using the grid.
+     */
     const grid = byId('personal-metrics');
+    panel.hidden = false;
     if (grid) {
         const c = card.getBoundingClientRect();
         const g = grid.getBoundingClientRect();
+        const gap = 10;
         panel.style.setProperty('--caret-x', `${Math.round(c.left - g.left + c.width / 2)}px`);
+
+        const roomAbove = c.top - gap - 8;
+        const roomBelow = window.innerHeight - c.bottom - gap - 8;
+
+        /*
+         * Measure at natural height, THEN choose a side, THEN cap to the room
+         * on the side actually chosen. Capping first with the larger of the
+         * two rooms and then landing on the smaller one is what clipped the
+         * last trip mid-word.
+         */
+        ul.style.maxHeight = '';
+        // Above is preferred: below a two-column grid the caret would sit
+        // against the bottom row and look like it describes the wrong tile.
+        // Measured after unhiding — a hidden element has no height.
+        const below = panel.offsetHeight > roomAbove && roomBelow > roomAbove;
+        // The cap goes on the list, not the panel: the caret is drawn outside
+        // the panel's box and any overflow on it clips the caret away.
+        const chrome = panel.offsetHeight - ul.offsetHeight;
+        ul.style.maxHeight = `${Math.max(96, (below ? roomBelow : roomAbove) - chrome)}px`;
+        panel.classList.toggle('is-below', below);
+        if (below) {
+            panel.style.top = `${Math.round(c.bottom - g.top + gap)}px`;
+            panel.style.bottom = 'auto';
+        } else {
+            panel.style.bottom = `${Math.round(g.bottom - c.top + gap)}px`;
+            panel.style.top = 'auto';
+        }
     }
-    panel.hidden = false;
+    document.body.classList.add('trips-open');
     card.classList.add('is-open');
     card.setAttribute('aria-expanded', 'true');
 }
@@ -593,6 +630,7 @@ function hideTrips() {
     const card = byId('stat-trips-card');
     const panel = byId('stat-trips-detail');
     if (!card || !panel) return;
+    document.body.classList.remove('trips-open');
     card.classList.remove('is-open');
     card.setAttribute('aria-expanded', 'false');
     panel.hidden = true;
@@ -639,8 +677,20 @@ function wireTripsPanel() {
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && tripsOpen()) { tripsPinned = false; hideTrips(); }
     });
-    // The caret is measured, so it has to be measured again when things move.
-    window.addEventListener('resize', () => { if (tripsOpen()) showTrips(); });
+    /*
+     * The placement is measured, so it has to be measured again when the page
+     * moves under it. Scroll matters as much as resize: open the panel at the
+     * top of the page and then scroll down to read it, and a choice of "above"
+     * that was right when you tapped puts it off the top of the screen. rAF
+     * so a flung scroll does not run this per event.
+     */
+    let placing = 0;
+    const replace = () => {
+        if (!tripsOpen() || placing) return;
+        placing = requestAnimationFrame(() => { placing = 0; showTrips(); });
+    };
+    window.addEventListener('resize', replace);
+    window.addEventListener('scroll', replace, { passive: true });
 }
 
 // ----------------------------------------------------------------------

@@ -176,11 +176,28 @@ CountdownToRetirement/
   - **Hover is guarded by `event.pointerType`, not by a media query.** A laptop
     with a touchscreen matches `(hover: hover)` and is still touched, and a
     touch fires `pointerenter` before the tap and `pointerleave` on the lift.
-  - The panel sits *above* the grid. Below it, the caret lands against the
-    bottom row of a two-column phone layout and appears to describe the wrong
-    tile — and the sections below are glass, so `backdrop-filter` makes each
-    one a stacking context that paints over anything the panel's `z-index` can
-    reach.
+  - **The panel spans the grid horizontally and anchors to the tile
+    vertically.** Anchoring both to the grid was a bug: at 320px the grid
+    collapses to one column and is four tiles tall, so "above the grid" put the
+    panel off the top of the viewport and "below the grid" put it off the
+    bottom. Horizontally the grid is still right — it is what stops a 150px
+    tile's panel hanging off the side.
+  - **Above is preferred, below is the fallback.** Below a two-column grid the
+    caret lands against the bottom row and looks like it describes the wrong
+    tile, so above wins wherever it fits.
+  - **`body.trips-open` raises the whole section.** Every glass section is its
+    own stacking context — `backdrop-filter` creates one — so a *later* sibling
+    paints over anything the panel's `z-index` can reach from inside it.
+    Raising `.personal-section` is the only move available, and it only has to
+    hold while the panel is open.
+  - **Placement is re-measured on scroll, not just resize.** Open the panel at
+    the top of the page and scroll down to read it and a choice of "above" that
+    was right when you tapped puts it off screen.
+  - **The height cap goes on the list, not the panel**, because the caret is
+    drawn outside the panel's box and any `overflow` on it clips the caret
+    away. And the side is chosen *before* the cap is applied — capping to the
+    larger of the two rooms and then landing on the smaller one cut the last
+    trip in half with 250px sitting unused.
 - **Countdown mode:** Unchanged days/hours/minutes/seconds timer, original metrics and milestones, purple night theme.
 - **Celebration:** The CONGRATULATIONS overlay only plays when a countdown reaches zero while the page is open, then transitions to count-up without a reload.
 - **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).

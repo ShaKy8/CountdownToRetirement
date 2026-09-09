@@ -62,8 +62,13 @@ const STATE = `(()=>{const c=document.getElementById('stat-trips-card');
     hidden:p.hidden, count:document.getElementById('stat-trips').textContent.trim(),
     items:[...p.querySelectorAll('li')].map(li=>li.textContent.trim()),
     caret:p.style.getPropertyValue('--caret-x'),
+    clipped:(()=>{const u=document.getElementById('trip-list');return u.scrollHeight>u.clientHeight+1;})(),
+    height:Math.round(pr.height),
+    roomHere:Math.round(p.classList.contains('is-below')
+      ? innerHeight - cr.bottom - 18 : cr.top - 18),
     left:Math.round(pr.left), right:Math.round(pr.right), vw:innerWidth,
-    bottom:Math.round(pr.bottom), cardTop:Math.round(cr.top),
+    bottom:Math.round(pr.bottom), top:Math.round(pr.top), cardTop:Math.round(cr.top),
+    cardBottom:Math.round(cr.bottom), below:p.classList.contains('is-below'), vh:innerHeight,
     cardLeft:Math.round(cr.left), cardRight:Math.round(cr.right),
     hover:matchMedia('(hover: hover)').matches,
     gLeft:Math.round(gr.left), gRight:Math.round(gr.right),
@@ -116,16 +121,34 @@ await click(); s = await E(STATE);
 gate(s.hidden === false && s.expanded === 'true' && s.open, 'a tap opens it');
 gate(s.items.length === stats.trips.length, 'every trip is listed',
   `${s.items.length} of ${stats.trips.length}`);
+/*
+ * Scrolling is a fine answer when five stacked entries genuinely do not fit
+ * either side of the tile — at 320px they do not. What is NOT fine is capping
+ * against the room on the side NOT chosen, which cut the last trip in half
+ * while 250px sat unused. So: if it scrolls, it must be using all the room it
+ * has.
+ */
+gate(!s.clipped || s.height >= s.roomHere - 6,
+  s.clipped ? 'it scrolls, but only after using the room it has' : 'no trip is cut off',
+  `panel ${s.height}px into ${s.roomHere}px of room`);
 const missing = stats.trips.filter(t => !s.items.some(i => i.includes(t.place)));
 gate(missing.length === 0, 'every place name appears', missing.map(t => t.place).join(', '));
 gate(s.right <= s.vw + 1 && s.left >= -1, 'the panel stays on screen',
   `${s.left}..${s.right} in ${s.vw}`);
 gate(s.overflow <= 0, 'the page does not scroll sideways while open', `${s.overflow}px`);
-// Above the tile, not below it. The grid is two columns on a phone, so a
-// panel underneath puts its caret against the bottom row and appears to be
-// describing whichever tile is down there instead.
-gate(s.bottom <= s.cardTop + 1, 'the panel sits above the tile',
-  `panel ends ${s.bottom}, tile starts ${s.cardTop}`);
+// Above the tile where there is room, below it where there is not. Above is
+// preferred (a panel under a two-column grid puts its caret against the bottom
+// row), but at 320px the grid is one column and above ran off the top.
+gate(s.below ? s.top >= s.cardBottom - 1 : s.bottom <= s.cardTop + 1,
+  `the panel sits ${s.below ? 'below' : 'above'} the tile`,
+  `panel ${s.top}..${s.bottom}, tile ${s.cardTop}..${s.cardBottom}`);
+/*
+ * THE CHECK THAT WAS MISSING. Horizontal overflow and "above the tile" both
+ * passed at 320px while three of five trips sat off the top of the screen:
+ * nothing overflowed the document, the panel was simply outside the viewport.
+ */
+gate(s.top >= -1 && s.bottom <= s.vh + 1, 'the whole panel is on screen',
+  `panel ${s.top}..${s.bottom} in a ${s.vh}px viewport`);
 const cx = parseFloat(s.caret);
 const caretX = s.gLeft + cx;
 gate(caretX >= s.cardLeft && caretX <= s.cardRight,
@@ -144,6 +167,28 @@ gate(s.hidden === true && s.expanded === 'false', 'a tap outside closes it');
 // tap path listened to it the panel would shut the instant it opened.
 await click(); await hover('leave', 'touch'); s = await E(STATE);
 gate(s.hidden === false, 'a touch lift does not close a tapped panel');
+
+/*
+ * Scrolled so the tile sits high in the viewport, which is where a reader who
+ * scrolled to this section actually leaves it. At scroll-top there is room
+ * above and the panel never has to flip, so the original bug -- three of five
+ * trips off the top of the screen at 320px -- was invisible to this gate.
+ */
+await key('Escape');  // whatever the last case left open, start this one closed
+await E("document.getElementById('stat-trips-card').scrollIntoView({block:'start'}), 1");
+await wait(150);
+await click(); s = await E(STATE);
+// `s.bottom > s.top` is load-bearing: a closed panel measures 0..0, which
+// satisfies "inside the viewport" without proving anything at all.
+gate(s.bottom > s.top && s.top >= -1 && s.bottom <= s.vh + 1,
+  'still fully on screen when scrolled to',
+  `panel ${s.top}..${s.bottom} in ${s.vh}, sitting ${s.below ? 'below' : 'above'}`);
+gate(s.items.length === stats.trips.length
+  && (!s.clipped || s.height >= s.roomHere - 6),
+  'and still lists every trip, using the room it has',
+  `${s.items.length} of ${stats.trips.length}, ${s.height}px into ${s.roomHere}px`);
+await click();
+await E('scrollTo(0, 0), 1'); await wait(150);
 
 // ---- fine pointer: the desktop, where hover is the whole interaction ----
 await load(false);

@@ -975,6 +975,17 @@ body {
     position: relative;
 }
 
+/*
+ * Every glass section is its own stacking context — backdrop-filter creates
+ * one — so a LATER sibling paints over anything this panel's z-index can
+ * reach from inside. Raising the whole section is the only move available,
+ * and it only has to hold while the panel is open.
+ */
+body.trips-open .personal-section {
+    position: relative;
+    z-index: 40;
+}
+
 button.metric-card {
     font: inherit;
     color: inherit;
@@ -1017,6 +1028,7 @@ button.metric-card {
     padding: 14px 16px;
     border-radius: 12px;
     text-align: left;
+    --caret-color: rgba(255, 255, 255, 0.35);
     background: rgba(20, 12, 36, 0.94);
     border: 2px solid rgba(255, 255, 255, 0.35);
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
@@ -1040,7 +1052,30 @@ button.metric-card {
     height: 0;
     margin-left: -8px;
     border: 8px solid transparent;
-    border-top-color: rgba(255, 255, 255, 0.35);
+    border-top-color: var(--caret-color);
+}
+
+/*
+ * Below the grid instead of above it, when there is not enough room above.
+ * At 320px the grid is a single column, so the panel above it ran off the top
+ * of the viewport and the first three trips were unreadable. JS measures and
+ * sets this; the caret flips with it so it still points at the tile.
+ */
+.metric-detail.is-below {
+    bottom: auto;
+    top: calc(100% + 10px);
+    transform: translateY(-4px);
+}
+
+.metric-card--expands.is-open + .metric-detail.is-below {
+    transform: translateY(0);
+}
+
+.metric-detail.is-below::before {
+    top: auto;
+    bottom: 100%;
+    border-top-color: transparent;
+    border-bottom-color: var(--caret-color);
 }
 
 .trip-list {
@@ -1049,6 +1084,10 @@ button.metric-card {
     padding: 0;
     display: grid;
     gap: 8px;
+    /* The cap lives here, not on the panel: the caret is drawn outside the
+       panel's box and any overflow on it clips the caret away. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .trip-list li {
@@ -1074,6 +1113,19 @@ button.metric-card {
     font-size: 0.78rem;
     opacity: 0.75;
     white-space: nowrap;
+}
+
+/*
+ * On a narrow panel a long place name wraps its date onto a second line while
+ * a short one keeps it inline, so the list reads as two different designs in
+ * one box. Stack every entry instead — consistent beats compact here.
+ */
+@media (max-width: 420px) {
+    .trip-list li {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
 }
 
 /* Progress section */
@@ -1688,13 +1740,10 @@ body.mode-countup .personal-section {
  * the trip names.
  */
 body.mode-countup .metric-detail {
+    --caret-color: rgba(255, 255, 255, 0.9);
     background: rgba(255, 255, 255, 0.96);
     border-color: rgba(255, 255, 255, 0.9);
     color: #3a2f45;
-}
-
-body.mode-countup .metric-detail::before {
-    border-top-color: rgba(255, 255, 255, 0.9);
 }
 
 body.mode-countup .trip-list li {
@@ -1986,13 +2035,10 @@ body.mode-countup .countup-marking {
     }
 
     body.mode-countup .metric-detail {
+        --caret-color: #fff;
         background: #000;
         border: 2px solid #fff;
         color: #fff;
-    }
-
-    body.mode-countup .metric-detail::before {
-        border-top-color: #fff;
     }
 
     .trip-list li { border-bottom-color: #fff; }

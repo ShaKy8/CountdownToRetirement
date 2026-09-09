@@ -1,11 +1,11 @@
 {
   "updated": "2026-09-09",
   "trips": [
-    { "place": "San Francisco", "when": "" },
-    { "place": "Vancouver, Canada", "when": "" },
-    { "place": "Juneau, Alaska (adventure cruise)", "when": "" },
-    { "place": "Grants Pass, Oregon", "when": "" },
-    { "place": "Johnson City, Texas", "when": "" }
+    { "place": "San Francisco, California", "when": "March 2026" },
+    { "place": "Vancouver, Canada & Alaska", "when": "May 2026" },
+    { "place": "Oakland / Alameda, California", "when": "May–June 2026" },
+    { "place": "Austin, Texas", "when": "June 2026" },
+    { "place": "Medford, Oregon", "when": "July 2026" }
   ],
   "books": 5,
   "projects": 4,
