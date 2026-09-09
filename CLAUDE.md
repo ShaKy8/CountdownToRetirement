@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, six links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, seven links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
 
 ## Tech Stack
 
@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (334 tests)
+# Run client-side tests (341 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (334 tests)
+├── tests.js                # Client-side unit tests (341 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -313,6 +313,46 @@ change is a new URL and is cached for a year. The JS cannot be — 21 ES modules
 importing each other by relative specifier with no bundler — so it ships with
 `max-age=60, stale-while-revalidate`. That combination is what stops a deploy
 serving new HTML against hour-old CSS and JS.
+
+### OVERHEAD — what is above you, right now
+
+A sixth view: aircraft from a volunteer ADS-B network, the ISS, and the sun and
+moon, on the same slippy map the radar uses. Tap an aircraft and it says what it
+is and where it is going. No API key, no recurring cost.
+
+- **The feeds go through the Lambda, never the browser.** `/api/aircraft` proxies
+  adsb.lol and falls back to adsb.fi; `/api/flight` proxies adsbdb. That keeps
+  two more hosts out of the CSP — and at a ten-second edge cache keyed to a
+  tenth of a degree, it means **one upstream request per ten seconds per
+  neighbourhood** however many people are watching. These are hobbyists'
+  receivers and nobody is being paid for them.
+- **Enrichment is lazy.** Routes and airframes are fetched only for the aircraft
+  you tap. Doing all hundred on every refresh would be a hundred requests every
+  ten seconds against a free service, which is how you get blocked and deserve
+  to be.
+- **Polling stops when the view does.** `setView` now calls `onHide()` on the
+  view being left; without it a tab open overnight is 8,640 requests.
+- **Routes are keyed by callsign**, which airlines reuse day to day, so they are
+  usually right and occasionally a stale pairing. The panel says so rather than
+  pretending otherwise.
+- **adsb.lol is ODbL and the attribution is not optional.** It lives in the
+  ALSO UP panel.
+
+Three things that will silently break it:
+
+1. **Six views have to agree in four places** — the `<button role="tab">` and the
+   `<section>` in `index.html`, `VIEWS` in `main.js`, and the keyboard range,
+   which is now `1`–`6`. Miss one and a view is unreachable, or a tab selects
+   nothing.
+2. **`topocentric` lives in `lib/astro.js`.** It was a private function inside
+   `views/sky.js` reading `store.loc` from its closure; both views need it, so it
+   moved and now takes the observer explicitly. A satellite is close enough that
+   the observer's displacement from the Earth's centre matters — the
+   `R / (R + altKm)` term is why the ISS is below your horizon beyond about
+   2,300km, which a great-circle bearing would happily ignore.
+3. **The basemap constants are exported from `map.js`**, not redeclared per view.
+   Two views drawing the same Esri tiles through different filters would be
+   visibly wrong and nobody would know which was intended.
 
 ### It has a phone layout, and it is easy to break
 

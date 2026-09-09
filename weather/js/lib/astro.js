@@ -124,6 +124,30 @@ function moonCoords(d) {
   return { ra: rightAscension(l, b), dec: declination(l, b), dist: dt };
 }
 
+/**
+ * Where a satellite sits in an observer's sky: altitude above the local
+ * horizon and compass azimuth, from the sub-satellite point and its height.
+ *
+ * A satellite is close enough that the observer's displacement from the
+ * Earth's centre matters -- at 420km the ISS is below the horizon for anyone
+ * more than about 2,300km away, which a naive great-circle bearing would
+ * happily ignore. Hence the `R / (R + altKm)` term.
+ */
+export function topocentric(obsLat, obsLon, satLat, satLon, altKm) {
+  const R = 6371;
+  const toR = Math.PI / 180;
+  const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const phi1 = obsLat * toR, phi2 = satLat * toR;
+  const dl = (satLon - obsLon) * toR;
+  const cosC = Math.sin(phi1) * Math.sin(phi2) + Math.cos(phi1) * Math.cos(phi2) * Math.cos(dl);
+  const c = Math.acos(cl(cosC, -1, 1));                      // central angle
+  const el = Math.atan2(Math.cos(c) - R / (R + altKm), Math.sin(c));
+  const az = Math.atan2(
+    Math.sin(dl) * Math.cos(phi2),
+    Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dl));
+  return { alt: toDeg(el), az: (toDeg(az) + 360) % 360, range: Math.round(c * R) };
+}
+
 export function moonPosition(date, lat, lon) {
   const lw = rad * -lon, phi = rad * lat, d = toDays(date);
   const c = moonCoords(d);

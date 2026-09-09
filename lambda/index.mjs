@@ -381,6 +381,111 @@ const routes = {
     return out;
   },
 
+  /*
+   * Aircraft overhead.
+   *
+   * Two volunteer-run feeds, tried in order -- both are readsb-shaped, so the
+   * second is a drop-in when the first is unreachable. Positions cache for ten
+   * seconds and the key is snapped to a tenth of a degree, so the site makes
+   * one upstream call per ten seconds per neighbourhood however many people
+   * are watching. That restraint is for their sake more than ours: these are
+   * hobbyists' receivers and nobody is being paid for them.
+   *
+   * Only the fields the map draws are passed on. The raw feed is 52KB for a
+   * hundred aircraft; this is a fraction of that, which matters on a phone.
+   */
+  async '/api/aircraft'(q) {
+    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      const e = new Error('lat and lon are required'); e.status = 400; throw e;
+    }
+    const nm = Math.max(5, Math.min(120, Number(q.get('dist')) || 40));
+    const key = `ac_${lat.toFixed(1)}_${lon.toFixed(1)}_${nm}`;
+    const hit = memGet(key);
+    if (hit) return hit;
+
+    const feeds = [
+      ['adsb.lol', `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${nm}`],
+      ['adsb.fi', `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}`],
+    ];
+    let raw = null, source = null;
+    for (const [host, url] of feeds) {
+      const r = await soft('feed', () => cachedJSON(`${key}_${host}`, 10_000, url));
+      if (r.ok && Array.isArray(r.data?.ac)) { raw = r.data; source = host; break; }
+    }
+    if (!raw) return { source: null, at: Date.now(), centre: [lat, lon], radiusNm: nm, aircraft: [] };
+
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const aircraft = raw.ac
+      .filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lon))
+      .map((a) => ({
+        hex: a.hex || null,
+        cs: (a.flight || '').trim() || null,
+        reg: a.r || null,
+        type: a.t || null,
+        lat: a.lat,
+        lon: a.lon,
+        // alt_baro carries the string "ground" for anything not airborne.
+        alt: a.alt_baro === 'ground' ? 0 : num(a.alt_baro),
+        gnd: a.alt_baro === 'ground',
+        gs: num(a.gs),              // knots
+        trk: num(a.track),          // degrees true
+        vs: num(a.baro_rate),       // feet per minute
+        dst: num(a.dst),            // nautical miles from the query point
+        age: num(a.seen),           // seconds since its last message
+      }))
+      .sort((x, y) => (x.dst ?? 1e9) - (y.dst ?? 1e9));
+
+    const out = { source, at: Date.now(), centre: [lat, lon], radiusNm: nm, aircraft };
+    memSet(key, out, 10_000);
+    return out;
+  },
+
+  /*
+   * One aircraft, looked up only when somebody taps it. Enriching all hundred
+   * on every refresh would be a hundred requests every ten seconds against a
+   * free service, which is how you get blocked and deserve to be.
+   *
+   * Routes are keyed by callsign, and airlines reuse callsigns across days, so
+   * this is usually right and occasionally a stale pairing. The view says
+   * "usually" rather than pretending otherwise.
+   */
+  async '/api/flight'(q) {
+    const cs = (q.get('cs') || '').trim().toUpperCase().slice(0, 12);
+    const hex = (q.get('hex') || '').trim().toLowerCase().slice(0, 8);
+    const okCs = /^[A-Z0-9]{2,12}$/.test(cs), okHex = /^[0-9a-f]{6,8}$/.test(hex);
+    if (!okCs && !okHex) {
+      const e = new Error('cs or hex is required'); e.status = 400; throw e;
+    }
+    const [route, frame] = await Promise.all([
+      okCs ? soft('route', () => cachedJSON(`fr_${cs}`, HOUR,
+        `https://api.adsbdb.com/v0/callsign/${cs}`)) : { ok: false },
+      okHex ? soft('frame', () => cachedJSON(`af_${hex}`, DAY,
+        `https://api.adsbdb.com/v0/aircraft/${hex}`)) : { ok: false },
+    ]);
+    const fr = route.ok ? route.data?.response?.flightroute : null;
+    const af = frame.ok ? frame.data?.response?.aircraft : null;
+    const place = (x) => (x ? {
+      iata: x.iata_code || null,
+      name: x.name || null,
+      city: x.municipality || null,
+      country: x.country_name || null,
+    } : null);
+    return {
+      callsign: fr?.callsign || cs || null,
+      airline: fr?.airline?.name || null,
+      origin: place(fr?.origin),
+      destination: place(fr?.destination),
+      aircraft: af ? {
+        type: af.type || null,
+        icao: af.icao_type || null,
+        manufacturer: af.manufacturer || null,
+        owner: af.registered_owner || null,
+        country: af.registered_owner_country_name || null,
+      } : null,
+    };
+  },
+
   async '/api/iss'() {
     const [pos, tle] = await Promise.all([
       soft('pos', () => cachedJSON('iss_pos', 10_000, 'https://api.wheretheiss.at/v1/satellites/25544')),
@@ -508,6 +613,10 @@ const EDGE_CACHE = {
   '/api/space': 'public, s-maxage=300',
   '/api/aurora': 'public, s-maxage=600',
   '/api/iss': 'public, s-maxage=10',
+  // Ten seconds is about 2.5km for a jet -- a pixel or two at the zoom this
+  // is watched at, and a hundredfold cut in load on somebody's hobby server.
+  '/api/aircraft': 'public, s-maxage=10',
+  '/api/flight': 'public, s-maxage=3600',
 };
 
 /**

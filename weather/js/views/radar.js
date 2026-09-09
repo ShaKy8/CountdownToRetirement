@@ -9,18 +9,12 @@
 
 import { store } from '../state.js';
 import { api } from '../api.js';
-import { SlippyMap, drawGeometry, drawMarker, drawScaleBar } from '../map.js';
+import {
+  SlippyMap, drawGeometry, drawMarker, drawScaleBar,
+  ESRI_CANVAS as ESRI, ESRI_BASE_FILTER as BASE_FILTER, ESRI_LABEL_FILTER as LABEL_FILTER,
+} from '../map.js';
 import { SERIES, STATUS, INK, DIM, FAINT, alpha, mount, capBar, tag } from '../charts.js';
 import { alertColor, clamp, escapeHtml as esc } from '../lib/util.js';
-
-/*
- * Esri's Dark Gray Canvas: keyless, CORS-enabled and genuinely dark, unlike
- * CARTO's basemaps which now stamp "API KEY REQUIRED" across keyless tiles.
- * Esri serves tiles as {z}/{row}/{col}, which is y before x.
- */
-const ESRI = 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas';
-const BASE_FILTER = 'grayscale(1) brightness(1.08) contrast(1.45) sepia(1) hue-rotate(152deg) saturate(2.2)';
-const LABEL_FILTER = 'grayscale(1) brightness(2.6) contrast(1.3) sepia(1) hue-rotate(152deg) saturate(1.2)';
 
 export function createRadar(root) {
   root.className = 'view radar';

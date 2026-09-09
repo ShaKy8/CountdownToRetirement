@@ -7,6 +7,16 @@
  * panning and wheel zoom — which is all a weather map actually needs.
  */
 
+/*
+ * Esri's Dark Gray Canvas: keyless, CORS-enabled and genuinely dark, unlike
+ * CARTO's basemaps which now stamp "API KEY REQUIRED" across keyless tiles.
+ * Esri serves tiles as {z}/{row}/{col}, which is y before x. Shared, because
+ * both map views want the same graded basemap and a divergence would show.
+ */
+export const ESRI_CANVAS = 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas';
+export const ESRI_BASE_FILTER = 'grayscale(1) brightness(1.08) contrast(1.45) sepia(1) hue-rotate(152deg) saturate(2.2)';
+export const ESRI_LABEL_FILTER = 'grayscale(1) brightness(2.6) contrast(1.3) sepia(1) hue-rotate(152deg) saturate(1.2)';
+
 const TILE = 256;
 const MAX_CACHE = 600;
 
@@ -53,12 +63,15 @@ function loadTile(url, onReady) {
   return null;
 }
 
+/** How far a pointer may travel and still count as a tap rather than a drag. */
+const TAP_SLOP = 10;
+
 export class SlippyMap {
   /**
    * @param layers array of
    *   {url(z,x,y)->string|null, opacity, filter, blend, enabled, maxTileZoom}
    */
-  constructor(canvas, { center = [0, 0], zoom = 7, minZoom = 2, maxZoom = 12, onMove } = {}) {
+  constructor(canvas, { center = [0, 0], zoom = 7, minZoom = 2, maxZoom = 12, onMove, onTap } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.lat = center[0];
@@ -67,6 +80,7 @@ export class SlippyMap {
     this.minZoom = minZoom;
     this.maxZoom = maxZoom;
     this.onMove = onMove;
+    this.onTap = onTap;   // (canvasPoint, event) for a press that never became a drag
     this.layers = [];
     this.overlays = [];      // (ctx, map) => void
     this.dirty = true;
@@ -180,7 +194,10 @@ export class SlippyMap {
     c.addEventListener('pointerdown', (e) => {
       if (live.size >= 2) return;              // two is all a pinch needs
       rect = c.getBoundingClientRect();
-      live.set(e.pointerId, local(e));
+      const p = local(e);
+      // x0/y0 is where this pointer landed, so a release can tell a tap from
+      // the end of a pan without a second bookkeeping structure.
+      live.set(e.pointerId, { ...p, x0: p.x, y0: p.y });
       try { c.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
       anchor();
       c.style.cursor = 'grabbing';
@@ -188,7 +205,8 @@ export class SlippyMap {
 
     c.addEventListener('pointermove', (e) => {
       if (!gesture || !live.has(e.pointerId)) return;
-      live.set(e.pointerId, local(e));
+      const was = live.get(e.pointerId);
+      live.set(e.pointerId, { ...local(e), x0: was.x0, y0: was.y0 });
       const m = mid();
       // Below 20px apart the ratio of two finger positions is mostly noise.
       if (m.n > 1 && gesture.span > 20 && m.span > 8) {
@@ -201,8 +219,17 @@ export class SlippyMap {
     });
 
     const end = (e) => {
+      const was = live.get(e.pointerId);
       if (!live.delete(e.pointerId)) return;
       try { c.releasePointerCapture(e.pointerId); } catch { /* already gone */ }
+      /*
+       * A press that never travelled is a tap. Same discriminator the charts
+       * use, for the same reason: panning the map must not also select what
+       * happens to be under where your finger came to rest.
+       */
+      if (this.onTap && !live.size && Math.hypot(was.x - was.x0, was.y - was.y0) < TAP_SLOP) {
+        this.onTap({ x: was.x, y: was.y }, e);
+      }
       anchor();
       if (!live.size) c.style.cursor = 'grab';
     };

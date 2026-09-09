@@ -26,6 +26,8 @@ export const api = {
   space: () => get('/api/space'),
   aurora: () => get('/api/aurora'),
   iss: () => get('/api/iss'),
+  aircraft: (lat, lon, dist) => get('/api/aircraft', { lat, lon, dist }),
+  flight: (cs, hex) => get('/api/flight', { cs, hex }),
   geocode: (q) => get('/api/geocode', { q }),
   reverse: (lat, lon) => get('/api/reverse', { lat, lon }),
 };

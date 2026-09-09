@@ -3423,6 +3423,92 @@ describe('WHOLE SITE - a finger, on every page', () => {
     });
 });
 
+describe('WEATHER CONSOLE - OVERHEAD', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const view = read('weather', 'js', 'views', 'overhead.js');
+    const main = read('weather', 'js', 'main.js');
+    const html = read('weather', 'index.html');
+    const lambda = read('lambda', 'index.mjs');
+    const astro = read('weather', 'js', 'lib', 'astro.js');
+    const sky = read('weather', 'js', 'views', 'sky.js');
+    const map = read('weather', 'js', 'map.js');
+    const radar = read('weather', 'js', 'views', 'radar.js');
+
+    test('Should proxy the aircraft feeds instead of calling them from the page', () => {
+        // Two more hosts in the CSP, no edge cache, and every viewer hitting a
+        // hobbyist's receiver directly. All three are avoided the same way the
+        // weather data is.
+        assert.ok(/api\.adsb\.lol|opendata\.adsb\.fi/.test(lambda),
+            'the Lambda should be the one talking to the feeds');
+        assert.ok(!/adsb\.(lol|fi)\/v2|api\.adsbdb\.com/.test(view),
+            'the view must not fetch an upstream directly');
+        assert.ok(/'\/api\/aircraft': 'public, s-maxage=10'/.test(lambda),
+            'positions should carry a short edge cache, not none');
+    });
+
+    test('Should fall back to the second feed when the first is down', () => {
+        const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
+            lambda.indexOf("async '/api/flight'"));
+        assert.ok(/adsb\.lol[\s\S]*adsb\.fi/.test(route),
+            'both feeds should be tried in order');
+        assert.ok(/for \(const \[host, url\] of feeds\)/.test(route),
+            'the second should be reached by iterating, not by a copy-paste branch');
+    });
+
+    test('Should look a route up only for the aircraft you tapped', () => {
+        // A hundred aircraft enriched every ten seconds is how you get blocked.
+        const poll = view.slice(view.indexOf('async function poll()'),
+            view.indexOf('async function pollISS()'));
+        assert.ok(!/api\.flight/.test(poll), 'the refresh loop must not enrich');
+        const select = view.slice(view.indexOf('function select(hex)'),
+            view.indexOf('/* ------------------------------------------------------------- readouts */'));
+        assert.ok(/api\.flight/.test(select), 'selecting one should enrich that one');
+    });
+
+    test('Should stop polling when you leave the view', () => {
+        assert.ok(/onHide\(\) \{ clearInterval\(timer\)/.test(view),
+            'the view should hand back its interval');
+        assert.ok(/views\[store\.view\]\?\.onHide\?\.\(\)/.test(main),
+            'and setView should actually call it, or the interval outlives the view');
+    });
+
+    test('Should credit the receivers this runs on', () => {
+        assert.ok(/adsb\.lol/.test(view) && /ODbL/.test(view),
+            'adsb.lol is ODbL and the attribution is not optional');
+    });
+
+    test('Should agree with itself about how many views there are', () => {
+        const tabs = (html.match(/role="tab"/g) || []).length;
+        const sections = (html.match(/class="view[^"]*" +id="view-/g) || []).length;
+        const listed = main.match(/const VIEWS = \[([^\]]+)\]/);
+        assert.ok(listed, 'main.js should declare VIEWS');
+        const n = listed[1].split(',').length;
+        assert.strictEqual(tabs, n, `${tabs} tabs but ${n} entries in VIEWS`);
+        assert.strictEqual(sections, n, `${sections} sections but ${n} entries in VIEWS`);
+        assert.ok(new RegExp(`k <= '${n}'`).test(main),
+            `the keyboard range should reach ${n}`);
+        assert.ok(/views\.overhead = createOverhead/.test(main),
+            'and the view has to actually be constructed');
+    });
+
+    test('Should keep one topocentric and one basemap', () => {
+        /*
+         * topocentric was private to sky.js and read store.loc from its
+         * closure. A satellite is close enough that the observer's offset from
+         * the Earth's centre matters, which is what the R/(R+alt) term is for -
+         * exactly the sort of thing that should exist once.
+         */
+        assert.ok(/export function topocentric\(obsLat, obsLon, satLat, satLon, altKm\)/.test(astro),
+            'astro.js should own it, and take the observer explicitly');
+        assert.ok(!/function topocentric/.test(sky), 'sky.js should not keep a copy');
+        assert.ok(/topocentric/.test(sky) && /topocentric/.test(view),
+            'both callers should use the shared one');
+        assert.ok(/export const ESRI_CANVAS/.test(map), 'map.js should own the basemap');
+        assert.ok(!/const ESRI = /.test(radar), 'radar.js should not redeclare it');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

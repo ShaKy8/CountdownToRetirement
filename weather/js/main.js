@@ -18,10 +18,11 @@ import { createRadar } from './views/radar.js';
 import { createSkyView } from './views/sky.js';
 import { createAir } from './views/air.js';
 import { createData } from './views/data.js';
+import { createOverhead } from './views/overhead.js';
 import { initAudio, setAudioEnabled, updateAudio, isAudioOn } from './audio.js';
 import { showBriefing } from './brief.js';
 
-const VIEWS = ['deck', 'radar', 'sky', 'air', 'data'];
+const VIEWS = ['deck', 'radar', 'sky', 'air', 'data', 'overhead'];
 const REFRESH_MS = 5 * 60_000;
 
 const el = {
@@ -124,6 +125,7 @@ function mountUI() {
   views.sky = createSkyView(document.getElementById('view-sky'));
   views.air = createAir(document.getElementById('view-air'));
   views.data = createData(document.getElementById('view-data'));
+  views.overhead = createOverhead(document.getElementById('view-overhead'));
 
   const rerender = () => {
     const v = views[store.view];
@@ -185,6 +187,8 @@ function refreshChrome() {
 
 function setView(v, { push = true } = {}) {
   if (!VIEWS.includes(v) || store.view === v) return;
+  // Tell the view being left, so anything it polls can stand down.
+  views[store.view]?.onHide?.();
   store.view = v;
   // A readout tapped onto a chart belongs to the view you were looking at.
   clearInspect();
@@ -543,7 +547,7 @@ function onKey(e) {
 
   const k = e.key;
   if (k === 'Escape') { closeModal(); return; }
-  if (k >= '1' && k <= '5') { setView(VIEWS[+k - 1]); return; }
+  if (k >= '1' && k <= '6') { setView(VIEWS[+k - 1]); return; }
 
   switch (k.toLowerCase()) {
     case ' ':

@@ -18,7 +18,9 @@ import { neonLine } from '../charts.js';
 import {
   fmt as F, compass, dur, clamp, kpCategory, relTime,
 } from '../lib/util.js';
-import { sunPosition, moonPosition, moonIllumination, moonPhaseName, toCompass, toDeg } from '../lib/astro.js';
+import {
+  sunPosition, moonPosition, moonIllumination, moonPhaseName, toCompass, toDeg, topocentric,
+} from '../lib/astro.js';
 import { scoreHour } from '../activity.js';
 
 export function createSkyView(root) {
@@ -401,27 +403,14 @@ export function createSkyView(root) {
       const r = await api.iss();
       if (r.pos?.ok) {
         const p = r.pos.data;
-        iss = { ...topocentric(p.latitude, p.longitude, p.altitude), lat: p.latitude, lon: p.longitude, visibility: p.visibility };
+        const o = store.loc || { lat: 0, lon: 0 };
+        iss = {
+          ...topocentric(o.lat, o.lon, p.latitude, p.longitude, p.altitude),
+          lat: p.latitude, lon: p.longitude, visibility: p.visibility,
+        };
         domeChart.render();
       }
     } catch { /* leave the previous fix in place */ }
-  }
-
-  /** Convert a satellite ground point + altitude to local alt/az. */
-  function topocentric(slat, slon, altKm) {
-    const R = 6371;
-    const toR = Math.PI / 180;
-    const { lat, lon } = store.loc || { lat: 0, lon: 0 };
-    const phi1 = lat * toR, phi2 = slat * toR;
-    const dl = (slon - lon) * toR;
-    const cosC = Math.sin(phi1) * Math.sin(phi2) + Math.cos(phi1) * Math.cos(phi2) * Math.cos(dl);
-    const c = Math.acos(clamp(cosC, -1, 1));                       // central angle
-    // Elevation above the local horizon for a satellite at range angle c.
-    const el = Math.atan2(Math.cos(c) - R / (R + altKm), Math.sin(c));
-    const az = Math.atan2(
-      Math.sin(dl) * Math.cos(phi2),
-      Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dl));
-    return { alt: toDeg(el), az: (toDeg(az) + 360) % 360, range: Math.round(c * R) };
   }
 
   setInterval(pollISS, 8000);
