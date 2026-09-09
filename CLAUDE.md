@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a text-only landing page (name, one sentence, eight links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, six links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
 
 ## Tech Stack
 
@@ -142,13 +142,15 @@ CountdownToRetirement/
 ### Landing Page (/)
 - **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and four text links: email, GitHub, the retirement clock, and the weather console
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, no JavaScript
-- **Layout:** body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
-- **It no longer fits one screen on the smallest phones, and that is the link
-  count.** Measured: at 390x844 it fits at six, seven or eight links. At
-  375x667 six fit, seven scroll by 8px, eight by 60px; at 320x700, by 9px and
-  87px. Six was the last count that fit everywhere. The real smell is that
-  three of the eight now point into `/weather/` — the page is turning into a
-  menu, and trimming is a design decision rather than a bug fix.
+- **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
+- **Six links is the ceiling, and it is measured.** At 390x844 the page fits at
+  six, seven or eight. At 375x667 six fit, seven scroll by 8px and eight by
+  60px; at 320x700, by 9px and 87px. Deep links into the console briefly took
+  it to eight and were removed: the list is a directory of *things*, and the
+  console is one thing. Giving it a row per view misrepresents the site and
+  sets an unbounded pattern — every good view would want one. OVERHEAD is a nav
+  tab and TONIGHT is the first panel in SKY on a phone, so both stay one tap
+  from "Watch the weather".
 
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
