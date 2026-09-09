@@ -725,8 +725,12 @@ async function runSubdirectoryTests() {
                 'Should have JSON content type');
 
             const stats = JSON.parse(data);
-            assert.strictEqual(typeof stats.trips, 'number',
-                'stats.json should include a numeric trips counter');
+            // trips is the list of places, not a count -- the tile derives the
+            // number from its length so the two cannot disagree.
+            assert.ok(Array.isArray(stats.trips),
+                'stats.json should include the trips list');
+            assert.strictEqual(typeof stats.books, 'number',
+                'stats.json should include a numeric books counter');
         });
 
         await test('Should block path traversal from countdown subdirectory', async () => {

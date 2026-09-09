@@ -1311,12 +1311,65 @@ describe('BUSINESS SITE - Personal stats file', () => {
     const fs = require('fs');
     const raw = fs.readFileSync(path.join(__dirname, 'countdown', 'stats.json'), 'utf8');
     const stats = JSON.parse(raw);
+    const countdownJs = fs.readFileSync(path.join(__dirname, 'countdown', 'script.js'), 'utf8');
+    const countdownMarkup = fs.readFileSync(path.join(__dirname, 'countdown', 'index.html'), 'utf8');
 
-    test('stats.json should have the four personal counters as non-negative integers', () => {
-        ['trips', 'books', 'projects', 'naps'].forEach(key => {
+    test('stats.json should carry three counters as non-negative integers', () => {
+        ['books', 'projects', 'naps'].forEach(key => {
             assert.strictEqual(typeof stats[key], 'number', `${key} should be a number`);
             assert.ok(Number.isInteger(stats[key]) && stats[key] >= 0, `${key} should be a non-negative integer`);
         });
+    });
+
+    test('stats.json should hold trips as a list of places', () => {
+        assert.ok(Array.isArray(stats.trips), 'trips should be an array, not a count');
+        assert.ok(stats.trips.length > 0, 'An empty list would hide the tile');
+        stats.trips.forEach((trip, i) => {
+            assert.strictEqual(typeof trip, 'object', `Trip ${i} should be an object`);
+            assert.ok(trip && typeof trip.place === 'string' && trip.place.trim(),
+                `Trip ${i} needs a non-empty place`);
+            assert.ok(typeof trip.when === 'string',
+                `Trip ${i} needs a when, even if it is still blank`);
+        });
+    });
+
+    test('The trip count should be derived from the list, never stored beside it', () => {
+        // Two places to edit is one place to forget. The tile reads .length so
+        // the number and the panel cannot disagree.
+        assert.ok(/Array\.isArray\(value\)/.test(countdownJs),
+            'The loader should recognise a list');
+        // Both the number and the panel must come from the same filter. The
+        // raw length counted entries the panel then dropped, which put "6" on
+        // a tile that opened onto two lines.
+        assert.ok(/isList \? usableTrips\(value\)\.length : value/.test(countdownJs),
+            'The count should come from the same filter the panel renders');
+        assert.ok(/renderTrips\(usableTrips\(stats\.trips\)\)/.test(countdownJs),
+            'The panel should render that same filtered list');
+        assert.ok(!/isList \? value\.length/.test(countdownJs),
+            'The count should not come from the unfiltered array');
+        assert.ok(!/"tripCount"|"trip_count"/.test(raw),
+            'stats.json should not carry a separate trip count');
+    });
+
+    test('The trips tile should be a button that says what it controls', () => {
+        // A finger cannot hover, so this has to be operable by tap, Enter and
+        // Space -- which a <button> gives for free and a <div> does not.
+        assert.ok(/<button[^>]*id="stat-trips-card"/.test(countdownMarkup),
+            'The trips tile should be a real button');
+        assert.ok(/aria-expanded="false"/.test(countdownMarkup), 'It should start collapsed');
+        assert.ok(/aria-controls="stat-trips-detail"/.test(countdownMarkup),
+            'It should name the panel it opens');
+        const panel = countdownMarkup.replace(/\s+/g, ' ')
+            .match(/<div [^>]*id="stat-trips-detail"[^>]*>/);
+        assert.ok(panel, 'The panel should exist in the markup');
+        // It ships closed: without hidden it is on screen before any JS runs.
+        assert.ok(/\bhidden\b/.test(panel[0]), 'The panel should start hidden');
+    });
+
+    test('The trips panel should be dismissable without a mouse', () => {
+        assert.ok(/event\.key === 'Escape'/.test(countdownJs), 'Escape should close it');
+        assert.ok(/!card\.contains\(event\.target\)/.test(countdownJs),
+            'A click outside should close it');
     });
 
     test('stats.json should carry an ISO date in "updated"', () => {

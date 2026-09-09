@@ -962,6 +962,120 @@ body {
     50% { transform: translateY(-10px); }
 }
 
+/* ------------------------------------------------------------------
+   The trips panel
+
+   The tile is a <button>, so it needs the resets a button does not
+   inherit -- font, colour, width -- or it renders as a small grey
+   control in the browser's own font.
+   ------------------------------------------------------------------ */
+.personal-metrics {
+    /* The panel is inset to this box, which is what stops it running off
+       a narrow screen. */
+    position: relative;
+}
+
+button.metric-card {
+    font: inherit;
+    color: inherit;
+    width: 100%;
+    display: block;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.metric-more {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    opacity: 0.65;
+}
+
+.metric-card--expands.is-open {
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+/*
+ * Above the grid, not below it, for two reasons that both showed up on a
+ * phone. The grid is two columns there, so a panel underneath puts its caret
+ * against the BOTTOM row -- pointing at "Projects shipped" while claiming to
+ * be about trips. And the sections below are glass: backdrop-filter makes
+ * each one its own stacking context, so a later sibling paints over anything
+ * this panel's z-index can reach. Above, the caret lands on the tile's own
+ * top edge and the sections it covers are earlier siblings, which paint
+ * underneath by default.
+ */
+.metric-detail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 10px);
+    z-index: 5;
+    padding: 14px 16px;
+    border-radius: 12px;
+    text-align: left;
+    background: rgba(20, 12, 36, 0.94);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.metric-card--expands.is-open + .metric-detail {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* The caret is the only thing that says which tile you asked about. */
+.metric-detail::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: var(--caret-x, 50%);
+    width: 0;
+    height: 0;
+    margin-left: -8px;
+    border: 8px solid transparent;
+    border-top-color: rgba(255, 255, 255, 0.35);
+}
+
+.trip-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.trip-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.trip-list li:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.trip-place {
+    font-size: 0.92rem;
+}
+
+.trip-when {
+    font-size: 0.78rem;
+    opacity: 0.75;
+    white-space: nowrap;
+}
+
 /* Progress section */
 .progress-section {
     background: rgba(255, 255, 255, 0.1);
@@ -1568,6 +1682,29 @@ body.mode-countup .personal-section {
     border-color: rgba(255, 255, 255, 0.7);
 }
 
+/*
+ * The panel floats over the page rather than sitting in it, so it is nearly
+ * opaque: the 0.38 the tiles use would leave the text below showing through
+ * the trip names.
+ */
+body.mode-countup .metric-detail {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(255, 255, 255, 0.9);
+    color: #3a2f45;
+}
+
+body.mode-countup .metric-detail::before {
+    border-top-color: rgba(255, 255, 255, 0.9);
+}
+
+body.mode-countup .trip-list li {
+    border-bottom-color: rgba(58, 47, 69, 0.18);
+}
+
+body.mode-countup .metric-card--expands.is-open {
+    border-color: rgba(58, 47, 69, 0.35);
+}
+
 body.mode-countup .milestone {
     background: rgba(255, 255, 255, 0.45);
     border-color: rgba(255, 255, 255, 0.8);
@@ -1847,6 +1984,20 @@ body.mode-countup .countup-marking {
         border: 2px solid #fff;
         color: #fff;
     }
+
+    body.mode-countup .metric-detail {
+        background: #000;
+        border: 2px solid #fff;
+        color: #fff;
+    }
+
+    body.mode-countup .metric-detail::before {
+        border-top-color: #fff;
+    }
+
+    .trip-list li { border-bottom-color: #fff; }
+    .metric-more { opacity: 1; }
+    .trip-when { opacity: 1; }
 
     body.mode-countup .progress-text,
     body.mode-countup .back-link,

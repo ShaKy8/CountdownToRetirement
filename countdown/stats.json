@@ -1,6 +1,12 @@
 {
-  "updated": "2026-09-06",
-  "trips": 3,
+  "updated": "2026-09-09",
+  "trips": [
+    { "place": "San Francisco", "when": "" },
+    { "place": "Vancouver, Canada", "when": "" },
+    { "place": "Juneau, Alaska (adventure cruise)", "when": "" },
+    { "place": "Grants Pass, Oregon", "when": "" },
+    { "place": "Johnson City, Texas", "when": "" }
+  ],
   "books": 5,
   "projects": 4,
   "naps": 100

@@ -253,11 +253,29 @@
 
         <section class="personal-section" id="personal-section" data-mode="countup" hidden aria-labelledby="personal-heading">
             <h2 id="personal-heading">Since then</h2>
-            <div class="fun-metrics personal-metrics">
-                <div class="metric-card" role="article" aria-labelledby="stat-trips-label" id="stat-trips-card">
+            <div class="fun-metrics personal-metrics" id="personal-metrics">
+                <!--
+                  A button rather than an article: it opens the list of trips, so
+                  it has to answer to a click, Enter, Space and a screen reader,
+                  not only to a mouse passing over it.
+                -->
+                <button type="button" class="metric-card metric-card--expands" id="stat-trips-card"
+                        aria-labelledby="stat-trips-label" aria-expanded="false"
+                        aria-controls="stat-trips-detail">
                     <div class="metric-icon" aria-hidden="true">🧳</div>
                     <div class="metric-value" id="stat-trips">0</div>
                     <div class="metric-label" id="stat-trips-label">Trips taken</div>
+                    <span class="metric-more" aria-hidden="true">Where?</span>
+                </button>
+                <!--
+                  Anchored to the grid, not to the tile. A tile is about 150px on
+                  a phone and a five-entry panel centred on it would hang off the
+                  screen; inset to the grid it cannot. The caret still points at
+                  the tile, placed from --caret-x.
+                -->
+                <div class="metric-detail" id="stat-trips-detail" role="region"
+                     aria-labelledby="stat-trips-label" hidden>
+                    <ul class="trip-list" id="trip-list"></ul>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="stat-books-label" id="stat-books-card">
                     <div class="metric-icon" aria-hidden="true">📚</div>

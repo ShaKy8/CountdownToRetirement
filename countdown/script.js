@@ -514,6 +514,136 @@ function updateMotivation(direction) {
 }
 
 // ----------------------------------------------------------------------
+// The trips panel
+//
+// Hover alone would make this invisible on a phone, so the tile is a button
+// and a tap toggles it. Hover is transient; an explicit tap pins it open until
+// something dismisses it - the same split the weather console's readouts use,
+// for the same reason.
+// ----------------------------------------------------------------------
+let tripsPinned = false;
+
+/**
+ * The trips worth showing. stats.json is edited by hand, so an entry that is
+ * not an object, or has no place, is dropped rather than allowed to break the
+ * page.
+ *
+ * THE COUNT AND THE PANEL BOTH COME FROM HERE. Counting the raw array while
+ * the panel counted what it could render put "6" on a tile that opened onto
+ * two lines -- the same drift as storing the number beside the list, moved
+ * from two files into two code paths.
+ */
+function usableTrips(list) {
+    if (!Array.isArray(list)) return [];
+    return list.reduce((out, entry) => {
+        if (!entry || typeof entry !== 'object') return out;
+        const place = typeof entry.place === 'string' ? entry.place.trim() : '';
+        if (place) out.push({ place, when: typeof entry.when === 'string' ? entry.when.trim() : '' });
+        return out;
+    }, []);
+}
+
+function renderTrips(trips) {
+    const ul = byId('trip-list');
+    const card = byId('stat-trips-card');
+    if (!ul || !card) return;
+
+    ul.textContent = '';
+    trips.forEach(trip => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'trip-place';
+        name.textContent = trip.place;
+        li.appendChild(name);
+        // No date yet is just the place: the dates are Kyle's to fill in and
+        // the panel has to read properly before he does.
+        if (trip.when) {
+            const date = document.createElement('span');
+            date.className = 'trip-when';
+            date.textContent = trip.when;
+            li.appendChild(date);
+        }
+        ul.appendChild(li);
+    });
+
+    card.classList.toggle('metric-card--expands', trips.length > 0);
+    if (!trips.length) hideTrips();
+}
+
+function showTrips() {
+    const card = byId('stat-trips-card');
+    const panel = byId('stat-trips-detail');
+    const ul = byId('trip-list');
+    if (!card || !panel || !ul || !ul.children.length) return;
+
+    // The panel spans the grid so it cannot run off a narrow screen; the caret
+    // is what still points at the tile you asked about.
+    const grid = byId('personal-metrics');
+    if (grid) {
+        const c = card.getBoundingClientRect();
+        const g = grid.getBoundingClientRect();
+        panel.style.setProperty('--caret-x', `${Math.round(c.left - g.left + c.width / 2)}px`);
+    }
+    panel.hidden = false;
+    card.classList.add('is-open');
+    card.setAttribute('aria-expanded', 'true');
+}
+
+function hideTrips() {
+    const card = byId('stat-trips-card');
+    const panel = byId('stat-trips-detail');
+    if (!card || !panel) return;
+    card.classList.remove('is-open');
+    card.setAttribute('aria-expanded', 'false');
+    panel.hidden = true;
+}
+
+function tripsOpen() {
+    const card = byId('stat-trips-card');
+    return !!card && card.classList.contains('is-open');
+}
+
+function wireTripsPanel() {
+    const card = byId('stat-trips-card');
+    if (!card) return;
+
+    /*
+     * Toggles the PINNED state, not what happens to be on screen. A real tap
+     * focuses the button before it clicks it, and focus opens the panel -- so
+     * a handler that read "is it open?" would find its own focus handler's
+     * work and close again in the same gesture. Nothing but a programmatic
+     * .click(), which skips focus, would ever have shown otherwise.
+     */
+    card.addEventListener('click', () => {
+        tripsPinned = !tripsPinned;
+        if (tripsPinned) showTrips(); else hideTrips();
+    });
+    /*
+     * Guarded by the event's own pointer type, not by a media query. A laptop
+     * with a touchscreen matches (hover: hover) and is still touched, and a
+     * touch reports pointerenter immediately before the tap and pointerleave
+     * on the lift -- so a media-query guard would open the panel and shut it
+     * again in the same gesture.
+     */
+    const fine = event => event.pointerType && event.pointerType !== 'touch';
+    card.addEventListener('pointerenter', event => { if (fine(event)) showTrips(); });
+    card.addEventListener('pointerleave', event => {
+        if (fine(event) && !tripsPinned) hideTrips();
+    });
+    card.addEventListener('focus', showTrips);
+    card.addEventListener('blur', () => { if (!tripsPinned) hideTrips(); });
+
+    document.addEventListener('click', event => {
+        if (tripsOpen() && !card.contains(event.target)) { tripsPinned = false; hideTrips(); }
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && tripsOpen()) { tripsPinned = false; hideTrips(); }
+    });
+    // The caret is measured, so it has to be measured again when things move.
+    window.addEventListener('resize', () => { if (tripsOpen()) showTrips(); });
+}
+
+// ----------------------------------------------------------------------
 // Personal stats (countdown/stats.json)
 // ----------------------------------------------------------------------
 function loadPersonalStats() {
@@ -535,13 +665,23 @@ function loadPersonalStats() {
             ['trips', 'books', 'projects', 'naps'].forEach(key => {
                 const card = byId(`stat-${key}-card`);
                 const value = stats[key];
-                const valid = typeof value === 'number' && Number.isFinite(value) && value >= 0;
+                /*
+                 * A list counts itself. Storing the number beside the list
+                 * would let the two disagree the first time a trip is added to
+                 * one and not the other, and the number is the part everyone
+                 * sees.
+                 */
+                const isList = Array.isArray(value);
+                const count = isList ? usableTrips(value).length : value;
+                const valid = typeof count === 'number' && Number.isFinite(count)
+                    && count >= 0 && (!isList || count > 0);
                 if (card) card.hidden = !valid;
                 if (valid) {
-                    setText(`stat-${key}`, formatNumber(value));
+                    setText(`stat-${key}`, formatNumber(count));
                     populated++;
                 }
             });
+            renderTrips(usableTrips(stats.trips));
 
             if (typeof stats.updated === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(stats.updated)) {
                 const [y, m, d] = stats.updated.split('-').map(Number);
@@ -679,5 +819,6 @@ function createStars() {
 // ----------------------------------------------------------------------
 loadSavedDate();
 createStars();
+wireTripsPanel();
 tick();
 tickInterval = setInterval(tick, 1000);

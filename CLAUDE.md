@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (354 tests)
+# Run client-side tests (358 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -111,7 +111,7 @@ CountdownToRetirement/
 │   ├── index.html          # Dual-mode page (countdown / count-up) with back link
 │   ├── calc.js             # Pure date math, shared by the page and tests.js
 │   ├── script.js           # DOM rendering, mode switching, celebration
-│   ├── stats.json          # Personal counters shown in count-up mode (edit + push)
+│   ├── stats.json          # Personal counters + the trip list (edit + push)
 │   ├── styles.css          # Night theme (countdown) + dawn theme (count-up)
 │   └── favicon.svg         # Beach/sunset themed favicon
 ├── game/                   # ONE PUTT - the daily putting game
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (354 tests)
+├── tests.js                # Client-side unit tests (358 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -155,7 +155,32 @@ CountdownToRetirement/
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
 - **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. Hourglass, thermometer, and progress bar fill toward the next milestone.
-- **Personal counters:** `countdown/stats.json` (trips, books, projects, naps, plus an `updated` date). Edit the numbers, push to main, and the deploy publishes them. A missing or invalid file simply hides that section.
+- **Personal counters:** `countdown/stats.json` (trips, books, projects, naps, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
+- **`trips` is a list, and its count is derived.** `books`, `projects` and `naps`
+  are plain numbers; `trips` is an array of `{ place, when }` and the tile shows
+  `.length`. A `trips: 5` stored beside the list would disagree with it the first
+  time a trip was added to one and not the other, and the number is the half
+  everyone sees. `when` may be blank — the entry then renders as just the place —
+  and an element that is not an object, or has no `place`, is skipped rather than
+  allowed to break the page. An empty list hides the tile exactly as an invalid
+  number does.
+- **Tapping the trips tile opens the list.** It is a `<button>`, not an article,
+  so it answers to a tap, Enter, Space and a screen reader; hover alone would
+  make it invisible on a phone. `node scripts/trips-audit.mjs` is the gate — run
+  it at 390x844 and 320x700. Two traps in it:
+  - **A real tap focuses before it clicks**, and focus opens the panel. The
+    click handler therefore toggles the *pinned* flag rather than reading
+    whether the panel is open — otherwise it finds its own focus handler's work
+    and closes again in the same gesture. A programmatic `.click()` skips focus
+    and hides this entirely, so the gate calls `focus()` first.
+  - **Hover is guarded by `event.pointerType`, not by a media query.** A laptop
+    with a touchscreen matches `(hover: hover)` and is still touched, and a
+    touch fires `pointerenter` before the tap and `pointerleave` on the lift.
+  - The panel sits *above* the grid. Below it, the caret lands against the
+    bottom row of a two-column phone layout and appears to describe the wrong
+    tile — and the sections below are glass, so `backdrop-filter` makes each
+    one a stacking context that paints over anything the panel's `z-index` can
+    reach.
 - **Countdown mode:** Unchanged days/hours/minutes/seconds timer, original metrics and milestones, purple night theme.
 - **Celebration:** The CONGRATULATIONS overlay only plays when a countdown reaches zero while the page is open, then transitions to count-up without a reload.
 - **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).
