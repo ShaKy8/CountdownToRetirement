@@ -146,15 +146,33 @@
             blip(300, 0.35, 0.08, 'triangle');
             window.setTimeout(function () { blip(210, 0.5, 0.07, 'triangle'); }, 110);
             break;
+        /*
+         * Out of the system. It used to share 'miss' with a drift, but the two
+         * are not the same failure: this one leaves and does not come back, so
+         * it falls away instead of stopping.
+         */
+        case 'lost':
+            blip(260, 0.9, 0.07, 'sine');
+            window.setTimeout(function () { blip(150, 1.1, 0.05, 'sine'); }, 150);
+            window.setTimeout(function () { blip(90, 1.3, 0.035, 'sine'); }, 340);
+            break;
         }
         if (kind !== 'launch') quiet();
     }
 
-    /** Called each frame while the probe is in flight; `p` is 0..1 of the path. */
-    function flying(p) {
+    /**
+     * Called each frame while the probe is in flight; `p` is 0..1 of the path.
+     *
+     * `near` is 0..1 for how close the probe is to the beacon right now, and it
+     * lifts the tone as you close. The game always knew this number; it just
+     * never let you hear it until the shot was over.
+     */
+    function flying(p, near) {
         if (!ctx || !enabled || !voices) return;
-        ramp(voices.og.gain, 0.05, 0.1);
-        ramp(voices.osc.frequency, 150 + 220 * Math.min(1, Math.max(0, p)), 0.1);
+        const q = Math.min(1, Math.max(0, near || 0));
+        ramp(voices.og.gain, 0.05 + 0.045 * q, 0.1);
+        ramp(voices.osc.frequency,
+            150 + 220 * Math.min(1, Math.max(0, p)) + 260 * q * q, 0.1);
     }
 
     function quiet() {

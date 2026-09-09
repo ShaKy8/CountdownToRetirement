@@ -3591,6 +3591,98 @@ describe('TONIGHT - the rules', () => {
     });
 });
 
+describe('SLINGSHOT - impact effects', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const strip = (src) => src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const script = strip(read('slingshot', 'script.js'));
+    const rules = strip(read('slingshot', 'orbit.js'));
+    const audio = strip(read('slingshot', 'audio.js'));
+
+    /*
+     * Most shots miss - the median aim window is 1.8 degrees - so failure is
+     * the main experience in this game, and it used to have no picture at all:
+     * a sound, a sentence, and a probe that stopped mid-frame.
+     */
+    test('Should keep the rules ignorant that any of this exists', () => {
+        // The whole reason the split holds. Effects are diffed out of the
+        // flight result in script.js, exactly as the audio events are.
+        for (const word of ['particle', 'scar', 'shake', 'fx', 'debris', 'bloom']) {
+            assert.ok(!new RegExp('\\b' + word, 'i').test(rules),
+                `orbit.js must not mention ${word}`);
+        }
+    });
+
+    test('Should give every outcome its own picture', () => {
+        // fly() already returns the contact point and which body was hit, so
+        // none of this needed a rules change.
+        for (const [outcome, fn] of [['crash', 'burst'], ['lost', 'dwindle'],
+            ['hit', 'bloom'], ['timeout', 'sigh']]) {
+            assert.ok(new RegExp('function ' + fn + '\\b').test(script),
+                `${outcome} should have a ${fn}()`);
+            assert.ok(new RegExp('\\b' + fn + '\\(').test(script.replace('function ' + fn, '')),
+                `${fn}() should actually be called`);
+        }
+        assert.ok(/r\.body/.test(script), 'the crash should use the body index fly() returns');
+    });
+
+    test('Should have a real off switch, not a nominal one', () => {
+        assert.ok(/\/\^\[012\]\$\//.test(script), 'fx should accept 0, 1 or 2');
+        assert.ok(/fxOn = function \(\) \{ return fxLevel > 0; \}/.test(script),
+            'and everything should be able to ask whether it is on');
+    });
+
+    test('Should strip the motion but keep what teaches', () => {
+        /*
+         * Under reduced motion the flight is skipped in a single frame, so
+         * anything driven by flight progress never runs at all. Scars are not
+         * motion and they are the part that teaches, so they are recorded
+         * before the early return.
+         */
+        const burst = script.slice(script.indexOf('function burst'),
+            script.indexOf('function dwindle'));
+        const scarAt = burst.indexOf('scars.push');
+        const bailAt = burst.indexOf('reduceMotion');
+        assert.ok(scarAt > -1 && bailAt > -1, 'burst() should do both');
+        assert.ok(scarAt < bailAt,
+            'the scar must be recorded before the reduced-motion bail-out');
+        assert.ok(/if \(reduceMotion \|\| !fxOn\(\)\) return;/.test(script),
+            'the kick should respect reduced motion too');
+    });
+
+    test('Should be bounded, because this runs on a phone', () => {
+        assert.ok(/MAX_FX = \d+/.test(script) && /MAX_SCARS = \d+/.test(script),
+            'particles and scars both need a ceiling');
+        assert.ok(/if \(fx\.length >= MAX_FX\) fx\.shift\(\);/.test(script),
+            'the pool should drop the oldest rather than grow');
+        // shadowBlur is the expensive call in this file; it must not be in the
+        // per-particle loop.
+        const loop = script.slice(script.indexOf('for (let i = 0; i < fx.length; i++)'));
+        assert.ok(!/shadowBlur/.test(loop.slice(0, 400)), 'no shadowBlur per particle');
+        assert.ok(/fillRect/.test(loop.slice(0, 400)), 'debris should be drawn with fillRect');
+    });
+
+    test('Should let you hear the near miss while it happens', () => {
+        assert.ok(/function flying\(p, near\)/.test(audio),
+            'flying() should take proximity, not just progress');
+        assert.ok(/nearQ = clamp\(1 - Math\.sqrt/.test(script),
+            'proximity should be computed live during the flight');
+        assert.ok(/case 'lost':/.test(audio),
+            'leaving the system should not share a sound with drifting');
+    });
+
+    test('Should gate what can be gated', () => {
+        const gate = read('scripts', 'slingshot-fx-audit.mjs');
+        assert.ok(/IT MUST PUMP FRAMES/.test(gate),
+            'headless produces no frames, so rAF never fires and nothing decays');
+        assert.ok(/window\.SLINGSHOT_FX/.test(gate) && /window\.SLINGSHOT_FX = \{/.test(script),
+            'the gate needs a read-only handle for state with no DOM readout');
+        assert.ok(/the pool drains/.test(gate), 'a leaking pool degrades a long session silently');
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

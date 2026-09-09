@@ -19,6 +19,25 @@
     const reduceMotion = window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    /*
+     * Effects level. `?fx=0` is exactly the game as it was, which is what makes
+     * the comparison real rather than nominal; 1 is restrained and the default;
+     * 2 is full. Read at module scope so draw() and land() see it without it
+     * being threaded through everything.
+     */
+    const fxLevel = (function () {
+        const v = new URLSearchParams(window.location.search).get('fx');
+        return v !== null && /^[012]$/.test(v) ? Number(v) : 1;
+    })();
+    /* A screen kick that reads as punchy on a desktop is horrible in the hand. */
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+    const MAX_FX = 120;              // particles alive at once
+    const MAX_SCARS = 10;            // per planet, oldest dropped
+    const FX_RED = '255,59,87';      // the crash red the ghost trails already use
+    const FX_GREY = '159,182,200';
+    const FX_GREEN = '109,255,74';
+
     let W = 0, H = 0, dpr = 1, k = 1, ox = 0, oy = 0;
     let level = null, day = 0, saved = null;
     let shots = 0, best = Infinity, codes = [], ghosts = [], probe = null;
@@ -26,6 +45,19 @@
     let mode = 'preflight';       // preflight | aim | flying | done
     let scored = true;            // does this level count for the daily?
     let stars = [];
+
+    /*
+     * Impact effects. All of it lives here; orbit.js does not know it exists.
+     * Positions are in WORLD units so X()/Y() apply and a resize does not move
+     * anything, exactly as the ghost trails work.
+     */
+    let fx = [];                  // {x,y,vx,vy,life,ttl,r,col} debris
+    let rings = [];               // {x,y,r0,r1,life,ttl,col,w} shockwaves
+    let scars = [];               // {body,angle,t} a crash leaves a mark
+    let halo = [];                // per-body flare 0..1, decays
+    let shake = 0;                // screen kick amplitude, px
+    let beaconFlare = 0;          // 0..1, driven live by proximity
+    let nearQ = 0;                // how close the probe is to the beacon, now
 
     // ------------------------------------------------------------------
     // Storage
@@ -62,6 +94,129 @@
             for (let i = 0; i < 150; i++) stars.push({ x: rr(), y: rr(), b: 0.2 + rr() * 0.7 });
         }
     }
+    // ------------------------------------------------------------------
+    // Impact
+    // ------------------------------------------------------------------
+
+    const fxOn = function () { return fxLevel > 0; };
+    const fxScale = function () { return fxLevel === 2 ? 1 : 0.6; };
+
+    function addParticle(x, y, vx, vy, ttl, r, col) {
+        if (fx.length >= MAX_FX) fx.shift();
+        fx.push({ x: x, y: y, vx: vx, vy: vy, life: ttl, ttl: ttl, r: r, col: col });
+    }
+    function addRing(x, y, r0, r1, ttl, col, w) {
+        rings.push({ x: x, y: y, r0: r0, r1: r1, life: ttl, ttl: ttl, col: col, w: w });
+    }
+    function kick(px) {
+        if (reduceMotion || !fxOn()) return;
+        shake = Math.max(shake, px * fxScale() * (coarse ? 0.55 : 1));
+    }
+
+    /*
+     * A crash. The asymmetry is the whole point: the probe is destroyed and the
+     * planet shrugs it off. Debris leaves along a cone facing away from the
+     * surface, the halo the planet already draws flares and settles, and the
+     * mark stays for the rest of the day.
+     *
+     * The scar is recorded even under reduced motion — it is not motion, and it
+     * is the part that teaches.
+     */
+    function burst(r) {
+        const p = level.planets[r.body];
+        if (!p) return;
+        const ang = Math.atan2(r.y - p.y, r.x - p.x);
+        scars.push({ body: r.body, angle: ang, t: 0 });
+        let n = 0;
+        for (let i = 0; i < scars.length; i++) if (scars[i].body === r.body) n++;
+        while (n > MAX_SCARS) {
+            for (let i = 0; i < scars.length; i++) {
+                if (scars[i].body === r.body) { scars.splice(i, 1); break; }
+            }
+            n--;
+        }
+        if (!fxOn() || reduceMotion) return;
+        halo[r.body] = 1;
+        addRing(r.x, r.y, p.r * 0.35, p.r * (1.8 + 1.6 * fxScale()), 460, FX_RED, 2.2);
+        const count = fxLevel === 2 ? 20 : 12;
+        for (let i = 0; i < count; i++) {
+            const a = ang + (Math.random() - 0.5) * 1.9;
+            const sp = p.r * (0.7 + Math.random() * 2.4) * fxScale();
+            addParticle(r.x, r.y, Math.cos(a) * sp, Math.sin(a) * sp,
+                320 + Math.random() * 280, 0.6 + Math.random() * 1.1, FX_RED);
+        }
+        kick(9);
+    }
+
+    /* Out of the system. It does not bang, it dwindles. */
+    function dwindle(r) {
+        if (!fxOn() || reduceMotion) return;
+        const p = probe.path, n = p.length;
+        let vx = 1, vy = 0;
+        if (n >= 4) { vx = p[n - 2] - p[n - 4]; vy = p[n - 1] - p[n - 3]; }
+        const m = Math.sqrt(vx * vx + vy * vy) || 1;
+        for (let i = 0; i < 5; i++) {
+            const sp = 16 * (0.5 + i * 0.18) * fxScale();
+            addParticle(r.x, r.y, (vx / m) * sp, (vy / m) * sp,
+                700 + i * 130, 1.4 - i * 0.2, FX_GREY);
+        }
+    }
+
+    /* Ran out of time. A sigh, not an event. */
+    function sigh(r) {
+        if (!fxOn() || reduceMotion) return;
+        for (let i = 0; i < 7; i++) {
+            const a = Math.random() * 6.283, sp = (2 + Math.random() * 5) * fxScale();
+            addParticle(r.x, r.y, Math.cos(a) * sp, Math.sin(a) * sp,
+                520 + Math.random() * 280, 0.7 + Math.random() * 0.8, FX_GREY);
+        }
+    }
+
+    /* Arrival: the beacon blooms. Joy, so a smaller kick than the crash. */
+    function bloom() {
+        const t = level.target;
+        beaconFlare = 1;
+        if (!fxOn() || reduceMotion) return;
+        for (let i = 0; i < 3; i++) {
+            addRing(t.x, t.y, t.r * 0.8, t.r * (3.2 + i * 1.6), 620 + i * 180, FX_GREEN, 2.4 - i * 0.6);
+        }
+        const count = fxLevel === 2 ? 18 : 10;
+        for (let i = 0; i < count; i++) {
+            const a = Math.random() * 6.283, sp = t.r * (0.8 + Math.random() * 2.4) * fxScale();
+            addParticle(t.x, t.y, Math.cos(a) * sp, Math.sin(a) * sp,
+                520 + Math.random() * 320, 0.6 + Math.random() * 1.0, FX_GREEN);
+        }
+        kick(4);
+    }
+
+    function stepFx(dtMs) {
+        const dt = dtMs / 1000;
+        for (let i = fx.length - 1; i >= 0; i--) {
+            const q = fx[i];
+            q.life -= dtMs;
+            if (q.life <= 0) { fx.splice(i, 1); continue; }
+            q.x += q.vx * dt; q.y += q.vy * dt;
+            q.vx *= 0.985; q.vy *= 0.985;      // a little drag, so debris settles
+        }
+        for (let i = rings.length - 1; i >= 0; i--) {
+            rings[i].life -= dtMs;
+            if (rings[i].life <= 0) rings.splice(i, 1);
+        }
+        for (let i = 0; i < halo.length; i++) {
+            if (halo[i] > 0) halo[i] = Math.max(0, halo[i] - dtMs / 620);
+        }
+        for (let i = 0; i < scars.length; i++) {
+            if (scars[i].t < 1) scars[i].t = Math.min(1, scars[i].t + dtMs / 300);
+        }
+        if (shake > 0) shake = Math.max(0, shake - dtMs * 0.036);
+        if (beaconFlare > nearQ) beaconFlare = Math.max(nearQ, beaconFlare - dtMs / 700);
+    }
+
+    function clearFx() {
+        fx = []; rings = []; scars = []; halo = [];
+        shake = 0; beaconFlare = 0; nearQ = 0;
+    }
+
     const X = function (x) { return ox + x * k; };
     const Y = function (y) { return oy + y * k; };
     function toWorld(sx, sy) { return [(sx - ox) / k, (sy - oy) / k]; }
@@ -74,6 +229,7 @@
         level = S.makeLevel(seed);
         scored = isScored;
         shots = 0; best = Infinity; codes = []; ghosts = []; probe = null;
+        clearFx();
         // Open aimed straight at the beacon. It is the guess anyone would make,
         // and the first shot then demonstrates exactly why it does not work.
         aim = {
@@ -110,6 +266,7 @@
         if (r.outcome === 'hit') {
             mode = 'done';
             Audio.event('arrive');
+            bloom();
             if (scored) {
                 saved = S.recordDaily(saved, day, {
                     shots: shots, par: level.par, bodies: level.planets.length,
@@ -136,13 +293,16 @@
          */
         if (r.outcome === 'crash') {
             Audio.event('crash');
+            burst(r);
             say('Into the planet. Go wider, or slower so it turns sooner.', 'bad');
         } else if (r.outcome === 'lost') {
-            Audio.event('miss');
+            Audio.event('lost');
+            dwindle(r);
             say('Out of the system — closest approach ' + Math.round(r.near) +
                 '. Too fast to be caught.', 'warn');
         } else {
             Audio.event('miss');
+            sigh(r);
             say('Drifted. Closest approach ' + Math.round(r.near) + '.',
                 r.near < S.NEAR_MISS ? 'good' : 'warn');
         }
@@ -248,25 +408,51 @@
         ctx.clearRect(0, 0, W, H);
         ctx.fillStyle = '#04070f';
         ctx.fillRect(0, 0, W, H);
+
+        /*
+         * Everything below shakes together, stars included. The background is
+         * filled first in screen space, so a kick can never expose an edge.
+         */
+        ctx.save();
+        if (shake > 0.2) {
+            ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+        }
         for (let i = 0; i < stars.length; i++) {
             const s = stars[i];
             ctx.fillStyle = 'rgba(200,220,255,' + (s.b * 0.5).toFixed(2) + ')';
             ctx.fillRect(s.x * W, s.y * H, 1.4, 1.4);
         }
-        if (!level) return;
+        if (!level) { ctx.restore(); return; }
 
         // Bodies, each with a falloff halo so the pull is legible before you fly
         // through it. The halo is the only cue that a big body pulls harder.
         for (let i = 0; i < level.planets.length; i++) {
             const p = level.planets[i];
+            const flare = halo[i] || 0;
             const g = ctx.createRadialGradient(X(p.x), Y(p.y), p.r * k, X(p.x), Y(p.y), p.r * k * 4.2);
-            g.addColorStop(0, 'rgba(120,160,255,.20)');
+            g.addColorStop(0, 'rgba(120,160,255,' + (0.20 + 0.35 * flare).toFixed(3) + ')');
             g.addColorStop(1, 'rgba(120,160,255,0)');
             ctx.fillStyle = g;
             ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), p.r * k * 4.2, 0, 6.283); ctx.fill();
             ctx.fillStyle = '#4b5a75';
             ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), p.r * k, 0, 6.283); ctx.fill();
-            ctx.strokeStyle = 'rgba(160,190,255,.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+            /*
+             * Scars. Ghost trails make your misses visible in the space; these
+             * make them visible on the thing you hit, and they stay all day.
+             */
+            for (let sI = 0; sI < scars.length; sI++) {
+                const sc = scars[sI];
+                if (sc.body !== i) continue;
+                const rr = p.r * k;
+                ctx.fillStyle = 'rgba(18,24,38,' + (0.6 * sc.t).toFixed(3) + ')';
+                ctx.beginPath();
+                ctx.arc(X(p.x) + Math.cos(sc.angle) * rr * 0.78,
+                    Y(p.y) + Math.sin(sc.angle) * rr * 0.78,
+                    Math.max(1.5, rr * 0.19) * sc.t, 0, 6.283);
+                ctx.fill();
+            }
+            ctx.strokeStyle = 'rgba(160,190,255,.5)'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), p.r * k, 0, 6.283); ctx.stroke();
         }
 
         /*
@@ -288,13 +474,39 @@
             ctx.stroke();
         }
 
-        // Beacon.
+        // Shockwaves and debris.
+        for (let i = 0; i < rings.length; i++) {
+            const q = rings[i], u = 1 - q.life / q.ttl;
+            ctx.strokeStyle = 'rgba(' + q.col + ',' + (0.55 * (1 - u)).toFixed(3) + ')';
+            ctx.lineWidth = q.w;
+            ctx.beginPath();
+            ctx.arc(X(q.x), Y(q.y), (q.r0 + (q.r1 - q.r0) * u) * k, 0, 6.283);
+            ctx.stroke();
+        }
+        for (let i = 0; i < fx.length; i++) {
+            const q = fx[i], a = q.life / q.ttl;
+            // fillRect, not arc: this is the only per-frame allocation in the
+            // game and it runs on a phone.
+            ctx.fillStyle = 'rgba(' + q.col + ',' + (0.85 * a).toFixed(3) + ')';
+            const sz = Math.max(1, q.r * k * a);
+            ctx.fillRect(X(q.x) - sz / 2, Y(q.y) - sz / 2, sz, sz);
+        }
+
+        // Beacon. Its rings answer to how close the probe came.
         const t = level.target;
         const pulse = reduceMotion ? 1 : 1 + 0.12 * Math.sin(Date.now() / 320);
-        ctx.strokeStyle = 'rgba(109,255,74,.85)'; ctx.lineWidth = 2.5;
+        const fl = beaconFlare;
+        ctx.strokeStyle = 'rgba(109,255,74,' + (0.85 + 0.15 * fl).toFixed(3) + ')';
+        ctx.lineWidth = 2.5 + 2.5 * fl;
         ctx.beginPath(); ctx.arc(X(t.x), Y(t.y), t.r * k * pulse, 0, 6.283); ctx.stroke();
-        ctx.strokeStyle = 'rgba(109,255,74,.28)'; ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(109,255,74,' + (0.28 + 0.4 * fl).toFixed(3) + ')'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(X(t.x), Y(t.y), t.r * k * 1.7 * pulse, 0, 6.283); ctx.stroke();
+        if (fl > 0.02) {
+            ctx.strokeStyle = 'rgba(109,255,74,' + (0.45 * fl).toFixed(3) + ')';
+            ctx.beginPath();
+            ctx.arc(X(t.x), Y(t.y), t.r * k * (2.2 + 1.8 * fl), 0, 6.283);
+            ctx.stroke();
+        }
         ctx.fillStyle = 'rgba(109,255,74,.9)';
         ctx.beginPath(); ctx.arc(X(t.x), Y(t.y), 3, 0, 6.283); ctx.fill();
 
@@ -343,6 +555,7 @@
                 ctx.beginPath(); ctx.arc(X(p[e]), Y(p[e + 1]), 3.5, 0, 6.283); ctx.fill();
             }
         }
+        ctx.restore();
     }
 
     // ------------------------------------------------------------------
@@ -359,11 +572,25 @@
             probe.i += reduceMotion ? probe.path.length : Math.round(dtMs / 1000 * 44) * 2;
             if (probe.i >= probe.path.length - 2) {
                 probe.i = Math.max(0, probe.path.length - 2);
+                nearQ = 0;
                 land();
             } else {
-                Audio.flying(probe.i / Math.max(1, probe.path.length));
+                /*
+                 * "Ooh, so close" while it is happening. The game already knew
+                 * the closest approach, but only reported it afterwards as a
+                 * number you had to interpret; this is the same fact, felt.
+                 */
+                const pth = probe.path, e = clamp(probe.i, 0, pth.length - 2);
+                const tg = level.target;
+                const dx = pth[e] - tg.x, dy = pth[e + 1] - tg.y;
+                nearQ = clamp(1 - Math.sqrt(dx * dx + dy * dy) / (S.NEAR_MISS * 2.5), 0, 1);
+                if (nearQ > beaconFlare) beaconFlare = nearQ;
+                Audio.flying(probe.i / Math.max(1, probe.path.length), nearQ);
             }
+        } else {
+            nearQ = 0;
         }
+        stepFx(dtMs);
         draw();
         window.requestAnimationFrame(frame);
     }
@@ -467,6 +694,21 @@
         lastFrame = window.performance.now();
         window.requestAnimationFrame(frame);
     }
+
+    /*
+     * Read-only handle for scripts/slingshot-fx-audit.mjs. None of this has a
+     * DOM readout, and a leaking particle pool is exactly the sort of thing
+     * that degrades a game the longer it is played without ever erroring.
+     * Same precedent as window.ATMOS.views in the console.
+     */
+    window.SLINGSHOT_FX = {
+        level: function () { return fxLevel; },
+        particles: function () { return fx.length; },
+        rings: function () { return rings.length; },
+        scars: function () { return scars.length; },
+        shake: function () { return shake; },
+        near: function () { return nearQ; }
+    };
 
     boot();
 })();

@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (347 tests)
+# Run client-side tests (354 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (347 tests)
+├── tests.js                # Client-side unit tests (354 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -249,6 +249,51 @@ Measured over 40 daily levels: **40/40 playable, median aim window 1.8°** (ONE
 PUTT's ace window is 1.6–1.9°), median flight 2.0 s, median 48 distinct
 solutions per level. `node tests.js` asserts all of it — reverting MASS_SCALE to
 1 fails two tests by name.
+
+### Impact is an event
+
+Most shots miss — the median aim window is 1.8° — so **failure is the main
+experience in this game**, and it used to have no picture at all: a sound, a
+sentence, and a probe that stopped mid-frame. Each outcome now has its own
+visual language, and `node scripts/slingshot-fx-audit.mjs` is the gate.
+
+- **crash** — flash at the contact point, a shockwave through the halo the
+  planet already draws, a debris cone facing away from the surface, a screen
+  kick, and **a scar that stays**. The asymmetry is the drama: the probe is
+  destroyed and the planet shrugs.
+- **lost** — it dwindles rather than bangs. **timeout** — a small dispersing
+  puff. **hit** — the beacon blooms.
+- **The near miss is felt while it happens.** `frame()` computes the probe's
+  distance to the beacon each tick; the rings brighten and the flying tone
+  lifts as you close. The game always knew that number and only ever reported
+  it afterwards, as a figure you had to interpret.
+
+`?fx=0` is exactly the game as it was, `1` is the default, `2` is full — so the
+comparison is real rather than nominal.
+
+**Why the planet does not actually explode:** `validateLevel` computes par with
+all bodies present, the share card counts them, and everyone plays the same
+day. If a crash removed a body then "crash into everything, then fly straight"
+becomes optimal and your fifth shot faces a different puzzle than mine.
+
+Three things there that are easy to get wrong:
+
+1. **`orbit.js` is not touched, and must not be.** `fly()` already returns the
+   contact point and `body`, the index of the planet hit, so nothing needed a
+   rules change. A test asserts the rules never learn the words *particle*,
+   *scar*, *shake* or *fx*.
+2. **Under `reduceMotion` the flight is skipped in a single frame**
+   (`probe.i += probe.path.length`), so anything driven by flight progress
+   never runs. Every effect degrades to a static end state — and the scar is
+   recorded *before* the reduced-motion bail-out, because it is not motion and
+   it is the part that teaches. A test pins that ordering.
+3. **The gate has to pump frames.** Headless Chromium produces none on its own,
+   so `requestAnimationFrame` never fires, nothing decays, and under reduced
+   motion a shot never even lands. The first version read that frozen state as
+   a leaking particle pool. It forces paints with a one-pixel clip — a full
+   900x900 PNG sixty times over took minutes — and samples *while* pumping,
+   because debris lives 320–600ms and sampling afterwards measures the empty
+   pool.
 
 ### Two things that will silently break it
 
