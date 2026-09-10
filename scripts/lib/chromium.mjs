@@ -10,8 +10,17 @@
  * $CHROMIUM wins when set, so an unusual install needs no code change.
  */
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const HOME = homedir();
 
 const CANDIDATES = [
+  // A user-local install, which is how you get a browser on a machine where
+  // you do not have sudo — and the gates are the only thing that needs one.
+  join(HOME, '.local/opt/chrome-linux64/chrome'),
+  join(HOME, '.local/opt/chromium/chrome'),
+  join(HOME, '.cache/puppeteer/chrome'),
   '/usr/bin/chromium',                 // Arch, Fedora
   '/usr/bin/chromium-browser',         // Debian, Ubuntu, Raspberry Pi OS
   '/usr/bin/google-chrome-stable',
