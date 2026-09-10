@@ -57,18 +57,55 @@ aws lambda wait function-updated-v2 --function-name "$FN"
 echo "Now set: $(aws lambda get-function-configuration --function-name "$FN" \
   --query 'join(`, `, sort(keys(Environment.Variables)))' --output text)"
 
-echo "Checking the route…"
+# Two layers, checked separately, because "it still says no key" has two very
+# different causes and the fix differs. A direct invoke asks the function
+# itself; the public URL asks the whole path through CloudFront and API
+# Gateway. If the first works and the second does not, the problem is routing
+# or caching, not the key.
 q=$(python3 -c "
 import json, base64
 f = {'here': 'Los Angeles', 'hereSky': 'clear', 'hereScore': 76,
      'rows': [{'name': 'Johnson City, Texas', 'delta': -8, 'sky': 'clear', 'better': True}]}
 print(base64.urlsafe_b64encode(json.dumps(f).encode()).decode().rstrip('='))")
+
+python3 -c "
+import json, sys
+q = sys.argv[1]
+json.dump({'version': '2.0', 'rawPath': '/weather/api/elsewhere',
+           'rawQueryString': 'q=' + q,
+           'requestContext': {'http': {'method': 'GET', 'path': '/weather/api/elsewhere'}}},
+          open(sys.argv[2], 'w'))" "$q" "$work/event.json"
+
+echo "Asking the function directly…"
+aws lambda invoke --function-name "$FN"   --payload "fileb://$work/event.json" "$work/out.json" >/dev/null
+direct=$(python3 -c "
+import json, sys
+try:
+    body = json.loads(json.load(open(sys.argv[1]))['body'])
+except Exception:
+    print('unreadable'); raise SystemExit
+print(body.get('why') or ('OK: ' + body['text']) if not body.get('text') else 'OK: ' + body['text'])
+" "$work/out.json")
+echo "  $direct"
+
+echo "Asking through the site…"
 sleep 3
-curl -s "$SITE/weather/api/elsewhere?q=$q" | python3 -c "
+public=$(curl -s "$SITE/weather/api/elsewhere?q=$q" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-if d.get('text'):
-    print('  the model is answering:'); print(f\"    {d['text']}\")
-else:
-    print(f\"  still falling back ({d.get('why')}). The edge caches this for 30 minutes,\")
-    print('  so if it says \'no key\' give it a moment and try again.')"
+print(('OK: ' + d['text']) if d.get('text') else (d.get('why') or 'unreadable'))")
+echo "  $public"
+
+echo
+case "$direct:$public" in
+  OK*:OK*)   echo "The model is answering." ;;
+  OK*:*)     echo "The FUNCTION has the key but the SITE does not see it."
+             echo "That is routing or caching, not the key:"
+             echo "  - the edge caches this route for 30 minutes; try again shortly"
+             echo "  - check the API Gateway integration is unqualified (no version"
+             echo "    or alias), since a published version snapshots its own env" ;;
+  *)         echo "The function itself does not see the key."
+             echo "The config says it is set, so check they are the same function:"
+             echo "  aws lambda get-function-configuration --function-name $FN \\"
+             echo "    --query '[FunctionArn, Version, LastUpdateStatus]' --output text" ;;
+esac
