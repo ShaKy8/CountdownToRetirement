@@ -11,12 +11,13 @@
  *   node scripts/pinch-audit.mjs
  */
 import { spawn } from 'node:child_process';
+import { chromiumPath } from './lib/chromium.mjs';
 import http from 'node:http';
 
 const URL = process.argv[2] || 'http://localhost:8000/weather/';
 const W = 390, H = 844;
 const port = 9100 + (process.pid % 90);
-const chrome = spawn('/usr/bin/chromium', ['--headless=new', `--remote-debugging-port=${port}`,
+const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`,
   '--no-sandbox', `--window-size=${W},${H}`, '--use-gl=angle', '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader', '--disable-gpu-sandbox',
   '--disable-background-timer-throttling', '--disable-renderer-backgrounding', 'about:blank'],

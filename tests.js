@@ -3945,6 +3945,43 @@ describe('SLINGSHOT - impact effects', () => {
     });
 });
 
+describe('BUSINESS SITE - Runs on more than one machine', () => {
+    const fs = require('fs');
+    const dir = path.join(__dirname, 'scripts');
+    const gates = fs.readdirSync(dir).filter((f) => f.endsWith('-audit.mjs'));
+
+    test('No gate should hardcode where Chromium lives', () => {
+        /*
+         * All seven hardcoded /usr/bin/chromium, which is right on Arch and
+         * wrong nearly everywhere else. Moving this project to another machine
+         * turned one wrong assumption into seven identical unhelpful failures,
+         * so the answer lives in scripts/lib/chromium.mjs and $CHROMIUM
+         * overrides it.
+         */
+        assert.ok(gates.length >= 7, `expected the audit gates, found ${gates.length}`);
+        for (const g of gates) {
+            const src = fs.readFileSync(path.join(dir, g), 'utf8');
+            assert.ok(!/spawn\('\/usr\/bin\//.test(src),
+                `${g} spawns an absolute browser path; use chromiumPath()`);
+            assert.ok(/chromiumPath\(\)/.test(src), `${g} should resolve the browser`);
+        }
+    });
+
+    test('Nothing should assume this particular home directory', () => {
+        // A path under /home/<someone> or /Users/<someone> in committed code
+        // works on exactly one machine and fails silently on the next.
+        const roots = [dir, path.join(__dirname, 'lambda')];
+        for (const root of roots) {
+            for (const f of fs.readdirSync(root)) {
+                if (!/\.(mjs|js|sh|py)$/.test(f)) continue;
+                const src = fs.readFileSync(path.join(root, f), 'utf8');
+                assert.ok(!/\/home\/[a-z]+\/|\/Users\/[a-z]+\//i.test(src),
+                    `${f} contains an absolute home-directory path`);
+            }
+        }
+    });
+});
+
 describe('BUSINESS SITE - Production security headers', () => {
     const fs = require('fs');
     const server = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

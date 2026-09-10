@@ -12,6 +12,7 @@
  *   node scripts/trips-audit.mjs http://localhost:8000 320 700
  */
 import { spawn } from 'node:child_process';
+import { chromiumPath } from './lib/chromium.mjs';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 
@@ -22,7 +23,7 @@ const port = 9200 + (process.pid % 90);
 
 const stats = JSON.parse(readFileSync(new URL('../countdown/stats.json', import.meta.url), 'utf8'));
 
-const chrome = spawn('/usr/bin/chromium', ['--headless=new', `--remote-debugging-port=${port}`,
+const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`,
   '--no-sandbox', `--window-size=${W},${H}`, '--use-gl=angle', '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader', '--disable-gpu-sandbox',
   '--disable-background-timer-throttling', '--disable-renderer-backgrounding', 'about:blank'],

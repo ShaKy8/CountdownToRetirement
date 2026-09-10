@@ -20,12 +20,13 @@
  * axis is not fixed.
  */
 import { spawn } from 'node:child_process';
+import { chromiumPath } from './lib/chromium.mjs';
 import http from 'node:http';
 
 const URL = process.argv[2] || 'http://localhost:8000/weather/';
 const W = Number(process.argv[3] || 390), H = Number(process.argv[4] || 844);
 const port = 9200 + (process.pid % 90);
-const chrome = spawn('/usr/bin/chromium', ['--headless=new', `--remote-debugging-port=${port}`,
+const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`,
   '--no-sandbox', `--window-size=${W},${H}`, '--use-gl=angle', '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader', '--disable-gpu-sandbox',
   '--disable-background-timer-throttling', '--disable-renderer-backgrounding', 'about:blank'],

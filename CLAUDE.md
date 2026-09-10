@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (371 tests)
+# Run client-side tests (374 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (371 tests)
+├── tests.js                # Client-side unit tests (374 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -384,6 +384,43 @@ The server implements:
 - Subdirectory index.html resolution
 - Security headers (X-Frame-Options, CSP, X-Content-Type-Options, etc.)
 - HTTP method validation (GET/HEAD only)
+
+## Working on it from more than one machine
+
+`bash scripts/setup-dev-machine.sh` sets this project up somewhere new: it
+checks the prerequisites, clones both repos as siblings, and runs the suite as
+proof. Bootstrap it with one clone by hand, since the script lives in the repo
+it sets up.
+
+Everything that matters is in the two git repos. **Three things are not**, and
+each needs a deliberate move:
+
+1. **The Anthropic API key.** `~/.config/anthropic/branyontech-key`, mode 600.
+   Move it with `tailscale file cp` rather than scp — no SSH auth, and it never
+   reaches a command line.
+2. **Claude Code's memory for this project**, at
+   `~/.claude/projects/-home-kyle-Projects-branyontech/memory/`. The directory
+   name is derived from the project path, so **clone to the same path on every
+   machine** or past sessions' learned facts silently fail to load.
+3. **The AWS session.** Nothing to copy; `aws login` fresh. It is an IAM user in
+   account `391292551001`, region `us-east-1`, and `aws login` is stock
+   aws-cli 2.34, not local tooling.
+
+Two things the code needs from the machine, both asserted by tests:
+
+- **Node 22 or newer.** All seven gates speak CDP over a global `WebSocket` with
+  nothing to install; on an older Node they fail deep inside a browser session
+  rather than up front.
+- **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
+  it from a candidate list and `$CHROMIUM` overrides. All seven gates used to
+  hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
+  and one wrong assumption became seven identical unhelpful failures.
+
+**Push before switching machines.** The repos are the sync mechanism, and the
+setup script refuses to touch a working tree with uncommitted changes rather
+than guess. Note also that `pull.rebase` is set here, so a plain `git pull` with
+unstaged changes fails with an error about rebasing that has nothing to do with
+what actually went wrong.
 
 ## The whole site on a phone
 
