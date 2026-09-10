@@ -49,17 +49,6 @@ ok "node $(node -v), global WebSocket present"
 command -v python3 >/dev/null || die "python3 is not installed (sync-weather.sh needs it)"
 ok "python3 $(python3 -V 2>&1 | awk '{print $2}')"
 
-found=""
-for c in "${CHROMIUM:-}" /usr/bin/chromium /usr/bin/chromium-browser \
-         /usr/bin/google-chrome-stable /usr/bin/google-chrome /snap/bin/chromium \
-         /opt/google/chrome/chrome; do
-  [ -n "$c" ] && [ -x "$c" ] && { found="$c"; break; }
-done
-if [ -n "$found" ]; then ok "chromium $found"
-else warn "no chromium found — the seven audit gates will not run.
-       install one, or export CHROMIUM=/path/to/it"
-fi
-
 if command -v aws >/dev/null; then
   v=$(aws --version 2>&1 | sed -E 's|aws-cli/([0-9.]+).*|\1|')
   ok "aws $v"
@@ -95,6 +84,14 @@ clone_or_pull "$WX" "$WX_URL"
 
 say "Proof it works"
 cd "$SITE"
+# Asked of the resolver the gates themselves use, rather than checked against a
+# second list here. Two lists of browser paths would eventually disagree, and
+# the one that is wrong would be this one.
+browser=$(node -e "import('./scripts/lib/chromium.mjs').then(m=>console.log(m.chromiumPath())).catch(e=>{console.error(e.message);process.exit(1)})" 2>&1) \
+  && ok "browser $browser" \
+  || warn "the seven audit gates will not run:
+       $browser"
+
 node tests.js >/tmp/setup-tests.log 2>&1 \
   && ok "$(grep -E 'Total Tests' /tmp/setup-tests.log | tr -s ' ') — all passing" \
   || die "tests failed; see /tmp/setup-tests.log"
