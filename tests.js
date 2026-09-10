@@ -3674,6 +3674,70 @@ describe('TONIGHT - the rules', () => {
     });
 });
 
+describe('ELSEWHERE - the rules', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const rules = read('weather', 'js', 'lib', 'elsewhere.js');
+    // Grep the code, not the prose: the comments name the things they forbid.
+    const code = rules
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    test('Should stay pure enough to run outside a browser', () => {
+        for (const banned of ['document.', 'localStorage', 'fetch(', 'window.']) {
+            assert.ok(!code.includes(banned), `elsewhere.js must not reach for ${banned}`);
+        }
+        assert.ok(!/new Date\(\s*\)/.test(code), 'the clock must be passed in, not read');
+        assert.ok(!/^import /m.test(code), 'so the gate can load it from a data: URL');
+    });
+
+    test('Should read units from the payload, never assume them', () => {
+        /*
+         * The API serves Fahrenheit, mp/h and inches while the comfort curve
+         * is Celsius. Hand 91.5F to a Celsius field and it scores a pleasant
+         * afternoon as unbearable, with no error anywhere and a ranking that
+         * still looks like it works. Open-Meteo ships current_units precisely
+         * so nobody has to guess.
+         */
+        assert.ok(/export function fromCurrent/.test(code),
+            'there should be one adapter, so the conversion happens once');
+        assert.ok(/units\.temperature_2m/.test(code) && /units\.wind_speed_10m/.test(code),
+            'and it should read the units the payload declares');
+        assert.ok(/- 32\) \/ 1\.8/.test(code), 'F to C');
+        assert.ok(/1\.609344/.test(code) && /25\.4/.test(code), 'mph to km/h, inches to mm');
+    });
+
+    test('Should treat comfort as a curve, not a magnitude', () => {
+        // 39C is not an improvement on 21C. A ranking that sorts on raw
+        // temperature would put the worst day on this list at the top.
+        assert.ok(/IDEAL_C = 21/.test(code), 'the curve needs a peak');
+        assert.ok(/Math\.abs\(t - IDEAL_C\) \/ TEMP_SPAN/.test(code),
+            'and should score distance from it, not the number itself');
+        // Clamping only the sum is what made TONIGHT's clear nights all score
+        // 100 and rank identically.
+        const terms = code.match(/clamp01\(/g) || [];
+        assert.ok(terms.length >= 4, `each term needs its own ceiling; found ${terms.length}`);
+    });
+
+    test('Should rank the same way twice', () => {
+        // A list that reshuffles between refreshes looks broken even when
+        // every row in it is correct.
+        assert.ok(/localeCompare/.test(code), 'ties need a final, total tiebreak');
+        assert.ok(/b\.score - a\.score/.test(code), 'ordered by score first');
+    });
+
+    test('Should ship a verdict that needs no model at all', () => {
+        assert.ok(/export function verdict/.test(code),
+            'the deterministic sentence is the floor, as in TONIGHT');
+        assert.ok(!/anthropic|claude/i.test(code), 'and the rules must not know an LLM exists');
+        const gate = read('scripts', 'elsewhere-check.mjs');
+        assert.ok(/temperature is Celsius/.test(gate),
+            'the gate should catch a unit mix-up on live data');
+        assert.ok(/warmer is not automatically better/.test(gate),
+            'and should pin the shape of the curve');
+    });
+});
+
 describe('SLINGSHOT - impact effects', () => {
     const fs = require('fs');
     const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
