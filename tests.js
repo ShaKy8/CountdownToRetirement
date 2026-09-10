@@ -3733,6 +3733,25 @@ describe('ELSEWHERE - the sentence route', () => {
             && !/why: key/.test(route), 'the key must never be returned');
     });
 
+    test('Should have a way to set the key that does not wipe the others', () => {
+        const sh = fs.readFileSync(path.join(__dirname, 'scripts', 'set-lambda-key.sh'), 'utf8');
+        /*
+         * `update-function-configuration --environment` REPLACES the whole
+         * variable set. Passing only the new key drops every other variable
+         * the function has, and it surfaces later as a route that used to
+         * work — so the script reads the current set and merges.
+         */
+        assert.ok(/get-function-configuration/.test(sh) && /Environment\.Variables/.test(sh),
+            'it has to read what is already there');
+        assert.ok(/cur\['ANTHROPIC_API_KEY'\] = /.test(sh),
+            'and merge into it rather than build a fresh set');
+        assert.ok(/--cli-input-json/.test(sh),
+            'the key goes through a file, not a command line');
+        // Names only, never values — this prints what is set as confirmation.
+        assert.ok(/sort\(keys\(Environment\.Variables\)\)/.test(sh),
+            'confirmation should list names, never values');
+    });
+
     test('Should be cached at the edge', () => {
         // Whole degrees and a handful of condition words repeat for long
         // stretches, so one model call can serve everyone in the window.
