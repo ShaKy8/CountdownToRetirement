@@ -72,4 +72,22 @@ http.createServer(async (req, res) => {
   console.log(`  → http://localhost:${PORT}/game/      one putt`);
   console.log(`  → http://localhost:${PORT}/slingshot/ slingshot`);
   console.log(`  (\\/api\\/ routes are served by lambda/index.mjs)\n`);
+}).on('error', (e) => {
+  /*
+   * Say so, loudly. Backgrounded with its output in a log nobody reads, a
+   * failure to bind is invisible — and every request then goes to whatever
+   * else owns the port. On geekom1 that was a systemd service holding 8000
+   * with a checkout 63 commits old, and the audit gates spent twenty minutes
+   * reporting that the page was missing markup it had never had.
+   */
+  if (e.code === 'EADDRINUSE') {
+    console.error(`\n  Port ${PORT} is already in use — NOT serving this checkout.`);
+    console.error('  Whatever answers on that port is something else:');
+    console.error(`      ss -ltnp | grep :${PORT}`);
+    console.error(`  Run this on another port instead:`);
+    console.error(`      PORT=${PORT + 100} node scripts/dev-server.mjs`);
+    console.error(`  and point the gates at it: node scripts/site-audit.mjs http://localhost:${PORT + 100}\n`);
+    process.exit(1);
+  }
+  throw e;
 });
