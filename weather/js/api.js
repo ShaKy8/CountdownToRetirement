@@ -28,6 +28,8 @@ export const api = {
   iss: () => get('/api/iss'),
   aircraft: (lat, lon, dist) => get('/api/aircraft', { lat, lon, dist }),
   flight: (cs, hex) => get('/api/flight', { cs, hex }),
+  /* ELSEWHERE's sentence. `q` is base64url facts; see lambda/index.mjs. */
+  elsewhere: (q) => get('/api/elsewhere', { q }),
   geocode: (q) => get('/api/geocode', { q }),
   reverse: (lat, lon) => get('/api/reverse', { lat, lon }),
 };

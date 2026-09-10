@@ -98,6 +98,9 @@ export function createElsewhere(root) {
       lastKey = key;
       fetchedAt = Date.now();
       render(here);
+      // The deterministic sentence is already on screen by now. This replaces
+      // it only if it comes back, and never blocks the list on the network.
+      say(here);
     } finally {
       busy = false;
     }
@@ -137,6 +140,36 @@ export function createElsewhere(root) {
     $('ew-list').innerHTML =
       better.map(row).join('') + hereLine + rows.filter((r) => !r.better).map(row).join('');
     $('ew-say').textContent = verdict(here.name, rows);
+  }
+
+  /**
+   * Ask the API for a better sentence than the rules wrote.
+   *
+   * Everything about this is best-effort. `verdict()` is already rendered, the
+   * route answers `{ text: null }` when no key is configured — which is this
+   * site's normal state — and any failure at all leaves what is on screen
+   * exactly where it is.
+   */
+  async function say(here) {
+    try {
+      const facts = {
+        here: here.name,
+        hereSky: headline(here),
+        hereScore: comfort(here),
+        rows: rows.map((r) => ({
+          name: r.name,
+          delta: r.deltaShown ?? r.deltaC,
+          sky: r.headline,
+          better: r.better,
+          night: r.night,
+        })),
+      };
+      const q = btoa(unescape(encodeURIComponent(JSON.stringify(facts))))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const res = await api.elsewhere(q);
+      // Only ever an upgrade: no text means keep the rules' sentence.
+      if (res?.text && lastKey) $('ew-say').textContent = res.text;
+    } catch { /* the sentence on screen stays */ }
   }
 
   return {

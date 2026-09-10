@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (361 tests)
+# Run client-side tests (371 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (361 tests)
+├── tests.js                # Client-side unit tests (371 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -552,6 +552,64 @@ is the touch-target floor with "TONIGHT" to fit inside it.
 good night full height, so a settled week drew seven identical blocks and the
 strip said nothing at all. Height is the number printed above it — hours of
 clear moonless dark — and colour carries the score.
+
+### ELSEWHERE — is it nicer somewhere you have been?
+
+A panel on the DECK, in the side column. It ranks the places from
+`countdown/stats.json` against wherever the visitor is, and draws "here" as
+the line the list is split by rather than as another row — which side of it a
+place falls on is the whole question.
+
+- **`lib/elsewhere.js` decides what "better" means**, and it is a decision, not
+  an average. Warmer is not automatically better: temperature scores as
+  distance from 21°C, which is why a 28°C night ranks above a 35°C afternoon
+  where a raw-temperature sort would invert them. Rain outranks cloud, cloud
+  outranks wind, and **every term clamps on its own** — clamping only the sum
+  is what made TONIGHT's clear nights all score 100.
+- **`fromCurrent()` reads the units off the payload.** The API serves °F, mp/h
+  and inches while the curve is Celsius; hand 91.5°F to a Celsius field and it
+  scores a pleasant afternoon as unbearable, with no error and a ranking that
+  still looks like it works. It also keeps the raw number, so "5° colder" can
+  be said in the reader's units without a second conversion to get wrong.
+- **The trip list is read, not copied.** It is already the canonical list of
+  Kyle's places and already deployed. The fallback list exists because the
+  console is standalone in its own repo, and it **says so in the console** when
+  it fires — a silent fallback here is a working panel with the wrong places
+  in it.
+- **Ties break on temperature and then on name.** A list that reshuffles
+  between refreshes looks broken even when every row is correct.
+- `node scripts/elsewhere-check.mjs` runs the ranking against live forecasts.
+
+**`/api/elsewhere` writes the sentence, and it is the one place a model earned
+the call.** TONIGHT's rules beat every model tried; here there is no
+deterministic sentence to lose to. `verdict()` is still what ships and what is
+on screen first — the route only ever *replaces* it, and returns
+`{ text: null }` on every failure path, including the site's normal state of
+having no key configured at all.
+
+Three things about that route are load-bearing:
+
+1. **It sits in front of an API key on a public URL, so nothing the caller
+   sends reaches the model as text.** Facts are parsed, type-checked and
+   re-rendered into a prompt the Lambda writes. Conditions come from a
+   whitelist; a place name is the only string that survives, and only if it
+   matches a name pattern and is under 40 characters. A test pins all of it.
+   Without that, the route is a free LLM with somebody else's card attached.
+2. **The Lambda counts the better places itself.** Asked to count for itself,
+   the model said "one other place beats here" about a list where exactly one
+   place did — a claim the data contradicts, which is the only kind of wrong
+   that matters here.
+3. **`ANTHROPIC_API_KEY` is a Lambda environment variable set by hand.** The
+   GitHub deploy role holds only `UpdateFunctionCode` and
+   `GetFunctionConfiguration`, so CI cannot set it, and it must never reach the
+   repo or the browser. Kyle's key expires **2027-01-01**, and an expired key
+   is indistinguishable from a normal fallback — the panel just quietly stops
+   being model-written.
+
+The route is cached at the edge for 30 minutes. Whole degrees and a handful of
+condition words repeat for long stretches, so one model call serves everyone
+who loads the page in that window; an uncached model call per page view is how
+a hobby budget disappears.
 
 ### It has a phone layout, and it is easy to break
 

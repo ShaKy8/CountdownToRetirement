@@ -394,6 +394,138 @@ const routes = {
    * Only the fields the map draws are passed on. The raw feed is 52KB for a
    * hundred aircraft; this is a fraction of that, which matters on a phone.
    */
+  /**
+   * ELSEWHERE's sentence, written by a model.
+   *
+   * The rules already produce a serviceable sentence with no key at all
+   * (`lib/elsewhere.js` `verdict()`), and that is what the page shows until
+   * and unless this answers. This route is the upgrade, never the source of
+   * truth: every failure path returns `{ text: null }` and the page keeps
+   * what it had.
+   *
+   * THIS ENDPOINT SITS IN FRONT OF AN API KEY ON A PUBLIC URL, so nothing the
+   * caller sends reaches the model as text. The facts are parsed, type-checked
+   * and re-rendered into a prompt this file writes; a place name is the only
+   * string that survives, and it survives only if it looks like a place name
+   * and is under 40 characters. Without that, the route is a free LLM with
+   * somebody else's credit card attached.
+   */
+  async '/api/elsewhere'(q) {
+    const raw = q.get('q') || '';
+    // A whole prompt cannot hide in 1.5KB of base64 once the fields below
+    // have been enforced, but the cap keeps the parse cheap regardless.
+    if (raw.length > 1500) throw new HttpError(400, 'too much');
+
+    let input;
+    try { input = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')); }
+    catch { throw new HttpError(400, 'bad q'); }
+
+    // Letters, spaces and the punctuation that actually appears in place
+    // names. Anything else is not a place and is not going anywhere near a
+    // prompt.
+    const NAME = /^[\p{L}\p{M}0-9 .,'&()\/-]{1,40}$/u;
+    const name = (v) => (typeof v === 'string' && NAME.test(v.trim()) ? v.trim() : null);
+    const int = (v, lo, hi) => {
+      const n = Math.round(Number(v));
+      return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : null;
+    };
+    const SKY = ['clear', 'some cloud', 'cloudy', 'overcast', 'raining', 'drizzling',
+      'blowing hard'];
+    const sky = (v) => (SKY.includes(v) ? v : null);
+
+    const here = name(input?.here);
+    if (!here) throw new HttpError(400, 'here');
+    const rows = (Array.isArray(input?.rows) ? input.rows : []).slice(0, 8)
+      .map((r) => ({
+        name: name(r?.name),
+        delta: int(r?.delta, -150, 150),
+        sky: sky(r?.sky),
+        better: r?.better === true,
+        night: r?.night === true,
+      }))
+      .filter((r) => r.name && r.delta !== null);
+    if (!rows.length) throw new HttpError(400, 'rows');
+
+    /*
+     * Counted here, from the rows that survived validation, and never taken
+     * from the caller. Asked to count for itself the model said "one other
+     * place beats here" about a list where exactly one place did — a claim
+     * the data contradicts, which is the only kind of wrong that matters.
+     */
+    const facts = {
+      here: { name: here, sky: sky(input?.hereSky), score: int(input?.hereScore, 0, 100) },
+      betterCount: rows.filter((r) => r.better).length,
+      places: rows,
+    };
+
+    const key = process.env.ANTHROPIC_API_KEY;
+    // No key configured is the normal state of this site, not an error: the
+    // page has a sentence already and simply keeps it.
+    if (!key) return { text: null, why: 'no key' };
+
+    const cacheKey = 'ew_' + Buffer.from(JSON.stringify(facts)).toString('base64url').slice(0, 90);
+    const hit = memGet(cacheKey);
+    if (hit) return hit;
+
+    const system = [
+      'You write one sentence for a weather console, answering "is it nicer somewhere else right now?"',
+      '',
+      'The console has a house voice. Real lines from it:',
+      '  "It is raining now and should ease within 12 minutes."',
+      '  "Very dry air, dew point 34 degrees. Expect static and chapped lips."',
+      '',
+      'Declarative, present tense, no evaluative adjectives, figures stated plainly.',
+      '',
+      'Rules:',
+      '- ONE sentence, under 25 words.',
+      '- Use ONLY the figures given. Never invent a place, a temperature or a condition.',
+      '- Lead with the best place that beats here, and name here too so the comparison is explicit.',
+      '- betterCount is exactly how many places beat here. Never state a number that',
+      '  disagrees with it, and never imply another place beats here when it is 1.',
+      '- If nothing beats here, say that plainly and name here.',
+      '- Degrees are relative to here and already signed by the words warmer/colder.',
+      '- Never use: perfect, ideal, stunning, beautiful, gorgeous, paradise, escape, "worth it".',
+      'No exclamation marks.',
+      '- Return the sentence and nothing else.',
+    ].join('\n');
+
+    // A slow sentence is worse than a deterministic one, so this gets four
+    // seconds and then the page keeps what it had.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 4000);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: ac.signal,
+        headers: {
+          'content-type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'x-api-key': key,
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-5',
+          max_tokens: 120,
+          system,
+          messages: [{ role: 'user', content: JSON.stringify(facts) }],
+        }),
+      });
+      if (!res.ok) return { text: null, why: `upstream ${res.status}` };
+      const j = await res.json();
+      const text = (j.content || []).filter((b) => b.type === 'text')
+        .map((b) => b.text).join('').trim();
+      // A model that ignores "one sentence" is a model that ignored the rest
+      // of the brief too; the rules sentence is better than a paragraph here.
+      if (!text || text.length > 240) return { text: null, why: 'unusable' };
+      const out = { text, model: 'claude-sonnet-5' };
+      memSet(cacheKey, out, 30 * 60e3);
+      return out;
+    } catch (e) {
+      return { text: null, why: e.name === 'AbortError' ? 'timeout' : 'error' };
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
   async '/api/aircraft'(q) {
     const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -617,6 +749,10 @@ const EDGE_CACHE = {
   // is watched at, and a hundredfold cut in load on somebody's hobby server.
   '/api/aircraft': 'public, s-maxage=10',
   '/api/flight': 'public, s-maxage=3600',
+  // Half an hour. The facts are whole degrees and a handful of condition
+  // words, so they repeat for long stretches and one model call serves
+  // everyone who loads the page in that window.
+  '/api/elsewhere': 'public, s-maxage=1800, stale-while-revalidate=1800',
 };
 
 /**

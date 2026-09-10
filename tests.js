@@ -3674,6 +3674,73 @@ describe('TONIGHT - the rules', () => {
     });
 });
 
+describe('ELSEWHERE - the sentence route', () => {
+    const fs = require('fs');
+    const lambda = fs.readFileSync(path.join(__dirname, 'lambda', 'index.mjs'), 'utf8');
+    const slice = (src) => {
+        const a = src.indexOf("async '/api/elsewhere'");
+        return a < 0 ? '' : src.slice(a, src.indexOf("async '/api/aircraft'", a));
+    };
+    const route = slice(lambda);
+
+    test('Should exist, and be the same code as the local server', () => {
+        assert.ok(route.length > 500, 'the route should be in lambda/index.mjs');
+        // ../Weather/server.mjs is a sibling repo and may not be checked out
+        // in CI, so this only asserts equality when it is there.
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (fs.existsSync(sibling)) {
+            assert.strictEqual(route, slice(fs.readFileSync(sibling, 'utf8')),
+                'the two copies of this route have drifted');
+        }
+    });
+
+    test('Should never let a caller put words in the prompt', () => {
+        /*
+         * This endpoint sits in front of an API key on a public URL. Nothing
+         * the caller sends may reach the model as text, or the route is a free
+         * LLM with somebody else's credit card attached. Names are the only
+         * strings that survive, and only if they look like names.
+         */
+        assert.ok(/const NAME = \/\^\[/.test(route), 'place names need a pattern, not a length check');
+        assert.ok(/\{1,40\}/.test(route), 'and a length cap');
+        assert.ok(/const SKY = \[/.test(route) && /SKY\.includes\(v\)/.test(route),
+            'conditions must come from a whitelist, not from the caller');
+        assert.ok(/raw\.length > 1500/.test(route), 'and the payload itself needs a cap');
+        // Every field that reaches the prompt is rebuilt here from validated
+        // parts; JSON.stringify(facts) is the only thing sent.
+        assert.ok(/JSON\.stringify\(facts\)/.test(route) && !/JSON\.stringify\(input\)/.test(route),
+            'the prompt is built from validated facts, never from the input');
+    });
+
+    test('Should count the better places itself', () => {
+        // Asked to count for itself, the model said "one other place beats
+        // here" about a list where exactly one place did.
+        assert.ok(/betterCount: rows\.filter\(\(r\) => r\.better\)\.length/.test(route),
+            'the count must be computed from the validated rows');
+        assert.ok(/betterCount is exactly how many/.test(route),
+            'and the model told not to contradict it');
+    });
+
+    test('Should degrade to the rules on every failure path', () => {
+        assert.ok(/if \(!key\) return \{ text: null, why: 'no key' \}/.test(route),
+            'no key is this site\'s normal state, not an error');
+        assert.ok(/text: null, why: `upstream/.test(route), 'an upstream error keeps the rules sentence');
+        assert.ok(/AbortError/.test(route) && /setTimeout\(\(\) => ac\.abort\(\), 4000\)/.test(route),
+            'a slow sentence is worse than a deterministic one');
+        assert.ok(/text\.length > 240/.test(route),
+            'a model that ignored "one sentence" ignored the rest of the brief too');
+        assert.ok(!/process\.env\.ANTHROPIC_API_KEY[^;]*return/.test(route)
+            && !/why: key/.test(route), 'the key must never be returned');
+    });
+
+    test('Should be cached at the edge', () => {
+        // Whole degrees and a handful of condition words repeat for long
+        // stretches, so one model call can serve everyone in the window.
+        assert.ok(/'\/api\/elsewhere': 'public, s-maxage=1800/.test(lambda),
+            'an uncached model call per page view is how a hobby budget goes');
+    });
+});
+
 describe('ELSEWHERE - the rules', () => {
     const fs = require('fs');
     const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
