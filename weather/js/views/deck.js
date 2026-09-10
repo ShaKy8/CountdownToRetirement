@@ -18,6 +18,7 @@ import {
   escapeHtml as esc,
 } from '../lib/util.js';
 import { ACTIVITY_KEYS, activityMeta, bestWindows, precipNowcast, nowcastPhrase } from '../activity.js';
+import { createElsewhere } from '../elsewhere.js';
 
 export function createDeck(root) {
   root.className = 'view deck active';
@@ -67,6 +68,13 @@ export function createDeck(root) {
         </div>
       </div>
 
+      <!--
+        Above SUN & MOON deliberately. The column scrolls, and at 900px only
+        three panels are above the fold — sun and moon are also the whole top
+        half of the SKY view, while this is the only place ELSEWHERE appears.
+      -->
+      <div id="d-elsewhere"></div>
+
       <div class="panel grow">
         <div class="hd" style="--ac:var(--vi)">SUN &amp; MOON<span class="rule"></span><span class="val" id="d-moonname">—</span></div>
         <div class="body sunmoon-body"><canvas id="d-moondisc"></canvas><div id="d-sunmoon" style="flex:1;min-width:0"></div></div>
@@ -97,6 +105,14 @@ export function createDeck(root) {
   `;
 
   const $ = (id) => root.querySelector('#' + id);
+
+  /*
+   * ELSEWHERE owns its own markup, network and refresh throttle, so the deck
+   * mounts it and forgets about it. It is the only panel here that does not
+   * read from store.frame(), because it is asking about other places rather
+   * than about another hour.
+   */
+  const elsewhere = createElsewhere($('d-elsewhere'));
 
   /* ------------------------------------------------------------ charts */
 
@@ -448,5 +464,8 @@ export function createDeck(root) {
     return [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335][m - 1] + d - 1;
   };
 
-  return { update };
+  return {
+    update() { update(); elsewhere.update(); },
+    onHide() { elsewhere.onHide(); },
+  };
 }

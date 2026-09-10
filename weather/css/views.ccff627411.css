@@ -148,9 +148,28 @@
 }
 
 /* --- side column --- */
-.side { display: flex; flex-direction: column; gap: var(--gap); }
+/*
+ * Scrolls. The stack is taller than its grid row on a short window and was
+ * silently clipping SUN & MOON in half — nothing overflowed the page, so
+ * neither the layout nor the audits could see it. `min-height: 0` is what
+ * lets a flex child in a grid row actually shrink instead of pushing out.
+ */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .side > .panel { flex: 0 0 auto; }
-.side > .panel.grow { flex: 1 1 auto; }
+/*
+ * `grow` meant "take the leftover space" back when this column could not
+ * scroll. In a scroller it means the opposite — flex: 1 1 auto let SUN & MOON
+ * shrink to its own header and lose the moon entirely. Natural height, and the
+ * column scrolls instead.
+ */
+.side > .panel.grow { flex: 0 0 auto; min-height: 148px; }
 
 .alert-item {
   --ac: var(--rd);
@@ -535,6 +554,78 @@
 .dataview > .data-meteo   { grid-area: meteo; }
 
 /* ------------------------------------------------ narrower windows */
+
+/* ---------------------------------------------------------------- ELSEWHERE
+   Two columns: the place, and what it is like there compared with here. The
+   "here" row is a divider rather than another row, because which side of it a
+   place falls on is the entire question. */
+.elsewhere { --ac: var(--am); }
+
+.elsewhere .ew-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ew-row,
+.ew-here {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 14px;
+  padding: 5px 2px;
+  font-size: 0.86rem;
+}
+
+.ew-row .ew-name { color: var(--dim); }
+.ew-row.is-better .ew-name { color: var(--ink); }
+.ew-row.is-better::before {
+  content: '\2191';
+  color: var(--ok, #4ade80);
+  margin-right: -8px;
+  font-size: 0.8rem;
+}
+
+.ew-what {
+  color: var(--dim);
+  text-align: right;
+  font-size: 0.8rem;
+}
+
+.ew-row.is-better .ew-what { color: var(--am); }
+
+/* The line the list is split by. */
+.ew-here {
+  border-top: 1px solid color-mix(in srgb, var(--cy) 32%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cy) 32%, transparent);
+  margin: 4px 0;
+  color: var(--cy);
+}
+
+.ew-here .ew-name { color: var(--cy); }
+.ew-here .ew-what { color: var(--cy); opacity: 0.75; }
+
+.ew-say {
+  margin: 10px 0 0;
+  color: var(--ink);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.ew-empty { color: var(--faint); font-size: 0.85rem; padding: 4px 2px; }
+
+@media (max-width: 700px) {
+  /* Stacked: at 360px the two columns collide and the comparison, which is
+     the longer half, is the one that gets crushed. */
+  .ew-row,
+  .ew-here {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
+  .ew-what { text-align: left; }
+  .ew-row.is-better::before { margin-right: 0; }
+}
 
 @media (max-width: 1250px) {
   .deck {

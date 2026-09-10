@@ -51,6 +51,13 @@ export function fromCurrent(name, current, units = {}, extra = {}) {
   const inches = /inch/i.test(String(units.precipitation || ''));
   return {
     name,
+    /*
+     * Scoring is metric; DISPLAY is whatever the API gave. Keeping the raw
+     * number means "5° colder" can be said in the reader's own units without
+     * this module knowing which those are, and without a second conversion to
+     * get wrong.
+     */
+    tempRaw: t,
     tempC: t === null ? null : (f ? (t - 32) / 1.8 : t),
     windKmh: w === null ? null : (mph ? w * 1.609344 : w),
     precipMm: p === null ? null : (inches ? p * 25.4 : p),
@@ -105,11 +112,15 @@ export function compareTo(here, there) {
   if (ts === null) return null;
   const dt = num(there.tempC) !== null && num(here?.tempC) !== null
     ? Math.round(there.tempC - here.tempC) : null;
+  // The same difference in the units the page is showing.
+  const dRaw = num(there.tempRaw) !== null && num(here?.tempRaw) !== null
+    ? Math.round(there.tempRaw - here.tempRaw) : null;
   return {
     name: there.name,
     score: ts,
     deltaScore: hs === null ? null : ts - hs,
     deltaC: dt,
+    deltaShown: dRaw === null ? dt : dRaw,
     better: hs !== null && ts > hs,
     headline: headline(there),
     tempC: num(there.tempC),
@@ -139,11 +150,12 @@ export function rank(here, places) {
 export function phrase(row) {
   if (!row) return '';
   const parts = [];
-  if (row.deltaC !== null && row.deltaC !== 0) {
+  const d = row.deltaShown ?? row.deltaC;
+  if (d !== null && d !== 0) {
     // The word carries the sign. "-5° colder" says it twice and reads as a
     // typo; the magnitude is what the reader wants next to it.
-    parts.push(`${Math.abs(row.deltaC)}° ${row.deltaC > 0 ? 'warmer' : 'colder'}`);
-  } else if (row.deltaC === 0) {
+    parts.push(`${Math.abs(d)}° ${d > 0 ? 'warmer' : 'colder'}`);
+  } else if (d === 0) {
     parts.push('same temperature');
   }
   if (row.headline) parts.push(row.headline);
