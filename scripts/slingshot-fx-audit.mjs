@@ -11,12 +11,39 @@
  * arrow keys nudge the aim, Space fires. State comes back through
  * window.SLINGSHOT_FX, because none of it has a DOM readout.
  *
- * IT MUST PUMP FRAMES. Headless Chromium produces none on its own, so
- * requestAnimationFrame never fires and the whole game loop is frozen: nothing
- * decays, and under reduced motion — where the flight is skipped in a single
- * frame — a shot never even lands. Every wait below is a series of forced
- * paints. The first version of this gate read that frozen state as a leaking
+ * THE GAME LOOP HAS TO BE DRIVEN, because headless Chromium produces no frames
+ * on its own: requestAnimationFrame never fires, nothing decays, and under
+ * reduced motion — where the flight is skipped in a single frame — a shot never
+ * even lands. An early version of this gate read that frozen state as a leaking
  * particle pool.
+ *
+ * It is driven by SHIMMING rAF ONTO TIMERS, with a synthetic clock that
+ * advances a fixed 16ms per callback. `frame(now)` in script.js takes its
+ * timestamp from the rAF argument and clamps the delta to 100ms, so this makes
+ * game time exact rather than approximate — and it needs no compositor frames
+ * at all.
+ *
+ * Two mechanisms were measured and rejected first, which is worth writing down
+ * because both look right:
+ *
+ * - Forcing every frame with `Page.captureScreenshot` (what this used to do)
+ *   costs a software-rendered paint per frame. About three hundred of them,
+ *   plus a 100ms sleep after each, is why fifteen assertions took 5m34s — and
+ *   a gate that slow does not get run, which makes it not a gate.
+ * - `Page.startScreencast` delivers roughly 6fps under swiftshader, so the
+ *   waits spent their time waiting. It was slower AND wrong.
+ * - `Emulation.setVirtualTimePolicy` advances the clock 5000ms in 102ms of
+ *   wall time, but fired exactly ONE rAF callback: it drives timers and the
+ *   clock, not the compositor.
+ *
+ * What this no longer exercises is the browser's real frame scheduling — but
+ * headless never exercised that either, since it produced no frames at all.
+ * What it does exercise, exactly, is the thing the effects are made of: what
+ * happens to them as dt accumulates.
+ *
+ * Because everything below rests on the loop actually running, the frame count
+ * is itself asserted. If the shim were dropped or the loop stopped, every
+ * "the pool drains" check would pass by measuring a game that never started.
  *
  *   node scripts/dev-server.mjs &
  *   node scripts/slingshot-fx-audit.mjs
@@ -28,12 +55,13 @@ const ORIGIN = (process.argv[2] || 'http://localhost:8000').replace(/\/$/, '');
 const port = 8800 + (process.pid % 90);
 
 const chrome = spawn('/usr/bin/chromium', ['--headless=new', `--remote-debugging-port=${port}`,
-  // Small, at device scale 1. Every forced paint is software-rendered, and at
-  // 900x900 with dpr 2 that is 1800x2000 pixels a frame — which made this gate
-  // take five minutes. None of the invariants below depend on the size.
+  // Small, at device scale 1. Every frame is software-rendered and the whole
+  // gate is thousands of frames, so pixel count is the floor on how fast it
+  // can run. None of the invariants below depend on the size.
   '--no-sandbox', '--window-size=520,620', '--use-gl=angle', '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader', '--disable-gpu-sandbox',
-  '--disable-background-timer-throttling', '--disable-renderer-backgrounding', 'about:blank'],
+  '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
+'about:blank'],
   { stdio: 'ignore' });
 const get = p => new Promise((r, j) => http.get({ host: '127.0.0.1', port, path: p },
   x => { let d = ''; x.on('data', c => d += c); x.on('end', () => r(JSON.parse(d))); }).on('error', j));
@@ -43,7 +71,8 @@ const { webSocketDebuggerUrl } = await get('/json/version');
 const ws = new WebSocket(webSocketDebuggerUrl);
 let id = 0; const P = new Map(); let ev = [];
 ws.onmessage = e => { const m = JSON.parse(e.data);
-  if (m.id && P.has(m.id)) { P.get(m.id)(m); P.delete(m.id); } else if (m.method) ev.push(m); };
+  if (m.id && P.has(m.id)) { P.get(m.id)(m); P.delete(m.id); return; }
+  if (m.method) ev.push(m); };
 await new Promise(r => ws.onopen = r);
 const send = (me, pa = {}, s) => new Promise(r => { const i = ++id; P.set(i, r);
   ws.send(JSON.stringify({ id: i, method: me, params: pa, sessionId: s })); });
@@ -54,42 +83,76 @@ await S('Runtime.enable'); await S('Page.enable'); await S('Log.enable');
 await S('Emulation.setDeviceMetricsOverride',
   { width: 520, height: 620, deviceScaleFactor: 1, mobile: false });
 
+/** Game milliseconds per shimmed frame — 16 is the 60fps the game expects. */
+const STEP_MS = 16;
+
+/*
+ * Installed before any page script runs, so the game's very first
+ * `window.requestAnimationFrame(frame)` already gets the shim. The clock it
+ * hands back is synthetic and monotonic, which is what makes game time exact.
+ */
+await S('Page.addScriptToEvaluateOnNewDocument', { source: `
+  (() => {
+    let t = 0, n = 0;
+    const peak = { particles: 0, scars: 0 };
+
+    window.__fxFrames = () => n;
+    window.__fxPeak = () => ({ ...peak });
+    window.__fxReset = () => { peak.particles = 0; peak.scars = 0; };
+
+    window.requestAnimationFrame = (cb) => setTimeout(() => {
+      t += ${STEP_MS}; n++;
+      cb(t);
+      /*
+       * Sampled here, after the frame has run, and on EVERY frame. Debris
+       * lives 320-600ms, so sampling from the outside once per round trip
+       * measures the empty pool afterwards rather than the effect — which is
+       * how an early version of this gate concluded nothing was spawning.
+       */
+      const F = window.SLINGSHOT_FX;
+      if (F) {
+        const p = F.particles(), sc = F.scars();
+        if (p > peak.particles) peak.particles = p;
+        if (sc > peak.scars) peak.scars = sc;
+      }
+    }, 0);
+    window.cancelAnimationFrame = (h) => clearTimeout(h);
+
+    /* Waiting happens in here, so advancing 150 frames is ONE round trip
+       rather than 150 of them. That was the whole remaining cost. */
+    window.__fxAdvance = (want) => new Promise((done) => {
+      const target = n + want;
+      (function check() { n >= target ? done(n) : setTimeout(check, 0); })();
+    });
+  })();
+` });
+
 const E = async e => {
   const r = await S('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true });
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'threw');
   return r.result?.result?.value;
 };
-const key = (k) => E(`window.dispatchEvent(new KeyboardEvent('keydown',{key:${JSON.stringify(k)},bubbles:true}))`);
-
 /*
- * Wait, while forcing paints so the game's rAF loop actually advances.
- *
- * A one-pixel clip: the point is to make the compositor produce a frame, not
- * to look at anything, and encoding a full 900x900 PNG sixty times over made
- * this gate take minutes instead of seconds.
+ * A whole shot's keystrokes in one round trip. Sent one at a time they were
+ * about 340 evaluates across the three runs and the single largest cost left
+ * in this gate; the aim handlers read the event and adjust a number, so there
+ * is nothing for a frame to do in between.
  */
-const CLIP = { x: 0, y: 0, width: 1, height: 1, scale: 1 };
-async function pump(ms, step = 100) {
-  for (let t = 0; t < ms; t += step) {
-    await S('Page.captureScreenshot', { format: 'png', clip: CLIP });
-    await wait(step);
-  }
-}
+const keys = (list) => E(`(${JSON.stringify(list)}).forEach(
+  k => window.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));1`);
 
-/*
- * Pump, and watch. Debris lives 320-600ms, so sampling once after the wait
- * measures the empty pool afterwards rather than the effect — which is how the
- * first version of this gate concluded that nothing was spawning at all.
+/** Advance the game by `ms` of game time. One round trip, whatever the count. */
+const pump = (ms) => E(`window.__fxAdvance(${Math.ceil(ms / STEP_MS)})`);
+
+/**
+ * Advance, and report the highest the pools got on the way. The peaks are
+ * tracked frame by frame inside the page; this just brackets them.
  */
-async function pumpWatch(ms, step = 100) {
-  let peak = 0, scars = 0;
-  for (let t = 0; t < ms; t += step) {
-    await S('Page.captureScreenshot', { format: 'png', clip: CLIP });
-    peak = Math.max(peak, await E('window.SLINGSHOT_FX.particles()') || 0);
-    scars = Math.max(scars, await E('window.SLINGSHOT_FX.scars()') || 0);
-    await wait(step);
-  }
-  return { peak, scars };
+async function pumpWatch(ms) {
+  await E('window.__fxReset()');
+  await pump(ms);
+  const p = await E('window.__fxPeak()') || {};
+  return { peak: p.particles || 0, scars: p.scars || 0 };
 }
 
 const rows = [];
@@ -106,9 +169,10 @@ async function play(query, { motion = true, shots = 8, nudge = 9 } = {}) {
   await pump(400);
   let peak = 0, peakScars = 0;
   for (let i = 0; i < shots; i++) {
-    for (let n = 0; n < nudge; n++) await key(i % 2 ? 'ArrowLeft' : 'ArrowRight');
-    if (i % 3 === 2) for (let n = 0; n < 4; n++) await key('ArrowUp');
-    await key(' ');
+    const seq = Array(nudge).fill(i % 2 ? 'ArrowLeft' : 'ArrowRight');
+    if (i % 3 === 2) seq.push('ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp');
+    seq.push(' ');
+    await keys(seq);
     const seen = await pumpWatch(900);
     peak = Math.max(peak, seen.peak);
     peakScars = Math.max(peakScars, seen.scars);
@@ -117,6 +181,7 @@ async function play(query, { motion = true, shots = 8, nudge = 9 } = {}) {
   return {
     peak,
     peakScars,
+    frames: await E('window.__fxFrames ? window.__fxFrames() : 0'),
     restParticles: await E('window.SLINGSHOT_FX.particles()'),
     restRings: await E('window.SLINGSHOT_FX.rings()'),
     restShake: await E('window.SLINGSHOT_FX.shake()'),
@@ -138,6 +203,12 @@ check('the pool drains', `${full.restParticles} left, ${full.restRings} rings`,
   () => full.restParticles === 0 && full.restRings === 0, 'nothing still alive');
 check('the kick settles', full.restShake, v => v === 0, '0');
 check('scars stay capped', full.scars, v => v <= 10 * 4, '<= MAX_SCARS per body');
+/*
+ * If the screencast stopped, rAF never fires, nothing ever spawns and nothing
+ * ever decays — and every drain check above passes by measuring a game that
+ * never ran. This is the assertion that makes the others mean something.
+ */
+check('the loop actually ran', full.frames, v => v > 500, '> 500 frames');
 check('no console errors', full.errors.length, v => v === 0, '0');
 check('no exceptions', full.exceptions.length, v => v === 0, '0');
 

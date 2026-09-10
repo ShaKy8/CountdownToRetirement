@@ -3758,11 +3758,40 @@ describe('SLINGSHOT - impact effects', () => {
 
     test('Should gate what can be gated', () => {
         const gate = read('scripts', 'slingshot-fx-audit.mjs');
-        assert.ok(/IT MUST PUMP FRAMES/.test(gate),
+        assert.ok(/THE GAME LOOP HAS TO BE DRIVEN/.test(gate),
             'headless produces no frames, so rAF never fires and nothing decays');
         assert.ok(/window\.SLINGSHOT_FX/.test(gate) && /window\.SLINGSHOT_FX = \{/.test(script),
             'the gate needs a read-only handle for state with no DOM readout');
         assert.ok(/the pool drains/.test(gate), 'a leaking pool degrades a long session silently');
+    });
+
+    test('Should drive the loop itself, and prove that it did', () => {
+        const gate = read('scripts', 'slingshot-fx-audit.mjs');
+        /*
+         * The loop is driven by shimming rAF onto timers with a synthetic
+         * clock. frame(now) in script.js takes its timestamp from the rAF
+         * argument, which is what makes that possible — read performance.now()
+         * there instead and the gate would advance no game time at all while
+         * still reporting frames.
+         */
+        assert.ok(/window\.requestAnimationFrame = \(cb\) => setTimeout/.test(gate),
+            'the gate drives the loop rather than waiting for the compositor');
+        assert.ok(/function frame\(now\)/.test(script) && /now - lastFrame/.test(script),
+            'and script.js must keep taking its clock from the rAF argument');
+        assert.ok(/addScriptToEvaluateOnNewDocument/.test(gate),
+            'installed before page scripts, or the first rAF misses it');
+        /*
+         * Every check about draining and capping is measured against a running
+         * game. If the shim were dropped, the loop would freeze and they would
+         * all pass by measuring a game that never started -- so the gate counts
+         * its own frames and fails on that first.
+         */
+        assert.ok(/the loop actually ran/.test(gate),
+            'the frame count is what makes the other assertions mean anything');
+        // Peaks are tracked inside the page: debris lives 320-600ms, and
+        // sampling once per round trip measures the empty pool afterwards.
+        assert.ok(/if \(p > peak\.particles\)/.test(gate),
+            'peaks should be sampled every frame, from inside the page');
     });
 });
 

@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (360 tests)
+# Run client-side tests (361 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (360 tests)
+├── tests.js                # Client-side unit tests (361 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -329,13 +329,38 @@ Three things there that are easy to get wrong:
    never runs. Every effect degrades to a static end state — and the scar is
    recorded *before* the reduced-motion bail-out, because it is not motion and
    it is the part that teaches. A test pins that ordering.
-3. **The gate has to pump frames.** Headless Chromium produces none on its own,
-   so `requestAnimationFrame` never fires, nothing decays, and under reduced
-   motion a shot never even lands. The first version read that frozen state as
-   a leaking particle pool. It forces paints with a one-pixel clip — a full
-   900x900 PNG sixty times over took minutes — and samples *while* pumping,
-   because debris lives 320–600ms and sampling afterwards measures the empty
-   pool.
+3. **The gate drives the game loop itself.** Headless Chromium produces no
+   frames, so `requestAnimationFrame` never fires, nothing decays, and under
+   reduced motion a shot never even lands. An early version read that frozen
+   state as a leaking particle pool.
+
+   It shims `rAF` onto `setTimeout` with a synthetic clock advancing 16ms a
+   callback, installed with `addScriptToEvaluateOnNewDocument` so the game's
+   first frame already has it. That works because **`frame(now)` takes its
+   timestamp from the rAF argument** and clamps the delta to 100ms — read
+   `performance.now()` there instead and the gate would advance no game time
+   while still counting frames. A test pins both halves.
+
+   Two mechanisms were measured and rejected first, and both look right:
+   - **Forcing each frame with `Page.captureScreenshot`** costs a
+     software-rendered paint per frame. Three hundred of them, each followed
+     by a 100ms sleep, is why fifteen assertions took **5m34s** — and a gate
+     that slow does not get run, which makes it not a gate. It is ~3x faster
+     now, though this machine varies from 1m15s to 2m38s for identical work.
+   - **`Page.startScreencast`** delivers about 6fps under swiftshader, so the
+     waits spent their time waiting. Slower *and* wrong.
+   - **`Emulation.setVirtualTimePolicy`** advances the clock 5000ms in 102ms
+     of wall time but fired exactly **one** rAF callback: it drives timers and
+     the clock, not the compositor.
+
+   **Peaks are sampled inside the page, every frame.** Debris lives 320–600ms,
+   so sampling once per CDP round trip measures the empty pool afterwards —
+   which is how an early version concluded nothing was spawning at all. Waiting
+   happens in the page too, so advancing 150 frames is one round trip.
+
+   **The frame count is itself asserted.** Everything else here measures a
+   running game; if the shim were dropped, every drain and cap check would pass
+   by measuring a game that never started.
 
 ### Two things that will silently break it
 
