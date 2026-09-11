@@ -1239,9 +1239,9 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'Should link to the putting game');
     });
 
-    test('Should describe the game link as putting against your own weather', () => {
-        assert.ok(indexHtml.includes('Putt against your own weather'),
-            'Game link should say "Putt against your own weather"');
+    test('Should describe the game link as playing today\'s putt', () => {
+        assert.ok(indexHtml.includes("Play today's putt"),
+            'Game link should say "Play today\'s putt"');
     });
 
     test('Should be text only with no scripts or graphics', () => {
