@@ -42,7 +42,7 @@
 
         <div class="board-wrap">
             <canvas id="board" width="600" height="960" tabindex="0" role="application"
-                    aria-label="Putting green. Aim with the left and right arrow keys, set power with up and down, and press space to putt. The aim and power sliders below do the same."></canvas>
+                    aria-label="Putting green. Aim with the left and right arrow keys, set power with up and down, and press space to putt. Or drag back from the ball and let go."></canvas>
             <div class="result" id="result" hidden>
                 <p class="result-score" id="result-score">Par</p>
                 <p class="result-line" id="result-line">2 strokes</p>
@@ -57,23 +57,15 @@
         </div>
 
         <div class="controls">
-            <label class="ctl">
-                <span class="ctl-k">AIM</span>
-                <input type="range" id="aim" min="0" max="359" value="270" step="1"
-                       aria-label="Aim in degrees">
-                <output class="ctl-v" id="aim-out">270&deg;</output>
-            </label>
-            <label class="ctl">
-                <span class="ctl-k">POWER</span>
-                <input type="range" id="power" min="5" max="100" value="50" step="1"
-                       aria-label="Power, percent">
-                <output class="ctl-v" id="power-out">50%</output>
-            </label>
+            <div class="readouts">
+                <span class="ctl"><span class="ctl-k">AIM</span><output class="ctl-v" id="aim-out">270&deg;</output></span>
+                <span class="ctl"><span class="ctl-k">POWER</span><output class="ctl-v" id="power-out">50%</output></span>
+            </div>
             <button type="button" id="putt" class="primary">Putt</button>
         </div>
 
-        <p class="hint">
-            <b>DRAG</b> back from the ball to aim &mdash; further is harder.
+        <p class="hint" id="hint">
+            <b>DRAG</b> back from the ball and let go &mdash; further is harder.<br>
             <b>&larr; &rarr;</b> nudge, <b>&uarr; &darr;</b> power, <b>SPACE</b> putt.
         </p>
         <p class="say" id="say" role="status" aria-live="polite"></p>

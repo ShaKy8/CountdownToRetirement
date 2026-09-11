@@ -2061,7 +2061,7 @@ describe('ONE PUTT - Page structure', () => {
     });
 
     test('Should carry the markup the renderer binds to', () => {
-        ['id="board"', 'id="aim"', 'id="power"', 'id="putt"', 'id="share"', 'aria-live']
+        ['id="board"', 'id="aim-out"', 'id="power-out"', 'id="putt"', 'id="share"', 'aria-live']
             .forEach(hook => assert.ok(gameHtml.includes(hook), `Missing ${hook}`));
     });
 
@@ -2153,7 +2153,7 @@ describe('ONE PUTT - Keyboard, shared with SLINGSHOT', () => {
         assert.ok(/<b>&larr; &rarr;<\/b> nudge, <b>&uarr; &darr;<\/b> power, <b>SPACE<\/b> putt\./.test(gameHtml),
             'the hint should read as SLINGSHOT\'s does');
         assert.ok(/arrow keys[\s\S]*space to putt/.test(gameHtml), 'the canvas label should say the same');
-        assert.ok(/\.hint b \{ color: var\(--dim\); \}/.test(gameCss), 'key caps should be dim, not faint');
+        assert.ok(/\.hint b \{ color: var\(--ink\); \}/.test(gameCss), 'key caps should read at full ink: they are the instructions');
     });
 });
 
@@ -3483,17 +3483,17 @@ describe('WHOLE SITE - a finger, on every page', () => {
             'the extra playback rates should stand down below 360px');
     });
 
-    test('Should make the putting sliders wider than their own rail', () => {
-        // The input IS the touch target and it was three pixels tall.
+    test('Should have no sliders on the green', () => {
+        // They went on 2026-09-11: drag and the keyboard are the two ways to
+        // aim, and the readouts beside Putt are the feedback. A range input
+        // coming back would need its rail-and-target styling back with it.
+        const html = read('game', 'index.html');
         const css = read('game', 'styles.css');
-        assert.ok(/::-webkit-slider-runnable-track \{ height: 3px;/.test(css)
-            && /::-moz-range-track \{ height: 3px;/.test(css),
-            'the visible rail belongs to the track, not to the element');
-        assert.ok(/input\[type="range"\] \{[^}]*background: transparent;/s.test(css),
-            'the element itself should paint nothing');
-        const coarse = css.slice(css.indexOf('@media (pointer: coarse)'));
-        assert.ok(/input\[type="range"\] \{ height: 44px; \}/.test(coarse),
-            'and it should be a finger tall on a touch screen');
+        assert.ok(!/type="range"/.test(html), 'no range inputs on the page');
+        assert.ok(!/input\[type="range"\]/.test(css), 'and no slider styling left behind');
+        assert.ok(/id="aim-out"/.test(html) && /id="power-out"/.test(html),
+            'the aim and power readouts stay');
+        assert.ok(/<p class="hint" id="hint">/.test(html), 'and the instructions are on the page');
     });
 
     test('Should size controls for a finger on every page', () => {

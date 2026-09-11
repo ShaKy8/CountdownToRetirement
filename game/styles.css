@@ -224,10 +224,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 button.primary { color: var(--void); background: var(--cy); border-color: var(--cy); }
 button.primary:hover:not(:disabled) { color: var(--void); background: #6df3ff; }
 
-.controls { display: flex; flex-direction: column; gap: 8px; }
+.controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.readouts { display: flex; gap: 16px; }
 
-.ctl { display: flex; align-items: center; gap: 10px; }
-.ctl-k { width: 52px; font-size: .58rem; letter-spacing: .2em; color: var(--faint); }
+.ctl { display: flex; align-items: center; gap: 8px; }
+.ctl-k { font-size: .58rem; letter-spacing: .2em; color: var(--faint); }
 .ctl-v {
     width: 46px;
     text-align: right;
@@ -236,44 +237,6 @@ button.primary:hover:not(:disabled) { color: var(--void); background: #6df3ff; }
     font-variant-numeric: tabular-nums;
     color: var(--dim);
 }
-
-/*
- * The input IS the touch target, and it was three pixels tall: the whole
- * control was the width of the line it draws. The visible 3px rail moves to
- * the track pseudo-element so the element itself can be as tall as a finger
- * without the slider looking any different.
- */
-input[type="range"] {
-    flex: 1;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 3px;
-    background: transparent;
-    outline: none;
-}
-
-input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: var(--faint); }
-input[type="range"]::-moz-range-track { height: 3px; background: var(--faint); }
-
-input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 15px;
-    height: 15px;
-    margin-top: -6px;          /* centre the thumb on the 3px rail */
-    background: var(--cy);
-    cursor: pointer;
-}
-
-input[type="range"]::-moz-range-thumb {
-    width: 15px;
-    height: 15px;
-    border: none;
-    background: var(--cy);
-    cursor: pointer;
-}
-
-input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset: 4px; }
 
 .hint, .say {
     margin: 0;
@@ -285,7 +248,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset
 }
 
 .say { color: var(--dim); min-height: 1.5em; }
-.hint b { color: var(--dim); }
+
+/* The instructions. With the sliders gone this is the only place the page
+   says how to play, so it reads at body size rather than as a footnote. */
+.hint { font-size: .74rem; line-height: 1.7; color: var(--dim); }
+.hint b { color: var(--ink); }
 
 /*
  * Reduced motion strips the DECORATION, not the game. The ball rolling is the
@@ -295,8 +262,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset
 /*
  * A finger is not a mouse pointer. WCAG 2.5.8 asks for 24x24 CSS px; Apple
  * asks 44x44 on a control, and these all sit beside other controls. Scoped
- * to a coarse pointer, so the desktop layout is exactly as it was -- which
- * matters most for the sliders, whose rail stays 3px either way.
+ * to a coarse pointer, so the desktop layout is exactly as it was.
  */
 @media (pointer: coarse) {
     .back-link {
@@ -305,7 +271,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset
         min-height: 44px;
     }
     button { min-height: 44px; }
-    input[type="range"] { height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -317,5 +282,5 @@ input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset
     .wrap { padding-top: 52px; }
     .title { font-size: 1.4rem; }
     .chip-v { font-size: .88rem; }
-    .hint { font-size: .58rem; }
+    .hint { font-size: .66rem; }
 }

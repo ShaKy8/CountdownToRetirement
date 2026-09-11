@@ -115,7 +115,7 @@ CountdownToRetirement/
 │   ├── styles.css          # Night theme (countdown) + dawn theme (count-up)
 │   └── favicon.svg         # Beach/sunset themed favicon
 ├── game/                   # ONE PUTT - the daily putting game
-│   ├── index.html          # Board, HUD, sliders, result card
+│   ├── index.html          # Board, HUD, aim/power readouts, result card
 │   ├── putt.js             # Pure rules: seeding, holes, physics, wind, state
 │   ├── script.js           # Canvas, input, weather fetch, localStorage
 │   ├── styles.css          # Console palette, borrowed from weather/css/core.css
@@ -233,13 +233,14 @@ CountdownToRetirement/
   snap to a half-unit grid: `Math.sin/cos/pow` are not bit-identical across JS
   engines, and the hole must be.
 - **Dev overrides:** `?seed=1234` and `?wind=12@210`.
-- **The keyboard is SLINGSHOT's.** One `keydown` listener on `window` (not the
-  canvas, which needed a click first), 0.6° a press and 0.15° with Shift,
-  up/down two power points, Space putts. The handler owns the arrows even over
-  a focused slider — preventing the default is what stops the slider stepping
-  itself as well — and leaves Space to a focused button, because there Space
-  is the button. A test pins both scripts to the same step literal so they
-  cannot drift.
+- **The keyboard is SLINGSHOT's, and there are no sliders.** One `keydown`
+  listener on `window` (not the canvas, which needed a click first), 0.6° a
+  press and 0.15° with Shift, up/down two power points, Space putts; drag and
+  release is the touch path. The handler leaves Space to a focused button,
+  because there Space is the button. A test pins both scripts to the same
+  step literal so they cannot drift. The AIM/POWER readouts are the only
+  feedback besides the preview line, and the instruction line under them is
+  the only place the page says how to play, so it is set at body size.
 
 ### Two things that will silently break it
 

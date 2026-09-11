@@ -66,8 +66,6 @@
         simTime = 0;
         mode = nextMode;
         aim = { angle: -Math.PI / 2, power: 0.5 };
-        byId('aim').value = 270;
-        byId('power').value = 50;
         if (liveWind && nextMode !== 'daily') { wind = liveWind; }
         syncControls();
         paintHud();
@@ -427,15 +425,11 @@
 
     function setEnabled(on) {
         byId('putt').disabled = !on;
-        byId('aim').disabled = !on;
-        byId('power').disabled = !on;
     }
 
     function syncControls() {
         let deg = Math.round(aim.angle * 180 / Math.PI);
         deg = ((deg % 360) + 360) % 360;
-        byId('aim').value = String(deg);
-        byId('power').value = String(Math.round(aim.power * 100));
         byId('aim-out').textContent = deg + '°';
         byId('power-out').textContent = Math.round(aim.power * 100) + '%';
     }
@@ -487,10 +481,8 @@
 
     // The keyboard is SLINGSHOT's: the same keys, the same step, and one
     // listener on window so it works without first clicking the green.
-    // The handler owns the arrows even when a slider has focus - preventing
-    // the default is what stops the slider stepping itself as well. Space is
-    // left alone on a focused button or link, because there Space IS the
-    // button; a focused Putt still putts, once, through its own click.
+    // Space is left alone on a focused button or link, because there Space
+    // IS the button; a focused Putt still putts, once, through its own click.
     window.addEventListener('keydown', function (e) {
         if (byId('putt').disabled) return;
         const step = (e.shiftKey ? 0.15 : 0.6) * Math.PI / 180;
@@ -505,25 +497,12 @@
         draw();
     });
 
-    // Two slider ticks a press: 2 of the 5-100 range, as SLINGSHOT's 2 of
-    // 18-102. Stepped in whole percent so the state never drifts from the
-    // slider by a float's worth.
+    // Two points a press on the 5-100 readout, as SLINGSHOT's 2 of 18-102.
+    // Stepped in whole percent so the readout never drifts by a float's worth.
     function stepPower(dir) {
         const pct = Math.round(aim.power * 100) + 2 * dir;
         aim.power = Math.max(5, Math.min(100, pct)) / 100;
     }
-
-    byId('aim').addEventListener('input', function (e) {
-        aim.angle = Number(e.target.value) * Math.PI / 180;
-        syncControls();
-        draw();
-    });
-
-    byId('power').addEventListener('input', function (e) {
-        aim.power = Number(e.target.value) / 100;
-        syncControls();
-        draw();
-    });
 
     byId('putt').addEventListener('click', putt);
 
