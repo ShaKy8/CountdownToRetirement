@@ -237,6 +237,32 @@ Two deliberate differences from `server.js`, both noted in the script:
 The deploy role cannot do any of this: it holds `CreateInvalidation` and nothing
 else on CloudFront. Run it with credentials that can update the distribution.
 
+## 6. The weekly spend check
+
+`.github/workflows/spend.yml` runs `scripts/spend-check.mjs` every Monday and
+fails when either bill is on course to pass its limit (`AWS_LIMIT`,
+`ANTHROPIC_LIMIT`, both $5). AWS comes from one Cost Explorer call; Anthropic
+is priced from the token counts the Lambda logs per model call, because the
+cost report needs an Admin key, which individual Console accounts do not have.
+
+The deploy role needs two read-only additions for it, `ce:GetCostAndUsage`
+and `logs:StartQuery`/`logs:GetQueryResults`. The merged policy is checked in:
+
+```bash
+aws iam put-role-policy --role-name branyontech-deploy --policy-name deploy \
+  --policy-document file://docs/deploy-role-policy.json
+gh workflow run spend.yml          # then check it under Actions
+```
+
+An AWS Budget backs this up between Mondays: `monthly-account-5usd`, a $5
+monthly cost budget that emails Kyle when actual spend passes 80% or the
+month's forecast passes 100%. It was created 2026-09-11 with
+`aws budgets create-budget`; the first two budgets in an account are free.
+
+Optional: an Admin API key (`sk-ant-admin01-…`, created in the Console under
+an organisation) as the `ANTHROPIC_ADMIN_KEY` repository secret makes the
+check print Anthropic's own figure beside the estimate.
+
 ## Resolved: www.branyontech.com
 
 This used to serve an invalid certificate from a second CloudFront distribution

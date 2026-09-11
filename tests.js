@@ -2105,6 +2105,7 @@ describe('ONE PUTT - Page structure', () => {
     });
 });
 
+
 describe('BUSINESS SITE - Deploy wiring', () => {
     const fs = require('fs');
     const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
@@ -4043,6 +4044,63 @@ console.log(`${'='.repeat(60)}\n`);
 
 // Run the tests by calling describe blocks above
 // (All tests are already executed via the test() calls)
+
+describe('SPEND CHECK - the weekly bill', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const wf = read('.github', 'workflows', 'spend.yml');
+    const script = read('scripts', 'spend-check.mjs');
+    const lambda = read('lambda', 'index.mjs');
+
+    test('Should run every week, and by hand', () => {
+        assert.ok(/schedule:\s*\n\s*-\s*cron:/.test(wf), 'spend.yml needs a cron schedule');
+        assert.ok(/workflow_dispatch/.test(wf), 'and a manual trigger for checking now');
+        assert.ok(/node scripts\/spend-check\.mjs/.test(wf), 'and it should run the script');
+    });
+
+    test('Should pin every action to a commit SHA', () => {
+        // A tag is mutable and this job holds AWS credentials. Same rule as
+        // deploy.yml and test.yml.
+        const uses = wf.split('\n').filter(l => /^\s*-?\s*uses:/.test(l));
+        assert.ok(uses.length >= 3, 'expected checkout, node and aws-credentials steps');
+        uses.forEach(l => assert.ok(/@[0-9a-f]{40}\b/.test(l), `not pinned to a SHA: ${l.trim()}`));
+    });
+
+    test('Should price the model the Lambda actually calls', () => {
+        // The estimate is tokens times a rate table. If the Lambda moves to
+        // another model the table has to follow, or the check prices the wrong
+        // thing and looks fine doing it.
+        const m = lambda.match(/model: '(claude-[a-z0-9-]+)'/);
+        assert.ok(m, 'the Lambda should name its model');
+        assert.ok(script.includes(`'${m[1]}':`), `RATES in spend-check.mjs has no entry for ${m[1]}`);
+    });
+
+    test('Should be able to see the model calls in the logs', () => {
+        // The Lambda writes one JSON line per call and the script parses the
+        // same field names back out. Rename one without the other and the
+        // estimate silently becomes zero.
+        assert.ok(/metric: 'anthropic'/.test(lambda), 'the route should log a usage line');
+        ['input_tokens', 'output_tokens'].forEach(f => {
+            assert.ok(lambda.includes(`${f}: j.usage?.${f}`), `the Lambda should log ${f}`);
+            assert.ok(script.includes(`"${f}":`), `the script should parse ${f}`);
+        });
+        assert.ok(/"metric":"anthropic"/.test(script), 'and filter on the same marker');
+    });
+
+    test('Should fail rather than pass when a bill cannot be read', () => {
+        assert.ok(/problems\.push\(/.test(script) && /if \(problems\.length \|\| over\.length\) process\.exit\(1\)/.test(script),
+            'a source that returns nothing must fail the job, not report a quiet month');
+        assert.ok(!/console\.log\([^)]*adminKey/.test(script), 'the admin key must never be printed');
+    });
+
+    test('Should make exactly one Cost Explorer call', () => {
+        // Each one costs a cent, and the previous month is a MONTHLY bucket of
+        // the same request rather than a second request.
+        const n = (script.match(/get-cost-and-usage/g) || []).length;
+        assert.strictEqual(n, 1, 'one Cost Explorer request covers both months');
+        assert.ok(/'--granularity', 'MONTHLY'/.test(script), 'with monthly buckets');
+    });
+});
 
 // =============================================================================
 // TEST SUMMARY

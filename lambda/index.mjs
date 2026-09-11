@@ -511,6 +511,15 @@ const routes = {
       });
       if (!res.ok) return { text: null, why: `upstream ${res.status}` };
       const j = await res.json();
+      // One line per model call, carrying the token counts the API returned,
+      // so scripts/spend-check.mjs can price the month from the logs with a
+      // CloudWatch Insights query and no Admin key. The local server just
+      // prints it.
+      console.log(JSON.stringify({
+        metric: 'anthropic', model: 'claude-sonnet-5',
+        input_tokens: j.usage?.input_tokens ?? null,
+        output_tokens: j.usage?.output_tokens ?? null,
+      }));
       const text = (j.content || []).filter((b) => b.type === 'text')
         .map((b) => b.text).join('').trim();
       // A model that ignores "one sentence" is a model that ignored the rest
