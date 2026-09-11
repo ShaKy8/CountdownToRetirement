@@ -285,6 +285,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset
 }
 
 .say { color: var(--dim); min-height: 1.5em; }
+.hint b { color: var(--dim); }
 
 /*
  * Reduced motion strips the DECORATION, not the game. The ball rolling is the
@@ -316,4 +317,5 @@ input[type="range"]:focus-visible { outline: 2px solid var(--cy); outline-offset
     .wrap { padding-top: 52px; }
     .title { font-size: 1.4rem; }
     .chip-v { font-size: .88rem; }
+    .hint { font-size: .58rem; }
 }

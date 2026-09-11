@@ -2106,6 +2106,57 @@ describe('ONE PUTT - Page structure', () => {
 });
 
 
+describe('ONE PUTT - Keyboard, shared with SLINGSHOT', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const codeOnly = src => src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n')
+        .filter(line => !/^\s*(\/\/|\*)/.test(line))
+        .join('\n');
+    const game = codeOnly(read('game', 'script.js'));
+    const sling = codeOnly(read('slingshot', 'script.js'));
+    const gameHtml = read('game', 'index.html');
+    const gameCss = read('game', 'styles.css');
+
+    test('Should listen on the window, not the green', () => {
+        // The old listener sat on the canvas, so the arrows did nothing
+        // until the player had clicked the board once.
+        assert.ok(/window\.addEventListener\('keydown'/.test(game), 'keydown should be on window');
+        assert.ok(!/canvas\.addEventListener\('keydown'/.test(game), 'and not on the canvas');
+        assert.ok(/window\.addEventListener\('keydown'/.test(sling), 'SLINGSHOT listens on window too');
+    });
+
+    test('Should nudge by the same step as SLINGSHOT, and fire on the same key', () => {
+        // One expression, written identically in both files, so the two
+        // games cannot drift apart without this failing.
+        const STEP = /const step = \(e\.shiftKey \? ([\d.]+) : ([\d.]+)\) \* Math\.PI \/ 180;/;
+        const g = game.match(STEP), s = sling.match(STEP);
+        assert.ok(g && s, 'both games should build the angle step from one shiftKey ternary');
+        assert.deepStrictEqual(g.slice(1), s.slice(1), 'the fine and coarse steps should match');
+        assert.deepStrictEqual(s.slice(1), ['0.15', '0.6'], 'a fifth of a degree fine, six tenths coarse');
+        const FIRE = /e\.key === ' ' \|\| e\.key === 'Spacebar'/;
+        assert.ok(FIRE.test(game) && FIRE.test(sling), 'space fires in both');
+        assert.ok(!/e\.key === 'Enter'/.test(game), 'Enter belongs to whatever is focused');
+        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
+            .forEach(k => assert.ok(game.includes(`'${k}'`) && sling.includes(`'${k}'`), `${k} in both`));
+    });
+
+    test('Should leave space to a focused button', () => {
+        // Buttons click on space at keyup; firing a putt at keydown as well
+        // would be two strokes from one press on Putt, and a putt from Share.
+        assert.ok(/matches\('button, a'\)/.test(game), 'the target should be checked');
+        assert.ok(/\.disabled\) return;/.test(game), 'and the putt-disabled gate should stay');
+    });
+
+    test('Should name the keys on the page, in key caps', () => {
+        assert.ok(/<b>&larr; &rarr;<\/b> nudge, <b>&uarr; &darr;<\/b> power, <b>SPACE<\/b> putt\./.test(gameHtml),
+            'the hint should read as SLINGSHOT\'s does');
+        assert.ok(/arrow keys[\s\S]*space to putt/.test(gameHtml), 'the canvas label should say the same');
+        assert.ok(/\.hint b \{ color: var\(--dim\); \}/.test(gameCss), 'key caps should be dim, not faint');
+    });
+});
+
 describe('BUSINESS SITE - Deploy wiring', () => {
     const fs = require('fs');
     const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');

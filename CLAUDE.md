@@ -233,6 +233,13 @@ CountdownToRetirement/
   snap to a half-unit grid: `Math.sin/cos/pow` are not bit-identical across JS
   engines, and the hole must be.
 - **Dev overrides:** `?seed=1234` and `?wind=12@210`.
+- **The keyboard is SLINGSHOT's.** One `keydown` listener on `window` (not the
+  canvas, which needed a click first), 0.6° a press and 0.15° with Shift,
+  up/down two power points, Space putts. The handler owns the arrows even over
+  a focused slider — preventing the default is what stops the slider stepping
+  itself as well — and leaves Space to a focused button, because there Space
+  is the button. A test pins both scripts to the same step literal so they
+  cannot drift.
 
 ### Two things that will silently break it
 

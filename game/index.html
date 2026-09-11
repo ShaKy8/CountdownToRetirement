@@ -42,7 +42,7 @@
 
         <div class="board-wrap">
             <canvas id="board" width="600" height="960" tabindex="0" role="application"
-                    aria-label="Putting green. Use the aim and power sliders below, then press Putt."></canvas>
+                    aria-label="Putting green. Aim with the left and right arrow keys, set power with up and down, and press space to putt. The aim and power sliders below do the same."></canvas>
             <div class="result" id="result" hidden>
                 <p class="result-score" id="result-score">Par</p>
                 <p class="result-line" id="result-line">2 strokes</p>
@@ -72,7 +72,10 @@
             <button type="button" id="putt" class="primary">Putt</button>
         </div>
 
-        <p class="hint">Drag from the ball to aim, or use the sliders. Arrow keys work on the green.</p>
+        <p class="hint">
+            <b>DRAG</b> back from the ball to aim &mdash; further is harder.
+            <b>&larr; &rarr;</b> nudge, <b>&uarr; &darr;</b> power, <b>SPACE</b> putt.
+        </p>
         <p class="say" id="say" role="status" aria-live="polite"></p>
     </main>
 

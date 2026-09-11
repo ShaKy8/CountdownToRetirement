@@ -485,19 +485,33 @@
         draw();
     }
 
-    canvas.addEventListener('keydown', function (e) {
+    // The keyboard is SLINGSHOT's: the same keys, the same step, and one
+    // listener on window so it works without first clicking the green.
+    // The handler owns the arrows even when a slider has focus - preventing
+    // the default is what stops the slider stepping itself as well. Space is
+    // left alone on a focused button or link, because there Space IS the
+    // button; a focused Putt still putts, once, through its own click.
+    window.addEventListener('keydown', function (e) {
         if (byId('putt').disabled) return;
-        const fine = e.shiftKey ? 0.5 : 2;
-        if (e.key === 'ArrowLeft') { aim.angle -= fine * Math.PI / 180; }
-        else if (e.key === 'ArrowRight') { aim.angle += fine * Math.PI / 180; }
-        else if (e.key === 'ArrowUp') { aim.power = Math.min(1, aim.power + 0.04); }
-        else if (e.key === 'ArrowDown') { aim.power = Math.max(0.05, aim.power - 0.04); }
-        else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); putt(); return; }
+        const step = (e.shiftKey ? 0.15 : 0.6) * Math.PI / 180;
+        const onControl = e.target instanceof Element && e.target.matches('button, a');
+        if (e.key === 'ArrowLeft') { aim.angle -= step; e.preventDefault(); }
+        else if (e.key === 'ArrowRight') { aim.angle += step; e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { stepPower(1); e.preventDefault(); }
+        else if (e.key === 'ArrowDown') { stepPower(-1); e.preventDefault(); }
+        else if ((e.key === ' ' || e.key === 'Spacebar') && !onControl) { e.preventDefault(); putt(); return; }
         else return;
-        e.preventDefault();
         syncControls();
         draw();
     });
+
+    // Two slider ticks a press: 2 of the 5-100 range, as SLINGSHOT's 2 of
+    // 18-102. Stepped in whole percent so the state never drifts from the
+    // slider by a float's worth.
+    function stepPower(dir) {
+        const pct = Math.round(aim.power * 100) + 2 * dir;
+        aim.power = Math.max(5, Math.min(100, pct)) / 100;
+    }
 
     byId('aim').addEventListener('input', function (e) {
         aim.angle = Number(e.target.value) * Math.PI / 180;
