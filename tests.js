@@ -2155,6 +2155,17 @@ describe('ONE PUTT - Keyboard, shared with SLINGSHOT', () => {
         assert.ok(/arrow keys[\s\S]*space to putt/.test(gameHtml), 'the canvas label should say the same');
         assert.ok(/\.hint b \{ color: var\(--ink\); \}/.test(gameCss), 'key caps should read at full ink: they are the instructions');
     });
+
+    test('Should keep each instruction on one line on a 320px phone', () => {
+        // Measured: the hint has 292px at 320 wide, in 10.56px mono, which is
+        // 46 characters. "and let go" was what pushed the first line to three.
+        const m = gameHtml.match(/<p class="hint" id="hint">([\s\S]*?)<\/p>/);
+        assert.ok(m, 'the hint should be there');
+        const lines = m[1].split('<br>').map(l => l.replace(/<[^>]+>/g, '')
+            .replace(/&mdash;/g, '-').replace(/&(larr|rarr|uarr|darr);/g, 'x').trim());
+        assert.strictEqual(lines.length, 2, 'two instruction lines');
+        lines.forEach(l => assert.ok(l.length <= 46, `"${l}" is ${l.length} characters; 46 is the 320px ceiling`));
+    });
 });
 
 describe('BUSINESS SITE - Deploy wiring', () => {
