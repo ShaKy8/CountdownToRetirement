@@ -1,11 +1,16 @@
 {
   "updated": "2026-09-18",
   "trips": [
-    { "place": "San Francisco, California", "when": "March 2026", "lat": 37.7749, "lon": -122.4194 },
-    { "place": "Vancouver, Canada & Alaska", "when": "May 2026", "lat": 49.2497, "lon": -123.1193 },
-    { "place": "Alameda, California", "when": "May–June 2026", "lat": 37.7710, "lon": -122.2609 },
-    { "place": "Johnson City, Texas", "when": "June 2026", "lat": 30.2769, "lon": -98.4120 },
-    { "place": "Grants Pass, Oregon", "when": "July 2026", "lat": 42.4393, "lon": -123.3307 },
+    { "place": "San Francisco, California", "when": "March 2026", "lat": 37.7749, "lon": -122.4194,
+      "note": "Visiting Family" },
+    { "place": "Vancouver, Canada & Alaska", "when": "May 2026", "lat": 49.2497, "lon": -123.1193,
+      "note": "Adventure Cruise" },
+    { "place": "Alameda, California", "when": "May–June 2026", "lat": 37.7710, "lon": -122.2609,
+      "note": "Visiting Family" },
+    { "place": "Johnson City, Texas", "when": "June 2026", "lat": 30.2769, "lon": -98.4120,
+      "note": "Visiting Family" },
+    { "place": "Grants Pass, Oregon", "when": "July 2026", "lat": 42.4393, "lon": -123.3307,
+      "note": "Visiting Family" },
     { "place": "San Diego, California", "when": "September 2026", "lat": 32.7157, "lon": -117.1611,
       "note": "🎶 Earth, Wind & Fire, live at the Civic Theatre" }
   ],
