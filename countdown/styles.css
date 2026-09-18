@@ -1115,6 +1115,15 @@ button.metric-card {
     white-space: nowrap;
 }
 
+/* Always its own line: the row is a wrapping flex, and a short note would
+   otherwise slot in between the place and its date. */
+.trip-note {
+    flex-basis: 100%;
+    font-size: 0.8rem;
+    font-style: italic;
+    opacity: 0.85;
+}
+
 /*
  * On a narrow panel a long place name wraps its date onto a second line while
  * a short one keeps it inline, so the list reads as two different designs in
@@ -1123,8 +1132,16 @@ button.metric-card {
 @media (max-width: 420px) {
     .trip-list li {
         flex-direction: column;
+        /* A wrapping COLUMN sends the note into a second column beside the
+           place, and the list scrolls sideways to reach it. */
+        flex-wrap: nowrap;
         align-items: flex-start;
         gap: 2px;
+    }
+
+    /* In a column the basis is a height; 100% of it is what forced the wrap. */
+    .trip-note {
+        flex-basis: auto;
     }
 }
 
@@ -2044,6 +2061,7 @@ body.mode-countup .countup-marking {
     .trip-list li { border-bottom-color: #fff; }
     .metric-more { opacity: 1; }
     .trip-when { opacity: 1; }
+    .trip-note { opacity: 1; }
 
     body.mode-countup .progress-text,
     body.mode-countup .back-link,

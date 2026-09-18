@@ -538,7 +538,8 @@ function usableTrips(list) {
     return list.reduce((out, entry) => {
         if (!entry || typeof entry !== 'object') return out;
         const place = typeof entry.place === 'string' ? entry.place.trim() : '';
-        if (place) out.push({ place, when: typeof entry.when === 'string' ? entry.when.trim() : '' });
+        const text = key => (typeof entry[key] === 'string' ? entry[key].trim() : '');
+        if (place) out.push({ place, when: text('when'), note: text('note') });
         return out;
     }, []);
 }
@@ -562,6 +563,14 @@ function renderTrips(trips) {
             date.className = 'trip-when';
             date.textContent = trip.when;
             li.appendChild(date);
+        }
+        // Why we went, for the trips that had a reason. Most have none and
+        // stay one line.
+        if (trip.note) {
+            const note = document.createElement('span');
+            note.className = 'trip-note';
+            note.textContent = trip.note;
+            li.appendChild(note);
         }
         ul.appendChild(li);
     });
@@ -594,7 +603,13 @@ function showTrips() {
         const gap = 10;
         panel.style.setProperty('--caret-x', `${Math.round(c.left - g.left + c.width / 2)}px`);
 
-        const roomAbove = c.top - gap - 8;
+        // The back link is fixed to the top corner and paints over whatever
+        // slides beneath it, so where the two overlap "above" stops at the link.
+        const back = document.querySelector('.back-link');
+        const b = back ? back.getBoundingClientRect() : null;
+        const topInset = b && b.right > g.left && b.left < g.right ? Math.max(0, b.bottom) : 0;
+
+        const roomAbove = c.top - gap - 8 - topInset;
         const roomBelow = window.innerHeight - c.bottom - gap - 8;
 
         /*

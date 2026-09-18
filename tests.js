@@ -1333,6 +1333,26 @@ describe('BUSINESS SITE - Personal stats file', () => {
         });
     });
 
+    test('A trip note should be optional, and real text when present', () => {
+        stats.trips.forEach((trip, i) => {
+            if (trip.note === undefined) return;
+            assert.ok(typeof trip.note === 'string' && trip.note.trim(),
+                `Trip ${i} has a note that is not text; leave the key out instead`);
+        });
+    });
+
+    test('The trips panel should show a note on its own line', () => {
+        assert.ok(/note: text\('note'\)/.test(countdownJs),
+            'usableTrips should carry the note through the same filter as the place');
+        assert.ok(/if \(trip\.note\)/.test(countdownJs) && /className = 'trip-note'/.test(countdownJs),
+            'renderTrips should add the note only when there is one');
+        // The row is a wrapping flex: without a full basis a short note sits
+        // between the place and its date instead of under them.
+        const countdownCss = fs.readFileSync(path.join(__dirname, 'countdown', 'styles.css'), 'utf8');
+        assert.ok(/\.trip-note \{[^}]*flex-basis: 100%/.test(countdownCss),
+            'The note should take a full row of the entry');
+    });
+
     test('The trip count should be derived from the list, never stored beside it', () => {
         // Two places to edit is one place to forget. The tile reads .length so
         // the number and the panel cannot disagree.

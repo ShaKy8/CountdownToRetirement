@@ -59,6 +59,8 @@ const STATE = `(()=>{const c=document.getElementById('stat-trips-card');
   const g=document.getElementById('personal-metrics');
   if(!c||!p||!g) return null;
   const pr=p.getBoundingClientRect(), gr=g.getBoundingClientRect(), cr=c.getBoundingClientRect();
+  const bl=document.querySelector('.back-link'), br=bl?bl.getBoundingClientRect():null;
+  const inset=br&&br.right>gr.left&&br.left<gr.right?Math.max(0,br.bottom):0;
   return {open:c.classList.contains('is-open'), expanded:c.getAttribute('aria-expanded'),
     hidden:p.hidden, count:document.getElementById('stat-trips').textContent.trim(),
     items:[...p.querySelectorAll('li')].map(li=>li.textContent.trim()),
@@ -66,7 +68,9 @@ const STATE = `(()=>{const c=document.getElementById('stat-trips-card');
     clipped:(()=>{const u=document.getElementById('trip-list');return u.scrollHeight>u.clientHeight+1;})(),
     height:Math.round(pr.height),
     roomHere:Math.round(p.classList.contains('is-below')
-      ? innerHeight - cr.bottom - 18 : cr.top - 18),
+      ? innerHeight - cr.bottom - 18 : cr.top - 18 - inset),
+    inset:Math.round(inset),
+    sideways:(()=>{const u=document.getElementById('trip-list');return u.scrollWidth-u.clientWidth;})(),
     left:Math.round(pr.left), right:Math.round(pr.right), vw:innerWidth,
     bottom:Math.round(pr.bottom), top:Math.round(pr.top), cardTop:Math.round(cr.top),
     cardBottom:Math.round(cr.bottom), below:p.classList.contains('is-below'), vh:innerHeight,
@@ -154,6 +158,15 @@ const cx = parseFloat(s.caret);
 const caretX = s.gLeft + cx;
 gate(caretX >= s.cardLeft && caretX <= s.cardRight,
   'the caret points at the trips tile', `${Math.round(caretX)} in ${s.cardLeft}..${s.cardRight}`);
+/*
+ * Both found by adding a sixth trip with a note, and both passed every gate
+ * above. The fixed back link paints over a panel that reaches the top of the
+ * screen, hiding the first trip; and in the stacked phone layout the note
+ * wrapped into a second COLUMN, which the list then scrolled sideways to show.
+ */
+gate(s.below || s.top >= s.inset - 1, 'the panel clears the back link',
+  `panel top ${s.top}, link ends at ${s.inset}`);
+gate(s.sideways <= 1, 'the list does not scroll sideways', `${s.sideways}px`);
 
 await click(); s = await E(STATE);
 gate(s.hidden === true && s.expanded === 'false', 'a second tap closes it');

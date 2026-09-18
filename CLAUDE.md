@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (374 tests)
+# Run client-side tests (387 tests)
 node tests.js
 
 # Run server integration tests (60 tests)
@@ -129,7 +129,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (374 tests)
+├── tests.js                # Client-side unit tests (387 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -164,6 +164,12 @@ CountdownToRetirement/
   and an element that is not an object, or has no `place`, is skipped rather than
   allowed to break the page. An empty list hides the tile exactly as an invalid
   number does.
+- **A trip may carry a `note`** — why we went ("🎶 Earth, Wind & Fire, live at
+  the Civic Theatre"). It renders as its own italic line under the entry; most
+  trips have none and stay one line, so leave the key out rather than blank.
+  `lat`/`lon` are not shown here: they are what ELSEWHERE in the weather
+  console ranks, and an entry without them is simply not ranked, so a new trip
+  needs all of `place`, `when`, `lat`, `lon`.
 - **Tapping the trips tile opens the list.** It is a `<button>`, not an article,
   so it answers to a tap, Enter, Space and a screen reader; hover alone would
   make it invisible on a phone. `node scripts/trips-audit.mjs` is the gate — run
@@ -198,6 +204,14 @@ CountdownToRetirement/
     away. And the side is chosen *before* the cap is applied — capping to the
     larger of the two rooms and then landing on the smaller one cut the last
     trip in half with 250px sitting unused.
+  - **The room above stops at the back link.** It is `position: fixed` in the
+    top corner and paints over anything beneath it, so a panel tall enough to
+    reach the top of the screen lost its first trip behind it. Five short
+    entries never reached; the sixth did. `showTrips()` subtracts the link's
+    bottom edge wherever the two overlap, and the audit gates on it.
+  - **The note must not wrap the stacked row.** Under 420px each entry is a
+    flex *column*; with `flex-wrap` still on, a full-basis note becomes a
+    second column beside the place and the list scrolls sideways to reach it.
 - **Countdown mode:** Unchanged days/hours/minutes/seconds timer, original metrics and milestones, purple night theme.
 - **Celebration:** The CONGRATULATIONS overlay only plays when a countdown reaches zero while the page is open, then transitions to count-up without a reload.
 - **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).
