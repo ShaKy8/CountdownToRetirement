@@ -136,6 +136,11 @@ gate(s.items.length === stats.trips.length, 'every trip is listed',
 gate(!s.clipped || s.height >= s.roomHere - 6,
   s.clipped ? 'it scrolls, but only after using the room it has' : 'no trip is cut off',
   `panel ${s.height}px into ${s.roomHere}px of room`);
+// The file is oldest-first (new trips are appended); the panel is newest-first,
+// so that what scrolls out of reach is the oldest trip and not the latest.
+const usable = stats.trips.filter(t => t && typeof t.place === 'string' && t.place.trim());
+gate(s.items.length > 0 && s.items[0].includes(usable[usable.length - 1].place.trim()),
+  'the newest trip is listed first', `${s.items[0]}`);
 const missing = stats.trips.filter(t => !s.items.some(i => i.includes(t.place)));
 gate(missing.length === 0, 'every place name appears', missing.map(t => t.place).join(', '));
 gate(s.right <= s.vw + 1 && s.left >= -1, 'the panel stays on screen',

@@ -550,7 +550,14 @@ function renderTrips(trips) {
     if (!ul || !card) return;
 
     ul.textContent = '';
-    trips.forEach(trip => {
+    /*
+     * Newest first. stats.json stays oldest-first, because a new trip is
+     * appended at the bottom and the file order IS the chronology -- "when" is
+     * free text ("May–June 2026") and cannot be sorted. But the panel scrolls
+     * once it outgrows the room beside the tile, and the entry that falls off
+     * the end should be March, not the trip everyone just asked about.
+     */
+    trips.slice().reverse().forEach(trip => {
         const li = document.createElement('li');
         const name = document.createElement('span');
         name.className = 'trip-place';

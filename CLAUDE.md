@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (388 tests)
+# Run client-side tests (390 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -133,7 +133,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (388 tests)
+├── tests.js                # Client-side unit tests (390 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -169,8 +169,14 @@ CountdownToRetirement/
   allowed to break the page. An empty list hides the tile exactly as an invalid
   number does.
 - **A trip may carry a `note`** — why we went ("🎶 Earth, Wind & Fire, live at
-  the Civic Theatre"). It renders as its own italic line under the entry; most
-  trips have none and stay one line, so leave the key out rather than blank.
+  the Civic Theatre"). On a wide panel it is its own italic line under the
+  entry; on a phone it joins the date ("March 2026 · Visiting Family"). It is
+  optional, so leave the key out rather than blank.
+- **The file is oldest-first; the panel is newest-first.** Append a new trip at
+  the bottom of `trips` — the file order *is* the chronology, because `when` is
+  free text ("May–June 2026") and cannot be sorted. `renderTrips()` reverses a
+  copy, so that when the list outgrows the room beside the tile, what scrolls
+  out of reach is March and not the trip everyone just asked about.
   `lat`/`lon` are not shown here: they are what ELSEWHERE in the weather
   console ranks, and an entry without them is simply not ranked, so a new trip
   needs all of `place`, `when`, `lat`, `lon`.
@@ -213,9 +219,14 @@ CountdownToRetirement/
     reach the top of the screen lost its first trip behind it. Five short
     entries never reached; the sixth did. `showTrips()` subtracts the link's
     bottom edge wherever the two overlap, and the audit gates on it.
-  - **The note must not wrap the stacked row.** Under 420px each entry is a
-    flex *column*; with `flex-wrap` still on, a full-basis note becomes a
-    second column beside the place and the list scrolls sideways to reach it.
+  - **Under 420px an entry is two lines of plain block and inline flow, not a
+    flex column.** The column is what once wrapped a full-basis note into a
+    second *column* that the list scrolled sideways to reach. Two traps in the
+    replacement: the " · " hangs off `.trip-when + .trip-note`, so a trip with
+    a blank `when` does not open its line with a stray dot; and the second
+    line's height comes from the `li`'s font size, not the spans' — at 1rem
+    each entry was 4px taller, which across six trips was the difference
+    between fitting beside the tile at 390x844 and scrolling.
 - **The clock's and both games' assets carry a content stamp** — `script.js?v=afcbd11b2c`.
   Assets are cached for an hour under names that never change, while
   `stats.json` is fetched `no-cache`, so new data used to meet old code: the

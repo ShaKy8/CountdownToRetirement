@@ -1385,6 +1385,27 @@ describe('BUSINESS SITE - Personal stats file', () => {
             'The note should take a full row of the entry');
     });
 
+    test('The trips panel should list the newest trip first', () => {
+        // stats.json stays oldest-first (a new trip is appended), so the
+        // reversal belongs to the renderer -- on a copy, because the same
+        // array is what the count was just taken from.
+        assert.ok(/trips\.slice\(\)\.reverse\(\)\.forEach/.test(countdownJs),
+            'renderTrips should reverse a copy of the list');
+        assert.ok(!/stats\.trips\.reverse\(\)/.test(countdownJs),
+            'Never reverse stats.trips in place');
+    });
+
+    test('The trips panel should put the date and note on one line on a phone', () => {
+        const countdownCss = fs.readFileSync(path.join(__dirname, 'countdown', 'styles.css'), 'utf8');
+        const phone = countdownCss.slice(countdownCss.indexOf('Two lines, not three'));
+        assert.ok(/\.trip-list li \{\s*display: block;/.test(phone),
+            'The stacked entry should be plain block flow, not a flex column');
+        // The separator hangs off the DATE, so a trip with a blank "when"
+        // does not start its second line with a dot.
+        assert.ok(/\.trip-when \+ \.trip-note::before \{[^}]*content: " · "/.test(phone),
+            'The dot should only appear between a date and a note');
+    });
+
     test('The trip count should be derived from the list, never stored beside it', () => {
         // Two places to edit is one place to forget. The tile reads .length so
         // the number and the panel cannot disagree.

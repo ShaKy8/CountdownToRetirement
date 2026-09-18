@@ -1128,20 +1128,32 @@ button.metric-card {
  * On a narrow panel a long place name wraps its date onto a second line while
  * a short one keeps it inline, so the list reads as two different designs in
  * one box. Stack every entry instead — consistent beats compact here.
+ *
+ * Two lines, not three: the place, then "March 2026 · Visiting Family" flowing
+ * as one run of text. A line each made six trips 85px taller than the room
+ * beside the tile, and the list scrolled to show what used to fit. Plain block
+ * and inline rather than a flex column -- the column is what once wrapped the
+ * note into a second COLUMN that the list scrolled sideways to reach.
  */
 @media (max-width: 420px) {
     .trip-list li {
-        flex-direction: column;
-        /* A wrapping COLUMN sends the note into a second column beside the
-           place, and the list scrolls sideways to reach it. */
-        flex-wrap: nowrap;
-        align-items: flex-start;
-        gap: 2px;
+        display: block;
+        /* The second line is inline text, so its line box comes from THIS
+           font size, not the spans' own. Left at 1rem it made every entry 4px
+           taller than the stack it replaced -- six of them, and it scrolled. */
+        font-size: 0.8rem;
     }
 
-    /* In a column the basis is a height; 100% of it is what forced the wrap. */
-    .trip-note {
-        flex-basis: auto;
+    .trip-place {
+        display: block;
+        margin-bottom: 2px;
+    }
+
+    /* Only between a date and a note: a trip with no "when" yet must not
+       open its second line with a stray dot. */
+    .trip-when + .trip-note::before {
+        content: " · ";
+        font-style: normal;
     }
 }
 
