@@ -28,12 +28,14 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// Pages whose assets get stamped. Adding a page is adding a line.
-const PAGES = ['countdown/index.html'];
+// Pages whose assets get stamped. Adding a page is adding a line -- here and
+// in the STAMPED_PAGES list in tests.js, which checks the same thing.
+const PAGES = ['countdown/index.html', 'game/index.html', 'slingshot/index.html'];
 
-// A page's OWN files only: a bare relative name, no scheme and no leading
-// slash. /shared/ and anything external is somebody else's to version.
-const REF = /\b(src|href)="((?![a-z]+:|\/)[\w./-]+\.(?:js|css))(?:\?v=[0-9a-f]*)?"/g;
+// This site's files only: a relative name, or a root-absolute one such as
+// /shared/daily.js, which both games load and which has to move in step with
+// them. Anything with a scheme or a // host is somebody else's to version.
+const REF = /\b(src|href)="((?![a-z]+:|\/\/)[\w./-]+\.(?:js|css))(?:\?v=[0-9a-f]*)?"/g;
 
 const check = process.argv.includes('--check');
 const stale = [];
@@ -43,7 +45,8 @@ for (const page of PAGES) {
   const html = readFileSync(file, 'utf8');
 
   const stamped = html.replace(REF, (whole, attr, ref) => {
-    const bytes = readFileSync(path.resolve(path.dirname(file), ref));
+    const bytes = readFileSync(ref.startsWith('/')
+      ? path.join(ROOT, ref) : path.resolve(path.dirname(file), ref));
     const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 10);
     const fresh = `${attr}="${ref}?v=${hash}"`;
     if (fresh !== whole) stale.push(`${page}: ${whole}  ->  ${fresh}`);

@@ -1274,21 +1274,34 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             'Should reference local styles.css');
     });
 
-    test('Countdown page should stamp its assets with a hash of their contents', () => {
+    test('Every page should stamp its assets with a hash of their contents', () => {
         // Assets are cached for an hour under names that never change, while
         // stats.json is fetched fresh: new data met an old cached script.js and
         // the San Diego trip appeared without its note. A ?v= that follows the
         // file's contents is a new URL the moment the file changes.
+        //
+        // The games are stamped for the same reason with higher stakes: both
+        // load /shared/daily.js, and an hour of new putt.js against an old
+        // daily.js is a daily puzzle that seeds differently for one visitor.
         const crypto = require('crypto');
-        const refs = [...countdownHtml.matchAll(/\b(?:src|href)="((?![a-z]+:|\/)[\w.\/-]+\.(?:js|css))(?:\?v=([0-9a-f]*))?"/g)];
-        assert.deepStrictEqual(refs.map(r => r[1]).sort(), ['calc.js', 'script.js', 'styles.css'],
-            'Every local script and stylesheet should be found by this check');
+        const STAMPED_PAGES = {
+            countdown: ['calc.js', 'script.js', 'styles.css'],
+            game: ['/shared/daily.js', 'putt.js', 'script.js', 'styles.css'],
+            slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css']
+        };
 
-        refs.forEach(([, file, stamp]) => {
-            const bytes = fs.readFileSync(path.join(__dirname, 'countdown', file));
-            const hash = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 10);
-            assert.strictEqual(stamp, hash,
-                `${file} changed without its stamp -- run: node scripts/stamp-assets.mjs`);
+        Object.keys(STAMPED_PAGES).forEach(dir => {
+            const html = fs.readFileSync(path.join(__dirname, dir, 'index.html'), 'utf8');
+            const refs = [...html.matchAll(/\b(?:src|href)="((?![a-z]+:|\/\/)[\w.\/-]+\.(?:js|css))(?:\?v=([0-9a-f]*))?"/g)];
+            assert.deepStrictEqual(refs.map(r => r[1]).sort(), STAMPED_PAGES[dir],
+                `${dir}: every script and stylesheet should be found by this check`);
+
+            refs.forEach(([, file, stamp]) => {
+                const source = file.startsWith('/') ? path.join(__dirname, file) : path.join(__dirname, dir, file);
+                const hash = crypto.createHash('sha256').update(fs.readFileSync(source)).digest('hex').slice(0, 10);
+                assert.strictEqual(stamp, hash,
+                    `${dir}: ${file} changed without its stamp -- run: node scripts/stamp-assets.mjs`);
+            });
         });
     });
 
@@ -2238,7 +2251,7 @@ describe('BUSINESS SITE - Deploy wiring', () => {
 
     test('Should load the shared module from the game page, by absolute path', () => {
         const gameHtml = fs.readFileSync(path.join(__dirname, 'game', 'index.html'), 'utf8');
-        assert.ok(gameHtml.includes('src="/shared/daily.js"'),
+        assert.ok(/src="\/shared\/daily\.js[?"]/.test(gameHtml),
             'A relative daily.js would 404 from /game/');
         assert.ok(gameHtml.indexOf('/shared/daily.js') < gameHtml.indexOf('putt.js'),
             'The shared module must load before putt.js');
@@ -2297,7 +2310,9 @@ describe('BUSINESS SITE - Deploy wiring', () => {
         const claude = fs.readFileSync(path.join(__dirname, 'CLAUDE.md'), 'utf8');
         assert.ok(onDisk.length >= 3, 'Expected the slingshot scripts to be found');
         onDisk.forEach(f => {
-            assert.ok(html.includes('src="' + f + '"') || html.includes('/slingshot/' + f),
+            // '?v=' as well as a closing quote: the names carry a content stamp
+            assert.ok(html.includes('src="' + f + '"') || html.includes('src="' + f + '?v=')
+                || html.includes('/slingshot/' + f),
                 `slingshot/${f} exists but index.html never loads it`);
             assert.ok(deploy.includes("--include 'slingshot/" + f + "'"),
                 `slingshot/${f} is not in deploy.yml, so it would 404 in production only`);
@@ -3010,7 +3025,7 @@ describe('SLINGSHOT - Page structure', () => {
     test('Should load the shared module first, by absolute path', () => {
         // A relative daily.js resolves to /slingshot/daily.js, 404s, and the
         // page throws "Daily is not defined" on load.
-        assert.ok(html.includes('src="/shared/daily.js"'));
+        assert.ok(/src="\/shared\/daily\.js[?"]/.test(html));
         assert.ok(html.indexOf('/shared/daily.js') < html.indexOf('orbit.js'),
             'daily.js must load before orbit.js');
         assert.ok(html.indexOf('orbit.js') < html.indexOf('script.js'),

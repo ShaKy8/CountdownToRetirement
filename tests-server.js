@@ -894,7 +894,8 @@ async function runSlingshotTests() {
             });
             // A relative daily.js would resolve to /slingshot/daily.js and 404,
             // and the page would throw "Daily is not defined" on load.
-            assert.ok(data.includes('src="/shared/daily.js"'), 'Must be an absolute path');
+            // [?"] rather than a closing quote: the name carries a ?v= content stamp
+            assert.ok(/src="\/shared\/daily\.js[?"]/.test(data), 'Must be an absolute path');
         });
 
         await test('Should keep the strict CSP on the game page', async () => {

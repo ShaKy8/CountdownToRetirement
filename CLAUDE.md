@@ -30,8 +30,8 @@ node server.js
 # Run client-side tests (388 tests)
 node tests.js
 
-# After changing countdown/script.js, calc.js or styles.css: refresh the ?v=
-# content stamps in countdown/index.html (tests.js fails until you do)
+# After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
+# refresh the ?v= content stamps in those pages (tests.js fails until you do)
 node scripts/stamp-assets.mjs
 
 # Run server integration tests (60 tests)
@@ -216,7 +216,7 @@ CountdownToRetirement/
   - **The note must not wrap the stacked row.** Under 420px each entry is a
     flex *column*; with `flex-wrap` still on, a full-basis note becomes a
     second column beside the place and the list scrolls sideways to reach it.
-- **The clock's assets carry a content stamp** — `script.js?v=afcbd11b2c`.
+- **The clock's and both games' assets carry a content stamp** — `script.js?v=afcbd11b2c`.
   Assets are cached for an hour under names that never change, while
   `stats.json` is fetched `no-cache`, so new data used to meet old code: the
   San Diego trip appeared in the list without its note, because the cached
@@ -226,8 +226,13 @@ CountdownToRetirement/
   stale one, and `deploy.yml` re-stamps before it syncs — the test workflow
   does not gate the deploy, so that step is what actually protects a visitor.
   The query string is for the browser only: S3 ignores it and both local
-  servers strip it. `/game/` and `/slingshot/` are not stamped yet; adding a
-  page is one line in the script's `PAGES`.
+  servers strip it. `/game/` and `/slingshot/` are stamped too, including the
+  root-absolute `/shared/daily.js` they both load — an hour of new `putt.js`
+  against an old `daily.js` is the same bug with a daily puzzle at stake.
+  Adding a page is one line in the script's `PAGES` and one in `tests.js`'s
+  `STAMPED_PAGES`. Tests that look for a script by name must allow the stamp:
+  match `src="name.js[?"]`, not `src="name.js"`. `/weather/` is not part of
+  this; `sync-weather.sh` hashes its stylesheet *filenames* instead.
 - **Countdown mode:** Unchanged days/hours/minutes/seconds timer, original metrics and milestones, purple night theme.
 - **Celebration:** The CONGRATULATIONS overlay only plays when a countdown reaches zero while the page is open, then transitions to count-up without a reload.
 - **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).
