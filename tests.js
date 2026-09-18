@@ -1270,13 +1270,32 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
     });
 
     test('Countdown page should reference its own styles.css', () => {
-        assert.ok(countdownHtml.includes('href="styles.css"'),
+        assert.ok(/href="styles\.css(\?v=[0-9a-f]+)?"/.test(countdownHtml),
             'Should reference local styles.css');
     });
 
+    test('Countdown page should stamp its assets with a hash of their contents', () => {
+        // Assets are cached for an hour under names that never change, while
+        // stats.json is fetched fresh: new data met an old cached script.js and
+        // the San Diego trip appeared without its note. A ?v= that follows the
+        // file's contents is a new URL the moment the file changes.
+        const crypto = require('crypto');
+        const refs = [...countdownHtml.matchAll(/\b(?:src|href)="((?![a-z]+:|\/)[\w.\/-]+\.(?:js|css))(?:\?v=([0-9a-f]*))?"/g)];
+        assert.deepStrictEqual(refs.map(r => r[1]).sort(), ['calc.js', 'script.js', 'styles.css'],
+            'Every local script and stylesheet should be found by this check');
+
+        refs.forEach(([, file, stamp]) => {
+            const bytes = fs.readFileSync(path.join(__dirname, 'countdown', file));
+            const hash = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 10);
+            assert.strictEqual(stamp, hash,
+                `${file} changed without its stamp -- run: node scripts/stamp-assets.mjs`);
+        });
+    });
+
     test('Countdown page should load calc.js before script.js', () => {
-        const calcIndex = countdownHtml.indexOf('src="calc.js"');
-        const scriptIndex = countdownHtml.indexOf('src="script.js"');
+        // search() not indexOf(): the names now carry a ?v= content stamp
+        const calcIndex = countdownHtml.search(/src="calc\.js[?"]/);
+        const scriptIndex = countdownHtml.search(/src="script\.js[?"]/);
         assert.ok(calcIndex > -1, 'Should reference local calc.js');
         assert.ok(scriptIndex > -1, 'Should reference local script.js');
         assert.ok(calcIndex < scriptIndex, 'calc.js must load before script.js');

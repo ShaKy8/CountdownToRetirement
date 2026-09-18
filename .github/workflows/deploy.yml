@@ -59,6 +59,12 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # tests.js fails on a stale stamp, but the test workflow does not gate
+      # this one. Stamping here means a forgotten stamp is a red CI run and
+      # never a visitor running an hour-old script against today's data.
+      - name: Stamp asset URLs
+        run: node scripts/stamp-assets.mjs
+
       # Long-lived caching for fingerprint-free assets is unsafe, so assets get
       # a modest TTL and HTML gets a short one. CloudFront is invalidated below.
       - name: Sync HTML

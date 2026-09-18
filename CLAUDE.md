@@ -27,8 +27,12 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (387 tests)
+# Run client-side tests (388 tests)
 node tests.js
+
+# After changing countdown/script.js, calc.js or styles.css: refresh the ?v=
+# content stamps in countdown/index.html (tests.js fails until you do)
+node scripts/stamp-assets.mjs
 
 # Run server integration tests (60 tests)
 # Note: Stop any running server first, tests start their own
@@ -129,7 +133,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (387 tests)
+├── tests.js                # Client-side unit tests (388 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -212,6 +216,18 @@ CountdownToRetirement/
   - **The note must not wrap the stacked row.** Under 420px each entry is a
     flex *column*; with `flex-wrap` still on, a full-basis note becomes a
     second column beside the place and the list scrolls sideways to reach it.
+- **The clock's assets carry a content stamp** — `script.js?v=afcbd11b2c`.
+  Assets are cached for an hour under names that never change, while
+  `stats.json` is fetched `no-cache`, so new data used to meet old code: the
+  San Diego trip appeared in the list without its note, because the cached
+  script had never heard of notes. `index.html` is cached for five minutes and
+  a new `?v=` is a new URL, so the gap is now five minutes, not sixty.
+  `node scripts/stamp-assets.mjs` rewrites the stamps, `tests.js` fails on a
+  stale one, and `deploy.yml` re-stamps before it syncs — the test workflow
+  does not gate the deploy, so that step is what actually protects a visitor.
+  The query string is for the browser only: S3 ignores it and both local
+  servers strip it. `/game/` and `/slingshot/` are not stamped yet; adding a
+  page is one line in the script's `PAGES`.
 - **Countdown mode:** Unchanged days/hours/minutes/seconds timer, original metrics and milestones, purple night theme.
 - **Celebration:** The CONGRATULATIONS overlay only plays when a countdown reaches zero while the page is open, then transitions to count-up without a reload.
 - **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).
