@@ -586,6 +586,14 @@ function renderTrips(trips) {
     if (!trips.length) hideTrips();
 }
 
+// The back link is fixed to the top corner and paints over whatever slides
+// beneath it, so where the two overlap, the usable screen starts below the link.
+function backLinkInset(gridRect) {
+    const back = document.querySelector('.back-link');
+    const b = back ? back.getBoundingClientRect() : null;
+    return b && b.right > gridRect.left && b.left < gridRect.right ? Math.max(0, b.bottom) : 0;
+}
+
 function showTrips() {
     const card = byId('stat-trips-card');
     const panel = byId('stat-trips-detail');
@@ -610,13 +618,7 @@ function showTrips() {
         const gap = 10;
         panel.style.setProperty('--caret-x', `${Math.round(c.left - g.left + c.width / 2)}px`);
 
-        // The back link is fixed to the top corner and paints over whatever
-        // slides beneath it, so where the two overlap "above" stops at the link.
-        const back = document.querySelector('.back-link');
-        const b = back ? back.getBoundingClientRect() : null;
-        const topInset = b && b.right > g.left && b.left < g.right ? Math.max(0, b.bottom) : 0;
-
-        const roomAbove = c.top - gap - 8 - topInset;
+        const roomAbove = c.top - gap - 8 - backLinkInset(g);
         const roomBelow = window.innerHeight - c.bottom - gap - 8;
 
         /*
@@ -648,6 +650,42 @@ function showTrips() {
     card.setAttribute('aria-expanded', 'true');
 }
 
+/*
+ * A tap lands with the tile wherever it happens to be, and mid-screen there is
+ * not room for the whole list on either side of it: at 320x700 six trips need
+ * 330px and the better side had 257. The SCREEN has the room -- tile and list
+ * together are under 500px -- it is just split in two by the tile. So when a
+ * tap leaves the list clipped, move the page until the tile sits high enough
+ * for the list to fit beneath it. The scroll listener re-places the panel as
+ * the page moves, and lifts the cap once the room is there.
+ *
+ * Only for a tap or a click, which pins the panel. Hover and focus must never
+ * move the page out from under a pointer that is only passing over.
+ */
+function makeRoomForTrips() {
+    const card = byId('stat-trips-card');
+    const panel = byId('stat-trips-detail');
+    const ul = byId('trip-list');
+    const grid = byId('personal-metrics');
+    if (!card || !panel || !ul || !grid || panel.hidden) return;
+
+    const clippedBy = ul.scrollHeight - ul.clientHeight;
+    if (clippedBy <= 0) return;
+
+    const c = card.getBoundingClientRect();
+    const natural = panel.offsetHeight + clippedBy;
+    // Where the tile's bottom edge has to be for the list to fit under it --
+    // but never so high that the tile itself goes under the back link. If the
+    // list is too long for any position, that ceiling is the most room there is.
+    const ceiling = backLinkInset(grid.getBoundingClientRect()) + 8 + c.height;
+    const target = Math.max(ceiling, window.innerHeight - 18 - natural - 2);
+    const delta = Math.round(c.bottom - target);
+    if (delta <= 0) return;
+
+    const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollBy({ top: delta, behavior: calm ? 'auto' : 'smooth' });
+}
+
 function hideTrips() {
     const card = byId('stat-trips-card');
     const panel = byId('stat-trips-detail');
@@ -676,7 +714,7 @@ function wireTripsPanel() {
      */
     card.addEventListener('click', () => {
         tripsPinned = !tripsPinned;
-        if (tripsPinned) showTrips(); else hideTrips();
+        if (tripsPinned) { showTrips(); makeRoomForTrips(); } else hideTrips();
     });
     /*
      * Guarded by the event's own pointer type, not by a media query. A laptop

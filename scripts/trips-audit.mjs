@@ -70,6 +70,9 @@ const STATE = `(()=>{const c=document.getElementById('stat-trips-card');
     roomHere:Math.round(p.classList.contains('is-below')
       ? innerHeight - cr.bottom - 18 : cr.top - 18 - inset),
     inset:Math.round(inset),
+    natural:(()=>{const u=document.getElementById('trip-list');
+      return Math.round(pr.height+(u.scrollHeight-u.clientHeight));})(),
+    tileH:Math.round(cr.height),
     sideways:(()=>{const u=document.getElementById('trip-list');return u.scrollWidth-u.clientWidth;})(),
     left:Math.round(pr.left), right:Math.round(pr.right), vw:innerWidth,
     bottom:Math.round(pr.bottom), top:Math.round(pr.top), cardTop:Math.round(cr.top),
@@ -122,7 +125,19 @@ gate(s.hidden === true && s.expanded === 'false' && !s.open, 'starts closed');
 gate(s.count === String(stats.trips.length), 'the count is the length of the list',
   `shows ${s.count}, list has ${stats.trips.length}`);
 
-await click(); s = await E(STATE);
+// A tap that leaves the list clipped scrolls the page to make room, smoothly,
+// and the panel is re-placed as it goes -- so read the state once it settles.
+//
+// Headless Chromium draws no frames unless something asks for one, and a smooth
+// scroll only advances on a frame: left alone it stalls part-way and reports a
+// position no visitor would ever be left at. A screenshot is a request for a
+// frame, so take (and discard) one per step until the page stops moving.
+const settle = async () => { let last = -1, still = 0;
+  for (let i = 0; i < 80 && still < 3; i++) {
+    await S('Page.captureScreenshot', { format: 'jpeg', quality: 1 });
+    const y = await E('Math.round(scrollY)');
+    still = y === last ? still + 1 : 0; last = y; await wait(50); } };
+await click(); await settle(); s = await E(STATE);
 gate(s.hidden === false && s.expanded === 'true' && s.open, 'a tap opens it');
 gate(s.items.length === stats.trips.length, 'every trip is listed',
   `${s.items.length} of ${stats.trips.length}`);
@@ -136,6 +151,15 @@ gate(s.items.length === stats.trips.length, 'every trip is listed',
 gate(!s.clipped || s.height >= s.roomHere - 6,
   s.clipped ? 'it scrolls, but only after using the room it has' : 'no trip is cut off',
   `panel ${s.height}px into ${s.roomHere}px of room`);
+/*
+ * "It uses the room it has" let 320x700 pass while the list scrolled inside a
+ * 257px box on a 700px screen. The room was there, split in two by a tile
+ * sitting mid-screen. If the screen can hold the tile and the whole list under
+ * the back link, a tap has to end with the whole list showing.
+ */
+const holds = s.vh - s.inset - 8 - s.tileH - 18 >= s.natural;
+gate(!holds || !s.clipped, holds ? 'a tap makes room for the whole list' : 'the list is longer than this screen can hold',
+  `list needs ${s.natural}px, tile ${s.tileH}px, screen ${s.vh}px`);
 // The file is oldest-first (new trips are appended); the panel is newest-first,
 // so that what scrolls out of reach is the oldest trip and not the latest.
 const usable = stats.trips.filter(t => t && typeof t.place === 'string' && t.place.trim());

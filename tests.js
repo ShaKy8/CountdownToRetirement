@@ -1385,6 +1385,19 @@ describe('BUSINESS SITE - Personal stats file', () => {
             'The note should take a full row of the entry');
     });
 
+    test('A tap should make room for the whole list, and only a tap', () => {
+        // Mid-screen there is not room for six trips on either side of the
+        // tile, though the screen could hold them. A tap scrolls the page until
+        // they fit. Hover and focus must not: moving the page out from under a
+        // pointer that is only passing over is worse than a list that scrolls.
+        const calls = countdownJs.match(/makeRoomForTrips\(\)/g) || [];
+        assert.strictEqual(calls.length, 2, 'Defined once and called once');
+        assert.ok(/if \(tripsPinned\) \{ showTrips\(\); makeRoomForTrips\(\); \}/.test(countdownJs),
+            'The one call belongs to the click handler, after the panel is placed');
+        assert.ok(/prefers-reduced-motion: reduce[\s\S]{0,120}behavior: calm \? 'auto' : 'smooth'/.test(countdownJs),
+            'The scroll should not animate for a reader who asked for less motion');
+    });
+
     test('The trips panel should list the newest trip first', () => {
         // stats.json stays oldest-first (a new trip is appended), so the
         // reversal belongs to the renderer -- on a copy, because the same

@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (390 tests)
+# Run client-side tests (391 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -133,7 +133,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (390 tests)
+├── tests.js                # Client-side unit tests (391 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -219,6 +219,21 @@ CountdownToRetirement/
     reach the top of the screen lost its first trip behind it. Five short
     entries never reached; the sixth did. `showTrips()` subtracts the link's
     bottom edge wherever the two overlap, and the audit gates on it.
+  - **A tap makes room for the whole list.** Mid-screen there is not room for
+    six trips on either side of the tile — at 320x700 the list needs 330px and
+    the better side had 257 — yet tile and list together are under 500px. The
+    screen has the room; the tile splits it in two. `makeRoomForTrips()` scrolls
+    the page until the list fits beneath the tile (never pushing the tile under
+    the back link), and the scroll listener re-places the panel as it goes.
+    **Only a tap or click does this.** Hover and focus must never move the page
+    out from under a pointer that is only passing over. The audit's old gate,
+    "it scrolls, but only after using the room it has", is what let this pass
+    for so long: it was true, of a 257px box on a 700px screen.
+  - **The audit has to pump frames to see that scroll finish.** Headless
+    Chromium draws no frames unless asked, and a smooth scroll only advances on
+    a frame — left alone it stalled 51px into a 75px scroll and reported a
+    position no visitor would ever be left at. `settle()` takes and discards a
+    screenshot per step, which is a request for a frame.
   - **Under 420px an entry is two lines of plain block and inline flow, not a
     flex column.** The column is what once wrapped a full-basis note into a
     second *column* that the list scrolled sideways to reach. Two traps in the
