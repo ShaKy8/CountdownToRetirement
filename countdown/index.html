@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Kyle's retirement clock - counting the days since retirement, or the days until it if you set your own date">
     <title>Kyle's Retirement Clock</title>
-    <link rel="stylesheet" href="styles.css?v=14a4b274dc">
+    <link rel="stylesheet" href="styles.css?v=706687adfa">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body class="mode-countdown">
@@ -255,12 +255,19 @@
             <h2 id="personal-heading">Since then</h2>
             <div class="fun-metrics personal-metrics" id="personal-metrics">
                 <!--
-                  A button rather than an article: it opens the list of trips, so
-                  it has to answer to a click, Enter, Space and a screen reader,
-                  not only to a mouse passing over it.
+                  Buttons rather than articles: each opens a list, so it has to
+                  answer to a click, Enter, Space and a screen reader, not only
+                  to a mouse passing over it. Named by the count AND the label,
+                  so what is announced is "9 Concerts seen" and not a label
+                  with no number.
+
+                  The two that open come first. They carry an extra line, and
+                  on a two-column phone grid that puts the two taller tiles in
+                  one row and the two plain ones in the other, rather than a
+                  plain tile stretched beside a tall one.
                 -->
                 <button type="button" class="metric-card metric-card--expands" id="stat-trips-card"
-                        aria-labelledby="stat-trips-label" aria-expanded="false"
+                        aria-labelledby="stat-trips stat-trips-label" aria-expanded="false"
                         aria-controls="stat-trips-detail">
                     <div class="metric-icon" aria-hidden="true">🧳</div>
                     <div class="metric-value" id="stat-trips">0</div>
@@ -272,10 +279,26 @@
                   a phone and a five-entry panel centred on it would hang off the
                   screen; inset to the grid it cannot. The caret still points at
                   the tile, placed from --caret-x.
+
+                  Each panel is the NEXT SIBLING of its button: the stylesheet
+                  fades it in with `+`, and a panel anywhere else stays at
+                  opacity 0 while every DOM-state check still passes.
                 -->
                 <div class="metric-detail" id="stat-trips-detail" role="region"
                      aria-labelledby="stat-trips-label" hidden>
-                    <ul class="trip-list" id="trip-list"></ul>
+                    <ul class="entry-list" id="stat-trips-list"></ul>
+                </div>
+                <button type="button" class="metric-card metric-card--expands" id="stat-concerts-card"
+                        aria-labelledby="stat-concerts stat-concerts-label" aria-expanded="false"
+                        aria-controls="stat-concerts-detail">
+                    <div class="metric-icon" aria-hidden="true">🎶</div>
+                    <div class="metric-value" id="stat-concerts">0</div>
+                    <div class="metric-label" id="stat-concerts-label">Concerts seen</div>
+                    <span class="metric-more" aria-hidden="true">Who?</span>
+                </button>
+                <div class="metric-detail" id="stat-concerts-detail" role="region"
+                     aria-labelledby="stat-concerts-label" hidden>
+                    <ul class="entry-list" id="stat-concerts-list"></ul>
                 </div>
                 <div class="metric-card" role="article" aria-labelledby="stat-books-label" id="stat-books-card">
                     <div class="metric-icon" aria-hidden="true">📚</div>
@@ -286,11 +309,6 @@
                     <div class="metric-icon" aria-hidden="true">🛠️</div>
                     <div class="metric-value" id="stat-projects">0</div>
                     <div class="metric-label" id="stat-projects-label">Projects shipped</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="stat-naps-label" id="stat-naps-card">
-                    <div class="metric-icon" aria-hidden="true">😴</div>
-                    <div class="metric-value" id="stat-naps">0</div>
-                    <div class="metric-label" id="stat-naps-label">Naps taken</div>
                 </div>
             </div>
             <p class="stats-updated" id="stats-updated"></p>
@@ -354,6 +372,6 @@
     <div id="confetti-container" aria-hidden="true"></div>
 
     <script src="calc.js?v=9665d15e87"></script>
-    <script src="script.js?v=4547382218"></script>
+    <script src="script.js?v=abafd4c796"></script>
 </body>
 </html>

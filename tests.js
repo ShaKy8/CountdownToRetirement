@@ -1346,43 +1346,91 @@ describe('BUSINESS SITE - Personal stats file', () => {
     const countdownJs = fs.readFileSync(path.join(__dirname, 'countdown', 'script.js'), 'utf8');
     const countdownMarkup = fs.readFileSync(path.join(__dirname, 'countdown', 'index.html'), 'utf8');
 
-    test('stats.json should carry three counters as non-negative integers', () => {
-        ['books', 'projects', 'naps'].forEach(key => {
+    const countdownCss = fs.readFileSync(path.join(__dirname, 'countdown', 'styles.css'), 'utf8');
+
+    // The tiles that open onto a list, read out of the script rather than
+    // typed again here: { trips: 'place', concerts: 'who' }.
+    const listTitles = {};
+    const listsSource = (countdownJs.match(/const LISTS = \{([\s\S]*?)\n\};/) || [])[1] || '';
+    listsSource.replace(/(\w+): \{ title: '(\w+)' \}/g, (m, key, title) => { listTitles[key] = title; });
+    const listKeys = Object.keys(listTitles);
+
+    test('stats.json should carry its plain counters as non-negative integers', () => {
+        ['books', 'projects'].forEach(key => {
             assert.strictEqual(typeof stats[key], 'number', `${key} should be a number`);
             assert.ok(Number.isInteger(stats[key]) && stats[key] >= 0, `${key} should be a non-negative integer`);
         });
     });
 
-    test('stats.json should hold trips as a list of places', () => {
-        assert.ok(Array.isArray(stats.trips), 'trips should be an array, not a count');
-        assert.ok(stats.trips.length > 0, 'An empty list would hide the tile');
-        stats.trips.forEach((trip, i) => {
-            assert.strictEqual(typeof trip, 'object', `Trip ${i} should be an object`);
-            assert.ok(trip && typeof trip.place === 'string' && trip.place.trim(),
-                `Trip ${i} needs a non-empty place`);
-            assert.ok(typeof trip.when === 'string',
-                `Trip ${i} needs a when, even if it is still blank`);
+    test('The naps tile should be gone from the data, the page and the script', () => {
+        // Replaced by concerts. A leftover in any one of the three is a tile
+        // reading "0", or a key nothing renders.
+        assert.ok(!('naps' in stats), 'stats.json should not carry naps');
+        assert.ok(!/stat-naps/.test(countdownMarkup), 'The page should not carry a naps tile');
+        assert.ok(!/'naps'/.test(countdownJs), 'The loader should not ask for naps');
+    });
+
+    test('The script should know two lists, and what each entry is titled by', () => {
+        assert.deepStrictEqual(listTitles, { trips: 'place', concerts: 'who' });
+    });
+
+    test('Every tile the loader fills should exist in the data and on the page', () => {
+        // The loader hides a tile it has no valid value for -- but only a tile
+        // it was told about. A key missing from its list leaves that tile on
+        // screen, reading the "0" it shipped with.
+        const loop = countdownJs.match(/\[([^\]]+)\]\.forEach\(key => \{\s*const card = byId\(`stat-\$\{key\}-card`\)/);
+        assert.ok(loop, 'The loader should walk a literal list of keys');
+        const keys = loop[1].split(',').map(k => k.trim().replace(/'/g, ''));
+        assert.deepStrictEqual(keys, ['trips', 'concerts', 'books', 'projects']);
+        keys.forEach(key => {
+            assert.ok(key in stats, `stats.json should carry ${key}`);
+            assert.ok(countdownMarkup.includes(`id="stat-${key}-card"`), `${key} needs a tile`);
+            assert.ok(countdownMarkup.includes(`id="stat-${key}"`), `${key} needs somewhere to put its number`);
+        });
+        const tiles = countdownMarkup.match(/id="stat-\w+-card"/g) || [];
+        assert.strictEqual(tiles.length, keys.length, 'No tile should exist that the loader does not fill');
+        listKeys.forEach(key => assert.ok(keys.includes(key), `The loader should fill the ${key} tile`));
+    });
+
+    test('stats.json should hold each list as entries with a title and a when', () => {
+        assert.ok(listKeys.length > 0, 'LISTS should have been read out of the script');
+        listKeys.forEach(key => {
+            const title = listTitles[key];
+            assert.ok(Array.isArray(stats[key]), `${key} should be an array, not a count`);
+            assert.ok(stats[key].length > 0, `An empty ${key} list would hide the tile`);
+            stats[key].forEach((entry, i) => {
+                assert.strictEqual(typeof entry, 'object', `${key}[${i}] should be an object`);
+                assert.ok(entry && typeof entry[title] === 'string' && entry[title].trim(),
+                    `${key}[${i}] needs a non-empty ${title}`);
+                assert.ok(typeof entry.when === 'string',
+                    `${key}[${i}] needs a when, even if it is still blank`);
+            });
         });
     });
 
-    test('A trip note should be optional, and real text when present', () => {
-        stats.trips.forEach((trip, i) => {
-            if (trip.note === undefined) return;
-            assert.ok(typeof trip.note === 'string' && trip.note.trim(),
-                `Trip ${i} has a note that is not text; leave the key out instead`);
-        });
+    test('A note should be optional, and real text when present', () => {
+        listKeys.forEach(key => stats[key].forEach((entry, i) => {
+            if (entry.note === undefined) return;
+            assert.ok(typeof entry.note === 'string' && entry.note.trim(),
+                `${key}[${i}] has a note that is not text; leave the key out instead`);
+        }));
     });
 
-    test('The trips panel should show a note on its own line', () => {
+    test('A list panel should show a note on its own line', () => {
         assert.ok(/note: text\('note'\)/.test(countdownJs),
-            'usableTrips should carry the note through the same filter as the place');
-        assert.ok(/if \(trip\.note\)/.test(countdownJs) && /className = 'trip-note'/.test(countdownJs),
-            'renderTrips should add the note only when there is one');
+            'usableEntries should carry the note through the same filter as the title');
+        assert.ok(/if \(entry\.note\)/.test(countdownJs) && /className = 'entry-note'/.test(countdownJs),
+            'renderList should add the note only when there is one');
         // The row is a wrapping flex: without a full basis a short note sits
-        // between the place and its date instead of under them.
-        const countdownCss = fs.readFileSync(path.join(__dirname, 'countdown', 'styles.css'), 'utf8');
-        assert.ok(/\.trip-note \{[^}]*flex-basis: 100%/.test(countdownCss),
+        // between the title and its date instead of under them.
+        assert.ok(/\.entry-note \{[^}]*flex-basis: 100%/.test(countdownCss),
             'The note should take a full row of the entry');
+    });
+
+    test('The list classes should not be named after trips', () => {
+        // ".trip-place" on a band name is a lie the next reader has to decode.
+        assert.ok(!/trip-(list|place|when|note)/.test(countdownJs + countdownCss + countdownMarkup),
+            'Both lists share .entry-list, .entry-title, .entry-when and .entry-note');
     });
 
     test('A tap should make room for the whole list, and only a tap', () => {
@@ -1390,36 +1438,35 @@ describe('BUSINESS SITE - Personal stats file', () => {
         // tile, though the screen could hold them. A tap scrolls the page until
         // they fit. Hover and focus must not: moving the page out from under a
         // pointer that is only passing over is worse than a list that scrolls.
-        const calls = countdownJs.match(/makeRoomForTrips\(\)/g) || [];
+        const calls = countdownJs.match(/makeRoomFor\(/g) || [];
         assert.strictEqual(calls.length, 2, 'Defined once and called once');
-        assert.ok(/if \(tripsPinned\) \{ showTrips\(\); makeRoomForTrips\(\); \}/.test(countdownJs),
+        assert.ok(/if \(pinnedKey === key\) \{ showList\(key\); makeRoomFor\(key\); \} else hideList\(key\);/.test(countdownJs),
             'The one call belongs to the click handler, after the panel is placed');
         assert.ok(/prefers-reduced-motion: reduce[\s\S]{0,120}behavior: calm \? 'auto' : 'smooth'/.test(countdownJs),
             'The scroll should not animate for a reader who asked for less motion');
     });
 
-    test('The trips panel should list the newest trip first', () => {
-        // stats.json stays oldest-first (a new trip is appended), so the
+    test('A list panel should show the newest entry first', () => {
+        // stats.json stays oldest-first (a new entry is appended), so the
         // reversal belongs to the renderer -- on a copy, because the same
         // array is what the count was just taken from.
-        assert.ok(/trips\.slice\(\)\.reverse\(\)\.forEach/.test(countdownJs),
-            'renderTrips should reverse a copy of the list');
-        assert.ok(!/stats\.trips\.reverse\(\)/.test(countdownJs),
-            'Never reverse stats.trips in place');
+        assert.ok(/entries\.slice\(\)\.reverse\(\)\.forEach/.test(countdownJs),
+            'renderList should reverse a copy of the list');
+        assert.ok(!/stats\.\w+\.reverse\(\)|stats\[\w+\]\.reverse\(\)/.test(countdownJs),
+            'Never reverse a list from stats.json in place');
     });
 
-    test('The trips panel should put the date and note on one line on a phone', () => {
-        const countdownCss = fs.readFileSync(path.join(__dirname, 'countdown', 'styles.css'), 'utf8');
+    test('A list panel should put the date and note on one line on a phone', () => {
         const phone = countdownCss.slice(countdownCss.indexOf('Two lines, not three'));
-        assert.ok(/\.trip-list li \{\s*display: block;/.test(phone),
+        assert.ok(/\.entry-list li \{\s*display: block;/.test(phone),
             'The stacked entry should be plain block flow, not a flex column');
-        // The separator hangs off the DATE, so a trip with a blank "when"
+        // The separator hangs off the DATE, so an entry with a blank "when"
         // does not start its second line with a dot.
-        assert.ok(/\.trip-when \+ \.trip-note::before \{[^}]*content: " · "/.test(phone),
+        assert.ok(/\.entry-when \+ \.entry-note::before \{[^}]*content: " · "/.test(phone),
             'The dot should only appear between a date and a note');
     });
 
-    test('The trip count should be derived from the list, never stored beside it', () => {
+    test('A list count should be derived from the list, never stored beside it', () => {
         // Two places to edit is one place to forget. The tile reads .length so
         // the number and the panel cannot disagree.
         assert.ok(/Array\.isArray\(value\)/.test(countdownJs),
@@ -1427,35 +1474,131 @@ describe('BUSINESS SITE - Personal stats file', () => {
         // Both the number and the panel must come from the same filter. The
         // raw length counted entries the panel then dropped, which put "6" on
         // a tile that opened onto two lines.
-        assert.ok(/isList \? usableTrips\(value\)\.length : value/.test(countdownJs),
-            'The count should come from the same filter the panel renders');
-        assert.ok(/renderTrips\(usableTrips\(stats\.trips\)\)/.test(countdownJs),
-            'The panel should render that same filtered list');
+        assert.ok(/const entriesOf = key => usableEntries\(stats\[key\], LISTS\[key\] && LISTS\[key\]\.title\);/.test(countdownJs),
+            'One filter per list');
+        assert.ok(/isList \? entriesOf\(key\)\.length : value/.test(countdownJs),
+            'The count should come from that filter');
+        assert.ok(/Object\.keys\(LISTS\)\.forEach\(key => renderList\(key, entriesOf\(key\)\)\);/.test(countdownJs),
+            'Every panel should render that same filtered list');
         assert.ok(!/isList \? value\.length/.test(countdownJs),
             'The count should not come from the unfiltered array');
-        assert.ok(!/"tripCount"|"trip_count"/.test(raw),
-            'stats.json should not carry a separate trip count');
+        assert.ok(!/"(trip|concert)_?[Cc]ount"/.test(raw),
+            'stats.json should not carry a separate count for a list');
     });
 
-    test('The trips tile should be a button that says what it controls', () => {
+    test('Each list tile should be a button that says what it controls', () => {
         // A finger cannot hover, so this has to be operable by tap, Enter and
         // Space -- which a <button> gives for free and a <div> does not.
-        assert.ok(/<button[^>]*id="stat-trips-card"/.test(countdownMarkup),
-            'The trips tile should be a real button');
-        assert.ok(/aria-expanded="false"/.test(countdownMarkup), 'It should start collapsed');
-        assert.ok(/aria-controls="stat-trips-detail"/.test(countdownMarkup),
-            'It should name the panel it opens');
-        const panel = countdownMarkup.replace(/\s+/g, ' ')
-            .match(/<div [^>]*id="stat-trips-detail"[^>]*>/);
-        assert.ok(panel, 'The panel should exist in the markup');
-        // It ships closed: without hidden it is on screen before any JS runs.
-        assert.ok(/\bhidden\b/.test(panel[0]), 'The panel should start hidden');
+        const flat = countdownMarkup.replace(/\s+/g, ' ');
+        listKeys.forEach(key => {
+            const button = flat.match(new RegExp(`<button [^>]*id="stat-${key}-card"[^>]*>`));
+            assert.ok(button, `The ${key} tile should be a real button`);
+            assert.ok(/aria-expanded="false"/.test(button[0]), `${key} should start collapsed`);
+            assert.ok(button[0].includes(`aria-controls="stat-${key}-detail"`),
+                `${key} should name the panel it opens`);
+            // Named by the number as well as the label: "9 Concerts seen".
+            assert.ok(button[0].includes(`aria-labelledby="stat-${key} stat-${key}-label"`),
+                `${key} should be announced with its count`);
+            const panel = flat.match(new RegExp(`<div [^>]*id="stat-${key}-detail"[^>]*>`));
+            assert.ok(panel, `The ${key} panel should exist in the markup`);
+            // It ships closed: without hidden it is on screen before any JS runs.
+            assert.ok(/\bhidden\b/.test(panel[0]), `The ${key} panel should start hidden`);
+            assert.ok(flat.includes(`<ul class="entry-list" id="stat-${key}-list">`),
+                `The ${key} panel should hold the list the script fills`);
+        });
     });
 
-    test('The trips panel should be dismissable without a mouse', () => {
-        assert.ok(/event\.key === 'Escape'/.test(countdownJs), 'Escape should close it');
-        assert.ok(/!card\.contains\(event\.target\)/.test(countdownJs),
-            'A click outside should close it');
+    test('Each list panel should be the next sibling of its button', () => {
+        // The stylesheet fades a panel in with `.is-open + .metric-detail`. A
+        // panel anywhere else stays at opacity 0 -- and since the gate asserts
+        // on DOM state, never on opacity, it would pass every check it has.
+        assert.ok(/\.metric-card--expands\.is-open \+ \.metric-detail \{/.test(countdownCss),
+            'The fade-in should hang off the adjacent-sibling combinator');
+        listKeys.forEach(key => {
+            const adjacent = new RegExp(`id="stat-${key}-card"(?:(?!</button>)[\\s\\S])*</button>\\s*`
+                + `(?:<!--[\\s\\S]*?-->\\s*)?<div [^>]*id="stat-${key}-detail"`);
+            assert.ok(adjacent.test(countdownMarkup),
+                `Nothing but a comment may sit between the ${key} button and its panel`);
+        });
+    });
+
+    test('A list panel should be dismissable without a mouse', () => {
+        assert.ok(/event\.key === 'Escape' && openKey/.test(countdownJs), 'Escape should close it');
+    });
+
+    test('A tap on the list itself should not count as a tap outside', () => {
+        // The panel is the tile's sibling, not its child, so testing the tile
+        // alone closed a list under the finger that was scrolling it.
+        assert.ok(/!card\.contains\(event\.target\) && !panel\.contains\(event\.target\)/.test(countdownJs),
+            'Outside means outside the tile AND outside its panel');
+    });
+
+    test('Only one list should ever be open', () => {
+        // Both panels span the whole grid. One key for what is open and one
+        // for what is pinned, so that two of either cannot be written down.
+        assert.ok(/let openKey = null;/.test(countdownJs) && /let pinnedKey = null;/.test(countdownJs),
+            'One open key and one pinned key, not a flag per list');
+        assert.ok(/if \(openKey && openKey !== key\) hideList\(openKey\);/.test(countdownJs),
+            'Showing a list should close the other, for every caller');
+        // A hover that yielded still fires its pointerleave.
+        assert.ok(/function hideList\(key\) \{\s*if \(openKey !== key\) return;/.test(countdownJs),
+            'Hiding a list that is not open should do nothing');
+        assert.ok(/if \(!fine\(event\) \|\| \(openKey && openKey !== key\)\) return;/.test(countdownJs),
+            'Hover should yield to whatever is already open, pinned or not');
+    });
+
+    test('The script and the stylesheet should agree on what raises the section', () => {
+        assert.ok(/classList\.toggle\('list-open', openKey !== null\)/.test(countdownJs),
+            'The body class should be derived from openKey, not added and removed by hand');
+        assert.ok(/body\.list-open \.personal-section \{/.test(countdownCss),
+            'The stylesheet should raise the section on that same class');
+        assert.ok(!/trips-open/.test(countdownJs + countdownCss), 'The old name should be gone from both');
+    });
+
+    test('Re-placing a panel should decide which one inside the frame', () => {
+        // Decided when the frame was SCHEDULED, Escape during the smooth scroll
+        // a tap starts was undone a frame later, and with two lists a
+        // take-over mid-scroll ended with both open.
+        assert.ok(/placing = 0; if \(openKey\) showList\(openKey\);/.test(countdownJs),
+            'The rAF callback should read openKey when it runs');
+    });
+
+    test('Re-placing a panel should keep the reader\'s place in the list', () => {
+        // Lifting the height cap to measure resets scrollTop, and this runs on
+        // every window scroll -- a phone's URL bar collapsing included.
+        const show = countdownJs.slice(countdownJs.indexOf('function showList('),
+            countdownJs.indexOf('function makeRoomFor('));
+        const held = show.indexOf('const readingAt = ul.scrollTop;');
+        const lifted = show.indexOf("ul.style.maxHeight = '';");
+        const restored = show.indexOf('ul.scrollTop = readingAt;');
+        assert.ok(held > -1 && held < lifted, 'Hold the position before the cap is lifted');
+        assert.ok(restored > lifted, 'And put it back once the cap is set again');
+    });
+
+    test('The fade should mean "more below", and sit on the list', () => {
+        // Not "is clipped": a list scrolled to its end is still clipped, and a
+        // fade left on there dims the last entry for nothing.
+        assert.ok(/classList\.toggle\('has-more-below', hidden - ul\.scrollTop > 1\)/.test(countdownJs),
+            'The class should account for where the list is scrolled to');
+        assert.ok(/\.entry-list\.has-more-below \{[^}]*mask-image/.test(countdownCss),
+            'The fade should be a mask on the list');
+        // The caret is drawn outside the panel's box; anything that clips the
+        // panel clips the caret away.
+        const panelRules = countdownCss.match(/(^|\n)[^\n{]*\.metric-detail[^{]*\{[^}]*\}/g) || [];
+        assert.ok(panelRules.length > 0, 'The panel should have rules to check');
+        panelRules.forEach(rule => assert.ok(!/mask-image|overflow/.test(rule),
+            'Neither a mask nor an overflow belongs on the panel'));
+        assert.ok(/prefers-contrast: high[\s\S]*\.entry-list\.has-more-below \{[^}]*mask-image: none/.test(countdownCss),
+            'High contrast should not be given a fade');
+    });
+
+    test('A clipped list should be reachable from the keyboard', () => {
+        assert.ok(/if \(hidden > 1\) ul\.setAttribute\('tabindex', '0'\);/.test(countdownJs),
+            'Safari never focuses a scroller on its own');
+        assert.ok(/pinnedKey !== key && !panel\.contains\(event\.relatedTarget\)/.test(countdownJs),
+            'Tab from the tile into its list is not leaving');
+        assert.ok(/panel\.addEventListener\('focusout'/.test(countdownJs),
+            'Leaving the list should close an unpinned panel');
     });
 
     test('stats.json should carry an ISO date in "updated"', () => {

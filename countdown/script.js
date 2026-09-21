@@ -514,76 +514,93 @@ function updateMotivation(direction) {
 }
 
 // ----------------------------------------------------------------------
-// The trips panel
+// The list panels (trips, concerts)
 //
-// Hover alone would make this invisible on a phone, so the tile is a button
+// Hover alone would make these invisible on a phone, so each tile is a button
 // and a tap toggles it. Hover is transient; an explicit tap pins it open until
 // something dismisses it - the same split the weather console's readouts use,
 // for the same reason.
+//
+// ONE KEY EACH, NOT A FLAG PER LIST. Both panels span the whole grid, so two
+// open at once is one drawn on top of the other. With a single openKey and a
+// single pinnedKey that state cannot be written down, let alone reached.
 // ----------------------------------------------------------------------
-let tripsPinned = false;
+const LISTS = {
+    trips: { title: 'place' },
+    concerts: { title: 'who' }
+};
+let openKey = null;
+let pinnedKey = null;
+
+function listEls(key) {
+    return {
+        card: byId(`stat-${key}-card`),
+        panel: byId(`stat-${key}-detail`),
+        ul: byId(`stat-${key}-list`)
+    };
+}
 
 /**
- * The trips worth showing. stats.json is edited by hand, so an entry that is
- * not an object, or has no place, is dropped rather than allowed to break the
- * page.
+ * The entries worth showing. stats.json is edited by hand, so an entry that is
+ * not an object, or has no title -- a trip's place, a concert's who -- is
+ * dropped rather than allowed to break the page.
  *
  * THE COUNT AND THE PANEL BOTH COME FROM HERE. Counting the raw array while
  * the panel counted what it could render put "6" on a tile that opened onto
  * two lines -- the same drift as storing the number beside the list, moved
  * from two files into two code paths.
  */
-function usableTrips(list) {
-    if (!Array.isArray(list)) return [];
+function usableEntries(list, titleKey) {
+    if (!Array.isArray(list) || !titleKey) return [];
     return list.reduce((out, entry) => {
         if (!entry || typeof entry !== 'object') return out;
-        const place = typeof entry.place === 'string' ? entry.place.trim() : '';
         const text = key => (typeof entry[key] === 'string' ? entry[key].trim() : '');
-        if (place) out.push({ place, when: text('when'), note: text('note') });
+        const title = text(titleKey);
+        if (title) out.push({ title, when: text('when'), note: text('note') });
         return out;
     }, []);
 }
 
-function renderTrips(trips) {
-    const ul = byId('trip-list');
-    const card = byId('stat-trips-card');
+function renderList(key, entries) {
+    const { card, ul } = listEls(key);
     if (!ul || !card) return;
 
     ul.textContent = '';
     /*
-     * Newest first. stats.json stays oldest-first, because a new trip is
+     * Newest first. stats.json stays oldest-first, because a new entry is
      * appended at the bottom and the file order IS the chronology -- "when" is
      * free text ("May–June 2026") and cannot be sorted. But the panel scrolls
      * once it outgrows the room beside the tile, and the entry that falls off
-     * the end should be March, not the trip everyone just asked about.
+     * the end should be March, not the one everyone just asked about.
      */
-    trips.slice().reverse().forEach(trip => {
+    entries.slice().reverse().forEach(entry => {
         const li = document.createElement('li');
         const name = document.createElement('span');
-        name.className = 'trip-place';
-        name.textContent = trip.place;
+        name.className = 'entry-title';
+        name.textContent = entry.title;
         li.appendChild(name);
-        // No date yet is just the place: the dates are Kyle's to fill in and
+        // No date yet is just the title: the dates are Kyle's to fill in and
         // the panel has to read properly before he does.
-        if (trip.when) {
+        if (entry.when) {
             const date = document.createElement('span');
-            date.className = 'trip-when';
-            date.textContent = trip.when;
+            date.className = 'entry-when';
+            date.textContent = entry.when;
             li.appendChild(date);
         }
-        // Why we went, for the trips that had a reason. Most have none and
-        // stay one line.
-        if (trip.note) {
+        // Why we went, or where it was. Optional, and an entry without one
+        // stays one line.
+        if (entry.note) {
             const note = document.createElement('span');
-            note.className = 'trip-note';
-            note.textContent = trip.note;
+            note.className = 'entry-note';
+            note.textContent = entry.note;
             li.appendChild(note);
         }
         ul.appendChild(li);
     });
 
-    card.classList.toggle('metric-card--expands', trips.length > 0);
-    if (!trips.length) hideTrips();
+    card.classList.toggle('metric-card--expands', entries.length > 0);
+    if (!entries.length) hideList(key);
+    else if (openKey === key) showList(key);
 }
 
 // The back link is fixed to the top corner and paints over whatever slides
@@ -594,11 +611,31 @@ function backLinkInset(gridRect) {
     return b && b.right > gridRect.left && b.left < gridRect.right ? Math.max(0, b.bottom) : 0;
 }
 
-function showTrips() {
-    const card = byId('stat-trips-card');
-    const panel = byId('stat-trips-detail');
-    const ul = byId('trip-list');
+/*
+ * Says whether there is more of the list below what is showing, which is what
+ * the fade at its bottom edge means. NOT "is it clipped": a list scrolled to
+ * its end is still clipped and has nothing more below, and a fade left on
+ * there dims the last entry for no reason.
+ *
+ * A clipped list is also made focusable. Safari never focuses a scroller, so
+ * without this a keyboard has no way to reach the entries that do not fit.
+ */
+function syncMore(key) {
+    const { ul } = listEls(key);
+    if (!ul) return;
+    const hidden = ul.scrollHeight - ul.clientHeight;
+    ul.classList.toggle('has-more-below', hidden - ul.scrollTop > 1);
+    if (hidden > 1) ul.setAttribute('tabindex', '0');
+    else ul.removeAttribute('tabindex');
+}
+
+function showList(key) {
+    const { card, panel, ul } = listEls(key);
     if (!card || !panel || !ul || !ul.children.length) return;
+
+    // Whoever is shown takes the grid. Every caller gets this, so no caller
+    // has to remember it.
+    if (openKey && openKey !== key) hideList(openKey);
 
     /*
      * Horizontally the panel spans the GRID, so it can never run off the side
@@ -626,16 +663,22 @@ function showTrips() {
          * on the side actually chosen. Capping first with the larger of the
          * two rooms and then landing on the smaller one is what clipped the
          * last trip mid-word.
+         *
+         * Lifting the cap to measure also throws away the list's scroll
+         * position, and this runs on every window scroll -- so a reader half
+         * way down a long list was snapped back to the top each time the
+         * phone's URL bar moved. Held here and put back below.
          */
+        const readingAt = ul.scrollTop;
         ul.style.maxHeight = '';
-        // Above is preferred: below a two-column grid the caret would sit
-        // against the bottom row and look like it describes the wrong tile.
-        // Measured after unhiding — a hidden element has no height.
+        // Above is preferred, below is the fallback. Measured after
+        // unhiding — a hidden element has no height.
         const below = panel.offsetHeight > roomAbove && roomBelow > roomAbove;
         // The cap goes on the list, not the panel: the caret is drawn outside
         // the panel's box and any overflow on it clips the caret away.
         const chrome = panel.offsetHeight - ul.offsetHeight;
         ul.style.maxHeight = `${Math.max(96, (below ? roomBelow : roomAbove) - chrome)}px`;
+        ul.scrollTop = readingAt;
         panel.classList.toggle('is-below', below);
         if (below) {
             panel.style.top = `${Math.round(c.bottom - g.top + gap)}px`;
@@ -645,9 +688,11 @@ function showTrips() {
             panel.style.top = 'auto';
         }
     }
-    document.body.classList.add('trips-open');
+    openKey = key;
+    document.body.classList.toggle('list-open', openKey !== null);
     card.classList.add('is-open');
     card.setAttribute('aria-expanded', 'true');
+    syncMore(key);
 }
 
 /*
@@ -662,10 +707,8 @@ function showTrips() {
  * Only for a tap or a click, which pins the panel. Hover and focus must never
  * move the page out from under a pointer that is only passing over.
  */
-function makeRoomForTrips() {
-    const card = byId('stat-trips-card');
-    const panel = byId('stat-trips-detail');
-    const ul = byId('trip-list');
+function makeRoomFor(key) {
+    const { card, panel, ul } = listEls(key);
     const grid = byId('personal-metrics');
     if (!card || !panel || !ul || !grid || panel.hidden) return;
 
@@ -686,36 +729,29 @@ function makeRoomForTrips() {
     window.scrollBy({ top: delta, behavior: calm ? 'auto' : 'smooth' });
 }
 
-function hideTrips() {
-    const card = byId('stat-trips-card');
-    const panel = byId('stat-trips-detail');
+/*
+ * A no-op for a list that is not the one open. A hover that yielded to another
+ * tile's panel still fires its pointerleave, and an unconditional hide there
+ * would drop the body class -- and with it the raised section -- out from
+ * under the panel that IS open.
+ */
+function hideList(key) {
+    if (openKey !== key) return;
+    openKey = null;
+    // A closed panel is not pinned, however it came to close.
+    if (pinnedKey === key) pinnedKey = null;
+    document.body.classList.toggle('list-open', openKey !== null);
+
+    const { card, panel, ul } = listEls(key);
     if (!card || !panel) return;
-    document.body.classList.remove('trips-open');
     card.classList.remove('is-open');
     card.setAttribute('aria-expanded', 'false');
+    // Reopened, it starts at the newest entry rather than wherever it was left.
+    if (ul) ul.scrollTop = 0;
     panel.hidden = true;
 }
 
-function tripsOpen() {
-    const card = byId('stat-trips-card');
-    return !!card && card.classList.contains('is-open');
-}
-
-function wireTripsPanel() {
-    const card = byId('stat-trips-card');
-    if (!card) return;
-
-    /*
-     * Toggles the PINNED state, not what happens to be on screen. A real tap
-     * focuses the button before it clicks it, and focus opens the panel -- so
-     * a handler that read "is it open?" would find its own focus handler's
-     * work and close again in the same gesture. Nothing but a programmatic
-     * .click(), which skips focus, would ever have shown otherwise.
-     */
-    card.addEventListener('click', () => {
-        tripsPinned = !tripsPinned;
-        if (tripsPinned) { showTrips(); makeRoomForTrips(); } else hideTrips();
-    });
+function wireListPanels() {
     /*
      * Guarded by the event's own pointer type, not by a media query. A laptop
      * with a touchscreen matches (hover: hover) and is still touched, and a
@@ -724,18 +760,63 @@ function wireTripsPanel() {
      * again in the same gesture.
      */
     const fine = event => event.pointerType && event.pointerType !== 'touch';
-    card.addEventListener('pointerenter', event => { if (fine(event)) showTrips(); });
-    card.addEventListener('pointerleave', event => {
-        if (fine(event) && !tripsPinned) hideTrips();
-    });
-    card.addEventListener('focus', showTrips);
-    card.addEventListener('blur', () => { if (!tripsPinned) hideTrips(); });
 
+    Object.keys(LISTS).forEach(key => {
+        const { card, panel, ul } = listEls(key);
+        if (!card || !panel || !ul) return;
+
+        /*
+         * Toggles the PINNED state, not what happens to be on screen. A real
+         * tap focuses the button before it clicks it, and focus opens the
+         * panel -- so a handler that read "is it open?" would find its own
+         * focus handler's work and close again in the same gesture. Nothing
+         * but a programmatic .click(), which skips focus, would ever have
+         * shown otherwise.
+         */
+        card.addEventListener('click', () => {
+            pinnedKey = pinnedKey === key ? null : key;
+            if (pinnedKey === key) { showList(key); makeRoomFor(key); } else hideList(key);
+        });
+        /*
+         * EXPLICIT GESTURES TAKE OVER, HOVER YIELDS. A tap, a click and a Tab
+         * all say "this tile", so they close the other panel. A mouse crossing
+         * a tile on its way somewhere else says nothing, and must not shut a
+         * panel somebody is reading.
+         */
+        card.addEventListener('pointerenter', event => {
+            if (!fine(event) || (openKey && openKey !== key)) return;
+            showList(key);
+        });
+        card.addEventListener('pointerleave', event => {
+            if (fine(event) && pinnedKey !== key) hideList(key);
+        });
+        card.addEventListener('focus', () => showList(key));
+        /*
+         * A clipped list is focusable, so Tab goes from the tile INTO the
+         * panel. That is not leaving: hiding on it would take the list away
+         * from the keyboard at the moment it arrived.
+         */
+        card.addEventListener('blur', event => {
+            if (pinnedKey !== key && !panel.contains(event.relatedTarget)) hideList(key);
+        });
+        panel.addEventListener('focusout', event => {
+            const to = event.relatedTarget;
+            if (pinnedKey !== key && to !== card && !panel.contains(to)) hideList(key);
+        });
+        ul.addEventListener('scroll', () => syncMore(key), { passive: true });
+    });
+
+    // Registered once, for whichever list is open -- not once per list.
     document.addEventListener('click', event => {
-        if (tripsOpen() && !card.contains(event.target)) { tripsPinned = false; hideTrips(); }
+        if (!openKey) return;
+        const { card, panel } = listEls(openKey);
+        // The panel is the tile's SIBLING, not its child. Testing the tile
+        // alone made a tap on the list itself an "outside" tap, which shut a
+        // list the reader was in the middle of scrolling.
+        if (!card.contains(event.target) && !panel.contains(event.target)) hideList(openKey);
     });
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && tripsOpen()) { tripsPinned = false; hideTrips(); }
+        if (event.key === 'Escape' && openKey) hideList(openKey);
     });
     /*
      * The placement is measured, so it has to be measured again when the page
@@ -743,11 +824,17 @@ function wireTripsPanel() {
      * top of the page and then scroll down to read it, and a choice of "above"
      * that was right when you tapped puts it off the top of the screen. rAF
      * so a flung scroll does not run this per event.
+     *
+     * WHICH list is decided inside the frame, not when it is scheduled. A
+     * frame is long enough for Escape to land, or for the other tile to take
+     * over, and a callback that remembered the old answer reopened a panel
+     * that had just been closed -- during exactly the smooth scroll a tap
+     * starts.
      */
     let placing = 0;
     const replace = () => {
-        if (!tripsOpen() || placing) return;
-        placing = requestAnimationFrame(() => { placing = 0; showTrips(); });
+        if (!openKey || placing) return;
+        placing = requestAnimationFrame(() => { placing = 0; if (openKey) showList(openKey); });
     };
     window.addEventListener('resize', replace);
     window.addEventListener('scroll', replace, { passive: true });
@@ -772,7 +859,11 @@ function loadPersonalStats() {
             if (!stats || typeof stats !== 'object') throw new Error('stats.json is not an object');
 
             let populated = 0;
-            ['trips', 'books', 'projects', 'naps'].forEach(key => {
+            // One filter per list, used for the number AND for the panel. A
+            // list under a key that is not in LISTS has no title to look for,
+            // so it counts as empty and hides its tile.
+            const entriesOf = key => usableEntries(stats[key], LISTS[key] && LISTS[key].title);
+            ['trips', 'concerts', 'books', 'projects'].forEach(key => {
                 const card = byId(`stat-${key}-card`);
                 const value = stats[key];
                 /*
@@ -782,7 +873,7 @@ function loadPersonalStats() {
                  * sees.
                  */
                 const isList = Array.isArray(value);
-                const count = isList ? usableTrips(value).length : value;
+                const count = isList ? entriesOf(key).length : value;
                 const valid = typeof count === 'number' && Number.isFinite(count)
                     && count >= 0 && (!isList || count > 0);
                 if (card) card.hidden = !valid;
@@ -791,7 +882,7 @@ function loadPersonalStats() {
                     populated++;
                 }
             });
-            renderTrips(usableTrips(stats.trips));
+            Object.keys(LISTS).forEach(key => renderList(key, entriesOf(key)));
 
             if (typeof stats.updated === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(stats.updated)) {
                 const [y, m, d] = stats.updated.split('-').map(Number);
@@ -929,6 +1020,6 @@ function createStars() {
 // ----------------------------------------------------------------------
 loadSavedDate();
 createStars();
-wireTripsPanel();
+wireListPanels();
 tick();
 tickInterval = setInterval(tick, 1000);

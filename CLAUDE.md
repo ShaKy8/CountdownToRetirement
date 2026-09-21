@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (391 tests)
+# Run client-side tests (403 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -115,7 +115,7 @@ CountdownToRetirement/
 │   ├── index.html          # Dual-mode page (countdown / count-up) with back link
 │   ├── calc.js             # Pure date math, shared by the page and tests.js
 │   ├── script.js           # DOM rendering, mode switching, celebration
-│   ├── stats.json          # Personal counters + the trip list (edit + push)
+│   ├── stats.json          # Personal counters + the trip and concert lists (edit + push)
 │   ├── styles.css          # Night theme (countdown) + dawn theme (count-up)
 │   └── favicon.svg         # Beach/sunset themed favicon
 ├── game/                   # ONE PUTT - the daily putting game
@@ -133,7 +133,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (391 tests)
+├── tests.js                # Client-side unit tests (403 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -159,31 +159,44 @@ CountdownToRetirement/
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
 - **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. Hourglass, thermometer, and progress bar fill toward the next milestone.
-- **Personal counters:** `countdown/stats.json` (trips, books, projects, naps, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
-- **`trips` is a list, and its count is derived.** `books`, `projects` and `naps`
-  are plain numbers; `trips` is an array of `{ place, when }` and the tile shows
-  `.length`. A `trips: 5` stored beside the list would disagree with it the first
+- **Personal counters:** `countdown/stats.json` (trips, concerts, books, projects, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
+- **`trips` and `concerts` are lists, and their counts are derived.** `books`
+  and `projects` are plain numbers; `trips` is an array of `{ place, when }`,
+  `concerts` an array of `{ who, when }`, and each tile shows `.length`. A `trips: 5` stored beside the list would disagree with it the first
   time a trip was added to one and not the other, and the number is the half
   everyone sees. `when` may be blank — the entry then renders as just the place —
-  and an element that is not an object, or has no `place`, is skipped rather than
-  allowed to break the page. An empty list hides the tile exactly as an invalid
+  and an element that is not an object, or has no `place` (a concert's `who`), is
+  skipped rather than allowed to break the page. An empty list hides the tile exactly as an invalid
   number does.
-- **A trip may carry a `note`** — why we went ("🎶 Earth, Wind & Fire, live at
+- **An entry may carry a `note`** — why we went, or where it was ("🎶 Earth, Wind & Fire, live at
   the Civic Theatre"). On a wide panel it is its own italic line under the
   entry; on a phone it joins the date ("March 2026 · Visiting Family"). It is
-  optional, so leave the key out rather than blank.
+  optional, so leave the key out rather than blank. A concert's note is the
+  venue ("🎸 Lord of the Strings, Mission Viejo").
+- **Concerts replaced a "naps taken" tile** that read a made-up 100. The list
+  came out of Kyle's mail and calendars, and the two SFGMC shows on one day are
+  two entries because they were two concerts. **Both lists run on one
+  mechanism**: `LISTS` in `script.js` names each list and the key its entries
+  are titled by, ids derive from the key (`stat-${key}-card|detail|list`), and
+  the classes are `.entry-*`, not `.trip-*` — `.trip-place` on a band name is a
+  lie the next reader has to decode. A third list is one line in `LISTS`, one
+  in the loader's key array, a button and a panel; a test cross-checks the
+  three, because a key missing from the loader leaves its tile on screen
+  reading the "0" it shipped with.
 - **The file is oldest-first; the panel is newest-first.** Append a new trip at
   the bottom of `trips` — the file order *is* the chronology, because `when` is
-  free text ("May–June 2026") and cannot be sorted. `renderTrips()` reverses a
+  free text ("May–June 2026") and cannot be sorted. `renderList()` reverses a
   copy, so that when the list outgrows the room beside the tile, what scrolls
   out of reach is March and not the trip everyone just asked about.
   `lat`/`lon` are not shown here: they are what ELSEWHERE in the weather
   console ranks, and an entry without them is simply not ranked, so a new trip
   needs all of `place`, `when`, `lat`, `lon`.
-- **Tapping the trips tile opens the list.** It is a `<button>`, not an article,
-  so it answers to a tap, Enter, Space and a screen reader; hover alone would
-  make it invisible on a phone. `node scripts/trips-audit.mjs` is the gate — run
-  it at 390x844 and 320x700. Two traps in it:
+- **Tapping the trips or concerts tile opens its list.** Each is a `<button>`,
+  not an article, so it answers to a tap, Enter, Space and a screen reader;
+  hover alone would make it invisible on a phone. `node scripts/lists-audit.mjs`
+  is the gate — run it at 390x844 and 320x700. It runs every gate for both
+  tiles, then the gates that exist only because there are two, then a synthetic
+  forty-entry list. The traps in it:
   - **A real tap focuses before it clicks**, and focus opens the panel. The
     click handler therefore toggles the *pinned* flag rather than reading
     whether the panel is open — otherwise it finds its own focus handler's work
@@ -198,14 +211,70 @@ CountdownToRetirement/
     panel off the top of the viewport and "below the grid" put it off the
     bottom. Horizontally the grid is still right — it is what stops a 150px
     tile's panel hanging off the side.
-  - **Above is preferred, below is the fallback.** Below a two-column grid the
-    caret lands against the bottom row and looks like it describes the wrong
-    tile, so above wins wherever it fits.
-  - **`body.trips-open` raises the whole section.** Every glass section is its
+  - **Above is preferred, below is the fallback.** What a panel above covers is
+    earlier siblings, which paint underneath by default; what it covers below
+    is later glass sections, which is the whole reason `body.list-open` exists.
+    (The older reason — a caret against the bottom row of the grid — stopped
+    being true when vertical anchoring moved to the tile.)
+  - **`body.list-open` raises the whole section.** Every glass section is its
     own stacking context — `backdrop-filter` creates one — so a *later* sibling
     paints over anything the panel's `z-index` can reach from inside it.
     Raising `.personal-section` is the only move available, and it only has to
-    hold while the panel is open.
+    hold while the panel is open. The audit gates on the section's computed
+    `z-index`, not on the class: a script and a stylesheet that disagree about
+    the class name pass every DOM-state check while the panel paints underneath.
+  - **Only one list is ever open, and that is a property of the state, not a
+    rule.** Both panels span the whole grid, so two open is one drawn over the
+    other. There is one `openKey` and one `pinnedKey` rather than a flag per
+    list, so two of either cannot be written down. `showList()` closes the
+    other list itself, for every caller, and `hideList()` is a no-op for a list
+    that is not the one open — a hover that yielded still fires its
+    `pointerleave`, and an unconditional hide there dropped `body.list-open`
+    out from under the panel that *was* open.
+  - **Explicit gestures take over; hover yields.** A tap, a click and a Tab all
+    say "this tile" and close the other panel. A mouse crossing a tile on its
+    way somewhere else says nothing. The guard is "another list is *open*",
+    not "pinned": a panel opened by keyboard focus is unpinned, and the
+    narrower guard let the mouse open a second panel on top of it. Safari does
+    not focus a button on click, so the click handler takes over on its own —
+    the audit's `clickOnly()` is that path.
+  - **The re-place decides which list inside the frame, not when it is
+    scheduled.** A frame is long enough for Escape to land or for the other
+    tile to take over, and a callback that remembered the old answer reopened a
+    panel that had just been closed — during exactly the smooth scroll a tap
+    starts. Latent with one list; with two it ended with the wrong one open.
+    The audit proves its frame ran with a flag of its own, or it measures
+    nothing.
+  - **Re-placing keeps the reader's place.** Lifting the height cap to measure
+    resets the list's `scrollTop`, and that runs on every window scroll — a
+    phone's URL bar collapsing included — so a reader half way down a long
+    list was thrown back to the top. `showList()` holds it and puts it back.
+    Harmless while six trips fit; concerts do not fit at 320x700.
+  - **A tap on the list is not a tap outside it.** The panel is the tile's
+    *sibling*, so `!card.contains(target)` was true of the list itself and
+    closed it under the finger that was reading it.
+  - **The panel must be its button's next sibling.** The stylesheet fades it
+    in with `.is-open + .metric-detail`; anywhere else it stays at opacity 0,
+    and since the audit asserts on DOM state and never on opacity, nothing but
+    a gate on `nextElementSibling` would notice.
+  - **The fade at the bottom of a long list means "more below", not
+    "clipped".** A list scrolled to its end is still clipped, and a fade left
+    on there dims the last entry for nothing, so `has-more-below` accounts for
+    `scrollTop`. It is a `mask-image` — alpha works on the night panel and the
+    near-white dawn one alike — and it sits on the list, never the panel, for
+    the same reason the height cap does. High contrast and forced colours get
+    a rule instead of a fade.
+  - **A clipped list is focusable**, because Safari never focuses a scroller.
+    Tab from the tile into its own list is not leaving, so the tile's blur
+    checks `relatedTarget`, and a `focusout` on the panel closes an unpinned
+    list when focus goes anywhere else.
+  - **"Longer than the screen" has gates of its own.** `!holds || !clipped`
+    asserts nothing once the list is too long, and nine concerts already are
+    at 320x700 (585px into 465). There the tile must be as high as the back
+    link allows, the list beneath it using what is left, the newest entry
+    whole, and the oldest reachable with the fade lifted. The forty-entry pass
+    calls the page's own `renderList()` so that branch is exercised at both
+    sizes whatever today's data is.
   - **Placement is re-measured on scroll, not just resize.** Open the panel at
     the top of the page and scroll down to read it and a choice of "above" that
     was right when you tapped puts it off screen.
@@ -217,12 +286,12 @@ CountdownToRetirement/
   - **The room above stops at the back link.** It is `position: fixed` in the
     top corner and paints over anything beneath it, so a panel tall enough to
     reach the top of the screen lost its first trip behind it. Five short
-    entries never reached; the sixth did. `showTrips()` subtracts the link's
+    entries never reached; the sixth did. `showList()` subtracts the link's
     bottom edge wherever the two overlap, and the audit gates on it.
   - **A tap makes room for the whole list.** Mid-screen there is not room for
     six trips on either side of the tile — at 320x700 the list needs 330px and
     the better side had 257 — yet tile and list together are under 500px. The
-    screen has the room; the tile splits it in two. `makeRoomForTrips()` scrolls
+    screen has the room; the tile splits it in two. `makeRoomFor()` scrolls
     the page until the list fits beneath the tile (never pushing the tile under
     the back link), and the scroll listener re-places the panel as it goes.
     **Only a tap or click does this.** Hover and focus must never move the page
@@ -237,7 +306,7 @@ CountdownToRetirement/
   - **Under 420px an entry is two lines of plain block and inline flow, not a
     flex column.** The column is what once wrapped a full-basis note into a
     second *column* that the list scrolled sideways to reach. Two traps in the
-    replacement: the " · " hangs off `.trip-when + .trip-note`, so a trip with
+    replacement: the " · " hangs off `.entry-when + .entry-note`, so a trip with
     a blank `when` does not open its line with a stray dot; and the second
     line's height comes from the `li`'s font size, not the spans' — at 1rem
     each entry was 4px taller, which across six trips was the difference

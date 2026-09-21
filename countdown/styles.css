@@ -963,9 +963,9 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   The trips panel
+   The list panels (trips, concerts)
 
-   The tile is a <button>, so it needs the resets a button does not
+   Each tile is a <button>, so it needs the resets a button does not
    inherit -- font, colour, width -- or it renders as a small grey
    control in the browser's own font.
    ------------------------------------------------------------------ */
@@ -981,7 +981,7 @@ body {
  * reach from inside. Raising the whole section is the only move available,
  * and it only has to hold while the panel is open.
  */
-body.trips-open .personal-section {
+body.list-open .personal-section {
     position: relative;
     z-index: 40;
 }
@@ -1010,14 +1010,16 @@ button.metric-card {
 }
 
 /*
- * Above the grid, not below it, for two reasons that both showed up on a
- * phone. The grid is two columns there, so a panel underneath puts its caret
- * against the BOTTOM row -- pointing at "Projects shipped" while claiming to
- * be about trips. And the sections below are glass: backdrop-filter makes
- * each one its own stacking context, so a later sibling paints over anything
- * this panel's z-index can reach. Above, the caret lands on the tile's own
- * top edge and the sections it covers are earlier siblings, which paint
- * underneath by default.
+ * Above the tile by default, below it when there is no room; JS measures and
+ * sets `top`/`bottom` from the TILE, so the value here is only what holds
+ * before the first placement. Above is preferred because what it covers is
+ * earlier siblings, which paint underneath by default, while the sections
+ * below are glass -- backdrop-filter makes each its own stacking context, so a
+ * later sibling paints over anything this panel's z-index can reach. That is
+ * what body.list-open is for.
+ *
+ * Shared by both lists, which is why only one is ever open: each spans the
+ * whole grid, so two open would be one drawn over the other.
  */
 .metric-detail {
     position: absolute;
@@ -1078,7 +1080,7 @@ button.metric-card {
     border-bottom-color: var(--caret-color);
 }
 
-.trip-list {
+.entry-list {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -1090,7 +1092,37 @@ button.metric-card {
     overscroll-behavior: contain;
 }
 
-.trip-list li {
+/*
+ * A list that has outgrown its room fades out at the bottom edge, because on a
+ * phone there is no scrollbar to say so until you have already scrolled. JS
+ * sets this only while there is MORE BELOW, so it lifts at the end of the list
+ * instead of dimming the last entry.
+ *
+ * A mask, not a gradient laid over the top: alpha works on the night panel and
+ * the near-white dawn one alike, where a gradient would need each theme's
+ * colour. And on the list, never the panel, for the same reason the height cap
+ * is -- the caret is drawn outside the panel's box.
+ */
+.entry-list.has-more-below {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent);
+}
+
+/* Forced colours drop the mask's meaning along with everything else's. */
+@media (forced-colors: active) {
+    .entry-list.has-more-below {
+        -webkit-mask-image: none;
+        mask-image: none;
+        border-bottom: 2px solid CanvasText;
+    }
+}
+
+.entry-list:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 4px;
+}
+
+.entry-list li {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -1100,16 +1132,16 @@ button.metric-card {
     border-bottom: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.trip-list li:last-child {
+.entry-list li:last-child {
     padding-bottom: 0;
     border-bottom: none;
 }
 
-.trip-place {
+.entry-title {
     font-size: 0.92rem;
 }
 
-.trip-when {
+.entry-when {
     font-size: 0.78rem;
     opacity: 0.75;
     white-space: nowrap;
@@ -1117,7 +1149,7 @@ button.metric-card {
 
 /* Always its own line: the row is a wrapping flex, and a short note would
    otherwise slot in between the place and its date. */
-.trip-note {
+.entry-note {
     flex-basis: 100%;
     font-size: 0.8rem;
     font-style: italic;
@@ -1136,7 +1168,7 @@ button.metric-card {
  * note into a second COLUMN that the list scrolled sideways to reach.
  */
 @media (max-width: 420px) {
-    .trip-list li {
+    .entry-list li {
         display: block;
         /* The second line is inline text, so its line box comes from THIS
            font size, not the spans' own. Left at 1rem it made every entry 4px
@@ -1144,14 +1176,14 @@ button.metric-card {
         font-size: 0.8rem;
     }
 
-    .trip-place {
+    .entry-title {
         display: block;
         margin-bottom: 2px;
     }
 
     /* Only between a date and a note: a trip with no "when" yet must not
        open its second line with a stray dot. */
-    .trip-when + .trip-note::before {
+    .entry-when + .entry-note::before {
         content: " · ";
         font-style: normal;
     }
@@ -1775,7 +1807,7 @@ body.mode-countup .metric-detail {
     color: #3a2f45;
 }
 
-body.mode-countup .trip-list li {
+body.mode-countup .entry-list li {
     border-bottom-color: rgba(58, 47, 69, 0.18);
 }
 
@@ -2070,10 +2102,16 @@ body.mode-countup .countup-marking {
         color: #fff;
     }
 
-    .trip-list li { border-bottom-color: #fff; }
+    .entry-list li { border-bottom-color: #fff; }
+    /* A fade is lowered contrast by definition. Say "more below" with a rule. */
+    .entry-list.has-more-below {
+        -webkit-mask-image: none;
+        mask-image: none;
+        border-bottom: 2px solid #fff;
+    }
     .metric-more { opacity: 1; }
-    .trip-when { opacity: 1; }
-    .trip-note { opacity: 1; }
+    .entry-when { opacity: 1; }
+    .entry-note { opacity: 1; }
 
     body.mode-countup .progress-text,
     body.mode-countup .back-link,
