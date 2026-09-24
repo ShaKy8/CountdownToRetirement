@@ -35,7 +35,10 @@ let failedTests = 0;
 const failedTestDetails = [];
 let serverProcess = null;
 
-const TEST_PORT = 8000;
+// PORT=8137 node tests-server.js, on a machine where 8000 is taken -- the
+// systemd service serves this same site there, and the suite could not be
+// run at all until it was.
+const TEST_PORT = Number(process.env.PORT) || 8000;
 const TEST_HOST = '127.0.0.1'; // explicit IPv4: CI runners resolve localhost to ::1 but the server listens on 0.0.0.0
 
 /**
@@ -725,12 +728,11 @@ async function runSubdirectoryTests() {
                 'Should have JSON content type');
 
             const stats = JSON.parse(data);
-            // trips is the list of places, not a count -- the tile derives the
-            // number from its length so the two cannot disagree.
-            assert.ok(Array.isArray(stats.trips),
-                'stats.json should include the trips list');
-            assert.strictEqual(typeof stats.books, 'number',
-                'stats.json should include a numeric books counter');
+            // Every counter is a list, not a count -- each tile derives its
+            // number from the length so the two cannot disagree.
+            ['trips', 'concerts', 'projects', 'books'].forEach(key =>
+                assert.ok(Array.isArray(stats[key]) && stats[key].length > 0,
+                    `stats.json should include the ${key} list`));
         });
 
         await test('Should block path traversal from countdown subdirectory', async () => {

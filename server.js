@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-const PORT = 8000;
+const PORT = Number(process.env.PORT) || 8000;
 const HOSTNAME = '0.0.0.0';
 
 // MIME types for common file extensions

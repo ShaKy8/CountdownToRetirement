@@ -35,8 +35,9 @@ node tests.js
 node scripts/stamp-assets.mjs
 
 # Run server integration tests (60 tests)
-# Note: Stop any running server first, tests start their own
-node tests-server.js
+# Note: Stop any running server first, tests start their own -- or, where
+# port 8000 belongs to the systemd service, run them on another port:
+PORT=8137 node tests-server.js
 ```
 
 ## Deployment
