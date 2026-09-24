@@ -35,6 +35,7 @@ const TILES = [
   { key: 'trips', title: 'place', noun: 'trip' },
   { key: 'concerts', title: 'who', noun: 'concert' },
   { key: 'projects', title: 'what', noun: 'project', link: 'url' },
+  { key: 'books', title: 'title', noun: 'book' },
 ];
 
 const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`,
@@ -224,12 +225,14 @@ for (const { key: k, title, noun, link } of TILES) {
   console.log(`\n  ${k.toUpperCase()}\n`);
   const list = stats[k];
   const usable = list.filter(t => t && typeof t[title] === 'string' && t[title].trim());
+  // A book still open is listed but not counted.
+  const counted = usable.filter(t => t.reading !== true);
   let s = await E(STATE(k));
   if (!s) { gate(false, `${k}: the tile, panel and list are on the page`); continue; }
 
   gate(s.hidden === true && s.expanded === 'false' && !s.open, `${k}: starts closed`);
-  gate(s.count === String(usable.length), `${k}: the count is the length of the list`,
-    `shows ${s.count}, list has ${usable.length}`);
+  gate(s.count === String(counted.length), `${k}: the count is the length of the list, less what is still open`,
+    `shows ${s.count}, list has ${usable.length}, ${usable.length - counted.length} still open`);
   // The stylesheet fades the panel in with `+`. Anywhere else in the DOM it
   // stays at opacity 0 -- which no DOM-state gate can see.
   gate(s.sibling, `${k}: the panel is the tile's next sibling`);

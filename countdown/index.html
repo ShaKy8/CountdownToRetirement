@@ -269,9 +269,8 @@
                   so what is announced is "9 Concerts seen" and not a label
                   with no number.
 
-                  The ones that open come first. They carry an extra line, so
-                  on a two-column phone grid the taller tiles pair up and the
-                  one plain tile, books, takes the last slot.
+                  All four open now, so all four carry the extra line and the
+                  grid is even. The order is the order of the lists in LISTS.
                 -->
                 <button type="button" class="metric-card metric-card--expands" id="stat-trips-card"
                         aria-labelledby="stat-trips stat-trips-label" aria-expanded="false"
@@ -319,10 +318,17 @@
                      aria-labelledby="stat-projects-label" hidden>
                     <ul class="entry-list" id="stat-projects-list"></ul>
                 </div>
-                <div class="metric-card" role="article" aria-labelledby="stat-books-label" id="stat-books-card">
+                <button type="button" class="metric-card metric-card--expands" id="stat-books-card"
+                        aria-labelledby="stat-books stat-books-label" aria-expanded="false"
+                        aria-controls="stat-books-detail">
                     <div class="metric-icon" aria-hidden="true">📚</div>
                     <div class="metric-value" id="stat-books">0</div>
                     <div class="metric-label" id="stat-books-label">Books read</div>
+                    <span class="metric-more" aria-hidden="true">Which?</span>
+                </button>
+                <div class="metric-detail" id="stat-books-detail" role="region"
+                     aria-labelledby="stat-books-label" hidden>
+                    <ul class="entry-list" id="stat-books-list"></ul>
                 </div>
             </div>
             <p class="stats-updated" id="stats-updated"></p>
@@ -386,6 +392,6 @@
     <div id="confetti-container" aria-hidden="true"></div>
 
     <script src="calc.js?v=7a69d7d148"></script>
-    <script src="script.js?v=99e22a5c59"></script>
+    <script src="script.js?v=9517432e25"></script>
 </body>
 </html>

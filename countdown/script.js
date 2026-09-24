@@ -587,7 +587,8 @@ function updateMotivation(direction) {
 const LISTS = {
     trips: { title: 'place' },
     concerts: { title: 'who' },
-    projects: { title: 'what', link: 'url' }
+    projects: { title: 'what', link: 'url' },
+    books: { title: 'title' }
 };
 let openKey = null;
 let pinnedKey = null;
@@ -626,7 +627,11 @@ function usableEntries(list, spec) {
                 title,
                 when: text('when'),
                 note: text('note'),
-                url: /^(\/(?!\/)\S*|https:\/\/\S+)$/.test(url) ? url : ''
+                url: /^(\/(?!\/)\S*|https:\/\/\S+)$/.test(url) ? url : '',
+                // A book still open is listed but not counted: the tile says
+                // "read", and it is not read yet. It has no "when" either --
+                // that is the finishing date, which has not happened.
+                reading: entry.reading === true
             });
         }
         return out;
@@ -663,10 +668,10 @@ function renderList(key, entries) {
         li.appendChild(name);
         // No date yet is just the title: the dates are Kyle's to fill in and
         // the panel has to read properly before he does.
-        if (entry.when) {
+        if (entry.when || entry.reading) {
             const date = document.createElement('span');
             date.className = 'entry-when';
-            date.textContent = entry.when;
+            date.textContent = entry.reading ? 'Reading now' : entry.when;
             li.appendChild(date);
         }
         // Why we went, or where it was. Optional, and an entry without one
@@ -955,7 +960,7 @@ function loadPersonalStats() {
                  * sees.
                  */
                 const isList = Array.isArray(value);
-                const count = isList ? entriesOf(key).length : value;
+                const count = isList ? entriesOf(key).filter(e => !e.reading).length : value;
                 const valid = typeof count === 'number' && Number.isFinite(count)
                     && count >= 0 && (!isList || count > 0);
                 if (card) card.hidden = !valid;

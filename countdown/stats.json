@@ -59,5 +59,11 @@
     { "what": "Omarchy rebuild kit", "when": "Sep 20–23, 2026",
       "note": "🐧 The laptop as a repo: every package, /etc file and dotfile, and how to rebuild it" }
   ],
-  "books": 6
+  "books": [
+    { "title": "The Widow", "when": "May 2026", "note": "John Grisham" },
+    { "title": "Cold Zero", "when": "May 2026", "note": "Brad Thor" },
+    { "title": "The Seventh Floor", "when": "June 2026", "note": "David McCloskey" },
+    { "title": "The Secret of Secrets", "when": "July 2026", "note": "Dan Brown" },
+    { "title": "Sandstorm", "note": "James Rollins · Sigma Force #1", "reading": true }
+  ]
 }

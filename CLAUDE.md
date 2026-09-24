@@ -219,10 +219,12 @@ CountdownToRetirement/
   - **Rebuilt once a day**, keyed on `direction:days`: in countdown mode the
     render runs every second.
 - **Personal counters:** `countdown/stats.json` (trips, concerts, projects, books, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
-- **`trips`, `concerts` and `projects` are lists, and their counts are
-  derived.** `books` is the one plain number; `trips` is an array of
-  `{ place, when }`, `concerts` of `{ who, when }`, `projects` of
-  `{ what, when, url? }`, and each tile shows `.length`. A `trips: 5` stored beside the list would disagree with it the first
+- **Every counter is a list, and its count is derived.** `trips` is an
+  array of `{ place, when }`, `concerts` of `{ who, when }`, `projects` of
+  `{ what, when, url? }`, `books` of `{ title, when, note }` with the author
+  in the note, and each tile shows `.length`. **A book still open** carries
+  `reading: true` and no `when`: it is listed at the top as "Reading now" but
+  not counted, because the tile says *read*. A `trips: 5` stored beside the list would disagree with it the first
   time a trip was added to one and not the other, and the number is the half
   everyone sees. `when` may be blank — the entry then renders as just the place —
   and an element that is not an object, or has no `place` (a concert's `who`), is

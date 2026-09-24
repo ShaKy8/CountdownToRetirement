@@ -1541,11 +1541,23 @@ describe('BUSINESS SITE - Personal stats file', () => {
     });
     const listKeys = Object.keys(listTitles);
 
-    test('stats.json should carry its plain counters as non-negative integers', () => {
-        ['books'].forEach(key => {
-            assert.strictEqual(typeof stats[key], 'number', `${key} should be a number`);
-            assert.ok(Number.isInteger(stats[key]) && stats[key] >= 0, `${key} should be a non-negative integer`);
-        });
+    test('stats.json should carry nothing but the lists and the updated date', () => {
+        // Every counter is a list now, and its number is the list's length.
+        // A stray plain number would be a tile that cannot say what it counts.
+        assert.deepStrictEqual(Object.keys(stats).sort(), ['books', 'concerts', 'projects', 'trips', 'updated']);
+    });
+
+    test('A book still being read should be listed but not counted', () => {
+        // The tile says "read". An open book has no finishing date, so it
+        // carries `reading: true` and no `when`; it renders as "Reading now".
+        const reading = stats.books.filter(b => b.reading === true);
+        reading.forEach((b, i) => assert.ok(b.when === undefined, `reading[${i}] should have no when`));
+        stats.books.filter(b => b.reading !== true).forEach((b, i) =>
+            assert.ok(typeof b.when === 'string' && b.when.trim(), `finished[${i}] needs a when`));
+        assert.ok(/reading: entry\.reading === true/.test(countdownJs), 'usableEntries carries the flag');
+        assert.ok(/isList \? entriesOf\(key\)\.filter\(e => !e\.reading\)\.length : value/.test(countdownJs),
+            'The count leaves out what is still open');
+        assert.ok(/entry\.reading \? 'Reading now' : entry\.when/.test(countdownJs), 'The panel says so');
     });
 
     test('The naps tile should be gone from the data, the page and the script', () => {
@@ -1556,8 +1568,8 @@ describe('BUSINESS SITE - Personal stats file', () => {
         assert.ok(!/'naps'/.test(countdownJs), 'The loader should not ask for naps');
     });
 
-    test('The script should know three lists, and what each entry is titled by', () => {
-        assert.deepStrictEqual(listTitles, { trips: 'place', concerts: 'who', projects: 'what' });
+    test('The script should know four lists, and what each entry is titled by', () => {
+        assert.deepStrictEqual(listTitles, { trips: 'place', concerts: 'who', projects: 'what', books: 'title' });
         assert.deepStrictEqual(listLinks, { projects: 'url' }, 'Only a project links to itself');
     });
 
@@ -1617,6 +1629,7 @@ describe('BUSINESS SITE - Personal stats file', () => {
                 assert.strictEqual(typeof entry, 'object', `${key}[${i}] should be an object`);
                 assert.ok(entry && typeof entry[title] === 'string' && entry[title].trim(),
                     `${key}[${i}] needs a non-empty ${title}`);
+                if (entry.reading === true) return; // still open: no finishing date
                 assert.ok(typeof entry.when === 'string',
                     `${key}[${i}] needs a when, even if it is still blank`);
             });
@@ -1691,13 +1704,13 @@ describe('BUSINESS SITE - Personal stats file', () => {
         // a tile that opened onto two lines.
         assert.ok(/const entriesOf = key => usableEntries\(stats\[key\], LISTS\[key\]\);/.test(countdownJs),
             'One filter per list');
-        assert.ok(/isList \? entriesOf\(key\)\.length : value/.test(countdownJs),
+        assert.ok(/isList \? entriesOf\(key\)\.filter\(e => !e\.reading\)\.length : value/.test(countdownJs),
             'The count should come from that filter');
         assert.ok(/Object\.keys\(LISTS\)\.forEach\(key => renderList\(key, entriesOf\(key\)\)\);/.test(countdownJs),
             'Every panel should render that same filtered list');
         assert.ok(!/isList \? value\.length/.test(countdownJs),
             'The count should not come from the unfiltered array');
-        assert.ok(!/"(trip|concert|project)_?[Cc]ount"/.test(raw),
+        assert.ok(!/"(trip|concert|project|book)_?[Cc]ount"/.test(raw),
             'stats.json should not carry a separate count for a list');
     });
 
