@@ -272,7 +272,14 @@ function renderCountdown(now) {
         description: Calc.progressDescription(percentage)
     });
     renderThermometer(percentage, parts.days);
-    renderHourglass(percentage, percentage.toFixed(1) + '% Complete');
+    // Before retirement the night is the working years: the moon rises on
+    // day one of the job and sets into the dawn on the last day.
+    renderSkyArc({
+        fraction: percentage / 100,
+        label: percentage.toFixed(1) + '% to Freedom Day',
+        startLabel: 'Day One',
+        endIcon: '🏝️'
+    });
     renderMilestones(parts.days, 'countdown');
     updateMotivation('countdown');
 
@@ -318,7 +325,14 @@ function renderCountup(now) {
             barAria: 'Retirement milestone progress',
             description: 'Every milestone reached. The rest is yours.'
         });
-        renderHourglass(100, 'Every milestone reached');
+        // Half-set on the right, beside a bar that reads 100%: a sun at the
+        // zenith would be the one figure of three telling a different story.
+        renderSkyArc({
+            fraction: 1,
+            label: 'Every milestone reached',
+            startLabel: 'Retired',
+            endIcon: last ? last.icon : '🏆'
+        });
     } else {
         const next = progress.nextMilestone;
         const remaining = progress.next - days;
@@ -337,7 +351,12 @@ function renderCountup(now) {
             barAria: `Progress toward ${next.text}`,
             description: `${pctRounded}% of the way to ${next.text.toLowerCase()}, ${remaining} ${remaining === 1 ? 'day' : 'days'} to go.`
         });
-        renderHourglass(progress.percentage, `${progress.percentage.toFixed(1)}% to ${next.text}`);
+        renderSkyArc({
+            fraction: progress.fraction,
+            label: `${progress.percentage.toFixed(1)}% to ${next.text}`,
+            startLabel: 'Retired',
+            endIcon: next.icon
+        });
     }
 
     renderThermometer(progress.percentage, days);
@@ -402,21 +421,23 @@ function renderThermometer(percentage, days) {
     setText('thermometer-days', days);
 }
 
-function renderHourglass(percentage, labelText) {
-    const topPercentage = 100 - percentage;
-
-    const sandTopElement = byId('sand-top');
-    if (sandTopElement) sandTopElement.style.height = topPercentage + '%';
-
-    const sandBottomElement = byId('sand-bottom');
-    if (sandBottomElement) sandBottomElement.style.height = percentage + '%';
-
-    setText('hourglass-label', labelText);
-
-    const sandStreamElement = byId('sand-stream');
-    if (sandStreamElement) {
-        sandStreamElement.style.opacity = (percentage > 0 && percentage < 100) ? '1' : '0';
+/*
+ * The sun's place on the arc is set as an SVG transform, and NOT transitioned.
+ * A transition on a translate interpolates the chord, which cuts through the
+ * inside of the arc; and when a milestone is crossed the fraction DROPS (1.0
+ * to 365/500), so the sun would slide backwards through the sky once a
+ * milestone. In countdown mode this runs every second, and the moon would
+ * never not be mid-transition. It moves once a day, by a hair. Let it.
+ */
+function renderSkyArc({ fraction, label, startLabel, endIcon }) {
+    const body = byId('sky-arc-body');
+    if (body) {
+        const p = Calc.skyArcPoint(fraction);
+        body.setAttribute('transform', `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})`);
     }
+    setText('sky-arc-label', label);
+    setText('sky-arc-start', startLabel);
+    setText('sky-arc-end-icon', endIcon);
 }
 
 function renderMilestones(days, direction) {

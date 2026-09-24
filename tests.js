@@ -1151,6 +1151,99 @@ describe('COUNT-UP - Milestones', () => {
     });
 });
 
+describe('COUNT-UP - The sky arc', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const markup = read('countdown', 'index.html');
+    const script = read('countdown', 'script.js');
+    const css = read('countdown', 'styles.css');
+    const calcSrc = read('countdown', 'calc.js');
+    const { cx, cy, r } = Calc.SKY_ARC;
+    const figure = markup.slice(markup.indexOf('<div class="sky-arc-container"'), markup.indexOf('<!-- Animated Thermometer'));
+
+    test('Should put the body half-set at each horizon and at the zenith half way', () => {
+        assert.deepStrictEqual(round(Calc.skyArcPoint(0)), { x: cx - r, y: cy });
+        assert.deepStrictEqual(round(Calc.skyArcPoint(1)), { x: cx + r, y: cy });
+        assert.deepStrictEqual(round(Calc.skyArcPoint(0.5)), { x: cx, y: cy - r });
+        function round(p) { return { x: Math.round(p.x * 1e6) / 1e6, y: Math.round(p.y * 1e6) / 1e6 }; }
+    });
+
+    test('Should stay on the arc, above the horizon, and clamp bad input', () => {
+        for (let f = 0; f <= 1.0001; f += 0.01) {
+            const p = Calc.skyArcPoint(f);
+            assert.ok(Math.abs(Math.hypot(p.x - cx, p.y - cy) - r) < 1e-9, `${f} is on the circle`);
+            assert.ok(p.y <= cy + 1e-9, `${f} is not below the horizon`);
+        }
+        assert.deepStrictEqual(Calc.skyArcPoint(-1), Calc.skyArcPoint(0), 'Below zero is the left horizon');
+        assert.deepStrictEqual(Calc.skyArcPoint(2), Calc.skyArcPoint(1), 'Above one is the right horizon');
+        assert.deepStrictEqual(Calc.skyArcPoint(NaN), Calc.skyArcPoint(0), 'NaN is the left horizon, not a NaN transform');
+        assert.deepStrictEqual(Calc.skyArcPoint(undefined), Calc.skyArcPoint(0));
+    });
+
+    test('The horizon in the markup should be where the geometry says it is', () => {
+        // The clip, the arc path and the horizon line are typed into the SVG;
+        // the script places the body from calc.js. They must agree or the
+        // sun sets above or below the line it is drawn against.
+        assert.ok(figure.includes(`<rect x="0" y="0" width="200" height="${cy}"/>`), 'The clip stops at the horizon');
+        assert.ok(figure.includes(`d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}"`), 'The arc is the geometry');
+        assert.ok(figure.includes(`y1="${cy}"`) && figure.includes(`y2="${cy}"`), 'The horizon line sits on cy');
+        assert.ok(/viewBox="0 0 200 110"/.test(figure), 'The viewBox the constants assume');
+    });
+
+    test('Every id the script sets should exist in the figure, and nothing else be live', () => {
+        const touched = [...script.matchAll(/'(sky-arc-[a-z-]+)'/g)].map(m => m[1]);
+        assert.deepStrictEqual([...new Set(touched)].sort(), ['sky-arc-body', 'sky-arc-end-icon', 'sky-arc-label', 'sky-arc-start'],
+            'The body, the caption and the two horizons');
+        touched.forEach(id => assert.ok(figure.includes(`id="${id}"`), `${id} is in the markup`));
+        assert.ok(figure.includes('data-aria-countdown=') && figure.includes('data-aria-countup='),
+            'applyMode() swaps the description by these');
+        assert.ok(/<svg [^>]*aria-hidden="true"/.test(figure), 'The drawing is hidden from AT; the container is the image');
+        assert.ok(!/aria-live|role="status"/.test(figure),
+            'Nothing inside role="img" is live: its descendants are presentational, so a live region there never spoke');
+    });
+
+    test('The hourglass should be gone from every file', () => {
+        [markup, script, css, calcSrc].forEach(src =>
+            assert.ok(!/hourglass|sand-|gentleSway|labelGlow|glass-shine/i.test(src)));
+    });
+
+    test('Both modes should draw the figure', () => {
+        const countdown = script.slice(script.indexOf('function renderCountdown('), script.indexOf('function renderCountup('));
+        const countup = script.slice(script.indexOf('function renderCountup('), script.indexOf('function renderProgressBar('));
+        assert.strictEqual((countdown.match(/renderSkyArc\(/g) || []).length, 1, 'The moon, once');
+        assert.strictEqual((countup.match(/renderSkyArc\(/g) || []).length, 2, 'The sun, complete and on the way');
+        assert.ok(/label: percentage\.toFixed\(1\) \+ '% to Freedom Day',\s*startLabel: 'Day One',\s*endIcon: '🏝️'/.test(countdown),
+            'The night is the working years');
+        assert.ok(/fraction: progress\.fraction/.test(countup), 'The sun is placed from the same fraction as the bar');
+    });
+
+    test('The body should be placed by transform and never transitioned', () => {
+        // A transition on a translate interpolates the chord of the arc, and
+        // when a milestone is crossed the fraction drops, so the sun would
+        // slide backwards through the sky. The figure has no motion at all.
+        assert.ok(/body\.setAttribute\('transform', `translate\(/.test(script), 'Set as an SVG transform');
+        // Any selector that names the figure -- class OR id, so a stray
+        // `#sky-arc-body { transition }` cannot slip past a dot.
+        const rules = css.match(/[^{}]*sky-arc[^{}]*\{[^}]*\}/g) || [];
+        assert.ok(rules.length >= 8, 'The figure should have rules to check');
+        rules.forEach(rule => {
+            if (/\.sky-arc-container/.test(rule)) return; // the hover fade, as the thermometer has
+            assert.ok(!/transition|animation/.test(rule), `No motion in: ${rule.trim().slice(0, 40)}`);
+        });
+        assert.ok(/prefers-reduced-motion[\s\S]*\.sky-arc-container,\s*\.thermometer-container \{/.test(css),
+            'Reduced motion pins the container like the thermometer');
+    });
+
+    test('Forced colours should keep the arc and lose the glows', () => {
+        const forced = css.slice(css.indexOf('@media (forced-colors: active)'));
+        const block = forced.slice(0, forced.indexOf('\n}\n'));
+        assert.ok(/\.sky-arc-glow,\s*\.sky-arc-dawn \{\s*display: none/.test(block), 'Fills are not forced, so hide them');
+        assert.ok(/\.sky-arc-sun \{\s*fill: CanvasText/.test(block));
+        assert.ok(/\.sky-arc-path \{[^}]*stroke: currentColor/.test(css) && /\.sky-arc-moon \{[^}]*fill: currentColor/.test(css),
+            'Arc and moon take the text colour, which forced colours keep');
+    });
+});
+
 describe('COUNT-UP - Comparisons', () => {
     test('Should list comparisons in ascending order', () => {
         const days = Calc.COMPARISONS.map(c => c.days);
@@ -4280,9 +4373,9 @@ describe('BUSINESS SITE - Runs on more than one machine', () => {
 
     test('No gate should hardcode where Chromium lives', () => {
         /*
-         * All seven hardcoded /usr/bin/chromium, which is right on Arch and
+         * All eight hardcoded /usr/bin/chromium, which is right on Arch and
          * wrong nearly everywhere else. Moving this project to another machine
-         * turned one wrong assumption into seven identical unhelpful failures,
+         * turned one wrong assumption into eight identical unhelpful failures,
          * so the answer lives in scripts/lib/chromium.mjs and $CHROMIUM
          * overrides it.
          */

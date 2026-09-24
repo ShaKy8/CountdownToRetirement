@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (405 tests)
+# Run client-side tests (413 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -133,7 +133,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (405 tests)
+├── tests.js                # Client-side unit tests (413 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -158,7 +158,40 @@ CountdownToRetirement/
 
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
-- **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. Hourglass, thermometer, and progress bar fill toward the next milestone.
+- **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. Thermometer and progress bar fill toward the next milestone.
+- **The sky arc** is the fixed figure on the right (desktop only, hidden at
+  1024px and below like the thermometer). In count-up mode the sun crosses a
+  semicircle from "Retired" to the next milestone, `fraction` of the way
+  along, with the milestone's emoji at the far horizon; in countdown mode the
+  moon crosses the night from "Day One" (employment start, which is what
+  `computeProgress` measures) to "Freedom Day", into a dawn glow. It replaced
+  an hourglass that was two separate egg-shaped bulbs of gold "sand" on a
+  cream page, swaying forever — and whose meaning was wrong: nothing runs out
+  after retirement, and its sand jumped back *up* at every milestone.
+  `node scripts/sky-arc-audit.mjs` is the gate. Five things in it are
+  decisions:
+  - **The geometry is in `calc.js`** (`SKY_ARC`, `skyArcPoint()`), pure and
+    exported, so the gate checks the *drawn* centre against it to a pixel
+    instead of trusting the drawing. viewBox 200x110, horizon y=98, r=76; a
+    test pins the typed clip, arc path and horizon line to the same numbers.
+  - **Nothing in it animates or transitions.** The body's place is an SVG
+    `transform`. A transition on a translate interpolates the *chord* of the
+    arc, and when a milestone is crossed the fraction *drops* (1.0 → 365/500),
+    so the sun would slide backwards through the sky once a milestone — and
+    in countdown mode the render runs every second, so the moon would never
+    not be mid-transition. The gate asserts `getAnimations().length === 0`.
+  - **The SVG is geometry only; every word and emoji is HTML beneath it.**
+    Emoji glyph boxes differ per platform, so an emoji in SVG `<text>` sits on
+    the horizon differently everywhere, and `<text>` cannot wrap "Every
+    milestone reached".
+  - **No sky-of-the-hour gradient.** `days/next` spends most of its life
+    between 0.5 and 0.95, so it would nearly always read "afternoon". One
+    static glow at the far horizon is the whole weather of the figure.
+  - **The hourglass's caption was `aria-live` inside `role="img"`**, whose
+    descendants are presentational, so it never spoke. Nothing inside the
+    figure is live now; the number is exposed by the progress bar in `main`.
+    Forced colours: fills are not forced, so the glows are hidden and the sun
+    takes `CanvasText`; arc and moon are `currentColor` already.
 - **Personal counters:** `countdown/stats.json` (trips, concerts, projects, books, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
 - **`trips`, `concerts` and `projects` are lists, and their counts are
   derived.** `books` is the one plain number; `trips` is an array of
@@ -559,13 +592,13 @@ each needs a deliberate move:
 
 Two things the code needs from the machine, both asserted by tests:
 
-- **Node 22 or newer.** All seven gates speak CDP over a global `WebSocket` with
+- **Node 22 or newer.** All eight gates speak CDP over a global `WebSocket` with
   nothing to install; on an older Node they fail deep inside a browser session
   rather than up front.
 - **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
-  it from a candidate list and `$CHROMIUM` overrides. All seven gates used to
+  it from a candidate list and `$CHROMIUM` overrides. All eight gates used to
   hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
-  and one wrong assumption became seven identical unhelpful failures.
+  and one wrong assumption became eight identical unhelpful failures.
 
 **Push before switching machines.** The repos are the sync mechanism, and the
 setup script refuses to touch a working tree with uncommitted changes rather

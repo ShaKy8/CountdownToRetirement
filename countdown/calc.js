@@ -303,7 +303,7 @@
     }
 
     // Progress toward the next milestone, measured from retirement day itself
-    // (day 0), not from the previous milestone. The bar, hourglass and
+    // (day 0), not from the previous milestone. The bar, sky arc and
     // thermometer all label their span "Retired -> <next milestone>", so the
     // fill has to be days/next: 191 days retired is 52% of the way to one
     // year, not 5% of the 182-day gap between six months and one year.
@@ -328,6 +328,23 @@
         const next = nextMilestone.threshold;
         const fraction = next > 0 ? Math.max(0, Math.min(1, days / next)) : 1;
         return { prev, next, prevMilestone, nextMilestone, fraction, percentage: fraction * 100, complete: false };
+    }
+
+    // The sky arc: the sun (or, before retirement, the moon) crosses a
+    // semicircle from the left horizon to the right, `fraction` of the way
+    // along. In the page's SVG the viewBox is 200 x 110 and the horizon is
+    // y = 98, so 0 puts the body half-set on the left, 1 half-set on the
+    // right, and 0.5 at the zenith. Pure, so the gate can check the drawn
+    // position against this without trusting the drawing.
+    const SKY_ARC = { cx: 100, cy: 98, r: 76 };
+
+    function skyArcPoint(fraction) {
+        const f = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 0;
+        const a = Math.PI * (1 - f);
+        return {
+            x: SKY_ARC.cx + SKY_ARC.r * Math.cos(a),
+            y: SKY_ARC.cy - SKY_ARC.r * Math.sin(a)
+        };
     }
 
     function crossedMilestone(prevDays, days, direction, thresholds) {
@@ -412,6 +429,8 @@
         progressDescription,
         milestoneStates,
         nextMilestoneProgress,
+        SKY_ARC,
+        skyArcPoint,
         crossedMilestone,
         comparisonsUnlocked,
         validateDateInput

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Kyle's retirement clock - counting the days since retirement, or the days until it if you set your own date">
     <title>Kyle's Retirement Clock</title>
-    <link rel="stylesheet" href="styles.css?v=4e82a218c8">
+    <link rel="stylesheet" href="styles.css?v=a4c55914a6">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body class="mode-countdown">
@@ -18,39 +18,60 @@
     <!-- Decorative Background -->
     <div class="stars" aria-hidden="true"></div>
 
-    <!-- Animated Hourglass (Decorative) -->
-    <div class="hourglass-container" id="hourglass-container" role="img"
-         aria-label="Animated hourglass showing retirement countdown progress"
-         data-aria-countdown="Animated hourglass showing retirement countdown progress"
-         data-aria-countup="Animated hourglass showing progress toward the next retirement milestone">
-        <div class="hourglass" aria-hidden="true">
-            <div class="hourglass-frame-top"></div>
-            <div class="hourglass-top-bulb">
-                <div class="sand-top" id="sand-top">
-                    <div class="sand-surface"></div>
-                </div>
-                <div class="glass-shine-top"></div>
+    <!--
+      The sky arc (decorative). In count-up mode the sun crosses from
+      "Retired" to the next milestone; before retirement the moon crosses the
+      night from "Day One" toward the dawn at "Freedom Day". The SVG holds the
+      geometry only: every word and emoji is HTML beneath it, because an emoji
+      in SVG <text> sits on the horizon differently on every platform, and
+      <text> cannot wrap "Every milestone reached". role="img" makes the
+      descendants presentational, so nothing inside is live -- the number is
+      exposed by the progress bar in main.
+    -->
+    <div class="sky-arc-container" id="sky-arc-container" role="img"
+         aria-label="Sun crossing the sky from retirement day toward the next milestone"
+         data-aria-countdown="Moon crossing the night toward retirement day, showing how much of the working years has passed"
+         data-aria-countup="Sun crossing the sky from retirement day toward the next milestone">
+        <div class="sky-arc">
+            <svg class="sky-arc-sky" viewBox="0 0 200 110" width="140" height="77" aria-hidden="true" focusable="false">
+                <defs>
+                    <!-- The horizon clips the body, so at 0 and 1 it is half-set
+                         rather than a whole disc sitting on a line. -->
+                    <clipPath id="sky-arc-above"><rect x="0" y="0" width="200" height="98"/></clipPath>
+                    <radialGradient id="sky-arc-glow">
+                        <stop offset="0" class="sky-arc-glow-in"/>
+                        <stop offset="1" class="sky-arc-glow-out"/>
+                    </radialGradient>
+                    <radialGradient id="sky-arc-dawn-glow" cx="0.5" cy="1" r="1">
+                        <stop offset="0" class="sky-arc-dawn-in"/>
+                        <stop offset="1" class="sky-arc-dawn-out"/>
+                    </radialGradient>
+                    <mask id="sky-arc-crescent">
+                        <circle r="8" fill="#fff"/>
+                        <circle cx="4" cy="-2" r="7.5" fill="#000"/>
+                    </mask>
+                </defs>
+                <ellipse class="sky-arc-dawn" cx="176" cy="98" rx="38" ry="20" clip-path="url(#sky-arc-above)"/>
+                <path class="sky-arc-path" d="M 24 98 A 76 76 0 0 1 176 98"/>
+                <line class="sky-arc-horizon" x1="10" y1="98" x2="190" y2="98"/>
+                <!-- The clip sits on the OUTER group: a clip-path is applied in
+                     the user space of the element that references it, so on
+                     the translated group it would travel with the sun. -->
+                <g clip-path="url(#sky-arc-above)">
+                    <g id="sky-arc-body" transform="translate(24 98)">
+                        <circle class="sky-arc-glow" r="18"/>
+                        <circle class="sky-arc-sun" r="8"/>
+                        <circle class="sky-arc-moon" r="8" mask="url(#sky-arc-crescent)"/>
+                    </g>
+                </g>
+            </svg>
+            <!-- The far horizon is the milestone's icon alone; the caption
+                 names it. Two words on a 160px figure wrapped both lines. -->
+            <div class="sky-arc-horizons">
+                <span class="sky-arc-horizon-label" id="sky-arc-start">Retired</span>
+                <span class="sky-arc-horizon-label sky-arc-horizon-label--end" id="sky-arc-end-icon">🎂</span>
             </div>
-            <div class="hourglass-neck">
-                <div class="sand-stream" id="sand-stream">
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                    <div class="sand-particle"></div>
-                </div>
-            </div>
-            <div class="hourglass-bottom-bulb">
-                <div class="sand-bottom" id="sand-bottom">
-                    <div class="sand-surface-bottom"></div>
-                </div>
-                <div class="glass-shine-bottom"></div>
-            </div>
-            <div class="hourglass-frame-bottom"></div>
-            <div class="hourglass-label" id="hourglass-label" role="status" aria-live="polite">0% Complete</div>
+            <div class="sky-arc-label" id="sky-arc-label">0% Complete</div>
         </div>
     </div>
 
@@ -377,7 +398,7 @@
 
     <div id="confetti-container" aria-hidden="true"></div>
 
-    <script src="calc.js?v=9665d15e87"></script>
-    <script src="script.js?v=b9839c2914"></script>
+    <script src="calc.js?v=8bfc79af65"></script>
+    <script src="script.js?v=1dfe7211fd"></script>
 </body>
 </html>
