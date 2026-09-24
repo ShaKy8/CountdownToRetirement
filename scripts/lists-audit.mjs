@@ -1,5 +1,5 @@
 /*
- * The list panels on /countdown/ -- the trips tile and the concerts tile.
+ * The list panels on /countdown/ -- the trips, concerts and projects tiles.
  *
  * ASSERTS ON DOM STATE, NEVER ON COMPUTED OPACITY. Headless Chromium produces
  * no frames unless something asks it to, so a CSS transition sits frozen at its
@@ -34,6 +34,7 @@ const stats = JSON.parse(readFileSync(new URL('../countdown/stats.json', import.
 const TILES = [
   { key: 'trips', title: 'place', noun: 'trip' },
   { key: 'concerts', title: 'who', noun: 'concert' },
+  { key: 'projects', title: 'what', noun: 'project', link: 'url' },
 ];
 
 const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`,
@@ -86,6 +87,8 @@ const STATE = k => `(()=>{const c=document.getElementById('stat-${k}-card');
     hidden:p.hidden, count:document.getElementById('stat-${k}').textContent.trim(),
     sibling:c.nextElementSibling===p,
     items:lis.map(li=>li.textContent.trim()),
+    links:[...u.querySelectorAll('a[href]')].map(a=>({href:a.getAttribute('href'),
+      blank:a.target==='_blank', rel:a.rel, h:Math.round(a.getBoundingClientRect().height)})),
     caret:p.style.getPropertyValue('--caret-x'),
     clipped:u.scrollHeight>u.clientHeight+1,
     moreBelow:u.scrollHeight-u.clientHeight-u.scrollTop>1,
@@ -217,7 +220,7 @@ async function longListGates(k, s, oldest, tag) {
 // ---- coarse pointer: the phone, where hover does not exist ----
 await load(true);
 
-for (const { key: k, title, noun } of TILES) {
+for (const { key: k, title, noun, link } of TILES) {
   console.log(`\n  ${k.toUpperCase()}\n`);
   const list = stats[k];
   const usable = list.filter(t => t && typeof t[title] === 'string' && t[title].trim());
@@ -291,6 +294,17 @@ for (const { key: k, title, noun } of TILES) {
   gate(s.below || s.top >= s.inset - 1, `${k}: the panel clears the back link`,
     `panel top ${s.top}, link ends at ${s.inset}`);
   gate(s.sideways <= 1, `${k}: the list does not scroll sideways`, `${s.sideways}px`);
+  if (link) {
+    // A project with a URL is a link; one without is not. Off-site links open
+    // beside the page and say so to the opener; site pages stay in this tab.
+    const linked = usable.filter(t => typeof t[link] === 'string' && t[link].trim());
+    gate(s.links.length === linked.length, `${k}: every entry with a URL is a link, and only those`,
+      `${s.links.length} links for ${linked.length} URLs`);
+    gate(s.links.every(a => a.href.startsWith('/') ? !a.blank : (a.blank && a.rel === 'noopener')),
+      `${k}: off-site links open beside the page with noopener; site pages do not`);
+    gate(s.links.every(a => a.h >= 23.5), `${k}: every link clears the 24px touch floor`,
+      s.links.map(a => a.h).join(','));
+  }
   if (!holds) await longListGates(k, s, usable[0][title].trim(), k);
 
   // A tap ON THE LIST is not a tap outside it. The panel is the tile's sibling,

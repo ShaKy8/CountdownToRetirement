@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Kyle's retirement clock - counting the days since retirement, or the days until it if you set your own date">
     <title>Kyle's Retirement Clock</title>
-    <link rel="stylesheet" href="styles.css?v=706687adfa">
+    <link rel="stylesheet" href="styles.css?v=4e82a218c8">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body class="mode-countdown">
@@ -261,10 +261,9 @@
                   so what is announced is "9 Concerts seen" and not a label
                   with no number.
 
-                  The two that open come first. They carry an extra line, and
-                  on a two-column phone grid that puts the two taller tiles in
-                  one row and the two plain ones in the other, rather than a
-                  plain tile stretched beside a tall one.
+                  The ones that open come first. They carry an extra line, so
+                  on a two-column phone grid the taller tiles pair up and the
+                  one plain tile, books, takes the last slot.
                 -->
                 <button type="button" class="metric-card metric-card--expands" id="stat-trips-card"
                         aria-labelledby="stat-trips stat-trips-label" aria-expanded="false"
@@ -300,15 +299,22 @@
                      aria-labelledby="stat-concerts-label" hidden>
                     <ul class="entry-list" id="stat-concerts-list"></ul>
                 </div>
+                <button type="button" class="metric-card metric-card--expands" id="stat-projects-card"
+                        aria-labelledby="stat-projects stat-projects-label" aria-expanded="false"
+                        aria-controls="stat-projects-detail">
+                    <div class="metric-icon" aria-hidden="true">🛠️</div>
+                    <div class="metric-value" id="stat-projects">0</div>
+                    <div class="metric-label" id="stat-projects-label">Projects shipped</div>
+                    <span class="metric-more" aria-hidden="true">What?</span>
+                </button>
+                <div class="metric-detail" id="stat-projects-detail" role="region"
+                     aria-labelledby="stat-projects-label" hidden>
+                    <ul class="entry-list" id="stat-projects-list"></ul>
+                </div>
                 <div class="metric-card" role="article" aria-labelledby="stat-books-label" id="stat-books-card">
                     <div class="metric-icon" aria-hidden="true">📚</div>
                     <div class="metric-value" id="stat-books">0</div>
                     <div class="metric-label" id="stat-books-label">Books read</div>
-                </div>
-                <div class="metric-card" role="article" aria-labelledby="stat-projects-label" id="stat-projects-card">
-                    <div class="metric-icon" aria-hidden="true">🛠️</div>
-                    <div class="metric-value" id="stat-projects">0</div>
-                    <div class="metric-label" id="stat-projects-label">Projects shipped</div>
                 </div>
             </div>
             <p class="stats-updated" id="stats-updated"></p>
@@ -372,6 +378,6 @@
     <div id="confetti-container" aria-hidden="true"></div>
 
     <script src="calc.js?v=9665d15e87"></script>
-    <script src="script.js?v=abafd4c796"></script>
+    <script src="script.js?v=b9839c2914"></script>
 </body>
 </html>

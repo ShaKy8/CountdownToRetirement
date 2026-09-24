@@ -1349,14 +1349,19 @@ describe('BUSINESS SITE - Personal stats file', () => {
     const countdownCss = fs.readFileSync(path.join(__dirname, 'countdown', 'styles.css'), 'utf8');
 
     // The tiles that open onto a list, read out of the script rather than
-    // typed again here: { trips: 'place', concerts: 'who' }.
+    // typed again here: { trips: 'place', concerts: 'who', projects: 'what' },
+    // and which of them link.
     const listTitles = {};
+    const listLinks = {};
     const listsSource = (countdownJs.match(/const LISTS = \{([\s\S]*?)\n\};/) || [])[1] || '';
-    listsSource.replace(/(\w+): \{ title: '(\w+)' \}/g, (m, key, title) => { listTitles[key] = title; });
+    listsSource.replace(/(\w+): \{ title: '(\w+)'(?:, link: '(\w+)')? \}/g, (m, key, title, link) => {
+        listTitles[key] = title;
+        if (link) listLinks[key] = link;
+    });
     const listKeys = Object.keys(listTitles);
 
     test('stats.json should carry its plain counters as non-negative integers', () => {
-        ['books', 'projects'].forEach(key => {
+        ['books'].forEach(key => {
             assert.strictEqual(typeof stats[key], 'number', `${key} should be a number`);
             assert.ok(Number.isInteger(stats[key]) && stats[key] >= 0, `${key} should be a non-negative integer`);
         });
@@ -1370,8 +1375,37 @@ describe('BUSINESS SITE - Personal stats file', () => {
         assert.ok(!/'naps'/.test(countdownJs), 'The loader should not ask for naps');
     });
 
-    test('The script should know two lists, and what each entry is titled by', () => {
-        assert.deepStrictEqual(listTitles, { trips: 'place', concerts: 'who' });
+    test('The script should know three lists, and what each entry is titled by', () => {
+        assert.deepStrictEqual(listTitles, { trips: 'place', concerts: 'who', projects: 'what' });
+        assert.deepStrictEqual(listLinks, { projects: 'url' }, 'Only a project links to itself');
+    });
+
+    test('A project link should be a site page that exists, or an https URL', () => {
+        // The file is hand-edited and the panel is public. "javascript:" is a
+        // script; an http link to an https site is a console warning; and a
+        // root-relative path is a page of THIS site, so it has to be here.
+        stats.projects.forEach((p, i) => {
+            if (p.url === undefined) return;
+            assert.ok(typeof p.url === 'string' && p.url.trim(), `projects[${i}] has a url that is not text`);
+            if (p.url.startsWith('/')) {
+                const dir = path.join(__dirname, p.url.replace(/\/$/, ''));
+                assert.ok(fs.existsSync(path.join(dir, 'index.html')),
+                    `projects[${i}] links to ${p.url}, which has no index.html here`);
+            } else {
+                assert.ok(/^https:\/\/\S+$/.test(p.url), `projects[${i}] url should be https`);
+            }
+        });
+        assert.ok(stats.projects.some(p => p.url), 'At least one project should link somewhere');
+        // And the loader refuses anything else, whatever the file says.
+        assert.ok(/url: \/\^\(\\\/\(\?!\\\/\)\\S\*\|https:\\\/\\\/\\S\+\)\$\/\.test\(url\) \? url : ''/.test(countdownJs),
+            'usableEntries should keep only root-relative or https links');
+    });
+
+    test('A linked project should open off-site links beside the page, and site pages in it', () => {
+        assert.ok(/document\.createElement\(entry\.url \? 'a' : 'span'\)/.test(countdownJs),
+            'The title is a link only when there is a URL');
+        assert.ok(/if \(entry\.url\.startsWith\('https:\/\/'\)\) \{\s*name\.target = '_blank';\s*name\.rel = 'noopener';/.test(countdownJs),
+            'Off-site links get target=_blank with rel=noopener; site pages get neither');
     });
 
     test('Every tile the loader fills should exist in the data and on the page', () => {
@@ -1381,7 +1415,7 @@ describe('BUSINESS SITE - Personal stats file', () => {
         const loop = countdownJs.match(/\[([^\]]+)\]\.forEach\(key => \{\s*const card = byId\(`stat-\$\{key\}-card`\)/);
         assert.ok(loop, 'The loader should walk a literal list of keys');
         const keys = loop[1].split(',').map(k => k.trim().replace(/'/g, ''));
-        assert.deepStrictEqual(keys, ['trips', 'concerts', 'books', 'projects']);
+        assert.deepStrictEqual(keys, ['trips', 'concerts', 'projects', 'books']);
         keys.forEach(key => {
             assert.ok(key in stats, `stats.json should carry ${key}`);
             assert.ok(countdownMarkup.includes(`id="stat-${key}-card"`), `${key} needs a tile`);
@@ -1474,7 +1508,7 @@ describe('BUSINESS SITE - Personal stats file', () => {
         // Both the number and the panel must come from the same filter. The
         // raw length counted entries the panel then dropped, which put "6" on
         // a tile that opened onto two lines.
-        assert.ok(/const entriesOf = key => usableEntries\(stats\[key\], LISTS\[key\] && LISTS\[key\]\.title\);/.test(countdownJs),
+        assert.ok(/const entriesOf = key => usableEntries\(stats\[key\], LISTS\[key\]\);/.test(countdownJs),
             'One filter per list');
         assert.ok(/isList \? entriesOf\(key\)\.length : value/.test(countdownJs),
             'The count should come from that filter');
@@ -1482,7 +1516,7 @@ describe('BUSINESS SITE - Personal stats file', () => {
             'Every panel should render that same filtered list');
         assert.ok(!/isList \? value\.length/.test(countdownJs),
             'The count should not come from the unfiltered array');
-        assert.ok(!/"(trip|concert)_?[Cc]ount"/.test(raw),
+        assert.ok(!/"(trip|concert|project)_?[Cc]ount"/.test(raw),
             'stats.json should not carry a separate count for a list');
     });
 

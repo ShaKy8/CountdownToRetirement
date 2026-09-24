@@ -527,7 +527,8 @@ function updateMotivation(direction) {
 // ----------------------------------------------------------------------
 const LISTS = {
     trips: { title: 'place' },
-    concerts: { title: 'who' }
+    concerts: { title: 'who' },
+    projects: { title: 'what', link: 'url' }
 };
 let openKey = null;
 let pinnedKey = null;
@@ -542,21 +543,33 @@ function listEls(key) {
 
 /**
  * The entries worth showing. stats.json is edited by hand, so an entry that is
- * not an object, or has no title -- a trip's place, a concert's who -- is
- * dropped rather than allowed to break the page.
+ * not an object, or has no title -- a trip's place, a concert's who, a
+ * project's what -- is dropped rather than allowed to break the page.
  *
  * THE COUNT AND THE PANEL BOTH COME FROM HERE. Counting the raw array while
  * the panel counted what it could render put "6" on a tile that opened onto
  * two lines -- the same drift as storing the number beside the list, moved
  * from two files into two code paths.
+ *
+ * A link survives only as a root-relative path or an https URL. The file is
+ * hand-edited and the panel is on a public page: "javascript:" is a script,
+ * and an http link to a site that is https is a warning in the console.
  */
-function usableEntries(list, titleKey) {
-    if (!Array.isArray(list) || !titleKey) return [];
+function usableEntries(list, spec) {
+    if (!Array.isArray(list) || !spec || !spec.title) return [];
     return list.reduce((out, entry) => {
         if (!entry || typeof entry !== 'object') return out;
         const text = key => (typeof entry[key] === 'string' ? entry[key].trim() : '');
-        const title = text(titleKey);
-        if (title) out.push({ title, when: text('when'), note: text('note') });
+        const title = text(spec.title);
+        const url = spec.link ? text(spec.link) : '';
+        if (title) {
+            out.push({
+                title,
+                when: text('when'),
+                note: text('note'),
+                url: /^(\/(?!\/)\S*|https:\/\/\S+)$/.test(url) ? url : ''
+            });
+        }
         return out;
     }, []);
 }
@@ -575,9 +588,19 @@ function renderList(key, entries) {
      */
     entries.slice().reverse().forEach(entry => {
         const li = document.createElement('li');
-        const name = document.createElement('span');
+        // A project with a public URL is a link to the thing itself. Site
+        // pages stay in this tab; anything off-site opens beside it, and
+        // says so to the opener.
+        const name = document.createElement(entry.url ? 'a' : 'span');
         name.className = 'entry-title';
         name.textContent = entry.title;
+        if (entry.url) {
+            name.href = entry.url;
+            if (entry.url.startsWith('https://')) {
+                name.target = '_blank';
+                name.rel = 'noopener';
+            }
+        }
         li.appendChild(name);
         // No date yet is just the title: the dates are Kyle's to fill in and
         // the panel has to read properly before he does.
@@ -862,8 +885,8 @@ function loadPersonalStats() {
             // One filter per list, used for the number AND for the panel. A
             // list under a key that is not in LISTS has no title to look for,
             // so it counts as empty and hides its tile.
-            const entriesOf = key => usableEntries(stats[key], LISTS[key] && LISTS[key].title);
-            ['trips', 'concerts', 'books', 'projects'].forEach(key => {
+            const entriesOf = key => usableEntries(stats[key], LISTS[key]);
+            ['trips', 'concerts', 'projects', 'books'].forEach(key => {
                 const card = byId(`stat-${key}-card`);
                 const value = stats[key];
                 /*

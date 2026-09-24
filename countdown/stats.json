@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-20",
+  "updated": "2026-09-24",
   "trips": [
     { "place": "San Francisco, California", "when": "March 2026", "lat": 37.7749, "lon": -122.4194,
       "note": "❤️ Visiting Family" },
@@ -33,6 +33,31 @@
     { "who": "Earth, Wind & Fire", "when": "Sep 19, 2026",
       "note": "🎺 Civic Theatre, San Diego" }
   ],
-  "books": 5,
-  "projects": 4
+  "projects": [
+    { "what": "K Shaver Properties site", "when": "Mar 2026", "url": "https://www.ksp.llc",
+      "note": "🏢 The family business, rebuilt on Next.js and Vercel" },
+    { "what": "KSP Mission Control", "when": "Mar–Jun 2026",
+      "note": "📊 A private ops dashboard for the properties, deals and financing" },
+    { "what": "Smart Home Dashboard", "when": "Apr–Jul 2026",
+      "note": "🏡 The house on one page, LAN-only, with a whitelisted control API" },
+    { "what": "HomeNetMon v2.4 → v2.9", "when": "Sep 4–22, 2026", "url": "https://github.com/ShaKy8/HomeNetMon",
+      "note": "🛰️ The home-network monitor: nine releases in one September" },
+    { "what": "branyontech.com", "when": "Sep 6, 2026", "url": "/",
+      "note": "🏠 This site, and the retirement clock you are reading" },
+    { "what": "ATMOS//NET", "when": "Sep 6, 2026", "url": "/weather/",
+      "note": "🌦️ A live weather console — then OVERHEAD, TONIGHT and ELSEWHERE" },
+    { "what": "ATMOS//NET on the desktop", "when": "Sep 6, 2026",
+      "note": "🖥️ The live sky as the laptop's wallpaper, plus weather alerts" },
+    { "what": "ONE PUTT", "when": "Sep 7, 2026", "url": "/game/",
+      "note": "⛳ One putt a day, against your real wind" },
+    { "what": "THERMAL", "when": "Sep 7–8, 2026",
+      "note": "🪂 A one-button glider flown against the real sky — live for thirty hours, then retired" },
+    { "what": "SLINGSHOT", "when": "Sep 8, 2026", "url": "/slingshot/",
+      "note": "🪐 One orbital puzzle a day; gravity bends your shot to the beacon" },
+    { "what": "SYS//NET", "when": "Sep 16, 2026",
+      "note": "📡 A system HUD painted into the ATMOS//NET wallpaper" },
+    { "what": "Omarchy rebuild kit", "when": "Sep 20–23, 2026",
+      "note": "🐧 The laptop as a repo: every package, /etc file and dotfile, and how to rebuild it" }
+  ],
+  "books": 5
 }

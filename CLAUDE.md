@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (403 tests)
+# Run client-side tests (405 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -133,7 +133,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (403 tests)
+├── tests.js                # Client-side unit tests (405 tests)
 ├── tests-server.js         # Server integration tests (60 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -159,10 +159,11 @@ CountdownToRetirement/
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
 - **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. Hourglass, thermometer, and progress bar fill toward the next milestone.
-- **Personal counters:** `countdown/stats.json` (trips, concerts, books, projects, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
-- **`trips` and `concerts` are lists, and their counts are derived.** `books`
-  and `projects` are plain numbers; `trips` is an array of `{ place, when }`,
-  `concerts` an array of `{ who, when }`, and each tile shows `.length`. A `trips: 5` stored beside the list would disagree with it the first
+- **Personal counters:** `countdown/stats.json` (trips, concerts, projects, books, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
+- **`trips`, `concerts` and `projects` are lists, and their counts are
+  derived.** `books` is the one plain number; `trips` is an array of
+  `{ place, when }`, `concerts` of `{ who, when }`, `projects` of
+  `{ what, when, url? }`, and each tile shows `.length`. A `trips: 5` stored beside the list would disagree with it the first
   time a trip was added to one and not the other, and the number is the half
   everyone sees. `when` may be blank — the entry then renders as just the place —
   and an element that is not an object, or has no `place` (a concert's `who`), is
@@ -182,7 +183,19 @@ CountdownToRetirement/
   lie the next reader has to decode. A third list is one line in `LISTS`, one
   in the loader's key array, a button and a panel; a test cross-checks the
   three, because a key missing from the loader leaves its tile on screen
-  reading the "0" it shipped with.
+  reading the "0" it shipped with. Projects was the third, and proved it.
+- **A project may carry a `url`, and then its title is a link to the thing
+  itself.** `LISTS.projects` names the key (`link: 'url'`); the other lists
+  have no link key and cannot grow one by accident. The loader keeps only a
+  root-relative path or an `https://` URL — the file is hand-edited and the
+  panel is public, so `javascript:` is a script and `http:` is a console
+  warning. Site pages are root-relative (`/game/`) so they work under the dev
+  server too, and a test checks each one has an `index.html` in this repo;
+  off-site links open beside the page with `rel="noopener"`. The link is an
+  inline-block with 3px of padding because at 0.92rem its line box is 20px and
+  the audit measures the *link*, not the entry, against the 24px floor. The
+  list itself came from a survey of GitHub and the local checkouts, dated from
+  git; THERMAL is on it because it genuinely shipped, for thirty hours.
 - **The file is oldest-first; the panel is newest-first.** Append a new trip at
   the bottom of `trips` — the file order *is* the chronology, because `when` is
   free text ("May–June 2026") and cannot be sorted. `renderList()` reverses a

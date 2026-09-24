@@ -1141,6 +1141,25 @@ button.metric-card {
     font-size: 0.92rem;
 }
 
+/* A project's title is a link to the project. Inline-block with a little
+   padding so it clears the 24px touch floor: at 0.92rem the line box alone is
+   about 20px, and site-audit measures the link, not the entry. */
+a.entry-title {
+    display: inline-block;
+    padding: 3px 0;
+    line-height: 1.25;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+a.entry-title:hover,
+a.entry-title:focus-visible {
+    text-decoration-thickness: 2px;
+    outline: none;
+}
+
 .entry-when {
     font-size: 0.78rem;
     opacity: 0.75;
@@ -1176,7 +1195,8 @@ button.metric-card {
         font-size: 0.8rem;
     }
 
-    .entry-title {
+    .entry-title,
+    a.entry-title {
         display: block;
         margin-bottom: 2px;
     }
