@@ -22,6 +22,7 @@ let celebrating = false;
 let lastCountdownDays = null;    // confetti tracking (countdown)
 let lastCountupDays = null;      // render + confetti tracking (count-up)
 let lastMilestoneDays = null;    // milestone DOM cache
+let lastTrailKey = null;         // trail DOM cache: `${direction}:${days}`
 let personalStatsRequested = false;
 
 // Interval / timeout handles for cleanup
@@ -271,7 +272,10 @@ function renderCountdown(now) {
         barAria: 'Journey to retirement progress',
         description: Calc.progressDescription(percentage)
     });
-    renderThermometer(percentage, parts.days);
+    // The stops before the first milestone are the working years, so the
+    // trail needs their length to place the moon in that first segment.
+    renderTrail(parts.days, 'countdown',
+        Math.round((retirementDate - Calc.EMPLOYMENT_START_DATE) / 86400000));
     // Before retirement the night is the working years: the moon rises on
     // day one of the job and sets into the dawn on the last day.
     renderSkyArc({
@@ -359,9 +363,7 @@ function renderCountup(now) {
         });
     }
 
-    renderThermometer(progress.percentage, days);
-    setText('thermo-prev-label', 0); // tube starts at the retirement day
-    setText('thermo-next-label', progress.next === null ? progress.prev : progress.next);
+    renderTrail(days, 'countup');
 
     renderMilestones(days, 'countup');
     renderComparisons(days);
@@ -415,10 +417,46 @@ function renderProgressBar(opts) {
     setText('progress-description', opts.description);
 }
 
-function renderThermometer(percentage, days) {
-    const liquidElement = byId('thermometer-liquid');
-    if (liquidElement) liquidElement.style.height = percentage + '%';
-    setText('thermometer-days', days);
+/*
+ * The trail is rebuilt from the milestone list, once per day: in countdown
+ * mode this is called every second, and rebuilding a dozen nodes a second
+ * for nothing is what the key guards against. Positions are percentages of
+ * the track from the bottom, so the figure can be any height the viewport
+ * allows and the geometry in calc.js still describes it.
+ */
+function renderTrail(days, direction, originSpan) {
+    const key = `${direction}:${days}`;
+    if (key === lastTrailKey) return;
+    const list = byId('trail-stops');
+    const sun = byId('trail-sun');
+    if (!list || !sun) return;
+    lastTrailKey = key;
+
+    const countup = direction === 'countup';
+    const source = countup ? Calc.COUNTUP_MILESTONES : Calc.COUNTDOWN_MILESTONES;
+    const trail = Calc.milestoneTrail(days, source, direction, originSpan);
+
+    list.textContent = '';
+    const stop = (t, state, icon, text) => {
+        const el = document.createElement('div');
+        el.className = `trail-stop is-${state}`;
+        el.style.bottom = `${(t * 100).toFixed(3)}%`;
+        const mark = document.createElement('span');
+        mark.className = 'trail-stop-mark';
+        mark.textContent = icon;
+        const label = document.createElement('span');
+        label.className = 'trail-stop-label';
+        label.textContent = text;
+        el.appendChild(mark);
+        el.appendChild(label);
+        list.appendChild(el);
+    };
+    stop(0, 'origin', countup ? '🏝️' : '🚀', countup ? 'Retired' : 'Day One');
+    trail.stops.forEach(s => stop(s.t, s.state, s.icon, s.text));
+
+    sun.style.bottom = `${(trail.marker.t * 100).toFixed(3)}%`;
+    setText('trail-sun-count', days.toLocaleString());
+    setText('trail-sun-unit', countup ? (days === 1 ? 'day' : 'days') : 'left');
 }
 
 /*

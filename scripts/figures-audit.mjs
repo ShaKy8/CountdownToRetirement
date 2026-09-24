@@ -1,16 +1,20 @@
 /*
- * The sky arc on /countdown/ -- the sun (count-up) or the moon (countdown)
- * crossing from one horizon to the other.
+ * The two margin figures on /countdown/: the sky arc on the right -- the sun
+ * (count-up) or the moon (countdown) crossing from one horizon to the other
+ * -- and the milestone trail on the left, every milestone as a stop on one
+ * path with the sun at today.
  *
- * The drawing is checked against the geometry in calc.js, not against
- * itself: the body's rendered centre has to land where skyArcPoint() says,
- * to a pixel, in both modes, with and without reduced motion. And the figure
- * must not move at all -- a transition on the body would interpolate the
- * chord of the arc, and slide the sun backwards through the sky every time a
- * milestone is crossed and the fraction drops.
+ * Both drawings are checked against the geometry in calc.js, not against
+ * themselves: the rendered centre of the sun has to land where skyArcPoint()
+ * and milestoneTrail() say, to a pixel, in both modes, with and without
+ * reduced motion. Neither figure may move at all -- a transition on the arc's
+ * body would interpolate the chord of the arc, and slide the sun backwards
+ * through the sky every time a milestone is crossed and the fraction drops.
+ * And no label on the trail may overlap another, at a tall viewport and a
+ * short one, because the sun's count can sit a pixel from a stop.
  *
  *   PORT=8137 node scripts/dev-server.mjs &
- *   node scripts/sky-arc-audit.mjs http://localhost:8137
+ *   node scripts/figures-audit.mjs http://localhost:8137
  */
 import { spawn } from 'node:child_process';
 import { chromiumPath } from './lib/chromium.mjs';
@@ -89,7 +93,7 @@ async function load(mode, reduced) {
   for (let i = 0; i < 3; i++) { await S('Page.captureScreenshot', { format: 'jpeg', quality: 1 }); await wait(60); }
 }
 
-console.log(`\nSKY ARC — ${ORIGIN}/countdown/ at ${W}x${H}\n`);
+console.log(`\nMARGIN FIGURES — ${ORIGIN}/countdown/ at ${W}x${H}\n`);
 
 for (const mode of ['countup', 'countdown']) {
   for (const reduced of [false, true]) {
@@ -138,6 +142,84 @@ for (const mode of ['countup', 'countdown']) {
       `${tag}: it moves in one step, not a transition`, `${(t.bx - (t.sx + p0.x * t.scale)).toFixed(2)}px from the horizon`);
   }
 }
+
+// ---- the trail ----
+const TRAIL = `(()=>{const c=document.getElementById('trail-container'); if(!c) return null;
+  const track=c.querySelector('.trail-track'), tr=track.getBoundingClientRect();
+  const sun=document.getElementById('trail-sun'), sr=sun.getBoundingClientRect();
+  const stops=[...c.querySelectorAll('.trail-stop')];
+  const labels=[...c.querySelectorAll('.trail-stop-label'), document.getElementById('trail-sun-label')]
+    .map(el=>{const r=el.getBoundingClientRect(); return {t:el.textContent.trim(), l:r.left, r:r.right, top:r.top, b:r.bottom};});
+  let overlaps=[];
+  for(let i=0;i<labels.length;i++) for(let j=i+1;j<labels.length;j++){const a=labels[i],b=labels[j];
+    if(a.l<b.r-0.5&&b.l<a.r-0.5&&a.top<b.b-0.5&&b.top<a.b-0.5) overlaps.push(a.t+' / '+b.t);}
+  const inside=labels.every(x=>x.l>=c.getBoundingClientRect().left-0.5&&x.r<=c.getBoundingClientRect().right+0.5);
+  return {trackTop:tr.top, trackH:tr.height, sunY:sr.top+sr.height/2,
+    states:stops.map(s=>s.className.replace('trail-stop is-','')),
+    texts:stops.map(s=>s.querySelector('.trail-stop-label').textContent),
+    count:document.getElementById('trail-sun-count').textContent,
+    unit:document.getElementById('trail-sun-unit').textContent,
+    overlaps, inside, animations:c.getAnimations({subtree:true}).length,
+    display:getComputedStyle(c).display};})()`;
+
+for (const [mode, height] of [['countup', 800], ['countup', 640], ['countdown', 800], ['countdown', 640]]) {
+  const tag = `trail, ${mode} at ${height} tall`;
+  await S('Emulation.setDeviceMetricsOverride', { width: W, height, deviceScaleFactor: 1, mobile: false });
+  await S('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+  await S('Page.navigate', { url: ORIGIN + '/countdown/index.html' });
+  for (let i = 0; i < 40; i++) {
+    if (await E("!!document.getElementById('trail-sun') && typeof renderTrail === 'function'")) break;
+    await wait(200);
+  }
+  const date = mode === 'countdown' ? '2028-01-01T16:00' : '2026-02-27T16:00';
+  await E(`(()=>{const i=document.getElementById('retirement-date'); i.value='${date}';
+    document.getElementById('update-date').click(); return 1;})()`);
+  await wait(300);
+  // Neutralise the page's own renders, then draw a known day and measure.
+  await E("window.__trail = renderTrail; renderTrail = () => {}; 1");
+  const days = mode === 'countup' ? 209 : 400;
+  const span = 2705;
+  await E(`lastTrailKey = null; __trail(${days}, '${mode}', ${span}), 1`);
+  for (let i = 0; i < 2; i++) { await S('Page.captureScreenshot', { format: 'jpeg', quality: 1 }); await wait(60); }
+  const s = await E(TRAIL);
+  if (!s) { gate(false, `${tag}: the figure is on the page`); continue; }
+  const list = mode === 'countup' ? Calc.COUNTUP_MILESTONES : Calc.COUNTDOWN_MILESTONES;
+  const trail = Calc.milestoneTrail(days, list, mode, span);
+  gate(s.states.length === trail.stops.length + 1 && s.states[0] === 'origin',
+    `${tag}: the origin and every stop are drawn`, `${s.states.length} for ${trail.stops.length + 1}`);
+  gate(s.states.slice(1).join(',') === trail.stops.map(x => x.state).join(','),
+    `${tag}: passed, next and ahead match the geometry`, s.states.slice(1).join(','));
+  gate(s.texts[s.texts.length - 1] === (mode === 'countup' ? 'Ten Years' : 'Freedom Day'),
+    `${tag}: the top stop is the end of the road`, s.texts[s.texts.length - 1]);
+  const expectedY = s.trackTop + s.trackH * (1 - trail.marker.t);
+  gate(Math.abs(s.sunY - expectedY) <= 1, `${tag}: the sun is where the geometry puts it`,
+    `${(s.sunY - expectedY).toFixed(2)}px off at t=${trail.marker.t.toFixed(3)}`);
+  gate(s.count === String(days) && s.unit === (mode === 'countup' ? 'days' : 'left'),
+    `${tag}: the count beside the sun is the day count`, `${s.count} ${s.unit}`);
+  gate(s.overlaps.length === 0, `${tag}: no label overlaps another`, s.overlaps.join(' | '));
+  gate(s.inside, `${tag}: every label is inside the panel`);
+  gate(s.animations === 0, `${tag}: nothing in the figure animates`, `${s.animations} running`);
+  /*
+   * The worst case for collisions is a sun a hair past a stop, with its
+   * count level with that stop's label. Try the day after every stop.
+   */
+  const near = [];
+  for (const m of list) {
+    const d = mode === 'countup' ? m.threshold + 1 : m.threshold - 1;
+    await E(`lastTrailKey = null; __trail(${d}, '${mode}', ${span}), 1`);
+    const n = await E(TRAIL);
+    if (n.overlaps.length) near.push(`day ${d}: ${n.overlaps.join(', ')}`);
+  }
+  gate(near.length === 0, `${tag}: no overlap with the sun a day past any stop`, near.join(' | '));
+}
+
+// A phone or tablet has no margin for the trail either.
+await S('Emulation.setDeviceMetricsOverride', { width: 1024, height: 800, deviceScaleFactor: 1, mobile: false });
+{
+  const s = await E(TRAIL);
+  gate(s && s.display === 'none', 'trail: hidden at 1024 and below', s ? s.display : 'no figure');
+}
+await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
 
 // Forced colours: fills are not forced, so the glows go and the arc stays.
 await S('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }, { name: 'prefers-reduced-motion', value: 'no-preference' }] });

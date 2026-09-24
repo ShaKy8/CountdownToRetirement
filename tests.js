@@ -1159,7 +1159,7 @@ describe('COUNT-UP - The sky arc', () => {
     const css = read('countdown', 'styles.css');
     const calcSrc = read('countdown', 'calc.js');
     const { cx, cy, r } = Calc.SKY_ARC;
-    const figure = markup.slice(markup.indexOf('<div class="sky-arc-container"'), markup.indexOf('<!-- Animated Thermometer'));
+    const figure = markup.slice(markup.indexOf('<div class="sky-arc-container"'), markup.indexOf('<div class="trail-container"'));
 
     test('Should put the body half-set at each horizon and at the zenith half way', () => {
         assert.deepStrictEqual(round(Calc.skyArcPoint(0)), { x: cx - r, y: cy });
@@ -1202,9 +1202,11 @@ describe('COUNT-UP - The sky arc', () => {
             'Nothing inside role="img" is live: its descendants are presentational, so a live region there never spoke');
     });
 
-    test('The hourglass should be gone from every file', () => {
-        [markup, script, css, calcSrc].forEach(src =>
-            assert.ok(!/hourglass|sand-|gentleSway|labelGlow|glass-shine/i.test(src)));
+    test('The hourglass and the thermometer should be gone from every file', () => {
+        [markup, script, css, calcSrc].forEach(src => {
+            assert.ok(!/hourglass|sand-|gentleSway|labelGlow|glass-shine/i.test(src), 'hourglass');
+            assert.ok(!/thermometer|thermo-|bulb|\.marking|bubble|liquidPulse|daysPulse/i.test(src), 'thermometer');
+        });
     });
 
     test('Both modes should draw the figure', () => {
@@ -1230,8 +1232,8 @@ describe('COUNT-UP - The sky arc', () => {
             if (/\.sky-arc-container/.test(rule)) return; // the hover fade, as the thermometer has
             assert.ok(!/transition|animation/.test(rule), `No motion in: ${rule.trim().slice(0, 40)}`);
         });
-        assert.ok(/prefers-reduced-motion[\s\S]*\.sky-arc-container,\s*\.thermometer-container \{/.test(css),
-            'Reduced motion pins the container like the thermometer');
+        assert.ok(/prefers-reduced-motion[\s\S]*\.sky-arc-container,\s*\.trail-container \{/.test(css),
+            'Reduced motion pins the container like the trail');
     });
 
     test('Forced colours should keep the arc and lose the glows', () => {
@@ -1241,6 +1243,92 @@ describe('COUNT-UP - The sky arc', () => {
         assert.ok(/\.sky-arc-sun \{\s*fill: CanvasText/.test(block));
         assert.ok(/\.sky-arc-path \{[^}]*stroke: currentColor/.test(css) && /\.sky-arc-moon \{[^}]*fill: currentColor/.test(css),
             'Arc and moon take the text colour, which forced colours keep');
+    });
+});
+
+describe('COUNT-UP - The milestone trail', () => {
+    const fs = require('fs');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const markup = read('countdown', 'index.html');
+    const script = read('countdown', 'script.js');
+    const css = read('countdown', 'styles.css');
+    const figure = markup.slice(markup.indexOf('<div class="trail-container"'), markup.indexOf('<main id="main-content"'));
+    const up = d => Calc.milestoneTrail(d, Calc.COUNTUP_MILESTONES, 'countup');
+    const down = (d, span) => Calc.milestoneTrail(d, Calc.COUNTDOWN_MILESTONES, 'countdown', span);
+
+    test('Should space the stops evenly by index, bottom to top', () => {
+        const { stops } = up(0);
+        assert.strictEqual(stops.length, Calc.COUNTUP_MILESTONES.length);
+        stops.forEach((s, i) => assert.ok(Math.abs(s.t - (i + 1) / stops.length) < 1e-12, `stop ${i}`));
+        assert.strictEqual(stops[stops.length - 1].t, 1, 'The last stop is the top');
+        assert.deepStrictEqual(stops.map(s => s.threshold), [7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652]);
+    });
+
+    test('Should put the sun between the last stop passed and the next, by its share of that segment', () => {
+        const t = up(209);
+        assert.strictEqual(t.passed, 4, '7, 30, 100 and 182 are behind day 209');
+        assert.deepStrictEqual(t.stops.map(s => s.state), ['passed', 'passed', 'passed', 'passed', 'next', 'ahead', 'ahead', 'ahead', 'ahead', 'ahead', 'ahead']);
+        const expected = (4 + (209 - 182) / (365 - 182)) / 11;
+        assert.ok(Math.abs(t.marker.t - expected) < 1e-12);
+        assert.ok(t.marker.t > t.stops[3].t && t.marker.t < t.stops[4].t, 'Between Six Months and One Year');
+        assert.strictEqual(up(0).marker.t, 0, 'Day zero is the origin');
+        assert.strictEqual(up(0).passed, 0);
+        assert.strictEqual(up(182).passed, 4, 'Reaching a stop passes it');
+        assert.strictEqual(up(3652).marker.t, 1, 'The last stop is the top');
+        assert.strictEqual(up(5000).marker.t, 1, 'And nothing goes above it');
+    });
+
+    test('Should never move the sun down as the days go up', () => {
+        let last = -1;
+        for (let d = 0; d <= 4000; d++) {
+            const t = up(d).marker.t;
+            assert.ok(t >= last - 1e-12 && t <= 1, `day ${d}`);
+            last = t;
+        }
+    });
+
+    test('Should run the countdown trail from two years out up to Freedom Day', () => {
+        const t = down(400, 2705);
+        assert.strictEqual(t.stops[t.stops.length - 1].text, 'Freedom Day');
+        assert.strictEqual(t.stops[t.stops.length - 1].threshold, 0);
+        assert.strictEqual(t.stops[0].threshold, 730, 'Two years out is the first stop');
+        assert.strictEqual(t.passed, 1, '730 is behind 400 days left');
+        assert.ok(t.marker.t > t.stops[0].t && t.marker.t < t.stops[1].t);
+        // The origin segment is the working years: with their length known
+        // the moon moves through it; without, it waits at the origin.
+        assert.ok(down(1000, 2705).marker.t > 0 && down(1000, 2705).marker.t < down(1000, 2705).stops[0].t);
+        assert.strictEqual(down(1000).marker.t, 0);
+        assert.strictEqual(down(1000, 500).marker.t, 0, 'A span shorter than the first stop is no span');
+        assert.strictEqual(down(0, 2705).marker.t, 1, 'Freedom Day is the top');
+    });
+
+    test('Both modes should draw the trail, and the countdown should know the working years', () => {
+        const countdown = script.slice(script.indexOf('function renderCountdown('), script.indexOf('function renderCountup('));
+        const countup = script.slice(script.indexOf('function renderCountup('), script.indexOf('function renderProgressBar('));
+        assert.ok(/renderTrail\(parts\.days, 'countdown',\s*Math\.round\(\(retirementDate - Calc\.EMPLOYMENT_START_DATE\) \/ 86400000\)\)/.test(countdown));
+        assert.ok(/renderTrail\(days, 'countup'\);/.test(countup));
+        assert.ok(/const key = `\$\{direction\}:\$\{days\}`;\s*if \(key === lastTrailKey\) return;/.test(script),
+            'Rebuilt once a day, not once a second');
+    });
+
+    test('The stops should come from the milestone list, not the markup', () => {
+        assert.ok(!/class="trail-stop[ "]/.test(figure), 'No stop is typed into the page');
+        assert.ok(/Calc\.COUNTUP_MILESTONES : Calc\.COUNTDOWN_MILESTONES;\s*const trail = Calc\.milestoneTrail\(/.test(script));
+        ['trail-stops', 'trail-sun', 'trail-sun-count', 'trail-sun-unit'].forEach(id =>
+            assert.ok(figure.includes(`id="${id}"`), `${id} is in the markup`));
+        assert.ok(figure.includes('data-aria-countdown=') && figure.includes('data-aria-countup='));
+        assert.ok(!/aria-live|role="status"/.test(figure), 'Nothing inside role="img" is live');
+    });
+
+    test('The trail should not move', () => {
+        const rules = css.match(/[^{}]*trail[^{}]*\{[^}]*\}/g) || [];
+        assert.ok(rules.length >= 8, 'The figure should have rules to check');
+        rules.forEach(rule => {
+            if (/\.trail-container/.test(rule)) return; // the hover fade, as the arc has
+            assert.ok(!/transition|animation/.test(rule), `No motion in: ${rule.trim().slice(0, 40)}`);
+        });
+        assert.ok(/prefers-reduced-motion[\s\S]*\.sky-arc-container,\s*\.trail-container \{/.test(css),
+            'Reduced motion pins the container like the arc');
     });
 });
 

@@ -107,6 +107,7 @@ body {
     /* The sky arc: the body, the glow at the far horizon, and the ink of
        its arc and labels. Night here, dawn in the count-up block. */
     --sky-arc-sun: #f6d365;
+    --sky-arc-moon: #f4f1e6;
     --sky-arc-dawn: #f6a35a;
     --sky-arc-ink: rgba(255, 255, 255, 0.95);
 
@@ -269,322 +270,160 @@ body:not(.mode-countup) .sky-arc-sun {
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
-/* Hidden on a phone or tablet, as the thermometer is: it is a margin
-   figure, and there is no margin. */
+/* Hidden on a phone or tablet, as the trail is: it is a margin figure,
+   and there is no margin. */
 @media (max-width: 1024px) {
     .sky-arc-container {
         display: none;
     }
 }
 
-/* Thermometer */
-.thermometer-container {
+/* ------------------------------------------------------------------
+   The milestone trail
+
+   The long view, on the left, to pair with the sky arc's near view on the
+   right: every milestone as a stop on one vertical path, the sun at today.
+   The stops and the sun are placed by the script as percentages up the
+   track, from calc.js's milestoneTrail(). Nothing here moves: the sun steps
+   once a day, and a transition on it would drift it for a second at
+   midnight for nobody.
+   ------------------------------------------------------------------ */
+.trail-container {
     position: fixed;
     left: 20px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 10;
     opacity: 0.95;
-    transition: all 0.3s ease;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-.thermometer-container:hover {
+.trail-container:hover {
     opacity: 1;
-    transform: translateY(-50%) scale(1.05);
+    transform: translateY(-50%) scale(1.03);
 }
 
-.thermometer {
+.trail {
+    width: 176px;
+    padding: 16px 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: var(--sky-arc-ink);
+}
+
+/* The path. Its height follows the viewport so twelve stops have room, and
+   the left margin is where the sun's count sits, off the labels' side. */
+.trail-track {
+    position: relative;
+    height: min(60vh, 500px);
+    min-height: 330px;
+    margin: 10px 0 10px 46px;
+    border-left: 2px dashed currentColor;
+    opacity: 0.92;
+}
+
+.trail-track::before {
+    /* Softens the dashed line without a second element. */
+    content: '';
+    position: absolute;
+    inset: 0 0 0 -2px;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.0);
+}
+
+.trail-stop {
+    position: absolute;
+    left: -1px;
+    transform: translateY(50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.trail-stop-mark {
+    width: 22px;
+    height: 22px;
+    margin-left: -12px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+}
+
+.trail-stop-label {
+    font-size: 0.62rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+/* The next stop is the target: ringed. The ones ahead of it wait, dimmed. */
+.trail-stop.is-next .trail-stop-mark {
+    box-shadow: 0 0 0 2px currentColor;
+}
+
+.trail-stop.is-ahead {
+    opacity: 0.5;
+}
+
+.trail-stop.is-ahead .trail-stop-mark {
+    filter: grayscale(0.7);
+}
+
+/* The sun: today. It sits just LEFT of the path rather than on it, so it
+   never covers a stop's icon when today is a day past a stop -- and its
+   count sits further left still, on the other side of the line from the
+   stop labels, so it can never collide with one however close it is. */
+.trail-sun {
+    position: absolute;
+    left: -21px;
+    width: 14px;
+    height: 14px;
+    transform: translateY(50%);
+    border-radius: 50%;
+    background: var(--sky-arc-sun);
+    box-shadow: 0 0 14px 3px var(--sky-arc-sun);
+}
+
+body:not(.mode-countup) .trail-sun {
+    background: var(--sky-arc-moon);
+    box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.35);
+}
+
+.trail-sun-label {
+    position: absolute;
+    right: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
-}
-
-.thermometer-tube {
-    width: 60px;
-    height: 450px;
-    background: linear-gradient(90deg,
-        rgba(255, 255, 255, 0.15) 0%,
-        rgba(255, 255, 255, 0.25) 50%,
-        rgba(255, 255, 255, 0.15) 100%);
-    border-radius: 30px;
-    position: relative;
-    overflow: hidden;
-    border: 3px solid rgba(255, 255, 255, 0.4);
-    box-shadow:
-        inset -5px 0 15px rgba(255, 255, 255, 0.3),
-        inset 5px 0 15px rgba(0, 0, 0, 0.2),
-        0 0 30px rgba(255, 255, 255, 0.2);
-}
-
-.thermometer-liquid {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 0%;
-    background: linear-gradient(to top,
-        #4facfe 0%,
-        #00f2fe 20%,
-        #667eea 40%,
-        #764ba2 60%,
-        #f093fb 80%,
-        #ff6b6b 100%);
-    border-radius: 20px;
-    transition: height 1s ease-out;
-    box-shadow:
-        0 0 20px rgba(255, 107, 107, 0.5),
-        inset 0 0 10px rgba(255, 255, 255, 0.3);
-    animation: liquidPulse 3s ease-in-out infinite;
-}
-
-@keyframes liquidPulse {
-    0%, 100% {
-        box-shadow:
-            0 0 20px rgba(255, 107, 107, 0.5),
-            inset 0 0 10px rgba(255, 255, 255, 0.3);
-    }
-    50% {
-        box-shadow:
-            0 0 40px rgba(255, 107, 107, 0.8),
-            inset 0 0 20px rgba(255, 255, 255, 0.5);
-    }
-}
-
-.thermometer-shine {
-    position: absolute;
-    left: 15%;
-    top: 0;
-    width: 15px;
-    height: 100%;
-    background: linear-gradient(to right,
-        rgba(255, 255, 255, 0.6) 0%,
-        rgba(255, 255, 255, 0.1) 100%);
-    border-radius: 10px 0 0 10px;
-    pointer-events: none;
-}
-
-.bubble {
-    position: absolute;
-    background: radial-gradient(circle at 30% 30%,
-        rgba(255, 255, 255, 0.8),
-        rgba(255, 255, 255, 0.2));
-    border-radius: 50%;
-    animation: bubbleRise linear infinite;
-}
-
-.bubble:nth-child(1) {
-    width: 8px;
-    height: 8px;
-    left: 25%;
-    animation-duration: 4s;
-    animation-delay: 0s;
-}
-
-.bubble:nth-child(2) {
-    width: 12px;
-    height: 12px;
-    left: 60%;
-    animation-duration: 5s;
-    animation-delay: 1s;
-}
-
-.bubble:nth-child(3) {
-    width: 6px;
-    height: 6px;
-    left: 40%;
-    animation-duration: 3.5s;
-    animation-delay: 2s;
-}
-
-.bubble:nth-child(4) {
-    width: 10px;
-    height: 10px;
-    left: 70%;
-    animation-duration: 4.5s;
-    animation-delay: 0.5s;
-}
-
-.bubble:nth-child(5) {
-    width: 7px;
-    height: 7px;
-    left: 30%;
-    animation-duration: 6s;
-    animation-delay: 3s;
-}
-
-@keyframes bubbleRise {
-    0% {
-        bottom: -10px;
-        opacity: 0;
-    }
-    10% {
-        opacity: 1;
-    }
-    90% {
-        opacity: 0.8;
-    }
-    100% {
-        bottom: 100%;
-        opacity: 0;
-    }
-}
-
-.thermometer-markings {
-    position: absolute;
-    top: 0;
-    left: 100%;
-    width: 100%;
-    height: 100%;
-    padding-left: 10px;
-}
-
-.marking {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    width: 100%;
-}
-
-.marking::before {
-    content: '';
-    width: 15px;
-    height: 2px;
-    background: rgba(255, 255, 255, 0.6);
-    margin-right: 5px;
-}
-
-.marking.major::before {
-    width: 25px;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.9);
-}
-
-.marking span {
-    font-size: 0.75rem;
-    font-weight: bold;
-    color: rgba(255, 255, 255, 0.9);
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    align-items: flex-end;
+    line-height: 1;
     white-space: nowrap;
 }
 
-.marking[data-days="730"] { top: 2%; }
-.marking[data-days="365"] { top: 15%; }
-.marking[data-days="180"] { top: 35%; }
-.marking[data-days="100"] { top: 50%; }
-.marking[data-days="50"] { top: 65%; }
-.marking[data-days="30"] { top: 75%; }
-.marking[data-days="7"] { top: 88%; }
-.marking[data-days="0"] { bottom: 0%; }
-
-.thermometer-bulb {
-    width: 100px;
-    height: 100px;
-    background: linear-gradient(135deg,
-        rgba(255, 255, 255, 0.2) 0%,
-        rgba(255, 255, 255, 0.35) 50%,
-        rgba(255, 255, 255, 0.2) 100%);
-    border-radius: 50%;
-    position: relative;
-    margin-top: -10px;
-    border: 4px solid rgba(255, 255, 255, 0.5);
-    box-shadow:
-        inset -10px -10px 30px rgba(0, 0, 0, 0.2),
-        inset 10px 10px 30px rgba(255, 255, 255, 0.3),
-        0 0 40px rgba(255, 107, 107, 0.4);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    animation: bulbGlow 2s ease-in-out infinite;
-}
-
-@keyframes bulbGlow {
-    0%, 100% {
-        box-shadow:
-            inset -10px -10px 30px rgba(0, 0, 0, 0.2),
-            inset 10px 10px 30px rgba(255, 255, 255, 0.3),
-            0 0 40px rgba(255, 107, 107, 0.4);
-    }
-    50% {
-        box-shadow:
-            inset -10px -10px 30px rgba(0, 0, 0, 0.2),
-            inset 10px 10px 30px rgba(255, 255, 255, 0.3),
-            0 0 60px rgba(255, 107, 107, 0.8);
-    }
-}
-
-.bulb-liquid {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(circle at 30% 30%,
-        rgba(255, 107, 107, 0.8),
-        rgba(245, 87, 108, 0.6));
-    border-radius: 50%;
-    animation: bulbLiquidPulse 2s ease-in-out infinite;
-}
-
-@keyframes bulbLiquidPulse {
-    0%, 100% {
-        transform: scale(0.95);
-        opacity: 0.8;
-    }
-    50% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-.bulb-shine {
-    position: absolute;
-    top: 15%;
-    left: 20%;
-    width: 30px;
-    height: 30px;
-    background: radial-gradient(circle,
-        rgba(255, 255, 255, 0.6) 0%,
-        rgba(255, 255, 255, 0) 70%);
-    border-radius: 50%;
-    pointer-events: none;
-}
-
-.bulb-days {
-    font-size: 2rem;
+.trail-sun-count {
+    font-size: 0.95rem;
     font-weight: bold;
-    color: #fff;
-    text-shadow:
-        0 0 10px rgba(255, 255, 255, 0.8),
-        0 2px 5px rgba(0, 0, 0, 0.5);
-    z-index: 2;
-    animation: daysPulse 1s ease-in-out infinite;
+    letter-spacing: 0.3px;
 }
 
-@keyframes daysPulse {
-    0%, 100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.1);
-    }
-}
-
-.bulb-label {
-    font-size: 0.65rem;
+.trail-sun-unit {
+    margin-top: 2px;
+    font-size: 0.55rem;
     font-weight: bold;
-    color: rgba(255, 255, 255, 0.9);
     text-transform: uppercase;
-    letter-spacing: 2px;
-    z-index: 2;
-    margin-top: -5px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 0.8px;
+    opacity: 0.8;
 }
 
-/* Hide thermometer on mobile/tablet for space */
+/* Hidden on a phone or tablet, like the arc: a margin figure with no margin. */
 @media (max-width: 1024px) {
-    .thermometer-container {
+    .trail-container {
         display: none;
     }
 }
@@ -938,6 +777,12 @@ button.metric-card {
 
     .sky-arc-sun {
         fill: CanvasText;
+    }
+
+    .trail-sun,
+    body:not(.mode-countup) .trail-sun {
+        background: CanvasText;
+        box-shadow: none;
     }
 }
 
@@ -1558,18 +1403,17 @@ a.entry-title:focus-visible {
 
     /* Disable specific animations */
     .star,
-    .confetti,
-    .bubble {
+    .confetti {
         animation: none !important;
     }
 
     .sky-arc-container,
-    .thermometer-container {
+    .trail-container {
         transform: translateY(-50%) !important;
     }
 
     .sky-arc-container:hover,
-    .thermometer-container:hover {
+    .trail-container:hover {
         transform: translateY(-50%) !important;
     }
 
@@ -1711,9 +1555,7 @@ body.mode-countup .metric-icon,
 body.mode-countup .marker-icon,
 body.mode-countup .motivation-quote,
 body.mode-countup .progress-fill,
-body.mode-countup .milestone.active .milestone-icon,
-body.mode-countup .bulb-days,
-body.mode-countup .thermometer-liquid {
+body.mode-countup .milestone.active .milestone-icon {
     animation: none;
 }
 
@@ -1756,22 +1598,15 @@ body.mode-countup .date-setter-details summary {
     color: #3a2f45;
 }
 
-body.mode-countup .sky-arc-label,
-body.mode-countup .bulb-days,
-body.mode-countup .bulb-label,
-body.mode-countup .marking span {
+body.mode-countup .sky-arc-label {
     color: #3a2f45;
     text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
-body.mode-countup .sky-arc {
+body.mode-countup .sky-arc,
+body.mode-countup .trail {
     background: rgba(255, 255, 255, 0.38);
     border-color: rgba(255, 255, 255, 0.6);
-}
-
-body.mode-countup .thermometer-liquid {
-    background: linear-gradient(to top, #e07a5f 0%, #f6a35a 60%, #f6d365 100%);
-    box-shadow: 0 0 12px rgba(224, 122, 95, 0.35), inset 0 0 10px rgba(255, 255, 255, 0.3);
 }
 
 /* Count-up hero */
@@ -1881,22 +1716,6 @@ body.mode-countup .thermometer-liquid {
     margin-bottom: 8px;
 }
 
-/* Thermometer tick marks per mode */
-.countup-marking {
-    display: none;
-}
-
-body.mode-countup .marking[data-days] {
-    display: none;
-}
-
-body.mode-countup .countup-marking {
-    display: flex;
-}
-
-.countup-marking[data-mark="next"] { top: 2%; }
-.countup-marking[data-mark="prev"] { bottom: 0%; }
-
 /* Responsive tweaks for count-up components */
 @media (max-width: 768px) {
     .countup-days {
@@ -1929,6 +1748,7 @@ body.mode-countup .countup-marking {
     body.mode-countup .date-setter,
     body.mode-countup .metric-card,
     body.mode-countup .sky-arc,
+    body.mode-countup .trail,
     body.mode-countup .progress-section,
     body.mode-countup .milestone-section,
     body.mode-countup .countup-hero,
@@ -1964,9 +1784,7 @@ body.mode-countup .countup-marking {
     body.mode-countup .sky-arc-label,
     body.mode-countup .sky-arc-horizon-label,
     body.mode-countup .sky-arc,
-    body.mode-countup .bulb-days,
-    body.mode-countup .bulb-label,
-    body.mode-countup .marking span,
+    body.mode-countup .trail,
     body.mode-countup .date-setter-details summary {
         color: #fff;
     }

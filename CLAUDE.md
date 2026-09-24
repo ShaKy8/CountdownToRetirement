@@ -158,9 +158,9 @@ CountdownToRetirement/
 
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
-- **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. Thermometer and progress bar fill toward the next milestone.
+- **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. The progress bar fills toward the next milestone.
 - **The sky arc** is the fixed figure on the right (desktop only, hidden at
-  1024px and below like the thermometer). In count-up mode the sun crosses a
+  1024px and below, like the trail on the left). In count-up mode the sun crosses a
   semicircle from "Retired" to the next milestone, `fraction` of the way
   along, with the milestone's emoji at the far horizon; in countdown mode the
   moon crosses the night from "Day One" (employment start, which is what
@@ -168,8 +168,8 @@ CountdownToRetirement/
   an hourglass that was two separate egg-shaped bulbs of gold "sand" on a
   cream page, swaying forever — and whose meaning was wrong: nothing runs out
   after retirement, and its sand jumped back *up* at every milestone.
-  `node scripts/sky-arc-audit.mjs` is the gate. Five things in it are
-  decisions:
+  `node scripts/figures-audit.mjs` is the gate for it and for the trail.
+  Five things in it are decisions:
   - **The geometry is in `calc.js`** (`SKY_ARC`, `skyArcPoint()`), pure and
     exported, so the gate checks the *drawn* centre against it to a pixel
     instead of trusting the drawing. viewBox 200x110, horizon y=98, r=76; a
@@ -192,6 +192,32 @@ CountdownToRetirement/
     figure is live now; the number is exposed by the progress bar in `main`.
     Forced colours: fills are not forced, so the glows are hidden and the sun
     takes `CanvasText`; arc and moon are `currentColor` already.
+- **The milestone trail** is the fixed figure on the left: the long view to
+  the arc's near view. Every milestone is a stop on one vertical path, the
+  origin at the bottom, the ones passed lit, the next ringed, the rest dimmed,
+  and the sun (the moon before retirement) at today with the day count beside
+  it. It replaced a thermometer that showed the day count the hero already
+  shows in 8rem type, filled to the percentage the arc shows, against tick
+  marks that were not linear in days while the fill was.
+  - **Stops are spaced evenly by index, not by days** — `milestoneTrail()` in
+    `calc.js`. Linear in days puts the first five stops in the bottom tenth
+    of the path and parks the sun for years. Between stops the sun moves by
+    its share of that one segment, so it never moves down and reaches each
+    stop exactly when the milestone does.
+  - **The stops are built from the milestone list**, so a milestone is
+    defined in one place; the markup holds no stop, and a test asserts it.
+  - **In countdown mode the stops are days *left*** (2 Years to Go … Last
+    Day, then Freedom Day), and the segment before the first stop is the
+    working years: `renderCountdown` passes their length so the moon moves
+    through it. Without it — a visitor's date under two years out — the moon
+    waits at the origin until the first stop, which is honest.
+  - **The day count sits on the other side of the line from the stop
+    labels**, so it cannot collide with one however close the sun is to a
+    stop; the gate checks every label box against every other. It is two
+    lines ("209" over "days") because "3,652 DAYS" on one line needs more
+    margin than the figure has.
+  - **Rebuilt once a day**, keyed on `direction:days`: in countdown mode the
+    render runs every second.
 - **Personal counters:** `countdown/stats.json` (trips, concerts, projects, books, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
 - **`trips`, `concerts` and `projects` are lists, and their counts are
   derived.** `books` is the one plain number; `trips` is an array of

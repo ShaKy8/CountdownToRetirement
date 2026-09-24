@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Kyle's retirement clock - counting the days since retirement, or the days until it if you set your own date">
     <title>Kyle's Retirement Clock</title>
-    <link rel="stylesheet" href="styles.css?v=a4c55914a6">
+    <link rel="stylesheet" href="styles.css?v=d76889b17a">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body class="mode-countdown">
@@ -75,39 +75,26 @@
         </div>
     </div>
 
-    <!-- Animated Thermometer (Decorative) -->
-    <div class="thermometer-container" id="thermometer-container" role="img"
-         aria-label="Thermometer displaying days remaining until retirement"
-         data-aria-countdown="Thermometer displaying days remaining until retirement"
-         data-aria-countup="Thermometer displaying days retired and the next milestone">
-        <div class="thermometer" aria-hidden="true">
-            <div class="thermometer-tube">
-                <div class="thermometer-liquid" id="thermometer-liquid">
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
-                    <div class="bubble"></div>
+    <!--
+      The milestone trail (decorative): the long view, to pair with the sky
+      arc's near view. Every milestone is a stop on one vertical path, the
+      ones passed lit, the next ringed, the rest dimmed, and the sun at where
+      today is. The stops are built by the script from the milestone list, so
+      a milestone is defined in exactly one place.
+    -->
+    <div class="trail-container" id="trail-container" role="img"
+         aria-label="The milestones since retirement as stops on a path, with the sun at today"
+         data-aria-countdown="The milestones before retirement as stops on a path, with the moon at today"
+         data-aria-countup="The milestones since retirement as stops on a path, with the sun at today">
+        <div class="trail" aria-hidden="true">
+            <div class="trail-track">
+                <div class="trail-stops" id="trail-stops"></div>
+                <div class="trail-sun" id="trail-sun">
+                    <span class="trail-sun-label" id="trail-sun-label">
+                        <span class="trail-sun-count" id="trail-sun-count">0</span>
+                        <span class="trail-sun-unit" id="trail-sun-unit">days</span>
+                    </span>
                 </div>
-                <div class="thermometer-shine"></div>
-                <div class="thermometer-markings">
-                    <div class="marking" data-days="730"><span>730</span></div>
-                    <div class="marking" data-days="365"><span>365</span></div>
-                    <div class="marking" data-days="180"><span>180</span></div>
-                    <div class="marking" data-days="100"><span>100</span></div>
-                    <div class="marking" data-days="50"><span>50</span></div>
-                    <div class="marking" data-days="30"><span>30</span></div>
-                    <div class="marking" data-days="7"><span>7</span></div>
-                    <div class="marking major" data-days="0"><span>0</span></div>
-                    <div class="marking major countup-marking" data-mark="next"><span id="thermo-next-label">365</span></div>
-                    <div class="marking major countup-marking" data-mark="prev"><span id="thermo-prev-label">0</span></div>
-                </div>
-            </div>
-            <div class="thermometer-bulb">
-                <div class="bulb-liquid"></div>
-                <div class="bulb-shine"></div>
-                <div class="bulb-days" id="thermometer-days" role="status">0</div>
-                <div class="bulb-label">DAYS</div>
             </div>
         </div>
     </div>
@@ -398,7 +385,7 @@
 
     <div id="confetti-container" aria-hidden="true"></div>
 
-    <script src="calc.js?v=8bfc79af65"></script>
-    <script src="script.js?v=1dfe7211fd"></script>
+    <script src="calc.js?v=7a69d7d148"></script>
+    <script src="script.js?v=99e22a5c59"></script>
 </body>
 </html>

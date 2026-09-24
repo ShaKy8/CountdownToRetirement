@@ -303,8 +303,8 @@
     }
 
     // Progress toward the next milestone, measured from retirement day itself
-    // (day 0), not from the previous milestone. The bar, sky arc and
-    // thermometer all label their span "Retired -> <next milestone>", so the
+    // (day 0), not from the previous milestone. The bar and the sky arc both
+    // label their span "Retired -> <next milestone>", so the
     // fill has to be days/next: 191 days retired is 52% of the way to one
     // year, not 5% of the 182-day gap between six months and one year.
     function nextMilestoneProgress(days, milestones) {
@@ -344,6 +344,47 @@
         return {
             x: SKY_ARC.cx + SKY_ARC.r * Math.cos(a),
             y: SKY_ARC.cy - SKY_ARC.r * Math.sin(a)
+        };
+    }
+
+    // The milestone trail: every milestone as a stop on one vertical path,
+    // the origin at the bottom (t = 0) and the last stop at the top (t = 1),
+    // with the sun `t` of the way up. Stops are spaced EVENLY BY INDEX, not
+    // by days: linear in days would put the first five stops in the bottom
+    // tenth of the path and the sun would look parked for years. Between
+    // stops the sun moves by its share of that one segment.
+    //
+    // In count-up mode `days` is days retired and the origin is the
+    // retirement day. In countdown mode `days` is days LEFT, the stops run
+    // from "2 Years to Go" up to Freedom Day, and the origin segment is the
+    // working years before the first stop, whose length is `originSpan`;
+    // without it (or with a date under two years out) the sun waits at the
+    // origin until the first stop is reached.
+    function milestoneTrail(days, milestones, direction, originSpan) {
+        const countup = direction === 'countup';
+        const sorted = milestones.slice().sort((a, b) => countup ? a.threshold - b.threshold : b.threshold - a.threshold);
+        const stops = countup ? sorted : sorted.concat([{ threshold: 0, icon: '🏝️', text: 'Freedom Day' }]);
+        const passed = t => (countup ? days >= t : days <= t);
+        let k = 0;
+        while (k < stops.length && passed(stops[k].threshold)) k++;
+
+        const n = stops.length;
+        let inner = 0;
+        if (k < n) {
+            const from = k > 0 ? stops[k - 1].threshold : (countup ? 0 : originSpan);
+            const to = stops[k].threshold;
+            const span = countup ? to - from : from - to;
+            const gone = countup ? days - from : from - days;
+            inner = Number.isFinite(span) && span > 0 ? Math.max(0, Math.min(1, gone / span)) : 0;
+        }
+        return {
+            stops: stops.map((m, i) => ({
+                threshold: m.threshold, icon: m.icon, text: m.text,
+                state: i < k ? 'passed' : (i === k ? 'next' : 'ahead'),
+                t: (i + 1) / n
+            })),
+            marker: { t: Math.min(1, (k + inner) / n) },
+            passed: k
         };
     }
 
@@ -431,6 +472,7 @@
         nextMilestoneProgress,
         SKY_ARC,
         skyArcPoint,
+        milestoneTrail,
         crossedMilestone,
         comparisonsUnlocked,
         validateDateInput
