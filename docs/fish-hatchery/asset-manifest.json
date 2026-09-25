@@ -13,7 +13,8 @@
     "height": 1500,
     "original": "IMG_2959.jpeg",
     "capture_date": "2025:09:13 16:27:57",
-    "source": "Owner photo"
+    "source": "Owner photo",
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.26, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "kitchen-before": {
     "file": "assets/kitchen-before.webp",
@@ -21,7 +22,8 @@
     "height": 1500,
     "original": "IMG_2960.jpeg",
     "capture_date": "2025:09:13 16:28:12",
-    "source": "Owner photo"
+    "source": "Owner photo",
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.12, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "workshop-before": {
     "file": "assets/workshop-before.webp",
@@ -29,7 +31,8 @@
     "height": 1350,
     "original": "IMG_2114.jpeg",
     "capture_date": "2025:01:31 13:27:20",
-    "source": "Owner photo"
+    "source": "Owner photo",
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.45, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "barn-before": {
     "file": "assets/barn-before.webp",
@@ -181,7 +184,8 @@
     "height": 1500,
     "original": "IMG_2961.jpeg",
     "capture_date": "2025:09:13 16:28:18",
-    "source": "Owner photo"
+    "source": "Owner photo",
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.49, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "room-deck-after": {
     "file": "assets/room-deck-after.webp",
@@ -214,7 +218,8 @@
     "height": 1350,
     "original": "IMG_2098.jpeg",
     "capture_date": "2025:01:31 13:18:50",
-    "source": "Owner photo"
+    "source": "Owner photo",
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.34, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "bath-after": {
     "file": "assets/bath-after.webp",
@@ -254,7 +259,8 @@
     "height": 1500,
     "original": "IMG_2987.jpeg",
     "capture_date": "2025:09:13 17:12:22",
-    "source": "Owner photo"
+    "source": "Owner photo",
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.66, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "barn-aisle-after": {
     "file": "assets/barn-aisle-after.webp",

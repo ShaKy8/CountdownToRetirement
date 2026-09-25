@@ -10,7 +10,7 @@ The owner asked for an elegant property-magazine showcase for family and friends
 - Focus on the property. No family narrative, unrelated properties, financial documents, or personal photographs.
 - The owner supplied the before/during photographs and requested the finished photographs from the property's Zillow listing. The owner has no photographer originals.
 - Dates below before/during photos come from image metadata. After photos do not have an asserted capture date.
-- One tonal adjustment has been made at the owner's request: the bedroom before photograph (`bedroom-before.webp`) was very under-exposed and had its exposure lifted on September 25, 2026. Nothing was removed, added or reframed; the owner's original is untouched. Recorded in `asset-manifest.json`.
+- Tonal adjustments have been made at the owner's request: seven under-exposed before photographs (bedroom, barn aisle, bathroom, kitchen, living room, room by the deck, workshop) had their exposure lifted on September 25, 2026, each toward a common mid-tone. Nothing was removed, added or reframed; the owner's originals are untouched. Each is recorded in `asset-manifest.json` with the gamma used. The exterior before photographs were already bright enough and are unchanged.
 - Eleven pairs were visually matched using architectural details; camera positions differ. Preserve complete frames in the comparisons and keep that distinction visible. Do not fabricate aligned views, enhance away damage, or generate replacement property photography.
 - The owner explicitly requested a homepage link. This adds a seventh destination; small-phone spacing was tightened to accommodate it.
 
