@@ -161,7 +161,7 @@ full-screen gallery. Read `docs/fish-hatchery/HANDOFF.md` before continuing this
 work; confirmed facts and image provenance are in that directory. The page,
 22 WebP photographs, and integration were copied from the owner's approved
 local draft. The rehabilitation began January 2026; no completion date is
-asserted. Credit Keith, Harley, and Jeremiah. The handoff is not deployed.
+asserted. Credit Keith, Harley, Jeremiah, and Diane. The showcase is deployed.
 
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
