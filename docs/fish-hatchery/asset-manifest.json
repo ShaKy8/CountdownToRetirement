@@ -174,5 +174,93 @@
     "zillow_photo": 86,
     "source_url": "https://photos.zillowstatic.com/fp/dc5e4fe9419fe55ebde782380333c510-cc_ft_1536.webp",
     "source": "Zillow property listing"
+  },
+  "room-deck-before": {
+    "file": "assets/room-deck-before.webp",
+    "width": 1125,
+    "height": 1500,
+    "original": "IMG_2961.jpeg",
+    "capture_date": "2025:09:13 16:28:18",
+    "source": "Owner photo"
+  },
+  "room-deck-after": {
+    "file": "assets/room-deck-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 18,
+    "source_url": "https://photos.zillowstatic.com/fp/7e5e95aede97f6d71e9d7f89b6564822-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "bedroom-before": {
+    "file": "assets/bedroom-before.webp",
+    "width": 1800,
+    "height": 1350,
+    "original": "IMG_2096.jpeg",
+    "capture_date": "2025:01:31 13:18:13",
+    "source": "Owner photo"
+  },
+  "bedroom-after": {
+    "file": "assets/bedroom-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 9,
+    "source_url": "https://photos.zillowstatic.com/fp/d02eb6171fc897a46f9cd37ff0e07046-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "bath-before": {
+    "file": "assets/bath-before.webp",
+    "width": 1800,
+    "height": 1350,
+    "original": "IMG_2098.jpeg",
+    "capture_date": "2025:01:31 13:18:50",
+    "source": "Owner photo"
+  },
+  "bath-after": {
+    "file": "assets/bath-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 13,
+    "source_url": "https://photos.zillowstatic.com/fp/191cb762f6c78882c502a832f190fb22-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "covered-workshop-before": {
+    "file": "assets/covered-workshop-before.webp",
+    "width": 1800,
+    "height": 1350,
+    "original": "IMG_2103.jpeg",
+    "capture_date": "2025:01:31 13:23:01",
+    "source": "Owner photo"
+  },
+  "barn-exterior-before": {
+    "file": "assets/barn-exterior-before.webp",
+    "width": 1800,
+    "height": 1085,
+    "original": "IMG_2982.jpeg",
+    "capture_date": "2025:09:13 17:10:41",
+    "source": "Owner photo"
+  },
+  "barn-exterior-after": {
+    "file": "assets/barn-exterior-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 45,
+    "source_url": "https://photos.zillowstatic.com/fp/1afd5bce52bc95fff1983a57fa8cac73-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "barn-aisle-before": {
+    "file": "assets/barn-aisle-before.webp",
+    "width": 1125,
+    "height": 1500,
+    "original": "IMG_2987.jpeg",
+    "capture_date": "2025:09:13 17:12:22",
+    "source": "Owner photo"
+  },
+  "barn-aisle-after": {
+    "file": "assets/barn-aisle-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 49,
+    "source_url": "https://photos.zillowstatic.com/fp/649c2843dfc296d1826b028cdc0f0575-cc_ft_768.webp",
+    "source": "Zillow property listing"
   }
 }

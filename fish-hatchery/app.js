@@ -9,7 +9,9 @@
   });
 
   const dialog = document.querySelector('#lightbox');
-  const photoButtons = [...document.querySelectorAll('button[data-image]')];
+  const allPhotoButtons = [...document.querySelectorAll('button[data-image]')];
+  // A photograph can appear in both a comparison and the finished-property overview.
+  const photoButtons = [...new Map(allPhotoButtons.map(button => [button.dataset.image, button])).values()];
   const image = dialog.querySelector('.lightbox-image');
   const title = dialog.querySelector('#lightbox-title');
   const caption = dialog.querySelector('.lightbox-caption p');
@@ -26,7 +28,8 @@
     caption.textContent = item.dataset.caption;
     counter.textContent = `${String(activeIndex + 1).padStart(2, '0')} / ${photoButtons.length}`;
   }
-  photoButtons.forEach((button, index) => {
+  allPhotoButtons.forEach(button => {
+    const index = photoButtons.findIndex(photo => photo.dataset.image === button.dataset.image);
     button.setAttribute('aria-label', `Enlarge photograph: ${button.dataset.title}`);
     button.addEventListener('click', () => {
       trigger = button;

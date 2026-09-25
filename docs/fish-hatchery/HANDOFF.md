@@ -10,15 +10,15 @@ The owner asked for an elegant property-magazine showcase for family and friends
 - Focus on the property. No family narrative, unrelated properties, financial documents, or personal photographs.
 - The owner supplied the before/during photographs and requested the finished photographs from the property's Zillow listing. The owner has no photographer originals.
 - Dates below before/during photos come from image metadata. After photos do not have an asserted capture date.
-- Five pairs were visually matched using architectural details; camera positions differ. Preserve complete frames in the comparisons and keep that distinction visible. Do not fabricate aligned views, enhance away damage, or generate replacement property photography.
+- Eleven pairs were visually matched using architectural details; camera positions differ. Preserve complete frames in the comparisons and keep that distinction visible. Do not fabricate aligned views, enhance away damage, or generate replacement property photography.
 - The owner explicitly requested a homepage link. This adds a seventh destination; small-phone spacing was tightened to accommodate it.
 
 ## What is included
 
-- `fish-hatchery/index.html`, `styles.css`, `app.js`, `favicon.svg`, and 22 prepared WebP photographs in `assets/`.
-- House exterior, living room, kitchen, workshop and barn comparisons, with Together / Before / After controls.
+- `fish-hatchery/index.html`, `styles.css`, `app.js`, `favicon.svg`, and 33 prepared WebP photographs in `assets/`.
+- House exterior, living room, kitchen, room by the deck, bedroom, bathroom, workshop, covered workshop area, barn interior, barn entrance, and barn aisle comparisons, with Together / Before / After controls.
 - A July 29, 2026 living-room work-in-progress section.
-- Finished property details, a 20-photo full-screen viewer, keyboard navigation, and swipe handling.
+- Finished property details, a 31-photo full-screen viewer, keyboard navigation, and swipe handling.
 - BranyonTech return link, canonical URL, and sharing metadata.
 - This folder's `content.json` records matching evidence and editorial facts; `asset-manifest.json` maps every included photograph to its supplied filename or exact Zillow URL.
 
@@ -50,3 +50,21 @@ Ask which transformation deserves more emphasis and whether the photo choices or
 - The homepage link opened the showcase successfully. The earlier standalone draft had its comparison controls, full-screen gallery, keyboard navigation, focus restoration, images, captions, and credits checked.
 - The asset stamps were regenerated. `git diff --check` passed.
 - The working tree was clean before this handoff. All current changes were left uncommitted for Claude and the owner to review. No AWS calls, Git commits, or pushes were performed.
+
+
+## Additional transformation matches — September 25, 2026
+
+Six new comparisons were added after reviewing the owner originals and all listing views. The supporting filenames, Zillow numbers, dates, and architectural evidence are in the two JSON files beside this handoff. Full frames are preserved. The room with former red walls is provisionally called “the room by the deck”; its use/name awaits the owner's answer. No completion date or individual trade roles have been inferred.
+
+The three new interior chapters sit after the kitchen. The covered workshop area, barn entrance, and barn aisle are grouped with their existing buildings. The chapter index now has eight entries. A repeated finished workshop image appears only once in the full-screen viewer. Credits retain the existing order: Keith, Diane, Jeremiah, Harley; their layout now accommodates four names.
+
+The previous integration was already committed when this expansion began. These additions are left uncommitted for Claude. No deployment, push, or AWS action was performed.
+
+### Expansion verification
+
+- All six new comparisons passed Together / Before / After checks in the browser.
+- Full-screen viewer contains 31 unique photographs; next-photo navigation, Escape, and focus restoration passed.
+- Desktop (1440px), phone (390px), and small phone (320px) were checked. All comparison controls fit; no horizontal page overflow.
+- All 34 rendered image instances match their declared dimensions; 33 unique photographs have source-manifest entries; internal anchor targets are valid.
+- Existing client and server integration suites passed. Both development servers served the page plus all 36 referenced assets with matching content hashes and correct WebP MIME types. Temporary test processes were stopped; existing services were untouched.
+- Asset stamps were already current after regeneration, and git diff --check passed. The six edited files and eleven new image assets remain uncommitted.
