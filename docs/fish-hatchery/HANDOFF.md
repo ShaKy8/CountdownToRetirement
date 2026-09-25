@@ -10,7 +10,7 @@ The owner asked for an elegant property-magazine showcase for family and friends
 - Focus on the property. No family narrative, unrelated properties, financial documents, or personal photographs.
 - The owner supplied the before/during photographs and requested the finished photographs from the property's Zillow listing. The owner has no photographer originals.
 - Dates below before/during photos come from image metadata. After photos do not have an asserted capture date.
-- Tonal adjustments have been made at the owner's request: seven under-exposed before photographs (bedroom, barn aisle, bathroom, kitchen, living room, room by the deck, workshop) had their exposure lifted on September 25, 2026, each toward a common mid-tone. Nothing was removed, added or reframed; the owner's originals are untouched. Each is recorded in `asset-manifest.json` with the gamma used. The exterior before photographs were already bright enough and are unchanged.
+- Tonal adjustments have been made at the owner's request: eight under-exposed before photographs (bedroom, barn interior, barn aisle, bathroom, kitchen, living room, room by the deck, workshop) had their exposure lifted on September 25, 2026 -- the bedroom, kitchen, workshop, barn and barn aisle a second time, further, at the owner's request. Nothing was removed, added or reframed; the owner's originals are untouched. Each is recorded in `asset-manifest.json` with the gamma used. The exterior before photographs were already bright enough and are unchanged.
 - Eleven pairs were visually matched using architectural details; camera positions differ. Preserve complete frames in the comparisons and keep that distinction visible. Do not fabricate aligned views, enhance away damage, or generate replacement property photography.
 - The owner explicitly requested a homepage link. This adds a seventh destination; small-phone spacing was tightened to accommodate it.
 
@@ -18,7 +18,8 @@ The owner asked for an elegant property-magazine showcase for family and friends
 
 - `fish-hatchery/index.html`, `styles.css`, `app.js`, `favicon.svg`, and 33 prepared WebP photographs in `assets/`.
 - House exterior, living room, kitchen, room by the deck, bedroom, bathroom, workshop, covered workshop area, barn interior, barn entrance, and barn aisle comparisons, with Together / Before / After controls.
-- A July 29, 2026 living-room work-in-progress section.
+- A three-stage living-room chapter: Before / During / After, with an All three view. The work-in-progress photograph is dated July 29, 2026.
+- A three-highlight opening with manual navigation and optional 60-second playback (20 seconds per view).
 - Finished property details, a 31-photo full-screen viewer, keyboard navigation, and swipe handling.
 - BranyonTech return link, canonical URL, and sharing metadata.
 - This folder's `content.json` records matching evidence and editorial facts; `asset-manifest.json` maps every included photograph to its supplied filename or exact Zillow URL.
@@ -30,7 +31,7 @@ The wider original photo collection, private review materials, and the remaining
 - The homepage links to `/fish-hatchery/` using its existing text-link styling.
 - Both local servers have a WebP MIME mapping; the restricted server also allows the extension.
 - The deployment allowlist includes the new page, scripts, stylesheet, favicon and images. It excludes these handoff notes and source manifests.
-- Asset stamps include `fish-hatchery/index.html`; after editing the CSS or JavaScript, run `node scripts/stamp-assets.mjs`.
+- Asset stamps include `fish-hatchery/index.html`, and cover the photographs (`src` and `data-image`) as well as the CSS and JavaScript; after editing any of them, run `node scripts/stamp-assets.mjs`. A re-edited photograph under its old name otherwise sits in a visitor's browser cache for an hour.
 - Preview with `PORT=8100 node scripts/dev-server.mjs` and visit `/fish-hatchery/`. Choose a different port if 8100 is occupied. Do not stop an existing service.
 - Run `node tests.js` and server integration tests on a free port, for example `PORT=8137 node tests-server.js`.
 
@@ -69,3 +70,26 @@ The previous integration was already committed when this expansion began. These 
 - All 34 rendered image instances match their declared dimensions; 33 unique photographs have source-manifest entries; internal anchor targets are valid.
 - Existing client and server integration suites passed. Both development servers served the page plus all 36 referenced assets with matching content hashes and correct WebP MIME types. Temporary test processes were stopped; existing services were untouched.
 - Asset stamps were already current after regeneration, and git diff --check passed. The six edited files and eleven new image assets remain uncommitted.
+
+
+## Opening tour and living-room journey — September 25, 2026
+
+The owner approved the opening highlights sequence and bringing the living-room stages together. The opening at `#highlights` uses the bathroom, the room by the deck, and the covered workshop. Manual selection and previous/next controls are always available when JavaScript is enabled; optional playback lasts 60 seconds (20 seconds per view), starts only on a visitor's click, and supports pause/resume/replay. Playback pauses when leaving the section, hiding the page, opening a photograph, or following a chapter link. Without JavaScript, all three highlight panels remain readable. Full photographic frames and original captions remain intact.
+
+The living-room chapter now has All three / Before / During / After controls. The July 29, 2026 work-in-progress photograph was moved from its separate interlude into this chapter. January 2026 is still the start date; a completion date is not asserted.
+
+No new photo assets are needed. The page reuses the 33 existing photographs; the full-screen viewer still has 31 unique photographs, ordered by the main property story. The opening repeats do not add duplicate viewer entries. Mobile highlight panels reserve consistent image and text space while changing views. No statistics, additional property claims, generated photography, or standalone video were added.
+
+The checkout was clean at commit `f4fa3d0473b50a106dc46982b01e47230f72c7ce` before this work. These changes are prepared for the owner's Claude workflow; they are left uncommitted and have not been pushed or deployed by Codex.
+
+The newer owner-requested exposure adjustments made by Claude were retained; the preview was refreshed with those images. The concurrent handoff update at commit `d4718f3600a4ee6e9d6204508b77a207484aeae1` was merged before copying this feature.
+
+### Tour and three-stage verification
+
+- Browser checks passed for all three highlight selections, previous/next wrapping, photo enlargement, and the unchanged 31-photo viewer.
+- A real 60-second playback run advanced through all three views and completed at 100%. Pause held its position; resume continued; completion offered replay. Opening a photograph and leaving the section paused playback. No console warnings or errors were reported.
+- Living-room All three / Before / During / After controls each showed the correct photographs. The During image retained its July 29, 2026 caption and enlarged correctly.
+- Desktop at 1440px and phones at 390px and 320px were reviewed. No horizontal overflow; controls fit; highlight panel height stayed consistent between selections at 390px.
+- All 40 image instances have declared dimensions matching their files; the 33 unique assets retain provenance; internal anchors and content stamps passed checks.
+- Client tests: 421 passed. Server integration tests: 60 passed. Both local servers returned the page and all 36 referenced assets with matching hashes and WebP MIME types. `git diff --check` passed.
+- Updated source and notes are on geekom1; five files remain uncommitted. No production deployment was performed.

@@ -405,6 +405,12 @@ asserted. Credit, in this order, Keith, Diane, Jeremiah, and Harley. The showcas
   servers strip it. `/game/` and `/slingshot/` are stamped too, including the
   root-absolute `/shared/daily.js` they both load — an hour of new `putt.js`
   against an old `daily.js` is the same bug with a daily puzzle at stake.
+  **The showcase's photographs are stamped as well**, in `src` and in the
+  viewer's `data-image`: a re-edited photograph went live under its old name
+  and the owner saw no change, because his browser held the old bytes for the
+  hour. The test derives the expected list from `fish-hatchery/assets/`, so an
+  orphan photograph fails it too, and a photograph named twice must carry the
+  same stamp both times or the viewer's dedupe splits it into two slots.
   Adding a page is one line in the script's `PAGES` and one in `tests.js`'s
   `STAMPED_PAGES`. Tests that look for a script by name must allow the stamp:
   match `src="name.js[?"]`, not `src="name.js"`. `/weather/` is not part of

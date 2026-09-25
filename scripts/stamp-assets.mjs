@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
- * Stamp a page's own scripts and stylesheets with a hash of their contents:
+ * Stamp a page's own scripts, stylesheets and photographs with a hash of
+ * their contents:
  *
  *   <script src="script.js?v=658ae5bb63"></script>
+ *   <img src="assets/hero.webp?v=3f1c9a2b7d">
  *
  * WHY. Assets are served with max-age=3600 and their names never change, so a
  * returning visitor runs the old script.js for up to an hour after a deploy.
@@ -14,6 +16,12 @@
  *
  * The query string is for the BROWSER cache only. S3 ignores it, both local
  * servers strip it, and CloudFront is invalidated on every deploy anyway.
+ *
+ * Photographs too, since the day a re-edited one went live and the owner saw
+ * no change: his browser held the old bytes under the old name for an hour.
+ * The showcase names a photograph in `src` and again in `data-image` for the
+ * full-screen viewer, so both attributes are stamped -- with the same hash,
+ * which is what keeps the viewer's "one slot per photograph" dedupe working.
  *
  *   node scripts/stamp-assets.mjs           rewrite the stamps in place
  *   node scripts/stamp-assets.mjs --check   exit 1 if any stamp is stale
@@ -35,7 +43,7 @@ const PAGES = ['countdown/index.html', 'game/index.html', 'slingshot/index.html'
 // This site's files only: a relative name, or a root-absolute one such as
 // /shared/daily.js, which both games load and which has to move in step with
 // them. Anything with a scheme or a // host is somebody else's to version.
-const REF = /\b(src|href)="((?![a-z]+:|\/\/)[\w./-]+\.(?:js|css))(?:\?v=[0-9a-f]*)?"/g;
+const REF = /\b(src|href|data-image)="((?![a-z]+:|\/\/)[\w./-]+\.(?:js|css|webp))(?:\?v=[0-9a-f]*)?"/g;
 
 const check = process.argv.includes('--check');
 const stale = [];

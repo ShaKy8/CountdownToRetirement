@@ -23,7 +23,7 @@
     "original": "IMG_2960.jpeg",
     "capture_date": "2025:09:13 16:28:12",
     "source": "Owner photo",
-    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.12, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.80, sigmoidal contrast 3x38%, +3% brightness, +6% saturation; mean 108 to 166 of 255). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "workshop-before": {
     "file": "assets/workshop-before.webp",
@@ -32,7 +32,7 @@
     "original": "IMG_2114.jpeg",
     "capture_date": "2025:01:31 13:27:20",
     "source": "Owner photo",
-    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.45, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 2.33, sigmoidal contrast 3x38%, +3% brightness, +6% saturation; mean 84 to 169 of 255). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "barn-before": {
     "file": "assets/barn-before.webp",
@@ -40,7 +40,8 @@
     "height": 1350,
     "original": "IMG_2983.jpeg",
     "capture_date": "2025:09:13 17:11:09",
-    "source": "Owner photo"
+    "source": "Owner photo",
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.73, sigmoidal contrast 3x38%, +3% brightness, +6% saturation; mean 111 to 166 of 255). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "property-before": {
     "file": "assets/property-before.webp",
@@ -260,7 +261,7 @@
     "original": "IMG_2987.jpeg",
     "capture_date": "2025:09:13 17:12:22",
     "source": "Owner photo",
-    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 1.66, mild sigmoidal contrast). Framing, content and dimensions unchanged; the supplied original is untouched."
+    "adjustment": "Exposure lifted at the owner's request on 2026-09-25 (gamma 2.20, sigmoidal contrast 4x42%, +2% brightness, +8% saturation; mean 71 to 147 of 255). Framing, content and dimensions unchanged; the supplied original is untouched."
   },
   "barn-aisle-after": {
     "file": "assets/barn-aisle-after.webp",

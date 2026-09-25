@@ -1464,19 +1464,35 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
         // The games are stamped for the same reason with higher stakes: both
         // load /shared/daily.js, and an hour of new putt.js against an old
         // daily.js is a daily puzzle that seeds differently for one visitor.
+        //
+        // The showcase's photographs are stamped too, in both the `src` the
+        // page shows and the `data-image` the viewer opens: a re-edited photo
+        // under its old name sat in the owner's browser cache for an hour
+        // while production had already changed. Every photograph on disk must
+        // appear -- so an orphan in assets/ fails here, as does a stamp on
+        // one attribute but not the other.
         const crypto = require('crypto');
+        const photos = fs.readdirSync(path.join(__dirname, 'fish-hatchery', 'assets'))
+            .filter(f => f.endsWith('.webp')).map(f => `assets/${f}`);
         const STAMPED_PAGES = {
             countdown: ['calc.js', 'script.js', 'styles.css'],
             game: ['/shared/daily.js', 'putt.js', 'script.js', 'styles.css'],
             slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],
-            'fish-hatchery': ['app.js', 'styles.css']
+            'fish-hatchery': ['app.js', 'styles.css', ...photos].sort()
         };
 
         Object.keys(STAMPED_PAGES).forEach(dir => {
             const html = fs.readFileSync(path.join(__dirname, dir, 'index.html'), 'utf8');
-            const refs = [...html.matchAll(/\b(?:src|href)="((?![a-z]+:|\/\/)[\w.\/-]+\.(?:js|css))(?:\?v=([0-9a-f]*))?"/g)];
-            assert.deepStrictEqual(refs.map(r => r[1]).sort(), STAMPED_PAGES[dir],
-                `${dir}: every script and stylesheet should be found by this check`);
+            const refs = [...html.matchAll(/\b(?:src|href|data-image)="((?![a-z]+:|\/\/)[\w.\/-]+\.(?:js|css|webp))(?:\?v=([0-9a-f]*))?"/g)];
+            assert.deepStrictEqual([...new Set(refs.map(r => r[1]))].sort(), STAMPED_PAGES[dir],
+                `${dir}: every script, stylesheet and photograph should be found by this check`);
+            // A photograph named twice must carry the same stamp both times,
+            // or the viewer's dedupe by data-image splits it into two slots.
+            const seen = new Map();
+            refs.forEach(([, file, stamp]) => {
+                if (seen.has(file)) assert.strictEqual(stamp, seen.get(file), `${dir}: ${file} stamped two ways`);
+                seen.set(file, stamp);
+            });
 
             refs.forEach(([, file, stamp]) => {
                 const source = file.startsWith('/') ? path.join(__dirname, file) : path.join(__dirname, dir, file);
