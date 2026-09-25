@@ -1,0 +1,178 @@
+{
+  "house-before": {
+    "file": "assets/house-before.webp",
+    "width": 1800,
+    "height": 1350,
+    "original": "IMG_2100.jpeg",
+    "capture_date": "2025:01:31 13:22:33",
+    "source": "Owner photo"
+  },
+  "living-before": {
+    "file": "assets/living-before.webp",
+    "width": 1125,
+    "height": 1500,
+    "original": "IMG_2959.jpeg",
+    "capture_date": "2025:09:13 16:27:57",
+    "source": "Owner photo"
+  },
+  "kitchen-before": {
+    "file": "assets/kitchen-before.webp",
+    "width": 1125,
+    "height": 1500,
+    "original": "IMG_2960.jpeg",
+    "capture_date": "2025:09:13 16:28:12",
+    "source": "Owner photo"
+  },
+  "workshop-before": {
+    "file": "assets/workshop-before.webp",
+    "width": 1800,
+    "height": 1350,
+    "original": "IMG_2114.jpeg",
+    "capture_date": "2025:01:31 13:27:20",
+    "source": "Owner photo"
+  },
+  "barn-before": {
+    "file": "assets/barn-before.webp",
+    "width": 1800,
+    "height": 1350,
+    "original": "IMG_2983.jpeg",
+    "capture_date": "2025:09:13 17:11:09",
+    "source": "Owner photo"
+  },
+  "property-before": {
+    "file": "assets/property-before.webp",
+    "width": 1800,
+    "height": 549,
+    "original": "IMG_2980.jpeg",
+    "capture_date": "2025:09:13 17:08:41",
+    "source": "Owner photo"
+  },
+  "living-during": {
+    "file": "assets/living-during.webp",
+    "width": 1800,
+    "height": 1350,
+    "original": "IMG_5662.jpeg",
+    "capture_date": "2026:07:29 14:50:59",
+    "source": "Owner photo"
+  },
+  "hero": {
+    "file": "assets/hero.webp",
+    "width": 1200,
+    "height": 896,
+    "zillow_photo": 1,
+    "source_url": "https://photos.zillowstatic.com/fp/530df0a5547e00bcc3976c76b8090763-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  },
+  "house-after": {
+    "file": "assets/house-after.webp",
+    "width": 1200,
+    "height": 800,
+    "zillow_photo": 35,
+    "source_url": "https://photos.zillowstatic.com/fp/1a3323e72bfe7cc8e78549f49275edf9-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  },
+  "living-after": {
+    "file": "assets/living-after.webp",
+    "width": 1200,
+    "height": 799,
+    "zillow_photo": 17,
+    "source_url": "https://photos.zillowstatic.com/fp/06187929d3bcfb2d3421b46bc913d82d-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  },
+  "kitchen-after": {
+    "file": "assets/kitchen-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 3,
+    "source_url": "https://photos.zillowstatic.com/fp/bb7b8a276bdc630fb0909947baca4b4b-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "workshop-after": {
+    "file": "assets/workshop-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 57,
+    "source_url": "https://photos.zillowstatic.com/fp/69cdeecf6b9993d3940cc0b35282b7a9-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "barn-after": {
+    "file": "assets/barn-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 48,
+    "source_url": "https://photos.zillowstatic.com/fp/741be8a9ee6f3475117a959fe3812c53-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "kitchen-detail": {
+    "file": "assets/kitchen-detail.webp",
+    "width": 1200,
+    "height": 800,
+    "zillow_photo": 5,
+    "source_url": "https://photos.zillowstatic.com/fp/6474213c580b1a82fe9763b242f5fdaa-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  },
+  "pantry": {
+    "file": "assets/pantry.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 7,
+    "source_url": "https://photos.zillowstatic.com/fp/782a5c239dcc179654bc8d20965bda38-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "bathroom": {
+    "file": "assets/bathroom.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 10,
+    "source_url": "https://photos.zillowstatic.com/fp/62a2f72eda47eba06df5bb99cced0c0c-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "deck": {
+    "file": "assets/deck.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 34,
+    "source_url": "https://photos.zillowstatic.com/fp/919e026a00a2b2da1debb8bd57650756-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "grounds": {
+    "file": "assets/grounds.webp",
+    "width": 1200,
+    "height": 800,
+    "zillow_photo": 38,
+    "source_url": "https://photos.zillowstatic.com/fp/c113c0a6abd0f8ffffd4f989dea69586-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  },
+  "cabin": {
+    "file": "assets/cabin.webp",
+    "width": 1200,
+    "height": 754,
+    "zillow_photo": 50,
+    "source_url": "https://photos.zillowstatic.com/fp/f51af704899c776f9a08006f20d75495-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  },
+  "cabin-interior": {
+    "file": "assets/cabin-interior.webp",
+    "width": 1200,
+    "height": 800,
+    "zillow_photo": 53,
+    "source_url": "https://photos.zillowstatic.com/fp/8fab56a89cb3ace7ccefa8015a43787b-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  },
+  "workshop-exterior-after": {
+    "file": "assets/workshop-exterior-after.webp",
+    "width": 768,
+    "height": 576,
+    "zillow_photo": 55,
+    "source_url": "https://photos.zillowstatic.com/fp/35a9e42504a6e959dc3253ed630d6f80-cc_ft_768.webp",
+    "source": "Zillow property listing"
+  },
+  "aerial": {
+    "file": "assets/aerial.webp",
+    "width": 1200,
+    "height": 900,
+    "zillow_photo": 86,
+    "source_url": "https://photos.zillowstatic.com/fp/dc5e4fe9419fe55ebde782380333c510-cc_ft_1536.webp",
+    "source": "Zillow property listing"
+  }
+}

@@ -70,6 +70,7 @@ const PAGES = [
   ['/game/', '/game/', 4500],
   ['/slingshot/', '/slingshot/', 4500],
   ['/weather/', '/weather/', 13000],
+  ['/fish-hatchery/', '/fish-hatchery/', 2500],
 ];
 
 const rows = [];

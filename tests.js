@@ -1468,7 +1468,8 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
         const STAMPED_PAGES = {
             countdown: ['calc.js', 'script.js', 'styles.css'],
             game: ['/shared/daily.js', 'putt.js', 'script.js', 'styles.css'],
-            slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css']
+            slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],
+            'fish-hatchery': ['app.js', 'styles.css']
         };
 
         Object.keys(STAMPED_PAGES).forEach(dir => {

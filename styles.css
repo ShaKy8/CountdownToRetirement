@@ -1,6 +1,6 @@
 /* ==========================================================================
    BranyonTech landing page
-   One screen: name, one sentence, three links. Text only.
+   One screen: name, one sentence, project links. Text only.
    Palette borrowed from the retirement page's count-up (dawn) theme.
    ========================================================================== */
 
@@ -215,4 +215,10 @@ h1 {
   .site-footer {
     padding-block: 0.75rem;
   }
+}
+
+/* Fit the owner-requested seventh destination on small phones. */
+@media (max-width: 480px) and (max-height: 740px) {
+  .intro { padding-block: 1.25rem; }
+  .links { margin-top: 1.75rem; row-gap: 0.75rem; }
 }

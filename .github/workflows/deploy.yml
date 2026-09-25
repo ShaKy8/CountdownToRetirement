@@ -26,6 +26,7 @@ on:
       - 'countdown/**'
       - 'game/**'
       - 'slingshot/**'
+      - 'fish-hatchery/**'
       - 'shared/**'
       - 'weather/**'
       - 'lambda/**'
@@ -77,6 +78,7 @@ jobs:
             --include 'game/index.html' \
             --include 'slingshot/index.html' \
             --include 'weather/index.html' \
+            --include 'fish-hatchery/index.html' \
             --cache-control 'public, max-age=300'
 
       - name: Sync assets
@@ -94,6 +96,8 @@ jobs:
             --include 'slingshot/orbit.js' --include 'slingshot/script.js' \
             --include 'slingshot/audio.js' --include 'slingshot/styles.css' \
             --include 'slingshot/favicon.svg' \
+            --include 'fish-hatchery/app.js' --include 'fish-hatchery/styles.css' \
+            --include 'fish-hatchery/favicon.svg' --include 'fish-hatchery/assets/*.webp' \
             --cache-control 'public, max-age=3600'
 
       - name: Sync weather console

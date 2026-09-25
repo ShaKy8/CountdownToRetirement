@@ -1,0 +1,17 @@
+{
+  "title": "Fish Hatchery, renewed",
+  "property": "4881 Fish Hatchery Road, Grants Pass, Oregon",
+  "rehab_started": "January 2026",
+  "rehab_completed": null,
+  "credits": ["Keith", "Harley", "Jeremiah"],
+  "focus": "Property transformation only",
+  "pairs": [
+    {"id":"house","title":"The house","before":"house-before","after":"house-after","evidence":"Two-story center, front arches, rooflines, and building footprint. Different camera positions."},
+    {"id":"living","title":"The living room","before":"living-before","after":"living-after","evidence":"Open staircase, arched passage, French door location and window arrangement. Different framing."},
+    {"id":"kitchen","title":"The kitchen","before":"kitchen-before","after":"kitchen-after","evidence":"Kitchen footprint, island location and corner window arrangement. Different framing."},
+    {"id":"workshop","title":"The workshop","before":"workshop-before","after":"workshop-after","evidence":"Distinctive barrel stove and flue, wood cabinets, pegboard and sink. Different framing."},
+    {"id":"barn","title":"The barn","before":"barn-before","after":"barn-after","evidence":"Metal siding and wood framing, door/window/counter arrangement. Different camera positions."}
+  ],
+  "source_note": "Before and during photographs supplied by the owner. Finished photographs from the property's Zillow listing. Before/during dates come from source image metadata. No completion date has been supplied.",
+  "listing_url": "https://www.zillow.com/homedetails/4881-Fish-Hatchery-Rd-Grants-Pass-OR-97527/213087236_zpid/"
+}

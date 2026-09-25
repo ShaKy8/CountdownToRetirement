@@ -16,13 +16,14 @@ const mimeTypes = {
     '.json': 'application/json',
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
+    '.webp': 'image/webp',
     '.gif': 'image/gif',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon'
 };
 
 // Allowed file extensions (whitelist)
-const allowedExtensions = new Set(['.html', '.css', '.js', '.json', '.png', '.jpg', '.gif', '.svg', '.ico']);
+const allowedExtensions = new Set(['.html', '.css', '.js', '.json', '.png', '.jpg', '.webp', '.gif', '.svg', '.ico']);
 
 // Security headers
 /*
