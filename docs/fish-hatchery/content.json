@@ -3,7 +3,7 @@
   "property": "4881 Fish Hatchery Road, Grants Pass, Oregon",
   "rehab_started": "January 2026",
   "rehab_completed": null,
-  "credits": ["Keith", "Harley", "Jeremiah", "Diane"],
+  "credits": ["Keith", "Diane", "Jeremiah", "Harley"],
   "focus": "Property transformation only",
   "pairs": [
     {"id":"house","title":"The house","before":"house-before","after":"house-after","evidence":"Two-story center, front arches, rooflines, and building footprint. Different camera positions."},

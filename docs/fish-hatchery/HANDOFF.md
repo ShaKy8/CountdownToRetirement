@@ -6,7 +6,7 @@ The owner asked for an elegant property-magazine showcase for family and friends
 
 - Property: 4881 Fish Hatchery Road, Grants Pass, Oregon.
 - Rehab began January 2026. The owner has not supplied a completion date.
-- Credit Keith (the owner's brother), Harley, Jeremiah, and Diane (added September 25, 2026). No surnames or individual trade roles were supplied.
+- Credit, in this order: Keith (the owner's brother), Diane, Jeremiah, and Harley. The order is the owner's (September 25, 2026). No surnames or individual trade roles were supplied.
 - Focus on the property. No family narrative, unrelated properties, financial documents, or personal photographs.
 - The owner supplied the before/during photographs and requested the finished photographs from the property's Zillow listing. The owner has no photographer originals.
 - Dates below before/during photos come from image metadata. After photos do not have an asserted capture date.
