@@ -57,7 +57,9 @@
     { "what": "SYS//NET", "when": "Sep 16, 2026",
       "note": "📡 A system HUD painted into the ATMOS//NET wallpaper" },
     { "what": "Omarchy rebuild kit", "when": "Sep 20–23, 2026",
-      "note": "🐧 The laptop as a repo: every package, /etc file and dotfile, and how to rebuild it" }
+      "note": "🐧 The laptop as a repo: every package, /etc file and dotfile, and how to rebuild it" },
+    { "what": "CLIP//NET", "when": "Sep 24, 2026", "url": "https://github.com/ShaKy8/clipnet",
+      "note": "📋 Ditto for Omarchy: every copy kept with all its formats, Ctrl+' to search and paste" }
   ],
   "books": [
     { "title": "The Widow", "when": "May 2026", "note": "John Grisham" },
