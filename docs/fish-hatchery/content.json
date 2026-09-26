@@ -48,10 +48,10 @@
     },
     {
       "id": "dining",
-      "title": "The room by the deck",
+      "title": "The Dining Room",
       "before": "room-deck-before",
       "after": "room-deck-after",
-      "evidence": "Sliding doors at the end of the room, narrow window on the adjoining right wall, centered chandelier position, and kitchen pass-through visible in linking views IMG_2087 and Zillow 19/20. Room name pending owner confirmation."
+      "evidence": "Sliding doors at the end of the room, narrow window on the adjoining right wall, centered chandelier position, and kitchen pass-through visible in linking views IMG_2087 and Zillow 19/20. Room name confirmed by the owner as The Dining Room."
     },
     {
       "id": "bedroom",
@@ -98,9 +98,7 @@
       "dining",
       "covered-workshop"
     ],
-    "optional_playback_seconds": 60,
-    "starts_automatically": false,
-    "seconds_per_view": 20
+    "navigation": "Manual selection using the three numbered highlight buttons or previous/next arrows; no timed playback."
   },
   "living_journey": {
     "before": "living-before",

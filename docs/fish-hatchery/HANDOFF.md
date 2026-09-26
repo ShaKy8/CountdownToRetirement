@@ -10,16 +10,16 @@ The owner asked for an elegant property-magazine showcase for family and friends
 - Focus on the property. No family narrative, unrelated properties, financial documents, or personal photographs.
 - The owner supplied the before/during photographs and requested the finished photographs from the property's Zillow listing. The owner has no photographer originals.
 - Dates below before/during photos come from image metadata. After photos do not have an asserted capture date.
-- Tonal adjustments have been made at the owner's request: eight under-exposed before photographs (bedroom, barn interior, barn aisle, bathroom, kitchen, living room, room by the deck, workshop) had their exposure lifted on September 25, 2026 -- the bedroom, kitchen, workshop, barn and barn aisle a second time, further, at the owner's request. Nothing was removed, added or reframed; the owner's originals are untouched. Each is recorded in `asset-manifest.json` with the gamma used. The exterior before photographs were already bright enough and are unchanged.
+- Tonal adjustments have been made at the owner's request: eight under-exposed before photographs (bedroom, barn interior, barn aisle, bathroom, kitchen, living room, The Dining Room, workshop) had their exposure lifted on September 25, 2026 -- the bedroom, kitchen, workshop, barn and barn aisle a second time, further, at the owner's request. Nothing was removed, added or reframed; the owner's originals are untouched. Each is recorded in `asset-manifest.json` with the gamma used. The exterior before photographs were already bright enough and are unchanged.
 - Eleven pairs were visually matched using architectural details; camera positions differ. Preserve complete frames in the comparisons and keep that distinction visible. Do not fabricate aligned views, enhance away damage, or generate replacement property photography.
 - The owner explicitly requested a homepage link. This adds a seventh destination; small-phone spacing was tightened to accommodate it.
 
 ## What is included
 
 - `fish-hatchery/index.html`, `styles.css`, `app.js`, `favicon.svg`, and 34 prepared WebP photographs in `assets/`.
-- House exterior, living room, kitchen, room by the deck, bedroom, bathroom, workshop, covered workshop area, barn interior, barn entrance, and barn aisle comparisons, with Together / Before / After controls.
+- House exterior, living room, kitchen, The Dining Room, bedroom, bathroom, workshop, covered workshop area, barn interior, barn entrance, and barn aisle comparisons, with Together / Before / After controls.
 - A three-stage living-room chapter: Before / During / After, with an All three view. The work-in-progress photograph is dated July 29, 2026.
-- A three-highlight opening with manual navigation and optional 60-second playback (20 seconds per view).
+- A three-highlight opening with manual navigation using numbered buttons and previous/next arrows.
 - Finished property details, a 32-photo full-screen viewer, keyboard navigation, and swipe handling.
 - BranyonTech return link, canonical URL, and sharing metadata.
 - This folder's `content.json` records matching evidence and editorial facts; `asset-manifest.json` maps every included photograph to its supplied filename or exact Zillow URL.
@@ -56,7 +56,7 @@ Ask which transformation deserves more emphasis and whether the photo choices or
 
 ## Additional transformation matches — September 25, 2026
 
-Six new comparisons were added after reviewing the owner originals and all listing views. The supporting filenames, Zillow numbers, dates, and architectural evidence are in the two JSON files beside this handoff. Full frames are preserved. The room with former red walls is provisionally called “the room by the deck”; its use/name awaits the owner's answer. No completion date or individual trade roles have been inferred.
+Six new comparisons were added after reviewing the owner originals and all listing views. The supporting filenames, Zillow numbers, dates, and architectural evidence are in the two JSON files beside this handoff. Full frames are preserved. The owner confirmed that the room with former red walls is “The Dining Room”. No completion date or individual trade roles have been inferred.
 
 The three new interior chapters sit after the kitchen. The covered workshop area, barn entrance, and barn aisle are grouped with their existing buildings. The chapter index now has eight entries. A repeated finished workshop image appears only once in the full-screen viewer. Credits retain the existing order: Keith, Diane, Jeremiah, Harley; their layout now accommodates four names.
 
@@ -74,7 +74,7 @@ The previous integration was already committed when this expansion began. These 
 
 ## Opening tour and living-room journey — September 25, 2026
 
-The owner approved the opening highlights sequence and bringing the living-room stages together. The opening at `#highlights` uses the bathroom, the room by the deck, and the covered workshop. Manual selection and previous/next controls are always available when JavaScript is enabled; optional playback lasts 60 seconds (20 seconds per view), starts only on a visitor's click, and supports pause/resume/replay. Playback pauses when leaving the section, hiding the page, opening a photograph, or following a chapter link. Without JavaScript, all three highlight panels remain readable. Full photographic frames and original captions remain intact.
+The owner approved the opening highlights sequence and bringing the living-room stages together. The opening at `#highlights` uses the bathroom, The Dining Room, and the covered workshop. The numbered highlight buttons and previous/next controls switch views when JavaScript is enabled. The owner subsequently requested manual-only navigation; the playback control, timer, pause/resume behavior, and progress track have been removed. Without JavaScript, all three highlight panels remain readable. Full photographic frames and original captions remain intact.
 
 The living-room chapter now has All three / Before / During / After controls. The July 29, 2026 work-in-progress photograph was moved from its separate interlude into this chapter. January 2026 is still the start date; a completion date is not asserted.
 
@@ -87,7 +87,7 @@ The newer owner-requested exposure adjustments made by Claude were retained; the
 ### Tour and three-stage verification
 
 - Browser checks passed for all three highlight selections, previous/next wrapping, photo enlargement, and the unchanged 31-photo viewer.
-- A real 60-second playback run advanced through all three views and completed at 100%. Pause held its position; resume continued; completion offered replay. Opening a photograph and leaving the section paused playback. No console warnings or errors were reported.
+- The original optional timed tour was checked at its initial release; that feature was subsequently removed at the owner's request. Manual navigation remains.
 - Living-room All three / Before / During / After controls each showed the correct photographs. The During image retained its July 29, 2026 caption and enlarged correctly.
 - Desktop at 1440px and phones at 390px and 320px were reviewed. No horizontal overflow; controls fit; highlight panel height stayed consistent between selections at 390px.
 - All 40 image instances have declared dimensions matching their files; the 33 unique assets retain provenance; internal anchors and content stamps passed checks.
@@ -110,3 +110,10 @@ The page now uses 34 unique photographs; 32 are in the full-screen viewer. Claud
 - All 41 image instances match their declared dimensions; 34 unique photographs have provenance; all image/script/style references have valid content stamps; internal anchors are valid.
 - Client checks: 421 passed. Server integration checks: 60 passed. Both development servers served the page and all 37 referenced stamped assets with matching hashes and correct WebP types.
 - The six addition files were copied into the existing BranyonTech working tree after baseline hash checks. Existing Claude changes were preserved; no commit, push, or deployment was performed.
+
+
+## Manual highlights and confirmed room name — September 25, 2026
+
+The owner requested removal of the Play button and confirmed the former red room as “The Dining Room”. The opening now uses manual navigation only. The playback button, timing note, timer, progress track, playback event listeners, and unused styles were removed. All three numbered buttons and the previous/next arrows remain available.
+
+“The Dining Room” is used throughout the visible page, chapter index, comparison controls, image titles, alternate text, accessibility labels, fullscreen viewer, and source content notes. Existing image filenames remain stable. The pending-room-name note is resolved. No photographs or other property content changed.
