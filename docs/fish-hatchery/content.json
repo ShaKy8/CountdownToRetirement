@@ -89,6 +89,37 @@
       "evidence": "View from the tall barn through the same rectangular opening into a lower-ceiling passage, repeating crossbeams, metal walls and vertical studs, and daylight at the far end. Same viewing direction; different framing."
     }
   ],
-  "source_note": "Before and during photographs supplied by the owner. Finished photographs from the property's Zillow listing. Before/during dates come from source image metadata. No completion date has been supplied.",
-  "listing_url": "https://www.zillow.com/homedetails/4881-Fish-Hatchery-Rd-Grants-Pass-OR-97527/213087236_zpid/"
+  "source_note": "Before, during, and final-cleanup photographs supplied by the owner. Finished photographs from the property's Zillow listing. Before/during dates come from source image metadata. No completion date has been supplied.",
+  "listing_url": "https://www.zillow.com/homedetails/4881-Fish-Hatchery-Rd-Grants-Pass-OR-97527/213087236_zpid/",
+  "opening_tour": {
+    "id": "highlights",
+    "chapters": [
+      "bath",
+      "dining",
+      "covered-workshop"
+    ],
+    "optional_playback_seconds": 60,
+    "starts_automatically": false,
+    "seconds_per_view": 20
+  },
+  "living_journey": {
+    "before": "living-before",
+    "during": "living-during",
+    "after": "living-after",
+    "during_date": "July 29, 2026",
+    "views": [
+      "All three",
+      "Before",
+      "During",
+      "After"
+    ]
+  },
+  "closing": {
+    "id": "final-sweep",
+    "image": "final-sweep",
+    "headline": "The last sweep. The next chapter.",
+    "copy": "A lot of work. A little dust. Ready to sell.",
+    "note": "The work tells one story. The next owners get to write another.",
+    "readiness_source": "Owner requested final-cleanup and ready-to-sell wording. No completion date or sale terms inferred."
+  }
 }

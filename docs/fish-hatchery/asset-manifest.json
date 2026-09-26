@@ -270,5 +270,13 @@
     "zillow_photo": 49,
     "source_url": "https://photos.zillowstatic.com/fp/649c2843dfc296d1826b028cdc0f0575-cc_ft_768.webp",
     "source": "Zillow property listing"
+  },
+  "final-sweep": {
+    "file": "assets/final-sweep.webp",
+    "width": 1350,
+    "height": 1800,
+    "original": "IMG_1216.heic",
+    "source": "Owner-supplied final-cleanup photograph",
+    "preparation": "HEIC decoded using macOS ImageIO, oriented, converted to sRGB and resized for the web. Complete frame retained; metadata omitted from the public WebP. Original preserved."
   }
 }

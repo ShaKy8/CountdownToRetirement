@@ -16,11 +16,11 @@ The owner asked for an elegant property-magazine showcase for family and friends
 
 ## What is included
 
-- `fish-hatchery/index.html`, `styles.css`, `app.js`, `favicon.svg`, and 33 prepared WebP photographs in `assets/`.
+- `fish-hatchery/index.html`, `styles.css`, `app.js`, `favicon.svg`, and 34 prepared WebP photographs in `assets/`.
 - House exterior, living room, kitchen, room by the deck, bedroom, bathroom, workshop, covered workshop area, barn interior, barn entrance, and barn aisle comparisons, with Together / Before / After controls.
 - A three-stage living-room chapter: Before / During / After, with an All three view. The work-in-progress photograph is dated July 29, 2026.
 - A three-highlight opening with manual navigation and optional 60-second playback (20 seconds per view).
-- Finished property details, a 31-photo full-screen viewer, keyboard navigation, and swipe handling.
+- Finished property details, a 32-photo full-screen viewer, keyboard navigation, and swipe handling.
 - BranyonTech return link, canonical URL, and sharing metadata.
 - This folder's `content.json` records matching evidence and editorial facts; `asset-manifest.json` maps every included photograph to its supplied filename or exact Zillow URL.
 
@@ -37,7 +37,7 @@ The wider original photo collection, private review materials, and the remaining
 
 ## Publication status
 
-This handoff is an uncommitted working-tree change. Nothing was pushed to GitHub or deployed to AWS. A push to main can trigger the repository's existing AWS workflow. The owner's latest instruction is to continue the build with Claude; publish when the owner requests it.
+Fish Hatchery is published from `main` through the repository's GitHub Actions workflow to AWS S3 and CloudFront. This release includes the opening transformation tour, the three-stage living-room chapter, and the final-cleanup photograph. Earlier notes about uncommitted changes describe the preparation history. The release preserves the latest published photograph adjustments and the header's Back to BranyonTech link.
 
 ## Useful next review
 
@@ -93,3 +93,20 @@ The newer owner-requested exposure adjustments made by Claude were retained; the
 - All 40 image instances have declared dimensions matching their files; the 33 unique assets retain provenance; internal anchors and content stamps passed checks.
 - Client tests: 421 passed. Server integration tests: 60 passed. Both local servers returned the page and all 36 referenced assets with matching hashes and WebP MIME types. `git diff --check` passed.
 - Updated source and notes are on geekom1; five files remain uncommitted. No production deployment was performed.
+
+
+## The final sweep — September 25, 2026
+
+The owner supplied IMG_1216.heic and explicitly requested a final photo with clever final-cleanup / ready-to-sell copy. A closing spread now follows the credits at `#final-sweep`. The complete portrait photograph shows a broom, dustpan, and a small pile of dust. Its heading is “The last sweep. The next chapter.”, followed by “A lot of work. A little dust. Ready to sell.” and “The work tells one story. The next owners get to write another.” A link opens the property's existing Zillow listing. Readiness wording comes from the owner's request; no completion date, sale terms, price, or promise of a sale was added.
+
+The new `assets/final-sweep.webp` is 1350×1800, converted to sRGB, resized, and compressed from the owner's HEIC. The complete frame is retained; no content or exposure edits were made, and the original is preserved in the owner's Photo Gallery folder. The public WebP omits source metadata. Its provenance is in asset-manifest.json.
+
+The page now uses 34 unique photographs; 32 are in the full-screen viewer. Claude's existing photo adjustments and photograph cache stamps are preserved. This addition changes only the showcase HTML/CSS, the new photo, and these documentation files. The checkout already contained other owner/Claude changes; those are retained. No commit, push, or deployment was performed for this addition.
+
+### Final-sweep verification
+
+- Full-frame photo and closing typography reviewed at desktop width 1440px and phone widths 390px and 320px; no horizontal overflow or clipped headline/link.
+- The new photograph opened as image 32 of 32 in the full-screen viewer; Escape restored focus correctly.
+- All 41 image instances match their declared dimensions; 34 unique photographs have provenance; all image/script/style references have valid content stamps; internal anchors are valid.
+- Client checks: 421 passed. Server integration checks: 60 passed. Both development servers served the page and all 37 referenced stamped assets with matching hashes and correct WebP types.
+- The six addition files were copied into the existing BranyonTech working tree after baseline hash checks. Existing Claude changes were preserved; no commit, push, or deployment was performed.
