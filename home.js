@@ -64,12 +64,25 @@
     // plum on cream; the light set is cream on the favicon's navy, with the
     // clock's sun as the accent -- the one house colour that still clears
     // 3:1 on a dark sky as it brightens toward the flip.
+    //
+    // The card (the tinted box each group of links sits in) is the OPPOSITE
+    // polarity of the ink: white over the sky under dark ink, black under
+    // light. In dark polarity every ink is darker than the darkest sky
+    // pixel -- an accent lighter than a sky at FLIP could not clear 3:1
+    // against it -- so a white fill can only raise every channel of the
+    // surface, and so every contrast; symmetric at night. That is what
+    // lets the census stay a proof without re-tuning a stop. A fill the
+    // ink's own way (white under light ink) fails 4.5:1 at the flip.
     const INK = {
         dark:  { text: '#3a2f45', muted: '#5f5469', accent: '#bd5c43', accentDark: '#a3402a', rule: 'rgba(58, 47, 69, 0.15)',
+                 card: [255, 255, 255, 0.42], edge: 'rgba(58, 47, 69, 0.18)',
                  toward: '#000000', from: 0.72 },
         light: { text: '#f4efe6', muted: '#cfc6d8', accent: '#f6d365', accentDark: '#ffe9a8', rule: 'rgba(255, 255, 255, 0.18)',
+                 card: [0, 0, 0, 0.22], edge: 'rgba(255, 255, 255, 0.16)',
                  toward: '#ffffff', from: 0.02 }
     };
+
+    const rgba = c => `rgba(${c.slice(0, 3).join(', ')}, ${c[3]})`;
 
     function hexToRgb(hex) {
         const n = parseInt(hex.slice(1), 16);
@@ -128,11 +141,17 @@
      * per-channel minima is a true lower bound (and maxima an upper), not a
      * guess from the endpoints' own luminances.
      */
-    function bounds(sky) {
+    //
+    // With an overlay (a card's translucent fill, [r, g, b, a]) the fill is
+    // composited over all four corners AFTER the glow -- the page paints
+    // gradient, then glow, then card -- and c + (f - c) * a is monotone in
+    // c, so the corner extrema still bound the surface the text sits on.
+    function bounds(sky, overlay) {
         const [gr, gg, gb, ga] = sky.glow;
         const over = rgb => rgb.map((v, i) => v + ([gr, gg, gb][i] - v) * ga);
+        const fill = rgb => overlay ? rgb.map((v, i) => v + (overlay[i] - v) * overlay[3]) : rgb;
         const top = hexToRgb(sky.top), bottom = hexToRgb(sky.bottom);
-        const corners = [top, bottom, over(top), over(bottom)];
+        const corners = [top, bottom, over(top), over(bottom)].map(fill);
         const lo = [0, 1, 2].map(i => Math.min(...corners.map(c => c[i])));
         const hi = [0, 1, 2].map(i => Math.max(...corners.map(c => c[i])));
         return { min: luminance(lo), max: luminance(hi) };
@@ -159,7 +178,9 @@
             muted: blend(set.muted),
             accent: blend(set.accent),
             accentDark: blend(set.accentDark),
-            rule: set.rule
+            rule: set.rule,
+            card: set.card,
+            edge: set.edge
         };
     }
 
@@ -167,10 +188,10 @@
         const sky = skyAt(minute);
         const b = bounds(sky);
         const ink = inkFor(b.min, b.max);
-        return Object.assign({ sky, bounds: b, themeColor: sky.top }, ink);
+        return Object.assign({ sky, bounds: b, cardBounds: bounds(sky, ink.card), themeColor: sky.top }, ink);
     }
 
-    const VARS = ['--bg', '--bg-soft', '--glow', '--glow-x', '--text', '--muted', '--accent', '--accent-dark', '--rule'];
+    const VARS = ['--bg', '--bg-soft', '--glow', '--glow-x', '--text', '--muted', '--accent', '--accent-dark', '--rule', '--card', '--card-edge'];
 
     function prefersOwnContrast() {
         return typeof root.matchMedia === 'function'
@@ -203,6 +224,8 @@
         s.setProperty('--accent', p.accent);
         s.setProperty('--accent-dark', p.accentDark);
         s.setProperty('--rule', p.rule);
+        s.setProperty('--card', rgba(p.card));
+        s.setProperty('--card-edge', p.edge);
         const meta = root.document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', p.themeColor);
         return p;

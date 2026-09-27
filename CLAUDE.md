@@ -27,14 +27,14 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (413 tests)
+# Run client-side tests (434 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
 # refresh the ?v= content stamps in those pages (tests.js fails until you do)
 node scripts/stamp-assets.mjs
 
-# Run server integration tests (60 tests)
+# Run server integration tests (61 tests)
 # Note: Stop any running server first, tests start their own -- or, where
 # port 8000 belongs to the systemd service, run them on another port:
 PORT=8137 node tests-server.js
@@ -134,8 +134,8 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (413 tests)
-├── tests-server.js         # Server integration tests (60 tests)
+├── tests.js                # Client-side unit tests (434 tests)
+├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
     ├── deploy.yml          # Auto-deploy on push to main
@@ -145,7 +145,7 @@ CountdownToRetirement/
 ## Key Features
 
 ### Landing Page (/)
-- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, and exactly one script: `home.js`, the sky right now.
 - **The sky right now.** `home.js` makes the page's colours follow the
   visitor's local time of day — the favicon's navy at night, the clock's
@@ -192,12 +192,68 @@ CountdownToRetirement/
     colour and the forced `:hover` colour, and computes contrast from the
     cascade's own output. It then paints the text the sky's colour and
     requires its own measurement to fail — or it measured nothing.
+- **The links are five titled cards** (chosen by Kyle, September 27, 2026):
+  Retirement · Weather · Play (ONE PUTT, SLINGSHOT) · Property (Fish
+  Hatchery) · Reach me (the address, GitHub), in that order — the clock
+  first because it follows straight on from "retired technologist" and is
+  the site's original feature, contact last where people expect it — each a
+  `<section class="group">` with its own `<h2>` inside a
+  `<nav aria-label="Around the site">` — the first real structure a screen
+  reader gets on the page. `.links a` is still the link selector and there
+  are still exactly seven; a test pins the groups, their order and which
+  link is in which. `node scripts/home-audit.mjs` is the gate. Load-bearing:
+  - **A six-column grid, so both rows are full.** Three cards of two
+    columns, then two of three (`nth-last-child(-n+2)`): five cards in a
+    three-column grid leaves a hole. Under 640px they stack.
+  - **The card fill is sky ink of the OPPOSITE polarity** — `--card` is
+    white over the sky under dark ink, black under light, set by `home.js`
+    with everything else. In dark polarity every ink is darker than the
+    darkest sky pixel (an accent lighter than a sky at `FLIP` could not
+    clear 3:1 against it), so a white fill can only raise every channel of
+    the surface and every contrast with it; symmetric at night. That is
+    what lets the census stay a proof without re-tuning a stop: a fill the
+    ink's own way fails 4.5:1 at the flip. The census checks `cardBounds`
+    (the fill composited over the four glowed corners — *after* the glow,
+    the page paints gradient, glow, then card) as well as the sky, and
+    asserts card contrast ≥ sky contrast for every ink at every minute.
+    The card tokens do not blend with `k`, and `:root` spells the default
+    byte-for-byte as `home.js` does, because the defaults test is a string
+    match. High contrast: white cards with a black rim.
+  - **The gate measures the surface the text is on.** Each run of text
+    reports the nearest ancestor with a fill, and the gate composites it
+    over the sky before taking contrast; a bite proof fills a card the
+    ink's own way and requires a link's measurement to fail. It reads the
+    hover underline as well as the hover text now.
+  - **The underline is `text-decoration`, not `border-bottom`.** A 250px
+    link in a 213px card wraps, and an inline-block's border draws under its
+    last line only, the full width of the block. `skip-ink: none` keeps it
+    the continuous rule the border was.
+  - **Where stacked cards would not fit one screen, they flatten to
+    labelled rows** — `(max-width: 640px) and (max-height: 819px)`, and any
+    screen under 480px tall: no fill, the title as the first flex item of
+    its group, the links `flex: 1 1 10rem` beside it (or beneath it when
+    10rem is not there), a hairline between groups. `align-items` is
+    `flex-start` with padding on the title, not `baseline`: an
+    inline-block's baseline is its *last* line, and a wrapped link put the
+    label beside its second line. 375x812 gets rows, 390x844 cards — the
+    gate covers one of each and asserts the form.
+  - **The budget was measured, not guessed.** Stacked cards at phone width
+    are ~495px against the 226–274px the flat list was, so a phone gives up
+    the 6vh header padding at any height (`(max-width: 480px)`), the groups'
+    top margin and the brand and tagline margins shrink, and the footer
+    tightens. After that: 390x844 cards with 67px spare, 320x700 rows with
+    ~24px, 1280x640 cards with ~30px. **1280x600 does not fit** (613px) and
+    is not promised. Landscape phones scrolled before and still do.
+  - **Touch targets:** links are 30px tall with 12.8px gaps — the WCAG 2.5.8
+    case site-audit exists for (24px, or 44 with a neighbour under 12px).
+    Between groups in the rows form the gap is 13.8px for the same reason.
+    No `@media (pointer: coarse)` block on this page; a test forbids one.
 - **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
 - **Seven homepage destinations are owner-approved as of September 25, 2026.**
   The owner explicitly requested the Fish Hatchery link. The earlier six-link
-  ceiling is superseded by that instruction. A small-phone CSS rule tightens
-  vertical spacing at widths up to 480px and heights up to 740px; preserve all
-  seven links and verify the homepage at 390x844, 375x667, and 320x700 when changing it.
+  ceiling is superseded by that instruction. Preserve all seven links and
+  verify the homepage at 390x844, 375x667, 320x700 and 360x640 when changing
+  it — `home-audit.mjs` does, and `site-audit.mjs` at each size for targets.
 
 ### Fish Hatchery (/fish-hatchery/)
 

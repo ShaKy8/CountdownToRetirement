@@ -7,12 +7,12 @@
   <title>BranyonTech | Kyle Shaver</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <meta name="theme-color" content="#fbf6ef" />
-  <link rel="stylesheet" href="styles.css?v=d57a09e316" />
+  <link rel="stylesheet" href="styles.css?v=dac63895a7" />
   <!-- The sky right now: the page's colours follow the visitor's local
        time of day. Blocking, and after the stylesheet, so the palette is
        set before the body paints; without it the page is the cream it
        always was. The one script on this page. -->
-  <script src="home.js?v=fb24234f21"></script>
+  <script src="home.js?v=f540f45b79"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -23,29 +23,43 @@
       <h1 id="name">Kyle Shaver</h1>
       <p class="tagline">Retired technologist. Occasional AI and IT consulting, mostly by referral.</p>
 
-      <ul class="links" role="list">
-        <li>
-          <a href="mailto:shaky8@proton.me">shaky8@proton.me</a>
-        </li>
-        <li>
-          <a href="https://github.com/ShaKy8" target="_blank" rel="noopener noreferrer" aria-label="View GitHub profile for ShaKy8, opens in new tab">GitHub</a>
-        </li>
-        <li>
-          <a href="/countdown/index.html">See how long I've been retired</a>
-        </li>
-        <li>
-          <a href="/weather/">Watch the weather</a>
-        </li>
-        <li>
-          <a href="/game/">Play today's putt</a>
-        </li>
-        <li>
-          <a href="/slingshot/">Slingshot a probe past the planets</a>
-        </li>
-        <li>
-          <a href="/fish-hatchery/">See Fish Hatchery’s transformation</a>
-        </li>
-      </ul>
+      <!-- Five groups, seven links. The card fill and rim are sky ink too
+           (see home.js); on a screen where stacked cards would not fit one
+           screen the stylesheet flattens these to labelled rows. -->
+      <nav class="groups" aria-label="Around the site">
+        <section class="group" aria-labelledby="g-retirement">
+          <h2 class="group-title" id="g-retirement">Retirement</h2>
+          <ul class="links" role="list">
+            <li><a href="/countdown/index.html">See how long I've been retired</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-weather">
+          <h2 class="group-title" id="g-weather">Weather</h2>
+          <ul class="links" role="list">
+            <li><a href="/weather/">Watch the weather</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-play">
+          <h2 class="group-title" id="g-play">Play</h2>
+          <ul class="links" role="list">
+            <li><a href="/game/">Play today's putt</a></li>
+            <li><a href="/slingshot/">Slingshot a probe past the planets</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-property">
+          <h2 class="group-title" id="g-property">Property</h2>
+          <ul class="links" role="list">
+            <li><a href="/fish-hatchery/">See Fish Hatchery’s transformation</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-reach">
+          <h2 class="group-title" id="g-reach">Reach me</h2>
+          <ul class="links" role="list">
+            <li><a href="mailto:shaky8@proton.me">shaky8@proton.me</a></li>
+            <li><a href="https://github.com/ShaKy8" target="_blank" rel="noopener noreferrer" aria-label="View GitHub profile for ShaKy8, opens in new tab">GitHub</a></li>
+          </ul>
+        </section>
+      </nav>
     </section>
   </main>
 

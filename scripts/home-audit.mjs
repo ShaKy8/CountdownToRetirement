@@ -10,10 +10,14 @@
  * the stylesheet stopped reading, a colour set on the wrong element, an
  * inline property beating a media query it should have yielded to.
  *
+ * Text on a card is judged against the card: the fill is read off the
+ * nearest ancestor with a background and composited over the sky's four
+ * corners, after the glow, before the contrast is taken.
+ *
  * It also checks the three ways the page must degrade: with a contrast
  * preference (the script stands aside), with scripts off (the cream page
- * as it always was), and on a small phone (still one screen, with the
- * longer email address).
+ * as it always was), and on a small phone (still one screen -- cards where
+ * they fit, labelled rows where they would not).
  *
  *   PORT=8137 node scripts/dev-server.mjs &
  *   node scripts/home-audit.mjs http://localhost:8137
@@ -74,22 +78,34 @@ const READ = `(async()=>{
   // Text painted on the SKY: elements with their own opaque background
   // (the skip link, plum on cream inverted) are judged against that, not
   // the page -- and contrast is symmetric, so the pair is already covered.
+  // The surface under an element: the nearest ancestor with a fill (a
+  // card), composited over the sky by the caller; null means the sky itself.
+  const fillUnder=el=>{for(let p=el.parentElement;p&&p!==document.documentElement;p=p.parentElement){const c=getComputedStyle(p).backgroundColor;if(c!=='rgba(0, 0, 0, 0)')return c;}return null;};
   const texts=[...document.querySelectorAll('body *')].filter(el=>[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()))
     .filter(el=>{const r=el.getBoundingClientRect();const cs=getComputedStyle(el);return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.backgroundColor==='rgba(0, 0, 0, 0)';})
-    .map(el=>({tag:el.tagName+(el.className?'.'+String(el.className).split(' ')[0]:''), color:getComputedStyle(el).color}));
+    .map(el=>({tag:el.tagName+(el.className?'.'+String(el.className).split(' ')[0]:''), color:getComputedStyle(el).color, fill:fillUnder(el)}));
   const a=document.querySelector('.links a');
+  const gs=[...document.querySelectorAll('.group')];
   return {glow:cols[0], top:cols[cols.length-2], bottom:cols[cols.length-1], glowX:at?Number(at[1]):null, texts,
-    underline:getComputedStyle(a).borderBottomColor,
+    underline:getComputedStyle(a).textDecorationColor, linkFill:fillUnder(a),
     inline:document.documentElement.style.getPropertyValue('--bg'),
     theme:document.querySelector('meta[name="theme-color"]').getAttribute('content'),
-    links:document.querySelectorAll('.links a').length, sh:document.documentElement.scrollHeight, ih:innerHeight};})()`;
+    links:document.querySelectorAll('.links a').length, sh:document.documentElement.scrollHeight, ih:innerHeight,
+    groups:gs.length, titled:gs.filter(x=>x.querySelector('h2.group-title')&&x.querySelector('.links a')).length,
+    homed:[...document.querySelectorAll('.links a')].filter(x=>x.closest('.group')).length,
+    form:gs.length&&getComputedStyle(gs[0]).backgroundColor!=='rgba(0, 0, 0, 0)'?'cards':'rows',
+    hairline:gs.length>1?getComputedStyle(gs[1]).borderTopWidth:null,
+    grid:gs.length?getComputedStyle(gs[0].parentElement).display:null};})()`;
 
 const lum = rgb => Sky.luminance(rgb.slice(0, 3));
 const parse = s => (s.match(/[\d.]+/g) || []).map(Number);
 // Composite the glow over a gradient colour at its full alpha.
 const over = (c, g) => c.map((v, i) => v + (g[i] - v) * (g[3] === undefined ? 1 : g[3]));
-function boundsOf(r) {
-  const corners = [r.top, r.bottom, over(r.top, r.glow), over(r.bottom, r.glow)];
+// With a fill (a card's rgba, parsed) it goes over all four corners AFTER
+// the glow -- the page paints gradient, glow, then card -- and per-channel
+// compositing is monotone, so the corner extrema still bound the surface.
+function boundsOf(r, fill) {
+  const corners = [r.top, r.bottom, over(r.top, r.glow), over(r.bottom, r.glow)].map(c => fill ? over(c, fill) : c);
   const lo = [0, 1, 2].map(i => Math.min(...corners.map(c => c[i])));
   const hi = [0, 1, 2].map(i => Math.max(...corners.map(c => c[i])));
   return { min: lum(lo), max: lum(hi) };
@@ -122,23 +138,29 @@ for (const [w, h] of [[1280, 800], [390, 844]]) {
     const r = await E(READ);
     if (!r || !r.top || !r.bottom || !r.glow) { bad.push(`${hour}:00 gradient not readable`); continue; }
     const b = boundsOf(r);
+    let onCard = 0;
     for (const t of r.texts) {
-      const c = worst(parse(t.color), b);
+      const c = worst(parse(t.color), t.fill ? boundsOf(r, parse(t.fill)) : b);
+      if (t.fill) onCard++;
       worstText = Math.min(worstText, c);
       if (c < 4.5) bad.push(`${hour}:00 ${t.tag} ${c.toFixed(2)}`);
     }
-    const u = worst(parse(r.underline), b);
+    if (onCard < 12) bad.push(`${hour}:00 only ${onCard} runs of text measured on a card (five titles and seven links expected)`);
+    const lb = r.linkFill ? boundsOf(r, parse(r.linkFill)) : b;
+    const u = worst(parse(r.underline), lb);
     worstUnderline = Math.min(worstUnderline, u);
     if (u < 3) bad.push(`${hour}:00 underline ${u.toFixed(2)}`);
-    // Hover is text too. Force the pseudo-class on the first link and read it.
+    // Hover is text too, and an underline too. Force the pseudo-class on
+    // the first link and read both.
     const { result: { root } } = await S('DOM.getDocument', { depth: 1 });
     const { result: { nodeId } } = await S('DOM.querySelector', { nodeId: root.nodeId, selector: '.links a' });
     await S('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: ['hover'] });
-    const hoverColor = await E("getComputedStyle(document.querySelector('.links a')).color");
+    const hov = await E("(()=>{const s=getComputedStyle(document.querySelector('.links a'));return {color:s.color, line:s.textDecorationColor};})()");
     await S('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
-    const hc = worst(parse(hoverColor), b);
+    const hc = worst(parse(hov.color), lb), hu = worst(parse(hov.line), lb);
     worstHover = Math.min(worstHover, hc);
     if (hc < 4.5) bad.push(`${hour}:00 hover ${hc.toFixed(2)}`);
+    if (hu < 3) bad.push(`${hour}:00 hover underline ${hu.toFixed(2)}`);
     // The sun crosses left to right through the day.
     const rise = Sky.STOPS.find(s => s.glow[3] === 0 && s.at < 720).at / 60;
     const set = [...Sky.STOPS].reverse().find(s => s.glow[3] === 0 && s.at > 720).at / 60;
@@ -163,6 +185,14 @@ for (const [w, h] of [[1280, 800], [390, 844]]) {
   const h1 = broken.texts.find(t => t.tag.startsWith('H1'));
   gate(h1 && worst(parse(h1.color), bb) < 1.5, `${tag}: the measurement fails when the text is painted the sky's colour`,
     h1 ? `${worst(parse(h1.color), bb).toFixed(2)}:1` : 'no h1');
+  // And the card: at noon, a fill the ink's own way (black under dark ink)
+  // must drag a link's measured contrast under the line -- or the gate is
+  // still judging card text against the sky behind the card.
+  await E("BranyonSky.apply(720); document.documentElement.style.setProperty('--card', 'rgba(0, 0, 0, 0.6)'), 1");
+  const dim = await E(READ);
+  const link = dim.texts.find(t => t.tag === 'A' && t.fill);
+  const lc = link ? worst(parse(link.color), boundsOf(dim, parse(link.fill))) : 99;
+  gate(link && lc < 4.5, `${tag}: the measurement fails when a card is filled the ink's own way`, link ? `${lc.toFixed(2)}:1` : 'no link on a card');
   await E('BranyonSky.apply(720), 1');
 }
 
@@ -187,14 +217,22 @@ await load(1280, 800, { noScript: true });
   gate(r.inline === '' && hex(r.top) === morning.top && hex(r.bottom) === morning.bottom,
     'scripts off — the mid-morning cream from :root', `${hex(r.top)} / ${hex(r.bottom)}`);
   gate(r.links === 7, 'scripts off — all seven links', String(r.links));
+  gate(r.groups === 5 && r.titled === 5, 'scripts off — five titled groups', `${r.groups} groups, ${r.titled} titled`);
 }
 await S('Emulation.setScriptExecutionDisabled', { value: false });
 
-// Still one screen on a phone, with the address where "Email" was.
-for (const [w, h] of [[390, 844], [375, 667], [320, 700], [360, 640]]) {
+// Still one screen: cards where they fit, labelled rows where stacked
+// cards would not. Every link has a group either way.
+const FORM = { '390x844': 'cards', '375x667': 'rows', '320x700': 'rows', '360x640': 'rows', '1280x720': 'cards', '1280x640': 'cards' };
+for (const [w, h] of [[390, 844], [375, 667], [320, 700], [360, 640], [1280, 720], [1280, 640]]) {
   await load(w, h);
   const r = await E(READ);
-  gate(r.sh <= r.ih, `${w}x${h}: one screen, no scrolling`, `${r.sh}px in ${r.ih}px`);
+  const tag = `${w}x${h}`;
+  gate(r.sh <= r.ih, `${tag}: one screen, no scrolling`, `${r.sh}px in ${r.ih}px`);
+  gate(r.form === FORM[tag] && (r.form === 'cards' ? r.grid === 'grid' : r.hairline === '1px'),
+    `${tag}: ${FORM[tag]}`, `${r.form}, grid ${r.grid}, hairline ${r.hairline}`);
+  gate(r.groups === 5 && r.titled === 5 && r.links === 7 && r.homed === 7,
+    `${tag}: five titled groups, seven links, each in a group`, `${r.groups}/${r.titled}/${r.links}/${r.homed}`);
 }
 
 gate(errors.length === 0, 'no console errors', errors.slice(0, 3).join(' | '));

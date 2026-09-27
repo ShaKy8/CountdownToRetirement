@@ -1446,6 +1446,26 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'The theme-color meta exists before the script that updates it');
     });
 
+    test('Should group the seven links into five titled cards, in order', () => {
+        // One <section class="group"> per category, each titled by its own
+        // <h2>, inside a nav landmark. Every link lives in exactly one group
+        // and the groups come in the order Kyle chose.
+        assert.ok(indexHtml.includes('<nav class="groups" aria-label="Around the site">'), 'A named nav landmark');
+        const nav = indexHtml.slice(indexHtml.indexOf('<nav class="groups"'), indexHtml.indexOf('</nav>'));
+        const groups = [...nav.matchAll(/<section class="group" aria-labelledby="([\w-]+)">\s*<h2 class="group-title" id="\1">([^<]+)<\/h2>([\s\S]*?)<\/section>/g)]
+            .map(m => [m[2], [...m[3].matchAll(/<a href="([^"]+)"/g)].map(x => x[1])]);
+        assert.deepStrictEqual(groups, [
+            ['Retirement', ['/countdown/index.html']],
+            ['Weather', ['/weather/']],
+            ['Play', ['/game/', '/slingshot/']],
+            ['Property', ['/fish-hatchery/']],
+            ['Reach me', ['mailto:shaky8@proton.me', 'https://github.com/ShaKy8']]
+        ]);
+        assert.strictEqual((nav.match(/<a href=/g) || []).length, 7, 'Seven links, all of them in a group');
+        assert.strictEqual((nav.match(/<ul class="links" role="list">/g) || []).length, 5, 'Each group holds its links in a .links list');
+        assert.ok(!indexHtml.includes('<a href=', indexHtml.indexOf('</nav>')), 'No link outside the groups');
+    });
+
     test('Should have a footer landmark', () => {
         assert.ok(indexHtml.includes('role="contentinfo"'), 'Footer should be a contentinfo landmark');
     });
@@ -1503,16 +1523,42 @@ describe('BUSINESS SITE - The sky right now', () => {
         // to the minute -- so this is a census, not a sample. Bounds are
         // the darkest and brightest pixel of the whole gradient with its
         // glow, per channel, which is a proof rather than a spot check.
+        // Text sits on the sky (the name, the tagline) and on the cards (the
+        // titles and every link), so both surfaces are checked.
         const bad = [];
         for (let m = 0; m < 1440; m++) {
-            const p = Sky.paletteAt(m), b = p.bounds;
-            const r = { text: worst(p.text, b), muted: worst(p.muted, b), hover: worst(p.accentDark, b), underline: worst(p.accent, b) };
-            if (r.text < 4.5 || r.muted < 4.5 || r.hover < 4.5 || r.underline < 3) {
-                bad.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')} ` +
-                    Object.entries(r).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', '));
+            const p = Sky.paletteAt(m);
+            for (const [where, b] of [['sky', p.bounds], ['card', p.cardBounds]]) {
+                const r = { text: worst(p.text, b), muted: worst(p.muted, b), hover: worst(p.accentDark, b), underline: worst(p.accent, b) };
+                if (r.text < 4.5 || r.muted < 4.5 || r.hover < 4.5 || r.underline < 3) {
+                    bad.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')} on ${where}: ` +
+                        Object.entries(r).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', '));
+                }
             }
         }
         assert.strictEqual(bad.length, 0, `Text 4.5:1, muted 4.5:1, hover 4.5:1, underline 3:1 -- failing minutes:\n${bad.slice(0, 8).join('\n')}`);
+    });
+
+    test('The card should be the opposite polarity of the ink, and can only raise its contrast', () => {
+        // White over the sky under dark ink, black under light. In dark
+        // polarity every ink is darker than the darkest sky pixel, so a white
+        // fill raises every channel of the surface and every contrast with
+        // it; symmetric at night. A fill the ink's own way fails at the flip.
+        for (let m = 0; m < 1440; m++) {
+            const p = Sky.paletteAt(m);
+            assert.strictEqual(p.card[0], p.polarity === 'dark' ? 255 : 0, `minute ${m}: fill is ${p.polarity === 'dark' ? 'white' : 'black'}`);
+            assert.ok(p.card[3] > 0 && p.card[3] < 1, 'A translucent fill');
+            for (const ink of ['text', 'muted', 'accent', 'accentDark']) {
+                assert.ok(worst(p[ink], p.cardBounds) >= worst(p[ink], p.bounds) - 1e-9,
+                    `minute ${m}: ${ink} reads at least as well on the card as on the sky`);
+            }
+        }
+        // Compositing goes over the glowed corners, after the glow: the page
+        // paints gradient, then glow, then card.
+        const s = Sky.skyAt(420);
+        const withFill = Sky.bounds(s, [255, 255, 255, 0.42]), bare = Sky.bounds(s);
+        assert.ok(withFill.min > bare.min && withFill.max > bare.max, 'A white fill brightens both bounds of a sunrise');
+        assert.deepStrictEqual(Sky.bounds(s, [0, 0, 0, 0]), bare, 'An invisible fill changes nothing');
     });
 
     test('The ink should flip polarity exactly once at dawn and once at dusk, on a flat sky', () => {
@@ -1552,6 +1598,11 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.ok(rootBlock.includes(`--bg: ${noon.top};`), 'Default --bg is the morning sky');
         assert.ok(rootBlock.includes(`--bg-soft: ${noon.bottom};`), 'Default --bg-soft is the morning sky');
         assert.ok(rootBlock.includes(`--accent: ${Sky.INK.dark.accent};`), 'Default accent is the dark ink\'s');
+        const c = Sky.INK.dark.card;
+        assert.ok(rootBlock.includes(`--card: rgba(${c[0]}, ${c[1]}, ${c[2]}, ${c[3]});`), 'Default card fill is the dark ink\'s, spelled as home.js spells it');
+        assert.ok(rootBlock.includes(`--card-edge: ${Sky.INK.dark.edge};`), 'Default card edge is the dark ink\'s');
+        const more = css.slice(css.indexOf('@media (prefers-contrast: more)'));
+        assert.ok(/--card: #ffffff;/.test(more) && /--card-edge: #000000;/.test(more), 'High contrast: white cards with a black rim');
         assert.ok(rootBlock.includes('--glow-x: 50%;') && /var\(--glow-x\)/.test(css) && /var\(--glow\)/.test(css),
             'The body gradient reads the glow and its position from the vars');
         assert.ok(html.includes('<meta name="theme-color" content="' + noon.top + '"'), 'theme-color defaults to the morning sky');
@@ -1571,6 +1622,9 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.ok(/if \(prefersOwnContrast\(\)\) \{ clear\(\); return null; \}/.test(homeJs), 'apply() bails and clears');
         assert.ok(/addEventListener\('change', tick\)/.test(homeJs), 'And listens for the preference changing');
         assert.ok(/removeProperty\(v\)/.test(homeJs), 'clear() removes every var it set');
+        assert.ok(/'--rule', '--card', '--card-edge'\]/.test(homeJs), 'The card tokens are in VARS, so clear() removes them too');
+        assert.ok(/setProperty\('--card', rgba\(p\.card\)\)/.test(homeJs) && /setProperty\('--card-edge', p\.edge\)/.test(homeJs),
+            'apply() sets both');
     });
 
     test('The sky should step, never fade', () => {
@@ -1582,6 +1636,13 @@ describe('BUSINESS SITE - The sky right now', () => {
         const linkRule = css.slice(css.indexOf('\n.links a {'), css.indexOf('}', css.indexOf('\n.links a {')));
         assert.ok(/transition: transform 150ms ease;/.test(linkRule) && !/transition:[^;]*color/.test(linkRule),
             'Links transition their lift only, never their colour');
+        // The underline is text-decoration, not a border: a wrapped link's
+        // border would draw under its last line only.
+        assert.ok(/text-decoration: underline;/.test(linkRule) && /text-decoration-color: var\(--accent\);/.test(linkRule)
+            && !/border-bottom/.test(linkRule), 'The underline is text-decoration in the accent');
+        const groupRule = css.slice(css.indexOf('\n.group {'), css.indexOf('}', css.indexOf('\n.group {')));
+        assert.ok(/var\(--card\)/.test(groupRule) && /var\(--card-edge\)/.test(groupRule) && !/transition/.test(groupRule),
+            'The card fill and rim are sky ink, and never fade');
         assert.ok(!/style\.transition|setProperty\('transition|\.animate\(|requestAnimationFrame/.test(homeJs),
             'The script sets, it does not animate');
         assert.ok(/setInterval\(tick, 60000\)/.test(homeJs), 'Once a minute');
