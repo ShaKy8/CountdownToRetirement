@@ -808,6 +808,7 @@ async function runGameTests() {
             const assets = [
                 ['/game/putt.js', 'text/javascript'],
                 ['/game/script.js', 'text/javascript'],
+                ['/game/audio.js', 'text/javascript'],
                 ['/game/styles.css', 'text/css'],
                 ['/game/favicon.svg', 'image/svg+xml']
             ];

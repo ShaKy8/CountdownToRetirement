@@ -631,6 +631,9 @@
         let t = o.t0 || 0;
         let steps = 0;
         let bounces = 0;
+        // Closest approach to the cup over the whole roll: what findAceLine
+        // ranks near misses by. A sink is 0.
+        let closest = Math.hypot(b.x - hole.cup.x, b.y - hole.cup.y);
         while (steps < cap) {
             const r = stepBall(hole, b, windSpec, t, SIM.DT);
             b = r.ball;
@@ -638,11 +641,127 @@
             steps++;
             t += SIM.DT;
             if (o.trace) marks.push({ x: b.x, y: b.y });
+            const d = Math.hypot(b.x - hole.cup.x, b.y - hole.cup.y);
+            if (d < closest) closest = d;
             if (r.event !== 'moving') {
-                return { ball: b, event: r.event, steps: steps, elapsed: t, bounces: bounces, marks: marks };
+                if (r.event === 'sunk') closest = 0;
+                return { ball: b, event: r.event, steps: steps, elapsed: t, bounces: bounces, marks: marks, closest: closest };
             }
         }
-        return { ball: b, event: 'timeout', steps: steps, elapsed: t, bounces: bounces, marks: marks };
+        return { ball: b, event: 'timeout', steps: steps, elapsed: t, bounces: bounces, marks: marks, closest: closest };
+    }
+
+    // ------------------------------------------------------------------
+    // The line: was there an ace today?
+    // ------------------------------------------------------------------
+
+    /**
+     * The keyboard's lattice. A Shift-nudge is 0.15 degrees and the power keys
+     * step two points from the default 50, so every aim below is one a player
+     * could have keyed in - and the gate reproduces it by construction. The
+     * angles are built exactly as the handler builds them, by successive
+     * addition of the step from -pi/2, not by multiplication; the roll could
+     * not tell the difference, but the reproduction should not depend on
+     * that.
+     */
+    const ACE_STEP = 0.15 * Math.PI / 180;
+    const ACE_K = 1200;                       // k in -1200..1199 covers the circle
+
+    function aceAngles() {
+        const up = [-Math.PI / 2], down = [-Math.PI / 2];
+        for (let i = 1; i <= ACE_K; i++) {
+            up.push(up[i - 1] + ACE_STEP);
+            down.push(down[i - 1] - ACE_STEP);
+        }
+        return function (k) { return k >= 0 ? up[k] : down[-k]; };
+    }
+
+    /**
+     * Search for a one-stroke line from the tee in this wind, at the first
+     * stroke's gust phase (t = 0). A coarse lattice of 150 angles x 12 powers
+     * through the real physics, the twelve closest approaches refined at
+     * keyboard resolution. Pure: the same hole and wind always give the same
+     * answer. Returns { aim, k, pct, marks, tried } or { aim: null, tried } -
+     * "none found", not "none exists": the lattice is fine, not exhaustive.
+     */
+    function findAceLine(hole, windSpec, opts) {
+        const o = opts || {};
+        const angleAt = aceAngles();
+        const tee = createBall(hole);
+        const sim = function (k, pct, trace) {
+            return simulateShot(hole, tee, { angle: angleAt(k), power: pct / 100 }, windSpec,
+                { maxSteps: o.maxSteps || 1200, t0: 0, trace: !!trace });
+        };
+        let tried = 0;
+        const found = function (k, pct) {
+            const r = sim(k, pct, true);
+            return { aim: { angle: angleAt(k), power: pct / 100 }, k: k, pct: pct, marks: r.marks, tried: tried };
+        };
+
+        // Coarse: every 16 nudges (2.4 degrees), powers 12..100 by 8.
+        const near = [];
+        for (let k = -ACE_K; k < ACE_K; k += 16) {
+            for (let pct = 12; pct <= 100; pct += 8) {
+                const r = sim(k, pct, false);
+                tried++;
+                if (r.event === 'sunk') return found(k, pct);
+                near.push({ k: k, pct: pct, closest: r.closest });
+            }
+        }
+        near.sort(function (a, b) { return a.closest - b.closest; });
+
+        // Fine: around each of the twelve best, one nudge and two points at a time.
+        const seen = {};
+        for (let c = 0; c < Math.min(12, near.length); c++) {
+            const base = near[c];
+            for (let dk = -8; dk <= 8; dk++) {
+                for (let dp = -4; dp <= 4; dp += 2) {
+                    const k = base.k + dk, pct = base.pct + dp;
+                    if (k < -ACE_K || k >= ACE_K || pct < 6 || pct > 100) continue;
+                    const key = k + ':' + pct;
+                    if (seen[key]) continue;
+                    seen[key] = true;
+                    const r = sim(k, pct, false);
+                    tried++;
+                    if (r.event === 'sunk') return found(k, pct);
+                }
+            }
+        }
+        return { aim: null, tried: tried };
+    }
+
+    // ------------------------------------------------------------------
+    // The round's cells, packed for storage
+    // ------------------------------------------------------------------
+
+    /**
+     * Base 5, one digit a cell, first cell least significant, with the cell
+     * count in the low base-13 digit so trailing greens survive. Twelve cells
+     * at most, which is where the share stops too. A water penalty stroke has
+     * no cell, so the count is not the stroke count.
+     */
+    const CELL_CODES = ['green', 'sand', 'water', 'wall', 'sunk'];
+
+    function packCells(cells) {
+        const list = (cells || []).slice(0, 12);
+        let digits = 0;
+        for (let i = list.length - 1; i >= 0; i--) {
+            digits = digits * 5 + Math.max(0, CELL_CODES.indexOf(list[i]));
+        }
+        return list.length + 13 * digits;
+    }
+
+    function unpackCells(packed) {
+        let n = Math.floor(Number(packed));
+        if (!(n > 0)) return [];
+        const count = Math.min(12, n % 13);
+        let digits = Math.floor(n / 13);
+        const out = [];
+        for (let i = 0; i < count; i++) {
+            out.push(CELL_CODES[digits % 5] || 'green');
+            digits = Math.floor(digits / 5);
+        }
+        return out;
     }
 
     /**
@@ -764,7 +883,11 @@
             par: { kind: 'int', required: true },
             windMph: { kind: 'num', default: 0 },
             windDeg: { kind: 'num', default: 0 },
-            source: { kind: 'enum', values: ['live', 'synthetic'], default: 'synthetic' }
+            source: { kind: 'enum', values: ['live', 'synthetic'], default: 'synthetic' },
+            // The round's cells, packed (packCells), so a revisit rebuilds the
+            // real share. Added 2026-09-27; readDay emits it for older records
+            // as 0, which is why two golden rows in tests.js changed that day.
+            cells: { kind: 'int', default: 0 }
         },
         settings: {
             sound: { kind: 'bool', default: false },
@@ -815,6 +938,8 @@
         stepBall: stepBall,
         simulateShot: simulateShot,
         probeSolvable: probeSolvable,
+        findAceLine: findAceLine,
+        ACE_STEP: ACE_STEP,
 
         compassFromDegrees: compassFromDegrees,
         formatWind: formatWind,
@@ -826,6 +951,8 @@
         scoreLabel: scoreLabel,
         scoreEmoji: scoreEmoji,
         buildShare: buildShare,
+        packCells: packCells,
+        unpackCells: unpackCells,
 
         emptyState: emptyState,
         parseState: parseState,

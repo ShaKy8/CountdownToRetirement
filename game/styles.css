@@ -203,6 +203,28 @@ body {
     text-align: left;
 }
 
+.result-stats { margin: 0; font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; color: var(--dim); }
+
+/* The last seven days, today on the right: the score's emoji for a day
+   played, a dot for a day not. */
+.result-week { display: flex; gap: 5px; }
+.week-cell {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: .82rem;
+    color: var(--faint);
+    border: 1px solid var(--edge);
+    background: var(--panel-solid);
+}
+.week-cell.today { border-color: var(--cy); }
+.week-cell.played { color: var(--ink); }
+
+.result-share[hidden], #share[hidden] { display: none; }
+
 .result-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
 .result-next { margin: 2px 0 0; font-family: var(--mono); font-size: .68rem; color: var(--faint); }
 
@@ -226,6 +248,11 @@ button.primary:hover:not(:disabled) { color: var(--void); background: #6df3ff; }
 
 .controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .readouts { display: flex; gap: 16px; }
+.actions { display: flex; align-items: center; gap: 8px; }
+
+/* Off until switched on: nobody's quiet room gets a putter click unasked. */
+.sound { padding: 8px 10px; font-size: .9rem; line-height: 1; }
+.sound[aria-pressed="true"] { color: var(--cy); border-color: var(--cy); }
 
 .ctl { display: flex; align-items: center; gap: 8px; }
 .ctl-k { font-size: .58rem; letter-spacing: .2em; color: var(--faint); }
@@ -271,6 +298,8 @@ button.primary:hover:not(:disabled) { color: var(--void); background: #6df3ff; }
         min-height: 44px;
     }
     button { min-height: 44px; }
+    /* Beside PUTT with 8px of air, so it needs the full 44 on both axes. */
+    .sound { min-width: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

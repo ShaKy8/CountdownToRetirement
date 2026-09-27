@@ -91,7 +91,7 @@ jobs:
             --include 'countdown/styles.css' --include 'countdown/favicon.svg' \
             --include 'countdown/stats.json' \
             --include 'shared/daily.js' \
-            --include 'game/script.js' \
+            --include 'game/script.js' --include 'game/audio.js' \
             --include 'game/putt.js' --include 'game/styles.css' \
             --include 'game/favicon.svg' \
             --include 'slingshot/orbit.js' --include 'slingshot/script.js' \

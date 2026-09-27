@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (434 tests)
+# Run client-side tests (440 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -121,8 +121,10 @@ CountdownToRetirement/
 │   └── favicon.svg         # Beach/sunset themed favicon
 ├── game/                   # ONE PUTT - the daily putting game
 │   ├── index.html          # Board, HUD, aim/power readouts, result card
-│   ├── putt.js             # Pure rules: seeding, holes, physics, wind, state
-│   ├── script.js           # Canvas, input, weather fetch, localStorage
+│   ├── putt.js             # Pure rules: seeding, holes, physics, wind, state,
+│   │                       #   the ace-line search, cell packing
+│   ├── script.js           # Canvas, input, weather fetch, localStorage, the feel
+│   ├── audio.js            # Web Audio synthesis - NO audio files
 │   ├── styles.css          # Console palette, borrowed from weather/css/core.css
 │   └── favicon.svg
 ├── shared/daily.js         # Seeding, API sampling, storage - shared by the games
@@ -134,7 +136,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (434 tests)
+├── tests.js                # Client-side unit tests (440 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -560,6 +562,73 @@ asserted. Credit, in this order, Keith, Diane, Jeremiah, and Harley. The showcas
   feedback besides the preview line, and the instruction line under them is
   the only place the page says how to play, so it is set at body size.
 
+### Impact is an event (ONE PUTT)
+
+The rules and physics were always excellent and the wind was always real,
+but none of it was *felt*: the ball was a white dot that stopped on the cup,
+a make and a miss looked the same, the wind existed only as a chip, and
+there was no sound. Kyle asked for a wow factor (September 27, 2026) and
+chose all four packages below, sound **off by default**, the rules frozen,
+and no leaderboard (the Lambda is GET-only with no datastore). `?fx=0` is
+the game exactly as it was, `1` the default, `2` full; everything degrades
+under `prefers-reduced-motion`. `node scripts/oneputt-fx-audit.mjs` is the
+gate. **Nothing here changes a physics step**: every effect is read off
+events `stepBall` already produces (`event`, `bounces`, `overCup`), and a
+test asserts `putt.js` never learns the words *particle*, *shake*, *fx* or
+*Audio*.
+
+- **The moment.** A putter blade sweeps through the ball over a 140 ms
+  windup before the first step. **Slow motion at the cup** (0.4× within 10
+  units) changes how many steps a frame *consumes*, never the steps, so the
+  outcome is identical. The cup brightens and a tone lifts as the ball
+  closes (`near`). A lip-out is detected from `overCup` going true→false
+  without a sink and is named in the status line. Walls spark and flash
+  with a 0.6 px kick, sand puffs and thumps, water splashes and the ball
+  *fades* back to the stroke origin instead of teleporting. **The drop**:
+  on `sunk` the loop stays alive 280 ms while the ball shrinks into the cup,
+  a ring leaves it and the flag quivers; the result card waits **900 ms**
+  so the drop is seen (0 at `fx=0` or reduced motion). An ace bursts.
+- **Sound is synthesised** in `game/audio.js`, SLINGSHOT's structure with a
+  green's voices: a looped noise roll whose cutoff follows speed, the
+  approach tone, and one-shots for putt, wall, sand, water, lip-out, sunk
+  and ace. The `#sound` toggle persists in `settings.sound`, which was in
+  the schema from day one and never read; the putt gesture arms it.
+- **The green alive.** The pennant points *downwind* (the direction
+  `windVector` pushes), lengthens with speed and flaps; faint streaks drift
+  downwind. Both run on an **idle loop** — rAF while the ball is still,
+  drawing every 40 ms, only with motion and a visible tab. Mown bands, a
+  vignette, a lip on the cup, a shadow under the ball, sand speckled once
+  per hole from the seed. Up to six **ghost trails** of earlier strokes
+  stay, coloured by how they ended. The aim preview now starts at the
+  roll's own gust phase (`t0: simTime`); it previewed at t = 0 before.
+- **Your record.** The stored day gained `cells` — the round's cells packed
+  base-5 with the count in a base-13 digit (`packCells`/`unpackCells`),
+  twelve at most — so a revisit rebuilds the real share instead of all-🟩.
+  It is the **last** day field, so nothing else's key order moved; `readDay`
+  emits it as 0 for older records, which is why exactly two golden rows in
+  the DAILY SHARED table changed that day. The result card shows played,
+  aces, best streak and a seven-day strip; the STREAK chip gets 🔥 at two;
+  replay and practice hide the share (it carried today's number); "Copied"
+  resets; a played day's STROKES chip shows what you shot.
+- **Reveal the line.** `findAceLine(hole, wind)` in `putt.js` is pure: from
+  the tee at gust phase 0, a coarse lattice (150 angles × 12 powers) ranked
+  by `closest` (a new field on `simulateShot`), the twelve best refined at
+  **keyboard resolution** — angles built by successive addition of the
+  0.15° Shift-nudge from −π/2 exactly as the handler builds them, powers the
+  even integers the power keys reach — so every revealed line is one the
+  player could have keyed in, and the gate keys it in and requires the
+  sink. About 2,500 simulations, 12–50 ms. Found on roughly half of days;
+  the button says "No ace found … N lines tried", not "none exists". The
+  button is disabled until the hole is finished, so it cannot spoil a round.
+- **The gate drives a clock, not frames.** SLINGSHOT's gate advances by
+  counting rAF callbacks; ONE PUTT requests no frame while the ball is
+  still, so that pump hangs after the first rest. `oneputt-fx-audit.mjs`
+  ticks a synthetic clock on `setTimeout` whether or not a callback is
+  pending and hands it to shimmed callbacks; `frame(now)` still takes its
+  time from the rAF argument and clamps to 100 ms, so game time is exact.
+  It plays `?seed=1234&wind=0@0`, a hole with an ace, at `fx=2`, `fx=0` and
+  under reduced motion.
+
 ### Two things that will silently break it
 
 1. **`makeRng` and `ARCHETYPES` are frozen.** Changing either rewrites every hole
@@ -734,13 +803,13 @@ each needs a deliberate move:
 
 Two things the code needs from the machine, both asserted by tests:
 
-- **Node 22 or newer.** All nine gates speak CDP over a global `WebSocket` with
+- **Node 22 or newer.** All ten gates speak CDP over a global `WebSocket` with
   nothing to install; on an older Node they fail deep inside a browser session
   rather than up front.
 - **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
-  it from a candidate list and `$CHROMIUM` overrides. All nine gates used to
+  it from a candidate list and `$CHROMIUM` overrides. All ten gates used to
   hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
-  and one wrong assumption became nine identical unhelpful failures.
+  and one wrong assumption became ten identical unhelpful failures.
 
 **Push before switching machines.** The repos are the sync mechanism, and the
 setup script refuses to touch a working tree with uncommitted changes rather

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="ONE PUTT - a new mini-golf hole every day, played against the real wind where you are">
     <title>ONE PUTT</title>
-    <link rel="stylesheet" href="styles.css?v=316adf9482">
+    <link rel="stylesheet" href="styles.css?v=2b23d9be06">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
@@ -46,9 +46,12 @@
             <div class="result" id="result" hidden>
                 <p class="result-score" id="result-score">Par</p>
                 <p class="result-line" id="result-line">2 strokes</p>
+                <p class="result-stats" id="result-stats"></p>
+                <div class="result-week" id="result-week" role="img" aria-label="The last seven days"></div>
                 <pre class="result-share" id="result-share"></pre>
                 <div class="result-actions">
                     <button type="button" id="share">Copy result</button>
+                    <button type="button" id="line">Show me the line</button>
                     <button type="button" id="replay">Play it again</button>
                     <button type="button" id="random">Random hole</button>
                 </div>
@@ -61,7 +64,10 @@
                 <span class="ctl"><span class="ctl-k">AIM</span><output class="ctl-v" id="aim-out">270&deg;</output></span>
                 <span class="ctl"><span class="ctl-k">POWER</span><output class="ctl-v" id="power-out">50%</output></span>
             </div>
-            <button type="button" id="putt" class="primary">Putt</button>
+            <div class="actions">
+                <button type="button" id="sound" class="sound" aria-pressed="false" aria-label="Sound off">&#x1F507;</button>
+                <button type="button" id="putt" class="primary">Putt</button>
+            </div>
         </div>
 
         <p class="hint" id="hint">
@@ -72,7 +78,8 @@
     </main>
 
     <script src="/shared/daily.js?v=be6754e8a4"></script>
-    <script src="putt.js?v=f8ed3e8df4"></script>
-    <script src="script.js?v=fb21736b21"></script>
+    <script src="putt.js?v=5f24b67f20"></script>
+    <script src="audio.js?v=570646e03f"></script>
+    <script src="script.js?v=2327bc9d63"></script>
 </body>
 </html>

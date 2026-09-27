@@ -1702,7 +1702,7 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             .filter(f => f.endsWith('.webp')).map(f => `assets/${f}`);
         const STAMPED_PAGES = {
             countdown: ['calc.js', 'script.js', 'styles.css'],
-            game: ['/shared/daily.js', 'putt.js', 'script.js', 'styles.css'],
+            game: ['/shared/daily.js', 'audio.js', 'putt.js', 'script.js', 'styles.css'],
             slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],
             'fish-hatchery': ['app.js', 'styles.css', ...photos].sort(),
             '.': ['home.js', 'styles.css']
@@ -2755,14 +2755,16 @@ describe('ONE PUTT - Page structure', () => {
     });
 
     test('Should not evaluate strings as code', () => {
-        [['script.js', gameJs], ['putt.js', puttJs]].forEach(([name, src]) => {
+        const audioJs = fs.readFileSync(path.join(__dirname, 'game', 'audio.js'), 'utf8');
+        [['script.js', gameJs], ['putt.js', puttJs], ['audio.js', audioJs]].forEach(([name, src]) => {
             assert.ok(!/\beval\s*\(/.test(src), `${name} should not call eval`);
             assert.ok(!/new\s+Function\s*\(/.test(src), `${name} should not build functions from strings`);
         });
     });
 
     test('Should carry the markup the renderer binds to', () => {
-        ['id="board"', 'id="aim-out"', 'id="power-out"', 'id="putt"', 'id="share"', 'aria-live']
+        ['id="board"', 'id="aim-out"', 'id="power-out"', 'id="putt"', 'id="share"', 'aria-live',
+            'id="sound"', 'id="line"', 'id="result-stats"', 'id="result-week"']
             .forEach(hook => assert.ok(gameHtml.includes(hook), `Missing ${hook}`));
     });
 
@@ -2869,6 +2871,107 @@ describe('ONE PUTT - Keyboard, shared with SLINGSHOT', () => {
     });
 });
 
+describe('ONE PUTT - Impact is an event', () => {
+    const fs = require('fs');
+    const Putt = require('./game/putt.js');
+    const puttJs = fs.readFileSync(path.join(__dirname, 'game', 'putt.js'), 'utf8');
+    const script = fs.readFileSync(path.join(__dirname, 'game', 'script.js'), 'utf8');
+    const audio = fs.readFileSync(path.join(__dirname, 'game', 'audio.js'), 'utf8');
+    const html = fs.readFileSync(path.join(__dirname, 'game', 'index.html'), 'utf8');
+    const calm = { mph: 0, deg: 0, gustMph: 0, source: 'synthetic' };
+
+    test('The rules should never learn the feel exists', () => {
+        // Every effect is read off events stepBall already produces. A rule
+        // that knew about a particle would be a rule that could change for one.
+        assert.ok(!/particle|scar|shake|\bfx\b|Audio|windup|slowMotion/i.test(puttJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')),
+            'putt.js has no word for an effect');
+    });
+
+    test('The cells should pack and unpack, twelve at most', () => {
+        const all = ['green', 'wall', 'sand', 'water', 'sunk'];
+        assert.deepStrictEqual(Putt.unpackCells(Putt.packCells(all)), all);
+        assert.deepStrictEqual(Putt.unpackCells(Putt.packCells(['green', 'green', 'sunk'])), ['green', 'green', 'sunk'],
+            'Trailing and leading greens survive: the count is stored');
+        assert.deepStrictEqual(Putt.unpackCells(Putt.packCells([])), []);
+        assert.deepStrictEqual(Putt.unpackCells(0), [], 'An older record with no cells');
+        assert.deepStrictEqual(Putt.unpackCells('junk'), []);
+        assert.strictEqual(Putt.unpackCells(Putt.packCells(new Array(20).fill('wall'))).length, 12, 'Capped where the share caps');
+        assert.ok(Number.isInteger(Putt.packCells(new Array(12).fill('sunk'))), 'A plain integer, for the int day field');
+        // Stored and read back through the real store.
+        const s = Putt.recordDaily(Putt.emptyState(), 10, { strokes: 3, par: 3, cells: Putt.packCells(['wall', 'sand', 'sunk']) });
+        const back = Putt.parseState(Putt.serializeState(s));
+        assert.deepStrictEqual(Putt.unpackCells(back.days['10'].cells), ['wall', 'sand', 'sunk']);
+        const keys = Object.keys(back.days['10']);
+        assert.strictEqual(keys[keys.length - 1], 'cells', 'Last in the record, so nothing else moved');
+    });
+
+    test('findAceLine should return a line that sinks, on the keyboard lattice, or nothing', () => {
+        // Eight days: the search is ~2,500 simulations a hole and the
+        // solvability suite already runs tens of thousands.
+        let found = 0;
+        for (const d of [0, 1, 2, 3, 4, 5, 249, 269]) {
+            const hole = Putt.generateHole(Putt.seedForDay(d));
+            const r = Putt.findAceLine(hole, calm);
+            assert.ok(r.tried > 0 && r.tried <= 4000, `Bounded search on day ${d}: ${r.tried}`);
+            assert.deepStrictEqual(Putt.findAceLine(hole, calm).aim, r.aim, 'Deterministic');
+            if (!r.aim) continue;
+            found++;
+            const again = Putt.simulateShot(hole, Putt.createBall(hole), r.aim, calm, { maxSteps: 1200, t0: 0 });
+            assert.strictEqual(again.event, 'sunk', `The line on day ${d} sinks when replayed`);
+            assert.ok(r.marks.length === again.steps, 'The marks are the whole roll');
+            // Keyable: an even power, and an angle reached by Shift-nudges from -pi/2.
+            assert.strictEqual(r.pct % 2, 0, 'Even percent, as the power keys step');
+            let a = -Math.PI / 2;
+            const step = Putt.ACE_STEP, n = Math.abs(r.k);
+            for (let i = 0; i < n; i++) a += r.k < 0 ? -step : step;
+            assert.strictEqual(a, r.aim.angle, 'Built by successive addition, as the handler builds it');
+        }
+        assert.ok(found >= 2, `Some of those days have an ace (${found})`);
+        assert.strictEqual(Putt.ACE_STEP, 0.15 * Math.PI / 180, 'The Shift-nudge');
+    });
+
+    test('simulateShot should report the closest approach', () => {
+        const hole = Putt.generateHole(Putt.seedForDay(3));
+        const r = Putt.simulateShot(hole, Putt.createBall(hole), { angle: -Math.PI / 2, power: 0.3 }, calm, { maxSteps: 1200 });
+        assert.ok(typeof r.closest === 'number' && r.closest >= 0);
+        assert.ok(r.closest <= Math.hypot(r.ball.x - hole.cup.x, r.ball.y - hole.cup.y) + 1e-9, 'Never further than where it stopped');
+    });
+
+    test('The sound should be synthesised, lazy, and armed by the putt', () => {
+        // Browsers refuse to start audio without a user gesture, and the
+        // failure is silent - the context is created suspended and never plays.
+        assert.ok(/function init\(\)[\s\S]{0,200}if \(ctx\) return/.test(audio), 'Lazy, guarded on already existing');
+        assert.ok(!/^\s*(const|let|var)\s+ctx\s*=\s*new/m.test(audio), 'No AudioContext at module scope');
+        const code = audio.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+        assert.ok(!/fetch\(|XMLHttpRequest|\.mp3|\.ogg|\.wav/.test(code), 'No samples, no network');
+        assert.ok(/function putt\(\)[\s\S]{0,400}Audio\.arm\(saved\.settings\.sound\)/.test(script),
+            'The putt is the guaranteed first gesture of a round');
+        assert.ok(/root\.OnePuttAudio = api/.test(audio) && /rolling: rolling/.test(audio), 'The global, with the roll');
+        assert.ok(/id="sound"/.test(html) && /aria-pressed="false"/.test(html), 'Off until switched on');
+        assert.ok(/<script src="putt\.js\?v=[0-9a-f]+"><\/script>\s*<script src="audio\.js\?v=[0-9a-f]+"><\/script>\s*<script src="script\.js/.test(html),
+            'Loaded between the rules and the page');
+    });
+
+    test('The feel should read the clock the gate can drive, and degrade', () => {
+        assert.ok(/function frame\(now\)/.test(script) && /now - lastFrame/.test(script),
+            'frame() takes its time from the rAF argument');
+        assert.ok(/Math\.min\(now - lastFrame, 100\)/.test(script), 'and clamps the delta');
+        assert.ok(/const motion = function \(\) \{ return fxOn\(\) && !reduceMotion; \};/.test(script),
+            'Every effect is gated on fx and reduced motion together');
+        assert.ok(/windup = motion\(\) \? WINDUP_MS : 0;/.test(script), 'No windup without motion');
+        assert.ok(/if \(!motion\(\)\) return 1;/.test(script), 'No slow motion without motion');
+        assert.ok(/const delay = motion\(\) \? RESULT_DELAY_MS : 0;/.test(script), 'The card waits only for a drop that is shown');
+        assert.ok(/cells: P\.packCells\(cells\)/.test(script), 'The round\'s cells reach the store');
+        assert.ok(/t0: simTime/.test(script), 'The preview starts at the roll\'s own gust phase');
+        assert.ok(fs.existsSync(path.join(__dirname, 'scripts', 'oneputt-fx-audit.mjs')), 'And the gate exists');
+        const gate = fs.readFileSync(path.join(__dirname, 'scripts', 'oneputt-fx-audit.mjs'), 'utf8');
+        assert.ok(/addScriptToEvaluateOnNewDocument/.test(gate) && /window\.requestAnimationFrame = /.test(gate),
+            'The gate drives the loop rather than waiting for the compositor');
+        assert.ok(/__fxAdvance = \(want\)/.test(gate) && /ticks >= target/.test(gate),
+            'and it advances by clock ticks, not frames: the loop stops itself when the ball is still');
+    });
+});
+
 describe('BUSINESS SITE - Deploy wiring', () => {
     const fs = require('fs');
     const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
@@ -2883,7 +2986,7 @@ describe('BUSINESS SITE - Deploy wiring', () => {
     });
 
     test('Should upload every game file', () => {
-        ['game/index.html', 'game/script.js', 'game/putt.js', 'game/styles.css', 'game/favicon.svg']
+        ['game/index.html', 'game/script.js', 'game/putt.js', 'game/audio.js', 'game/styles.css', 'game/favicon.svg']
             .forEach(f => {
                 assert.ok(deploy.includes("--include '" + f + "'"),
                     `${f} is not in any --include list, so it would 404 in production`);
@@ -3053,6 +3156,10 @@ describe('DAILY SHARED - Seeding is frozen', () => {
 describe('DAILY SHARED - parseState characterisation', () => {
     // One row per hostile or malformed blob, pinned by a hash of the rebuilt
     // state. 378302632 is emptyState(); anything else is a deliberate survivor.
+    // The two rows that carry a valid day changed on 2026-09-27, when the
+    // stored day record gained `cells` (the round's cells, packed, so a
+    // revisit rebuilds the real share); readDay emits it as 0 for older
+    // records, so the parsed object -- and its hash -- changed. Nothing else did.
     const EMPTY = 378302632;
     const GOLDEN_PARSE = [
         ['', EMPTY], ['{', EMPTY], ['null', EMPTY], ['[]', EMPTY],
@@ -3063,8 +3170,8 @@ describe('DAILY SHARED - parseState characterisation', () => {
         ['{"v":1,"days":{"5":{"strokes":"x","par":3}}}', EMPTY],
         ['{"v":1,"days":{"5":{"strokes":0,"par":3}}}', EMPTY],
         ['{"v":1,"days":{"5":{"strokes":3}}}', EMPTY],
-        ['{"v":1,"days":{"5":{"strokes":3,"par":3,"windMph":null}}}', 2977554838],
-        ['{"v":1,"days":{"5":{"strokes":3,"par":3,"source":"hacked"}}}', 2977554838],
+        ['{"v":1,"days":{"5":{"strokes":3,"par":3,"windMph":null}}}', 1431852583],
+        ['{"v":1,"days":{"5":{"strokes":3,"par":3,"source":"hacked"}}}', 1431852583],
         ['{"v":1,"days":{"__proto__":{"strokes":2,"par":3}}}', EMPTY],
         ['{"v":1,"streak":"x","days":{}}', EMPTY],
         ['{"v":1,"streak":-5}', EMPTY],
