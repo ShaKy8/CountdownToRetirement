@@ -386,6 +386,10 @@ class Store {
   /** Advance the cursor to real time. No-op unless we are following. */
   syncToNow() {
     if (!this.following || this.playing) return;
+    // On the radar a pause leaves `following` true (the loop is ambient),
+    // and this sync would undo the pause within 20s by snapping the cursor
+    // - and so the frame - back to now.
+    if (this.view === 'radar') return;
     const t = Date.now();
     // Only emit when the change is meaningful, so idle ticks stay cheap.
     if (Math.abs(t - this.cursor) < 1000) return;

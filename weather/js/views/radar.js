@@ -58,10 +58,20 @@ export function createRadar(root) {
 
   const $ = (id) => root.querySelector('#' + id);
 
+  /*
+   * ONE TRANSPORT. The radar used to run its own loop over its own frame
+   * index with its own pause button, and never read store.cursor - so the
+   * footer's rewind, play and forward moved the readout while the picture
+   * kept looping, and the map's pause left the footer alone. Now the frame
+   * shown is always the one nearest store.cursor, and the loop advances the
+   * CURSOR at the radar's own cadence (a frame every 0.42s, about 24 minutes
+   * of radar a second) while this view is on screen and store.playing is
+   * true. The footer and the map are the same button in two places.
+   */
   let frames = [];        // {time, path, kind}
   let idx = 0;
-  let playing = true;
   let acc = 0;
+  let lastSideKey = '';
   let lastT = performance.now();
   let host = '';
 
@@ -161,12 +171,35 @@ export function createRadar(root) {
   }, {
     onPick: ({ x, w }) => {
       if (!frames.length) return;
-      idx = clamp(Math.floor((x / w) * frames.length), 0, frames.length - 1);
-      playing = false;
-      $('r-play').textContent = '▶';
-      applyFrame();
+      // A deliberate pick, like a drag of the footer's strip: it pauses and
+      // it is not undone by the clock.
+      const f = frames[clamp(Math.floor((x / w) * frames.length), 0, frames.length - 1)];
+      store.playing = false;
+      store.emit('play', false);
+      store.scrubTo(f.time * 1000);
     },
   });
+
+  /** The frame nearest t (ms). Strict < so a midpoint picks the earlier one. */
+  function frameFor(t) {
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < frames.length; i++) {
+      const d = Math.abs(frames[i].time * 1000 - t);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  /** Show the frame the cursor asks for, if it is not already up. */
+  function followCursor() {
+    if (!frames.length) return;
+    const i = frameFor(store.cursor);
+    if (i !== idx) { idx = i; applyFrame(); }
+  }
+
+  function paintPlay() {
+    $('r-play').textContent = store.playing ? '❚❚' : '▶';
+  }
 
   const scheduleStrip = () => strip.render();
 
@@ -192,7 +225,7 @@ export function createRadar(root) {
       const past = (r.radar?.past || []).map((f) => ({ ...f, kind: 'past' }));
       const now = (r.radar?.nowcast || []).map((f) => ({ ...f, kind: 'nowcast' }));
       frames = [...past, ...now];
-      idx = Math.max(0, past.length - 1);
+      idx = frameFor(store.cursor);
       $('r-src').textContent = now.length
         ? `${past.length} OBS + ${now.length} FCST`
         : `${past.length} OBSERVED`;
@@ -218,6 +251,13 @@ export function createRadar(root) {
 
   function renderSide() {
     const tf = store.fmt;
+    // Called on every cursor event, and the loop emits one every 0.42s while
+    // it plays; three panels' innerHTML seven times a second for the same
+    // hour is work for nothing. Rebuild only when what they show changed.
+    const f0 = store.frame();
+    const key = [f0?.t, f0?.precip, f0?.cape, f0?.cloud, store.alerts.length, store.hours.length].join('|');
+    if (key === lastSideKey) return;
+    lastSideKey = key;
 
     /* alerts */
     const a = store.alerts;
@@ -273,8 +313,17 @@ export function createRadar(root) {
   /* ------------------------------------------------------------ controls */
 
   $('r-play').addEventListener('click', () => {
-    playing = !playing;
-    $('r-play').textContent = playing ? '❚❚' : '▶';
+    store.playing = !store.playing;
+    store.emit('play', store.playing);
+    paintPlay();
+  });
+  // Most pauses never emit 'play' (the arrow keys, the footer's strip, the
+  // meteogram), so the glyph is refreshed on every cursor event as well.
+  store.on('play', paintPlay);
+  store.on('cursor', () => {
+    if (store.view !== 'radar') return;
+    followCursor();
+    paintPlay();
   });
   $('r-center').addEventListener('click', () => {
     if (store.loc) map.setView(store.loc.lat, store.loc.lon, 7);
@@ -298,11 +347,22 @@ export function createRadar(root) {
     if (store.view !== 'radar') { lastT = now; return; }
     const dt = Math.min(0.2, (now - lastT) / 1000);
     lastT = now;
-    if (playing && frames.length) {
+    if (store.playing && frames.length) {
       acc += dt;
       // Hold the final frame a beat longer so the loop reads clearly.
       const hold = idx === frames.length - 1 ? 1.1 : 0.42;
-      if (acc >= hold) { acc = 0; idx = (idx + 1) % frames.length; applyFrame(); }
+      if (acc >= hold) {
+        acc = 0;
+        const next = (idx + 1) % frames.length;
+        // Drive the cursor, not a private index: the footer's readout and
+        // playhead move with the radar, and the cursor listener above picks
+        // the frame. setCursor, not scrubTo - the loop is ambient, so
+        // `following` stays true and the deck comes back live afterwards.
+        // Without hourly data setCursor is a no-op, so fall back to the
+        // frame itself rather than freeze.
+        if (store.hours.length) store.setCursor(frames[next].time * 1000);
+        else { idx = next; applyFrame(); }
+      }
     }
   }
   requestAnimationFrame(function raf(t) { requestAnimationFrame(raf); tick(t); });
@@ -317,6 +377,21 @@ export function createRadar(root) {
   return {
     map,                     // the pan/pinch surface, reachable from ATMOS.views
     update() { renderSide(); map.invalidate(); },
-    onShow() { map.resize(); strip.render(); },
+    onShow() {
+      map.resize();
+      strip.render();
+      followCursor();
+      // The loop is ambient: it runs while the view is up, as it always did.
+      store.playing = true;
+      store.emit('play', true);
+      paintPlay();
+    },
+    onHide() {
+      store.playing = false;
+      store.emit('play', false);
+      // The loop parked the cursor in the last two hours. If the user never
+      // scrubbed, the deck should come back live, not "PROJECTED · 14:20".
+      if (store.following) store.setCursor(Date.now());
+    },
   };
 }

@@ -552,7 +552,8 @@ function onKey(e) {
   switch (k.toLowerCase()) {
     case ' ':
       store.playing = !store.playing;
-      if (store.playing) store.following = false;
+      // As the footer's button: a departure from live, except on the radar.
+      if (store.playing && store.view !== 'radar') store.following = false;
       if (store.playing && store.cursor >= store.span.hi - 60e3) store.setCursor(Date.now());
       store.emit('play', store.playing);
       e.preventDefault();

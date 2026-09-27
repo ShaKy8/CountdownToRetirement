@@ -261,8 +261,9 @@ export function createTimeline(root) {
     else if (act === 'fwd') { store.playing = false; store.scrubTo(store.cursor + 3600e3); }
     else if (act === 'play') {
       store.playing = !store.playing;
-      // Playing is a deliberate departure from live.
-      if (store.playing) store.following = false;
+      // Playing is a deliberate departure from live - except on the radar,
+      // where the loop is ambient and drives the cursor itself.
+      if (store.playing && store.view !== 'radar') store.following = false;
       // Restart from now if the cursor already ran off the end.
       if (store.playing && store.cursor >= store.span.hi - 60e3) store.setCursor(Date.now());
       store.emit('play', store.playing);
@@ -305,7 +306,9 @@ export function createTimeline(root) {
     render: () => chart.render(),
     /** Advance the cursor while playing; called from the main loop. */
     tick(dt) {
-      if (!store.playing) return;
+      // The radar owns the cadence while it is the view: its loop advances
+      // the cursor a frame at a time. Advancing it here too would fight.
+      if (!store.playing || store.view === 'radar') return;
       const next = store.cursor + dt * 1000 * 3600 * store.playRate;
       if (next >= store.span.hi) {
         store.setCursor(store.span.hi);

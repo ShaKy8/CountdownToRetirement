@@ -2972,6 +2972,27 @@ describe('ONE PUTT - Impact is an event', () => {
     });
 });
 
+describe('WEATHER CONSOLE - One transport', () => {
+    const fs = require('fs');
+    test('The radar should follow the cursor, and the gate should exist', () => {
+        // Two transports on one screen was "the buttons don't work" on the
+        // RADAR view. The synced copy is what ships, so it is what is pinned.
+        const radar = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'views', 'radar.js'), 'utf8');
+        const timeline = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'timeline.js'), 'utf8');
+        const state = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'state.js'), 'utf8');
+        assert.ok(/store\.on\('cursor', \(\) => \{\s*if \(store\.view !== 'radar'\) return;\s*followCursor\(\);/.test(radar),
+            'The radar picks the frame nearest the cursor');
+        assert.ok(/store\.setCursor\(frames\[next\]\.time \* 1000\)/.test(radar), 'and its loop drives the cursor, with setCursor');
+        assert.ok(!/^\s*let playing\b/m.test(radar), 'No private play flag');
+        assert.ok(/if \(!store\.playing \|\| store\.view === 'radar'\) return;/.test(timeline), 'The footer stands down on the radar');
+        assert.ok(/if \(this\.view === 'radar'\) return;/.test(state), 'A pause survives the 20s re-sync');
+        const gate = path.join(__dirname, 'scripts', 'transport-audit.mjs');
+        assert.ok(fs.existsSync(gate), 'The gate exists');
+        assert.ok(/#radar/.test(fs.readFileSync(gate, 'utf8')) && /25000/.test(fs.readFileSync(gate, 'utf8')),
+            'and it drives the radar view and waits out the re-sync');
+    });
+});
+
 describe('BUSINESS SITE - Deploy wiring', () => {
     const fs = require('fs');
     const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');

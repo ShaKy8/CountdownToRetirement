@@ -803,13 +803,13 @@ each needs a deliberate move:
 
 Two things the code needs from the machine, both asserted by tests:
 
-- **Node 22 or newer.** All ten gates speak CDP over a global `WebSocket` with
+- **Node 22 or newer.** All eleven gates speak CDP over a global `WebSocket` with
   nothing to install; on an older Node they fail deep inside a browser session
   rather than up front.
 - **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
-  it from a candidate list and `$CHROMIUM` overrides. All ten gates used to
+  it from a candidate list and `$CHROMIUM` overrides. All eleven gates used to
   hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
-  and one wrong assumption became ten identical unhelpful failures.
+  and one wrong assumption became eleven identical unhelpful failures.
 
 **Push before switching machines.** The repos are the sync mechanism, and the
 setup script refuses to touch a working tree with uncommitted changes rather
@@ -857,8 +857,47 @@ Developed in the sibling repo `../Weather`; `scripts/sync-weather.sh` copies its
   console is a standalone app in its own repo and shouldn't carry this site's
   chrome.
 
-`weather/` is generated output. Change the console in `../Weather`, re-run the
-sync, commit the result.
+`weather/` is generated output. Change the console in the Weather repo, re-run
+the sync, commit the result. **The source is `~/Projects/Weather`**, and the
+sync's default path (`../../Weather/public` from `scripts/`) does not exist
+on this machine, so run it as
+`./scripts/sync-weather.sh ~/Projects/Weather/public`. `~/VibeCoding/Weather`
+is a stale checkout, eleven commits behind on 2026-09-27; syncing from it
+would silently ship old code.
+
+### One transport: the radar and the scrubber
+
+Kyle: "the buttons to pause, rewind and fast forward don't work." They did,
+on every view but RADAR, which is where he was: `views/radar.js` ran its
+own loop over its own frame index with its own ❚❚ on the map, and never
+read `store.cursor`, so the footer moved the readout while the picture kept
+looping, and the map's pause left the footer alone. Now (2026-09-27) there
+is one cursor and one `store.playing`; `node scripts/transport-audit.mjs`
+is the gate. What is load-bearing:
+
+- **The frame shown is the one nearest the cursor** (`frameFor`, strict
+  `<` so a midpoint picks the earlier frame), applied from a `'cursor'`
+  listener while the view is radar. ◀◀/▶▶, NOW, the footer's strip, the
+  arrow keys and the map's own strip all land there.
+- **The loop drives the cursor at the radar's own cadence** — a frame every
+  0.42 s, about 24 minutes of radar a second — with `setCursor`, never
+  `scrubTo`: the loop is ambient, so `following` stays true and `onHide`
+  can put the deck back on live time. A user's scrub clears `following`
+  and is kept. `timeline.tick` stands down on the radar, or two drivers
+  advance one cursor.
+- **The map's ❚❚ and the footer's ▶ are one flag.** Six places pause
+  without emitting `'play'` (the arrow keys, both strips, the meteogram),
+  so the map's glyph is refreshed on `'cursor'` as well as `'play'`,
+  exactly as the footer's button always was.
+- **A pause must survive the clock.** `syncToNow` runs every 20 s while
+  `following && !playing`, and on the radar a pause leaves `following`
+  true; without the `view === 'radar'` guard the cursor, and so the
+  frame, snapped back to now twenty seconds after every pause. The gate
+  waits 25 s to prove it.
+- **The side panels rebuild only when their hour changes.** `main.js`
+  re-renders the view on every cursor event, and the loop emits one every
+  0.42 s; three panels' `innerHTML` seven times a second was the cost of
+  doing nothing about it.
 
 **The stylesheets are content-hashed by the sync** (`core.<hash>.css`), so a CSS
 change is a new URL and is cached for a year. The JS cannot be — 21 ES modules
