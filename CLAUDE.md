@@ -145,8 +145,53 @@ CountdownToRetirement/
 ## Key Features
 
 ### Landing Page (/)
-- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and seven text links: email, GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery
-- **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, no JavaScript
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery
+- **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, and exactly one script: `home.js`, the sky right now.
+- **The sky right now.** `home.js` makes the page's colours follow the
+  visitor's local time of day — the favicon's navy at night, the clock's
+  dawn at sunrise, the cream the page always had by mid-morning, gold and
+  dusk in the evening, the glow at the top edge crossing left to right as
+  the sun. No location, no permission, no network: the device's clock is the
+  only input, so it is *a* day, not the visitor's sky. `node
+  scripts/home-audit.mjs` is the gate. What is load-bearing:
+  - **Sky and ink are separate.** The sky interpolates by the minute; the
+    ink (text, muted, accent) is a function of the sky's *luminance*, never
+    the hour. Interpolating plum text toward cream text across dusk passes
+    through a band where nothing reads — at the midpoint text and sky are
+    both grey. So the ink flips polarity once at dawn and once at dusk, on a
+    deliberately flat "blue hour" sky, in near-pure black or white; `FLIP`
+    is the one luminance where both clear 4.5:1.
+  - **Every minute is checked, not sampled.** `apply()` floors to the
+    minute, so the 1,440 palettes are every state the page can paint, and a
+    test computes text 4.5:1, muted 4.5:1, hover 4.5:1 and underline 3:1 for
+    all of them, against the darkest and brightest pixel of the gradient
+    *with its glow*, bounded per channel at the corners. That census is why
+    the coral deepened from `#e07a5f` to `#bd5c43`: the original underline
+    was 2.7:1 on plain cream and would have failed on day one.
+  - **Nothing transitions.** A fade through the flip is seconds of grey on
+    grey, the exact state the census forbids. One discrete step a minute.
+  - **The script stands aside for `prefers-contrast: more` and
+    `forced-colors`**, and undoes itself if the preference changes
+    mid-session: inline custom properties on `<html>` beat the stylesheet's
+    `@media :root` override, so setting them at all would break the
+    high-contrast page. The gate emulates the preference and checks that
+    `<html>` carries no inline `--bg`.
+  - **It blocks in `<head>`, after the stylesheet.** Chromium runs it only
+    once the stylesheet is in, so the vars are set before the body paints;
+    `defer` would paint cream and then flip. It re-applies on
+    `visibilitychange` and `pageshow`, because a background tab's timers are
+    throttled and a tab left overnight would show yesterday's sky.
+  - **Without the script the page is exactly the mid-morning cream** — the
+    `:root` defaults — and a test pins them to the 8:30 stop.
+  - **`home.js` has to be in four places** or it 404s in production while
+    working locally, silently: `index.html`, `deploy.yml`'s `paths` and
+    `--include` list, `tests-server.js`. A test makes them agree.
+  - **The gate reads what was painted.** `getComputedStyle(body)`'s gradient
+    comes back with every `var()` resolved, so it parses the two colours,
+    the glow and its position from that string, reads every visible text
+    colour and the forced `:hover` colour, and computes contrast from the
+    cascade's own output. It then paints the text the sky's colour and
+    requires its own measurement to fail — or it measured nothing.
 - **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
 - **Seven homepage destinations are owner-approved as of September 25, 2026.**
   The owner explicitly requested the Fish Hatchery link. The earlier six-link
@@ -633,13 +678,13 @@ each needs a deliberate move:
 
 Two things the code needs from the machine, both asserted by tests:
 
-- **Node 22 or newer.** All eight gates speak CDP over a global `WebSocket` with
+- **Node 22 or newer.** All nine gates speak CDP over a global `WebSocket` with
   nothing to install; on an older Node they fail deep inside a browser session
   rather than up front.
 - **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
-  it from a candidate list and `$CHROMIUM` overrides. All eight gates used to
+  it from a candidate list and `$CHROMIUM` overrides. All nine gates used to
   hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
-  and one wrong assumption became eight identical unhelpful failures.
+  and one wrong assumption became nine identical unhelpful failures.
 
 **Push before switching machines.** The repos are the sync mechanism, and the
 setup script refuses to touch a working tree with uncommitted changes rather

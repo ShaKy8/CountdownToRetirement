@@ -479,6 +479,21 @@ async function runContentTypeTests() {
             assert.strictEqual(res.headers['content-type'], 'text/javascript',
                 'JS files should have text/javascript content type');
         });
+
+        await test('Should serve the landing page\'s home.js as JavaScript', async () => {
+            // The one script on the landing page. Its production 404 would
+            // be silent: the page would simply stay cream.
+            const { res, data } = await makeRequest({
+                hostname: TEST_HOST,
+                port: TEST_PORT,
+                path: '/home.js',
+                method: 'GET'
+            });
+            assert.strictEqual(res.statusCode, 200, 'home.js should be served');
+            assert.strictEqual(res.headers['content-type'], 'text/javascript',
+                'home.js should have text/javascript content type');
+            assert.ok(data.includes('BranyonSky'), 'It should be the sky script');
+        });
     });
 }
 

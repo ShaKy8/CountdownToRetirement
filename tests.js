@@ -1395,9 +1395,13 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'Should show the tagline');
     });
 
-    test('Should have a mailto link', () => {
-        assert.ok(indexHtml.includes('mailto:kbshaver@gmail.com'),
-            'Should have a mailto link');
+    test('Should show the email address, as a mailto link', () => {
+        // mailto: does nothing on a device with no mail handler -- most Linux
+        // desktops, and any browser where mail is a tab -- so the word
+        // "Email" hid an address a visitor could not even copy.
+        assert.ok(indexHtml.includes('<a href="mailto:shaky8@proton.me">shaky8@proton.me</a>'),
+            'The address itself is the link text');
+        assert.ok(!indexHtml.includes('kbshaver@gmail.com'), 'The old address is gone');
     });
 
     test('Should link to GitHub safely', () => {
@@ -1425,14 +1429,175 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'Game link should say "Play today\'s putt"');
     });
 
-    test('Should be text only with no scripts or graphics', () => {
+    test('Should be text only, with exactly one script: the sky', () => {
         assert.ok(!indexHtml.includes('<svg'), 'Landing page should not contain SVG graphics');
         assert.ok(!indexHtml.includes('<img'), 'Landing page should not contain images');
-        assert.ok(!indexHtml.includes('<script'), 'Landing page should not load any script');
+        const scripts = indexHtml.match(/<script\b[^>]*>/g) || [];
+        assert.strictEqual(scripts.length, 1, 'One script, home.js, and no other');
+        assert.ok(/^<script src="home\.js\?v=[0-9a-f]+">$/.test(scripts[0]),
+            'home.js, same-origin, stamped, with no attributes that would defer it');
+        // Blocking, in <head>, after the stylesheet: Chromium runs it only
+        // once the stylesheet is in, so the vars are set before the body
+        // paints. `defer` would paint cream and then flip.
+        const head = indexHtml.slice(0, indexHtml.indexOf('</head>'));
+        assert.ok(head.includes(scripts[0]), 'The script is in <head>');
+        assert.ok(head.indexOf('href="styles.css') < head.indexOf(scripts[0]), 'After the stylesheet');
+        assert.ok(head.indexOf('name="theme-color"') < head.indexOf(scripts[0]),
+            'The theme-color meta exists before the script that updates it');
     });
 
     test('Should have a footer landmark', () => {
         assert.ok(indexHtml.includes('role="contentinfo"'), 'Footer should be a contentinfo landmark');
+    });
+});
+
+describe('BUSINESS SITE - The sky right now', () => {
+    const fs = require('fs');
+    const Sky = require('./home.js');
+    const homeJs = fs.readFileSync(path.join(__dirname, 'home.js'), 'utf8');
+    const css = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf8');
+    const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+    const worst = (hex, b) => Math.min(Sky.contrast(Sky.luminance(hex), b.min), Sky.contrast(Sky.luminance(hex), b.max));
+
+    test('The stops should run in order across one day, ending where they began', () => {
+        const at = Sky.STOPS.map(s => s.at);
+        assert.strictEqual(at[0], 0);
+        assert.strictEqual(at[at.length - 1], 1440);
+        at.forEach((a, i) => { if (i) assert.ok(a > at[i - 1], `stop ${i} comes after stop ${i - 1}`); });
+        const first = Sky.STOPS[0], last = Sky.STOPS[Sky.STOPS.length - 1];
+        assert.deepStrictEqual([last.top, last.bottom, last.glow, last.glowX], [first.top, first.bottom, first.glow, first.glowX],
+            'Midnight is midnight');
+    });
+
+    test('The sky should move by the minute, never jump', () => {
+        // The ink may step at the flip; the sky itself must not.
+        let prev = Sky.skyAt(0);
+        for (let m = 1; m <= 1440; m++) {
+            const s = Sky.skyAt(m);
+            [['top', s.top, prev.top], ['bottom', s.bottom, prev.bottom]].forEach(([name, a, b]) => {
+                const x = Sky.luminance(a), y = Sky.luminance(b);
+                assert.ok(Math.abs(x - y) < 0.05, `${name} jumps at minute ${m}: ${y.toFixed(3)} -> ${x.toFixed(3)}`);
+            });
+            assert.ok(Math.abs(s.glowX - prev.glowX) < 4, `the sun jumps at minute ${m}`);
+            prev = s;
+        }
+        assert.deepStrictEqual(Sky.skyAt(1440), Sky.skyAt(0), '1440 is 0');
+        assert.deepStrictEqual(Sky.skyAt(-1), Sky.skyAt(1439), 'Wraps below zero');
+        assert.deepStrictEqual(Sky.skyAt(NaN), Sky.skyAt(0), 'Nonsense is midnight, not a NaN palette');
+    });
+
+    test('The sun should cross from left to right between sunrise and sunset', () => {
+        const rise = Sky.STOPS.find(s => s.glow[3] === 0 && s.at < 720).at;
+        const set = [...Sky.STOPS].reverse().find(s => s.glow[3] === 0 && s.at > 720).at;
+        let x = -1;
+        for (let m = rise; m <= set; m++) {
+            const g = Sky.skyAt(m).glowX;
+            assert.ok(g >= x - 1e-9, `the sun moves backwards at minute ${m}`);
+            x = g;
+        }
+        assert.ok(Sky.skyAt(rise).glowX < 20 && Sky.skyAt(set).glowX > 80, 'Rises on the left, sets on the right');
+    });
+
+    test('Every minute of the day should read: the contrast census', () => {
+        // 1,440 states is every state the page can paint -- apply() floors
+        // to the minute -- so this is a census, not a sample. Bounds are
+        // the darkest and brightest pixel of the whole gradient with its
+        // glow, per channel, which is a proof rather than a spot check.
+        const bad = [];
+        for (let m = 0; m < 1440; m++) {
+            const p = Sky.paletteAt(m), b = p.bounds;
+            const r = { text: worst(p.text, b), muted: worst(p.muted, b), hover: worst(p.accentDark, b), underline: worst(p.accent, b) };
+            if (r.text < 4.5 || r.muted < 4.5 || r.hover < 4.5 || r.underline < 3) {
+                bad.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')} ` +
+                    Object.entries(r).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', '));
+            }
+        }
+        assert.strictEqual(bad.length, 0, `Text 4.5:1, muted 4.5:1, hover 4.5:1, underline 3:1 -- failing minutes:\n${bad.slice(0, 8).join('\n')}`);
+    });
+
+    test('The ink should flip polarity exactly once at dawn and once at dusk, on a flat sky', () => {
+        const flips = [];
+        let last = Sky.paletteAt(0).polarity;
+        for (let m = 1; m < 1440; m++) {
+            const p = Sky.paletteAt(m);
+            if (p.polarity !== last) { flips.push({ m, to: p.polarity, sky: p.sky, k: p.k }); last = p.polarity; }
+        }
+        assert.strictEqual(flips.length, 2, `Two flips, not ${flips.length}`);
+        assert.strictEqual(flips[0].to, 'dark', 'Dawn: to dark ink');
+        assert.strictEqual(flips[1].to, 'light', 'Dusk: to light ink');
+        // The flip happens on a flat sky (top = bottom, no glow) in near-pure
+        // ink -- the one place both black and white clear 4.5:1.
+        flips.forEach(f => {
+            assert.strictEqual(f.sky.top, f.sky.bottom, `Flat sky at minute ${f.m}`);
+            assert.strictEqual(f.sky.glow[3], 0, `No glow at minute ${f.m}`);
+            // The blue hour crosses the flip in a few minute-steps, so the
+            // first minute past it is not exactly at FLIP; the census above
+            // is what proves it reads. Here: the ink was well on its way.
+            assert.ok(f.k > 0.8, `Ink is near its extreme at the flip (k=${f.k.toFixed(2)})`);
+        });
+        assert.strictEqual(Sky.paletteAt(0).polarity, 'light', 'Midnight is light ink on navy');
+        assert.strictEqual(Sky.paletteAt(720).polarity, 'dark', 'Noon is plum on cream');
+    });
+
+    test('FLIP should be the luminance where black and white both clear 4.5:1', () => {
+        assert.ok(Sky.contrast(0, Sky.FLIP) >= 4.5, 'Black on a FLIP sky');
+        assert.ok(Sky.contrast(1, Sky.FLIP) >= 4.5, 'White on a FLIP sky');
+    });
+
+    test('The page without the script should be the page as it was', () => {
+        // :root holds the mid-morning sky. Whatever the script does, a
+        // visitor with it blocked sees the cream they always saw.
+        const rootBlock = css.slice(css.indexOf(':root {'), css.indexOf('}', css.indexOf(':root {')));
+        const noon = Sky.paletteAt(510).sky; // 8:30, the "morning" stop
+        assert.ok(rootBlock.includes(`--bg: ${noon.top};`), 'Default --bg is the morning sky');
+        assert.ok(rootBlock.includes(`--bg-soft: ${noon.bottom};`), 'Default --bg-soft is the morning sky');
+        assert.ok(rootBlock.includes(`--accent: ${Sky.INK.dark.accent};`), 'Default accent is the dark ink\'s');
+        assert.ok(rootBlock.includes('--glow-x: 50%;') && /var\(--glow-x\)/.test(css) && /var\(--glow\)/.test(css),
+            'The body gradient reads the glow and its position from the vars');
+        assert.ok(html.includes('<meta name="theme-color" content="' + noon.top + '"'), 'theme-color defaults to the morning sky');
+    });
+
+    test('The script should ask for nothing: no network, no location, no storage', () => {
+        assert.ok(!/fetch\(|XMLHttpRequest|navigator\.|import\(|localStorage|sessionStorage|WebSocket/.test(homeJs),
+            'The visitor\'s clock is the only input');
+    });
+
+    test('The script should stand aside for a contrast preference', () => {
+        // Inline custom properties on <html> beat the stylesheet's
+        // @media (prefers-contrast: more) :root override, so the script
+        // must not set them there, and must undo itself if the preference
+        // changes mid-session.
+        assert.ok(/prefers-contrast: more/.test(homeJs) && /forced-colors: active/.test(homeJs));
+        assert.ok(/if \(prefersOwnContrast\(\)\) \{ clear\(\); return null; \}/.test(homeJs), 'apply() bails and clears');
+        assert.ok(/addEventListener\('change', tick\)/.test(homeJs), 'And listens for the preference changing');
+        assert.ok(/removeProperty\(v\)/.test(homeJs), 'clear() removes every var it set');
+    });
+
+    test('The sky should step, never fade', () => {
+        // A fade through the flip is seconds of grey on grey.
+        const bodyRule = css.slice(css.indexOf('\nbody {'), css.indexOf('}', css.indexOf('\nbody {')));
+        assert.ok(!/transition/.test(bodyRule), 'No transition on the body background');
+        // The links' hover used to fade colour and underline over 150ms;
+        // both are sky ink now, so only the lift may transition.
+        const linkRule = css.slice(css.indexOf('\n.links a {'), css.indexOf('}', css.indexOf('\n.links a {')));
+        assert.ok(/transition: transform 150ms ease;/.test(linkRule) && !/transition:[^;]*color/.test(linkRule),
+            'Links transition their lift only, never their colour');
+        assert.ok(!/style\.transition|setProperty\('transition|\.animate\(|requestAnimationFrame/.test(homeJs),
+            'The script sets, it does not animate');
+        assert.ok(/setInterval\(tick, 60000\)/.test(homeJs), 'Once a minute');
+        assert.ok(/visibilitychange/.test(homeJs) && /pageshow/.test(homeJs), 'And on waking a background tab');
+    });
+
+    test('home.js should be everywhere it has to be to reach a visitor', () => {
+        // deploy.yml syncs an explicit list and triggers on paths: a script
+        // in neither works on localhost and 404s in production, silently --
+        // the page would just stay cream.
+        const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
+        const serverTests = fs.readFileSync(path.join(__dirname, 'tests-server.js'), 'utf8');
+        assert.ok(/^\s+- 'home\.js'$/m.test(deploy), 'deploy.yml triggers on home.js');
+        assert.ok(/--include 'home\.js'/.test(deploy), 'deploy.yml syncs home.js');
+        assert.ok(/path: '\/home\.js'/.test(serverTests), 'The server suite serves it');
+        assert.ok(fs.existsSync(path.join(__dirname, 'scripts', 'home-audit.mjs')), 'And the gate exists');
     });
 });
 
@@ -1478,7 +1643,8 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             countdown: ['calc.js', 'script.js', 'styles.css'],
             game: ['/shared/daily.js', 'putt.js', 'script.js', 'styles.css'],
             slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],
-            'fish-hatchery': ['app.js', 'styles.css', ...photos].sort()
+            'fish-hatchery': ['app.js', 'styles.css', ...photos].sort(),
+            '.': ['home.js', 'styles.css']
         };
 
         Object.keys(STAMPED_PAGES).forEach(dir => {

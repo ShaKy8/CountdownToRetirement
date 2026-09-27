@@ -1,16 +1,26 @@
 /* ==========================================================================
    BranyonTech landing page
    One screen: name, one sentence, project links. Text only.
-   Palette borrowed from the retirement page's count-up (dawn) theme.
+   Palette borrowed from the retirement page's count-up (dawn) theme --
+   and, with home.js, the sky right now: these :root values are the page
+   without the script (mid-morning), and home.js repaints every one of them
+   as inline custom properties on <html> by the minute. Nothing here may
+   transition: a fade through the dusk flip is seconds of grey on grey.
    ========================================================================== */
 
 :root {
   --bg: #fbf6ef;
   --bg-soft: #f3e9dc;
+  --glow: rgba(224, 122, 95, 0.14);
+  --glow-x: 50%;
   --text: #3a2f45;
   --muted: #6f6479;
-  --accent: #e07a5f;
-  --accent-dark: #c4634a;
+  /* A shade deeper than the clock's coral: 3.3:1 against the darkest pixel
+     of the morning sky where the original was 2.7 on plain cream, and the
+     hover 5.9:1 where it was 3.7. The census in tests.js holds these at
+     every minute of the day. */
+  --accent: #bd5c43;
+  --accent-dark: #a3402a;
   --rule: rgba(58, 47, 69, 0.15);
 
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
@@ -40,7 +50,7 @@ body {
   line-height: 1.6;
   color: var(--text);
   background:
-    radial-gradient(ellipse 90% 55% at 50% -10%, rgba(224, 122, 95, 0.14) 0%, transparent 70%),
+    radial-gradient(ellipse 90% 55% at var(--glow-x) -10%, var(--glow) 0%, transparent 70%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
   -webkit-font-smoothing: antialiased;
 }
@@ -133,7 +143,10 @@ h1 {
   color: var(--text);
   text-decoration: none;
   border-bottom: 2px solid var(--accent);
-  transition: color 150ms ease, border-color 150ms ease, transform 150ms ease;
+  /* Only the lift transitions. Colour and underline switch at once: they
+     are sky ink now, and a fade through the dusk flip -- even 150ms -- is
+     the grey-on-grey state the census forbids. */
+  transition: transform 150ms ease;
 }
 
 .links a:hover {
