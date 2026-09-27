@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-25",
+  "updated": "2026-09-27",
   "trips": [
     { "place": "San Francisco, California", "when": "March 2026", "lat": 37.7749, "lon": -122.4194,
       "note": "❤️ Visiting Family" },
@@ -63,7 +63,9 @@
     { "what": "CLIP//NET", "when": "Sep 24, 2026", "url": "https://github.com/ShaKy8/clipnet",
       "note": "📋 Ditto for Omarchy: every copy kept with all its formats, Ctrl+' to search and paste" },
     { "what": "Fish Hatchery, renewed", "when": "Sep 25, 2026", "url": "/fish-hatchery/",
-      "note": "🏡 The Grants Pass property's transformation, in before-and-after photographs" }
+      "note": "🏡 The Grants Pass property's transformation, in before-and-after photographs" },
+    { "what": "fcx", "when": "Sep 26, 2026", "url": "https://github.com/ShaKy8/fcx",
+      "note": "🗂️ FreeCommander for Omarchy: a dual-pane file manager in Rust and GTK4, with FreeCommander XE's shortcuts so nothing has to be relearned" }
   ],
   "books": [
     { "title": "The Widow", "when": "May 2026", "note": "John Grisham" },
