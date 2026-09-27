@@ -293,6 +293,14 @@ h1 {
   }
 }
 
+/* Wider than a phone, the tagline takes a wider measure. At 34ch the
+   counted clause wraps to three lines and pushes 1280x640 and 1024x640
+   10px past one screen; at 48ch it is two lines at every desktop size and
+   still narrower than the card grid beneath it. Phones keep 34ch. */
+@media (min-width: 641px) {
+  .tagline { max-width: 48ch; }
+}
+
 /* Phones: 6vh of header padding is the room the cards need. Measured at
    390x844 -- stacked cards are about 500px against the 226px the flat list
    was -- and the same trims are what keep the rows form on one screen at

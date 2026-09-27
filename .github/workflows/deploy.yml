@@ -64,6 +64,12 @@ jobs:
       # tests.js fails on a stale stamp, but the test workflow does not gate
       # this one. Stamping here means a forgotten stamp is a red CI run and
       # never a visitor running an hour-old script against today's data.
+      # The homepage's "Since February: 6 trips, 10 concerts..." is counted
+      # from countdown/stats.json. A data-only push must update it too, and
+      # the test workflow does not gate this one.
+      - name: Bake the homepage's counts
+        run: node scripts/bake-home.mjs
+
       - name: Stamp asset URLs
         run: node scripts/stamp-assets.mjs
 

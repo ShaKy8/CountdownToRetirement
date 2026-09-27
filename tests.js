@@ -1391,8 +1391,53 @@ describe('BUSINESS SITE - HTML Structure', () => {
 
     test('Should introduce Kyle by name with the tagline', () => {
         assert.ok(indexHtml.includes('Kyle Shaver'), 'Should show the name');
-        assert.ok(indexHtml.includes('Retired technologist. Occasional AI and IT consulting, mostly by referral.'),
-            'Should show the tagline');
+        assert.ok(/<p class="tagline">Retired technologist\. <!-- since -->[^<]+<!-- \/since --> Consulting by referral\.<\/p>/.test(indexHtml),
+            'Retired technologist, the counted clause between its markers, and the consulting line');
+        assert.strictEqual(indexHtml.split('<!-- since -->').length, 2, 'One clause, marked once');
+    });
+
+    test('The tagline\'s counts should be the clock\'s lists', () => {
+        // "Since February: 6 trips, 10 concerts, 4 books, 15 things built
+        // with AI." is baked from countdown/stats.json by
+        // scripts/bake-home.mjs. Counted here independently, by the clock's
+        // own rules: an entry is an object with its title key, and a book
+        // still open is not a book read.
+        const stats = JSON.parse(fs.readFileSync(path.join(__dirname, 'countdown', 'stats.json'), 'utf8'));
+        const count = (list, key) => (stats[list] || []).filter(e => e && typeof e === 'object'
+            && typeof e[key] === 'string' && e[key].trim() && e.reading !== true).length;
+        const n = { trips: count('trips', 'place'), concerts: count('concerts', 'who'),
+            books: count('books', 'title'), projects: count('projects', 'what') };
+        const clause = indexHtml.split('<!-- since -->')[1].split('<!-- /since -->')[0];
+        const word = (k, one, many) => n[k] === 1 ? `1 ${one}` : `${n[k]} ${many}`;
+        [word('trips', 'trip', 'trips'), word('concerts', 'concert', 'concerts'),
+            word('books', 'book', 'books'), word('projects', 'thing built with AI', 'things built with AI')]
+            .filter((_, i) => Object.values(n)[i] > 0)
+            .forEach(w => assert.ok(clause.includes(w), `"${clause}" should say ${w} -- run: node scripts/bake-home.mjs`));
+        assert.ok(/^Since February( 2026)?: /.test(clause), 'Since February');
+        const r = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'scripts', 'bake-home.mjs'), '--check'], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, 'bake-home --check is clean: ' + r.stderr);
+        const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
+        assert.ok(deploy.indexOf('node scripts/bake-home.mjs') > 0 && deploy.indexOf('node scripts/bake-home.mjs') < deploy.indexOf('node scripts/stamp-assets.mjs'),
+            'The deploy bakes before it stamps and syncs, so a data-only push updates the homepage');
+    });
+
+    test('The bake should count as the clock counts', () => {
+        const code = `import('${path.join(__dirname, 'scripts', 'bake-home.mjs').replace(/\\\\/g, '/')}').then(m => {
+            const feb = new Date('2026-09-27T12:00:00'), next = new Date('2027-03-01T12:00:00');
+            console.log(JSON.stringify([
+                m.sinceClause({ trips: [{ place: 'A' }], concerts: [], books: [{ title: 'B', reading: true }, { title: 'C' }, 'junk', { note: 'x' }],
+                    projects: [{ what: 'P' }, { what: 'Q' }] }, feb),
+                m.sinceClause({}, feb),
+                m.sinceClause({ concerts: [{ who: 'X' }, { who: 'Y' }] }, next)
+            ]));
+        })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        assert.deepStrictEqual(JSON.parse(r.stdout), [
+            'Since February: 1 trip, 1 book, 2 things built with AI.',
+            'Since February: building with AI.',
+            'Since February 2026: 2 concerts.'
+        ], 'Singular at one, an open book and a malformed entry not counted, an empty list dropped, the year once it is next year');
     });
 
     test('Should show the email address, as a mailto link', () => {

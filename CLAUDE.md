@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (440 tests)
+# Run client-side tests (443 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -136,7 +136,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (440 tests)
+├── tests.js                # Client-side unit tests (443 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -147,7 +147,7 @@ CountdownToRetirement/
 ## Key Features
 
 ### Landing Page (/)
-- **Content:** "Kyle Shaver", the tagline "Retired technologist. Occasional AI and IT consulting, mostly by referral.", and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Since February: 6 trips, 10 concerts, 4 books, 15 things built with AI. Consulting by referral.", and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, and exactly one script: `home.js`, the sky right now.
 - **The sky right now.** `home.js` makes the page's colours follow the
   visitor's local time of day — the favicon's navy at night, the clock's
@@ -194,6 +194,23 @@ CountdownToRetirement/
     colour and the forced `:hover` colour, and computes contrast from the
     cascade's own output. It then paints the text the sky's colour and
     requires its own measurement to fail — or it measured nothing.
+- **The tagline's numbers are counted, not typed** (September 27, 2026).
+  The clause between `<!-- since -->` and `<!-- /since -->` in
+  `index.html` is baked from `countdown/stats.json` by
+  `node scripts/bake-home.mjs` — the lengths of the same lists the
+  retirement clock shows, counted by the clock's rules (an entry is an
+  object with its title key; a book with `reading: true` is not a book
+  read). So adding a concert and pushing updates the homepage with no
+  script on the page. `tests.js` recounts independently and fails while
+  the page and the data disagree; `deploy.yml` bakes before it stamps,
+  because the test workflow does not gate the deploy. Singular at one, an
+  empty list drops out rather than print "0", and "Since February" becomes
+  "Since February 2026" once the build is 300 days past retirement. The
+  meta description names the activities without numbers, because search
+  snippets are cached for weeks. The longer tagline costs a line: phones
+  still fit (measured at all four sizes), and above 640px the measure
+  widens from 34ch to 48ch, which keeps it to two lines on desktop — at
+  34ch it was three, and 1280×640 and 1024×640 went 10px past one screen.
 - **The links are five titled cards** (chosen by Kyle, September 27, 2026):
   Retirement · Weather · Play (ONE PUTT, SLINGSHOT) · Property (Fish
   Hatchery) · Reach me (the address, GitHub), in that order — the clock
