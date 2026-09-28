@@ -27,7 +27,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (443 tests)
+# Run client-side tests (451 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -136,7 +136,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (443 tests)
+├── tests.js                # Client-side unit tests (451 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -183,6 +183,46 @@ CountdownToRetirement/
     `defer` would paint cream and then flip. It re-applies on
     `visibilitychange` and `pageshow`, because a background tab's timers are
     throttled and a tab left overnight would show yesterday's sky.
+  - **The sky wears the visitor's weather** (September 28, 2026). One
+    same-origin request, `/weather/api/here`, answers in ~150 bytes with the
+    weather where the visitor is — located by CloudFront's viewer headers,
+    never a permission prompt (`scripts/cloudfront-here.py`, runbook in
+    `docs/aws-setup.md` §3c). `conditionFor()` maps the WMO code to one of
+    eight conditions and `weatherize()` greys, darkens or lightens the
+    clock's sky for it; the ink is still chosen by `inkFor` from the result.
+    Kyle asked for it after the midday page looked unchanged: the clock's sky
+    is the old cream from 08:30 to 17:00 by design.
+    - **The census is 11,520 states** — 1,440 minutes × 8 conditions, sky and
+      cards, with the motion overlay composited — and every condition must
+      flip its ink on a flat sky. A weathered sky can be *sloped* across
+      `FLIP` (fog near 06:00 was, in review), where no ink reads against both
+      ends, so `weatherize` flattens any sky whose bounds straddle it. With
+      today's parameters it never triggers; a test proves the rule works.
+    - **The motion is CSS only** (`body::before`, rain/snow/cloud tiles moved
+      by `transform` one tile a loop) and its colour is always **opposite the
+      ink**, like the card fill, so it can only raise contrast. Gone under
+      reduced motion and high contrast. The gate reads the layer's real
+      colour off `::before` and proves a layer in the ink's own colour fails.
+    - **The query must never choose the answer.** The edge cache for
+      `/weather/api/here` keys on the viewer headers, not the query, and the
+      origin request policy still forwards the query; a route that read
+      `?lat=` would let one request set a city's weather. The route takes the
+      query as `_q` and never reads it; tests pin it; `check-headers.sh`
+      asks twice with different queries. The dev server plays CloudFront:
+      `?wx=lat,lon,City` on the API request becomes the headers, `?wx=fail` a 500.
+    - **The city is untrusted header text**: percent-decoded (CloudFront's
+      encoding of non-ASCII names is unverified), kept only if it looks like a
+      place and is under 40 characters, and written with `textContent`.
+    - **The last reading is kept an hour** in `localStorage['branyon.sky.v1']`,
+      read before first paint, so a repeat visit never shows clear-then-rain;
+      every access is in try/catch and the gate runs with storage throwing.
+    - **The caption is one flex row with the copyright** — "Light rain in
+      Irvine · © 2026 BranyonTech" — where only the caption shrinks, with an
+      ellipsis: a second footer line pushed 320×700 past one screen. That
+      fix exposed the grid trap the console hit: `body`'s implicit `auto`
+      column sized to the one-line footer and a phone zoomed out to 410px, so
+      `grid-template-columns: minmax(0, 100%)`, and the gate now requires
+      `innerWidth` to equal the screen — height alone passed, because both grew.
   - **Without the script the page is exactly the mid-morning cream** — the
     `:root` defaults — and a test pins them to the 8:30 stop.
   - **`home.js` has to be in four places** or it 404s in production while

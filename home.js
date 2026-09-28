@@ -3,9 +3,11 @@
  *
  * The landing page's colours follow the visitor's local time of day -- the
  * navy of the favicon at night, the retirement clock's dawn at sunrise, the
- * cream it has always been by mid-morning, gold and dusk in the evening. No
- * location, no permission, no network: the clock on the visitor's device is
- * the only input, so this is "a day", not their day in their sky.
+ * cream it has always been by mid-morning, gold and dusk in the evening. The
+ * clock on the visitor's device decides the time of day; since 2026-09-28 the
+ * visitor's WEATHER decides what that sky is doing (see "the weather" below):
+ * one same-origin request to /weather/api/here, located by the CDN, never by
+ * a permission prompt.
  *
  * SKY AND INK ARE SEPARATE THINGS. The sky interpolates by the minute. The
  * ink -- text, muted, accent -- is chosen from the sky's LUMINANCE, never
@@ -184,14 +186,128 @@
         };
     }
 
-    function paletteAt(minute) {
-        const sky = skyAt(minute);
-        const b = bounds(sky);
-        const ink = inkFor(b.min, b.max);
-        return Object.assign({ sky, bounds: b, cardBounds: bounds(sky, ink.card), themeColor: sky.top }, ink);
+    /* ------------------------------------------------------ the weather
+     *
+     * conditionFor() turns a WMO 4677 code (and cloud cover) into one of
+     * eight conditions; weatherize() turns a clear sky into that condition's
+     * sky. Greying mixes toward a grey of the SAME luminance, so a condition
+     * changes the character of the sky more than its brightness; storms and
+     * rain darken it, fog and snow lighten it.
+     *
+     * Ink is still chosen from the resulting sky's bounds by inkFor, so the
+     * polarity logic is untouched -- with one rule the clear sky never
+     * needed. The clear sky only flips polarity on deliberately FLAT stops. A
+     * weathered sky can be SLOPED across FLIP (fog at 06:02 spans 0.179 to
+     * 0.186), and there no ink clears 4.5:1 against both ends. So a weathered
+     * sky whose bounds straddle FLIP is flattened for that minute: one colour,
+     * no glow, no overlay.
+     *
+     * The motion overlay (rain, snow, cloud; drawn by the stylesheet) always
+     * takes the polarity OPPOSITE the ink, like the cards: light marks under
+     * dark ink, dark under light. Compositing it can only move the sky away
+     * from the ink, so it can only raise contrast. The census still includes
+     * it rather than trust the argument.
+     */
+    const CONDITIONS = ['clear', 'partly', 'cloudy', 'fog', 'drizzle', 'rain', 'snow', 'storm'];
+
+    function conditionFor(code, cloud) {
+        const c = Number(code);
+        if ([95, 96, 99].includes(c)) return 'storm';
+        if ((c >= 71 && c <= 77) || c === 85 || c === 86) return 'snow';
+        if ((c >= 61 && c <= 67) || (c >= 80 && c <= 82)) return 'rain';
+        if (c >= 51 && c <= 57) return 'drizzle';
+        if (c === 45 || c === 48) return 'fog';
+        if (c === 3) return 'cloudy';
+        if (c === 2) return 'partly';
+        const cc = Number(cloud);
+        if (code !== null && code !== undefined && (c === 0 || c === 1)) return cc >= 60 ? 'partly' : 'clear';
+        // A code the table does not know: judge by the cloud alone.
+        if (cloud !== null && cloud !== undefined && Number.isFinite(cc)) return cc >= 80 ? 'cloudy' : cc >= 40 ? 'partly' : 'clear';
+        return 'clear';
     }
 
-    const VARS = ['--bg', '--bg-soft', '--glow', '--glow-x', '--text', '--muted', '--accent', '--accent-dark', '--rule', '--card', '--card-edge'];
+    // The words for the caption: "Light rain in Irvine".
+    function wordsFor(code) {
+        const c = Number(code);
+        const W = { 0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Fog',
+            51: 'Light drizzle', 53: 'Drizzle', 55: 'Drizzle', 56: 'Freezing drizzle', 57: 'Freezing drizzle',
+            61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain', 67: 'Freezing rain',
+            71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 77: 'Snow grains', 80: 'Showers', 81: 'Showers',
+            82: 'Heavy showers', 85: 'Snow showers', 86: 'Snow showers', 95: 'Thunderstorm',
+            96: 'Thunderstorm with hail', 99: 'Thunderstorm with hail' };
+        return code === null || code === undefined ? null : (W[c] || null);
+    }
+
+    // Per condition: how far toward same-luminance grey, then toward black
+    // (darken) or white (lighten), what the glow keeps, and the overlay.
+    const WX = {
+        clear:   { grey: 0,    darken: 0,    lighten: 0,    glow: 1,   overlay: null,    alpha: 0 },
+        partly:  { grey: 0.2,  darken: 0,    lighten: 0,    glow: 0.6, overlay: 'cloud', alpha: 0.10 },
+        cloudy:  { grey: 0.5,  darken: 0.04, lighten: 0,    glow: 0,   overlay: 'cloud', alpha: 0.12 },
+        fog:     { grey: 0.6,  darken: 0,    lighten: 0.12, glow: 0,   overlay: null,    alpha: 0,   soften: 0.6 },
+        drizzle: { grey: 0.55, darken: 0.06, lighten: 0,    glow: 0,   overlay: 'rain',  alpha: 0.12 },
+        rain:    { grey: 0.6,  darken: 0.12, lighten: 0,    glow: 0,   overlay: 'rain',  alpha: 0.16 },
+        snow:    { grey: 0.4,  darken: 0,    lighten: 0.10, glow: 0.3, overlay: 'snow',  alpha: 0.30 },
+        storm:   { grey: 0.7,  darken: 0.28, lighten: 0,    glow: 0,   overlay: 'rain',  alpha: 0.18 }
+    };
+
+    // The grey with the same relative luminance as a colour.
+    function greyOf(hex) {
+        const L = luminance(hex);
+        const c = L <= 0.03928 / 12.92 ? L * 12.92 : 1.055 * Math.pow(L, 1 / 2.4) - 0.055;
+        return rgbToHex([c * 255, c * 255, c * 255]);
+    }
+
+    function weatherize(sky, cond) {
+        const w = WX[cond] || WX.clear;
+        if (w === WX.clear) return sky;
+        const shade = hex => {
+            let v = mix(hex, greyOf(hex), w.grey);
+            if (w.darken) v = mix(v, '#000000', w.darken);
+            if (w.lighten) v = mix(v, '#ffffff', w.lighten);
+            return v;
+        };
+        const top = shade(sky.top);
+        let bottom = shade(sky.bottom);
+        if (w.soften) bottom = mix(bottom, top, w.soften);   // fog: nearly one colour
+        const out = { top, bottom, glow: [sky.glow[0], sky.glow[1], sky.glow[2], sky.glow[3] * w.glow], glowX: sky.glowX, flat: false };
+        const b = bounds(out);
+        if (b.min < FLIP && b.max >= FLIP) {
+            const one = mix(top, bottom, 0.5);
+            return { top: one, bottom: one, glow: [0, 0, 0, 0], glowX: sky.glowX, flat: true };
+        }
+        return out;
+    }
+
+    // The union of the bounds of the sky alone and the sky under a mark.
+    function unionBounds(a, b) { return { min: Math.min(a.min, b.min), max: Math.max(a.max, b.max) }; }
+
+    // A sky with a translucent layer folded into its own colours.
+    function under(sky, layer) {
+        const f = hex => rgbToHex(hexToRgb(hex).map((v, i) => v + (layer[i] - v) * layer[3]));
+        return { top: f(sky.top), bottom: f(sky.bottom), glow: sky.glow, glowX: sky.glowX };
+    }
+
+    function paletteAt(minute, cond) {
+        const w = WX[cond] || WX.clear;
+        const sky = weatherize(skyAt(minute), cond);
+        const base = bounds(sky);
+        const ink = inkFor(base.min, base.max);
+        // The overlay is opposite the ink, like the card, and absent on a
+        // flattened sky.
+        const overlay = w.overlay && !sky.flat
+            ? (ink.polarity === 'dark' ? [255, 255, 255, w.alpha] : [0, 0, 0, w.alpha]) : null;
+        const b = overlay ? unionBounds(base, bounds(sky, overlay)) : base;
+        const cardB = overlay
+            ? unionBounds(bounds(sky, ink.card), bounds(under(sky, overlay), ink.card))
+            : bounds(sky, ink.card);
+        return Object.assign({ sky, cond: WX[cond] ? cond : 'clear', overlay, bounds: b, cardBounds: cardB, themeColor: sky.top }, ink);
+    }
+
+    const VARS = ['--bg', '--bg-soft', '--glow', '--glow-x', '--text', '--muted', '--accent', '--accent-dark', '--rule', '--card', '--card-edge', '--wx-ink'];
+
+    // The condition the page is painting, set by the weather reading.
+    let current = 'clear';
 
     function prefersOwnContrast() {
         return typeof root.matchMedia === 'function'
@@ -202,6 +318,7 @@
     function clear() {
         const s = root.document.documentElement.style;
         VARS.forEach(v => s.removeProperty(v));
+        root.document.documentElement.removeAttribute('data-wx');
     }
 
     function nowMinute() {
@@ -213,8 +330,17 @@
     // <html>, which the stylesheet reads with today's cream as the default.
     function apply(minute) {
         if (prefersOwnContrast()) { clear(); return null; }
-        const p = paletteAt(minute === undefined ? nowMinute() : minute);
+        const p = paletteAt(minute === undefined ? nowMinute() : minute, current);
         const s = root.document.documentElement.style;
+        // The stylesheet draws the motion from this; none on a clear or
+        // flattened sky.
+        if (p.overlay) {
+            root.document.documentElement.setAttribute('data-wx', WX[p.cond].overlay);
+            s.setProperty('--wx-ink', rgba(p.overlay));
+        } else {
+            root.document.documentElement.removeAttribute('data-wx');
+            s.removeProperty('--wx-ink');
+        }
         s.setProperty('--bg', p.sky.top);
         s.setProperty('--bg-soft', p.sky.bottom);
         s.setProperty('--glow', `rgba(${p.sky.glow.slice(0, 3).map(Math.round).join(', ')}, ${p.sky.glow[3].toFixed(3)})`);
@@ -231,7 +357,75 @@
         return p;
     }
 
-    const BranyonSky = { STOPS, FLIP, INK, mix, luminance, contrast, skyAt, bounds, inkFor, paletteAt, apply, clear };
+    /* ------------------------------------------ reading the weather
+     *
+     * One same-origin request, located by the CDN. The last reading is kept
+     * in this visitor's browser for an hour, so a repeat visit paints the
+     * right sky before the request returns; every storage access is
+     * wrapped, because a private window or blocked site data throws.
+     */
+    const STORE_KEY = 'branyon.sky.v1';
+    const FRESH_MS = 60 * 60 * 1000;
+    const REFETCH_MS = 15 * 60 * 1000;
+    let reading = null;
+    let lastFetch = 0;
+
+    function useReading(r, minute) {
+        if (!r || typeof r !== 'object') return false;
+        reading = r;
+        current = conditionFor(r.code, r.cloud);
+        apply(minute);
+        caption();
+        return true;
+    }
+
+    function recall() {
+        try {
+            const r = JSON.parse(root.localStorage.getItem(STORE_KEY) || 'null');
+            if (r && typeof r.at === 'number' && Date.now() - r.at < FRESH_MS) return r;
+        } catch (e) { /* no storage: fine */ }
+        return null;
+    }
+
+    function remember(r) {
+        try { root.localStorage.setItem(STORE_KEY, JSON.stringify(r)); } catch (e) { /* fine */ }
+    }
+
+    function fetchWeather() {
+        if (typeof root.fetch !== 'function') return;
+        lastFetch = Date.now();
+        const ctrl = typeof root.AbortController === 'function' ? new root.AbortController() : null;
+        const timer = root.setTimeout(() => { if (ctrl) ctrl.abort(); }, 4000);
+        root.fetch('/weather/api/here', ctrl ? { signal: ctrl.signal } : undefined)
+            .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+            .then(j => {
+                root.clearTimeout(timer);
+                if (!j || typeof j !== 'object') return;
+                const r = { code: j.code, cloud: j.cloud, city: typeof j.city === 'string' ? j.city : null, at: Date.now() };
+                remember(r);
+                useReading(r);
+            })
+            .catch(() => { root.clearTimeout(timer); /* the clock's sky stands */ });
+    }
+
+    // "Light rain in Irvine", in the footer. Text only, never markup.
+    function caption() {
+        const el = root.document && root.document.getElementById('wx');
+        if (!el) return;
+        const words = reading && wordsFor(reading.code);
+        if (!words) { el.hidden = true; el.textContent = ''; return; }
+        el.textContent = words + (reading.city ? ' in ' + reading.city : ' here');
+        el.hidden = false;
+    }
+
+    // For the gate and the tests: paint a condition without a network.
+    function applyWeather(cond, minute) {
+        current = WX[cond] ? cond : 'clear';
+        return apply(minute);
+    }
+
+    const BranyonSky = { STOPS, FLIP, INK, CONDITIONS, WX, mix, luminance, contrast, skyAt, bounds, inkFor,
+        conditionFor, wordsFor, weatherize, paletteAt, apply, applyWeather, clear, STORE_KEY };
 
     if (typeof module !== 'undefined' && module.exports) module.exports = BranyonSky;
     if (root) root.BranyonSky = BranyonSky;
@@ -241,8 +435,17 @@
     // until the next tick -- hence visibilitychange and pageshow. And if the
     // contrast preference changes mid-session, undo or redo at once.
     if (root && typeof root.document !== 'undefined') {
-        const tick = () => apply();
-        tick();
+        const tick = () => {
+            apply();
+            if (!root.document.hidden && Date.now() - lastFetch > REFETCH_MS) fetchWeather();
+        };
+        // A reading from the last hour paints now, before first paint; the
+        // script blocks in <head>, so a repeat visit never shows clear then rain.
+        const kept = recall();
+        if (kept) { reading = kept; current = conditionFor(kept.code, kept.cloud); }
+        apply();
+        fetchWeather();
+        root.document.addEventListener('DOMContentLoaded', caption);
         root.setInterval(tick, 60000);
         root.document.addEventListener('visibilitychange', () => { if (!root.document.hidden) tick(); });
         root.addEventListener('pageshow', tick);

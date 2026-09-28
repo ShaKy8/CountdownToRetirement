@@ -50,6 +50,10 @@ body {
   min-height: 100dvh;
   display: grid;
   grid-template-rows: 1fr auto;
+  /* An implicit column is `auto`, which sizes to the widest unbreakable
+     content: the one-line weather caption made it 410px on a 320px phone,
+     and the phone zoomed out to fit. The console's #app had the same bug. */
+  grid-template-columns: minmax(0, 100%);
   font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.6;
@@ -228,6 +232,86 @@ h1 {
 }
 
 /* --------------------------------------------------------------------------
+   The weather: motion behind the page, and a caption in the footer
+   home.js sets html[data-wx] to rain, snow or cloud, and --wx-ink to a mark
+   colour that is always OPPOSITE the ink (light marks under dark text, dark
+   under light), so a mark can only raise contrast; the census in tests.js
+   composites it anyway. The layer moves by transform, one tile a loop, so
+   the loop has no seam and costs the compositor, not the page. Nothing here
+   transitions: the colours still step once a minute.
+   -------------------------------------------------------------------------- */
+body::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  display: none;
+  inset: -120px 0 0 0;
+  will-change: transform;
+}
+
+html[data-wx="rain"] body::before {
+  display: block;
+  background-image:
+    radial-gradient(ellipse 0.7px 10px at 50% 50%, var(--wx-ink) 0 55%, transparent 100%),
+    radial-gradient(ellipse 0.6px 8px at 50% 50%, var(--wx-ink) 0 55%, transparent 100%);
+  background-size: 53px 90px, 89px 90px;
+  background-position: 0 0, 26px 45px;
+  animation: wx-fall 0.7s linear infinite;
+}
+
+html[data-wx="snow"] body::before {
+  display: block;
+  background-image:
+    radial-gradient(circle 2.2px at 50% 50%, var(--wx-ink) 0 60%, transparent 100%),
+    radial-gradient(circle 1.6px at 50% 50%, var(--wx-ink) 0 60%, transparent 100%);
+  background-size: 83px 120px, 131px 120px;
+  background-position: 0 0, 40px 60px;
+  animation: wx-snow 9s linear infinite;
+}
+
+html[data-wx="cloud"] body::before {
+  display: block;
+  inset: 0 0 0 -640px;
+  background-image: radial-gradient(ellipse 260px 70px at 50% 50%, var(--wx-ink) 0 30%, transparent 70%);
+  background-size: 640px 360px;
+  animation: wx-drift 80s linear infinite;
+}
+
+@keyframes wx-fall  { to { transform: translateY(90px); } }
+@keyframes wx-snow  { to { transform: translateY(120px); } }
+@keyframes wx-drift { to { transform: translateX(640px); } }
+
+/* "Light rain in Irvine · © 2026 BranyonTech". A long city is cut with an
+   ellipsis rather than wrapped: at 320px the footer holds about 43
+   characters and a second line would push the page past one screen. One
+   flex row in which only the caption may shrink, so it truncates exactly
+   when it has to and never guesses at the copyright's width. */
+.site-footer p {
+  display: flex;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.wx {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-sep {
+  flex: none;
+  padding-inline: 0.45em;
+}
+
+.wx[hidden],
+.wx[hidden] + .wx-sep {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
    Motion and contrast preferences
    -------------------------------------------------------------------------- */
 @keyframes rise {
@@ -244,6 +328,11 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   .intro {
     animation: none;
+  }
+
+  /* The weather still colours the sky; nothing falls or drifts. */
+  body::before {
+    display: none !important;
   }
 
   .links a,
@@ -271,6 +360,10 @@ h1 {
 
   body {
     background: #ffffff;
+  }
+
+  body::before {
+    display: none !important;
   }
 }
 

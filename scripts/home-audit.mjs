@@ -41,7 +41,10 @@ for (let i = 0; i < 60; i++) { try { await get('/json/version'); break; } catch 
 const { webSocketDebuggerUrl } = await get('/json/version');
 const ws = new WebSocket(webSocketDebuggerUrl);
 let id = 0; const P = new Map(); const errors = [];
+let fetchHandler = null;
+const wsOnFetch = (fn) => { fetchHandler = fn; };
 ws.onmessage = e => { const m = JSON.parse(e.data);
+  if (m.method === 'Fetch.requestPaused' && fetchHandler) fetchHandler(m.params);
   if (m.id && P.has(m.id)) { P.get(m.id)(m); P.delete(m.id); }
   if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.text);
   if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push(m.params.args.map(a => a.value).join(' ')); };
@@ -112,10 +115,23 @@ function boundsOf(r, fill) {
 }
 const worst = (rgb, b) => Math.min(Sky.contrast(lum(rgb), b.min), Sky.contrast(lum(rgb), b.max));
 
+/*
+ * The weather request is answered by the gate, not the network, so every
+ * run is deterministic: a fixed reading, a 500, or (by default) clear.
+ */
+let hereAnswer = { status: 200, body: { city: 'Los Angeles', code: 0, cloud: 0, precip: 0, isDay: 1 } };
+await S('Fetch.enable', { patterns: [{ urlPattern: '*/weather/api/here*' }] });
+wsOnFetch((p) => S('Fetch.fulfillRequest', {
+  requestId: p.requestId, responseCode: hereAnswer.status,
+  responseHeaders: [{ name: 'content-type', value: 'application/json' }],
+  body: Buffer.from(JSON.stringify(hereAnswer.body)).toString('base64'),
+}));
+
 async function load(w, h, opts = {}) {
   await S('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 1000 });
   await S('Emulation.setEmulatedMedia', { features: [
     { name: 'prefers-contrast', value: opts.contrast ? 'more' : 'no-preference' },
+    { name: 'prefers-reduced-motion', value: opts.still ? 'reduce' : 'no-preference' },
     { name: 'forced-colors', value: 'none' }] });
   await S('Emulation.setScriptExecutionDisabled', { value: !!opts.noScript });
   await S('Page.navigate', { url: ORIGIN + '/' });
@@ -220,6 +236,101 @@ await load(1280, 800, { noScript: true });
   gate(r.groups === 5 && r.titled === 5, 'scripts off — five titled groups', `${r.groups} groups, ${r.titled} titled`);
 }
 await S('Emulation.setScriptExecutionDisabled', { value: false });
+
+/*
+ * The weather, as painted. For each condition and every third hour, paint it
+ * through the page's own applyWeather, read the gradient, the motion layer's
+ * actual colour off body::before, every run of text, and composite the layer
+ * over the sky's corners before measuring. The layer is opposite the ink by
+ * design; this is where that is proved from the cascade, not the model.
+ */
+await load(1280, 800);
+{
+  const bad = [];
+  let layers = 0, worstW = 99;
+  for (const cond of Sky.CONDITIONS) {
+    for (let hour = 0; hour < 24; hour += 3) {
+      await E(`BranyonSky.applyWeather('${cond}', ${hour * 60}), 1`);
+      const r = await E(READ);
+      const mark = await E(`(()=>{const s=getComputedStyle(document.body,'::before');
+        if(s.display==='none') return null; const m=s.backgroundImage.match(/rgba?\\(([^)]+)\\)/); return m?m[1].split(',').map(Number):null;})()`);
+      if (mark) layers++;
+      const b0 = boundsOf(r);
+      const b = mark ? (() => { const bm = boundsOf(r, mark); return { min: Math.min(b0.min, bm.min), max: Math.max(b0.max, bm.max) }; })() : b0;
+      for (const t of r.texts) {
+        const c = worst(parse(t.color), t.fill ? boundsOf(r, parse(t.fill)) : b);
+        worstW = Math.min(worstW, c);
+        if (c < 4.5) bad.push(`${cond} ${hour}:00 ${t.tag} ${c.toFixed(2)}`);
+      }
+    }
+  }
+  gate(bad.length === 0, 'every weather, every third hour, reads as painted (the motion layer included)',
+    bad.length ? bad.slice(0, 4).join(' | ') : `worst ${worstW.toFixed(2)}:1, ${layers} states with a layer`);
+  gate(layers > 0, 'the motion layer is actually drawn in some weather', String(layers));
+
+  // THE GATE HAS TO BE ABLE TO FAIL: the same layer at half opacity, the
+  // ink's own way, must read as a failure.
+  await E(`BranyonSky.applyWeather('rain', 720), document.documentElement.style.setProperty('--wx-ink', 'rgba(58, 47, 69, 0.9)'), 1`);
+  const rb = await E(READ);
+  const mk = await E(`(()=>{const m=getComputedStyle(document.body,'::before').backgroundImage.match(/rgba?\\(([^)]+)\\)/);return m?m[1].split(',').map(Number):null;})()`);
+  const h1 = rb.texts.find(t => t.tag.startsWith('H1'));
+  const bb = boundsOf(rb, mk);
+  gate(h1 && mk && worst(parse(h1.color), bb) < 4.5, 'the measurement fails when the rain is drawn in the ink\'s own colour',
+    h1 && mk ? `${worst(parse(h1.color), bb).toFixed(2)}:1` : 'no layer read');
+}
+
+// Reduced motion: the weather colours the sky, nothing falls.
+await load(1280, 800, { still: true });
+{
+  await E("BranyonSky.applyWeather('rain', 720), 1");
+  const d = await E("getComputedStyle(document.body,'::before').display");
+  gate(d === 'none', 'reduced motion: no rain layer', d);
+}
+
+// A reading from the last hour paints before the request returns, and a
+// long city is cut, not wrapped: still one screen at 320x700.
+hereAnswer = { status: 200, body: { city: 'Rancho Santa Margarita', code: 95, cloud: 100, precip: 3, isDay: 1 } };
+for (const [w, h] of [[320, 700], [390, 844]]) {
+  await load(w, h);
+  await wait(400);
+  const r = await E(`(()=>{const el=document.getElementById('wx');return {text:el.textContent, hidden:el.hidden,
+    wx:document.documentElement.getAttribute('data-wx'), sh:document.documentElement.scrollHeight, ih:innerHeight, iw:innerWidth,
+    lines:Math.round(document.querySelector('.site-footer p').getBoundingClientRect().height/parseFloat(getComputedStyle(document.querySelector('.site-footer p')).lineHeight))};})()`);
+  gate(!r.hidden && r.text === 'Thunderstorm in Rancho Santa Margarita', `${w}x${h}: the caption names the weather and the city`, r.text);
+  gate(r.wx === 'rain', `${w}x${h}: a thunderstorm draws rain`, String(r.wx));
+  // innerWidth too: an over-wide page makes a phone zoom out, and then
+  // height fits height because both grew. That passed once, wrongly.
+  gate(r.iw === w && r.sh <= r.ih && r.lines === 1, `${w}x${h}: a long city stays on one line, one screen, no zoom-out`,
+    `${r.lines} line(s), ${r.sh}px in ${r.ih}px, viewport ${r.iw}px wide`);
+}
+{
+  const stored = await E("JSON.parse(localStorage.getItem('branyon.sky.v1')||'null')");
+  gate(stored && stored.code === 95 && typeof stored.at === 'number', 'the reading is remembered', JSON.stringify(stored));
+  hereAnswer = { status: 500, body: { error: 'down' } };
+  await load(1280, 800);
+  await wait(300);
+  const r = await E("({wx:document.documentElement.getAttribute('data-wx'), cap:document.getElementById('wx').textContent})");
+  gate(r.wx === 'rain' && r.cap.startsWith('Thunderstorm'), 'a recalled reading paints when the request fails', JSON.stringify(r));
+  await E("localStorage.removeItem('branyon.sky.v1')");
+  await load(1280, 800);
+  await wait(300);
+  const q = await E("({wx:document.documentElement.getAttribute('data-wx'), hidden:document.getElementById('wx').hidden, bg:document.documentElement.style.getPropertyValue('--bg')})");
+  gate(q.wx === null && q.hidden === true && q.bg !== '', 'no reading, no answer: the clock\'s sky, no caption', JSON.stringify(q));
+}
+
+// Blocked site data: every storage access throws, and the page still paints.
+{
+  const { result: { identifier } } = await S('Page.addScriptToEvaluateOnNewDocument', { source:
+    "Object.defineProperty(window,'localStorage',{get(){throw new DOMException('blocked','SecurityError')}});" });
+  hereAnswer = { status: 200, body: { city: 'Irvine', code: 61, cloud: 90, precip: 0.4, isDay: 1 } };
+  const before = errors.length;
+  await load(1280, 800);
+  await wait(400);
+  const r = await E("({wx:document.documentElement.getAttribute('data-wx'), cap:document.getElementById('wx').textContent})");
+  gate(r.wx === 'rain' && r.cap === 'Light rain in Irvine' && errors.length === before, 'storage blocked: still paints the weather, no errors', JSON.stringify(r));
+  await S('Page.removeScriptToEvaluateOnNewDocument', { identifier });
+}
+hereAnswer = { status: 200, body: { city: 'Los Angeles', code: 0, cloud: 0, precip: 0, isDay: 1 } };
 
 // Still one screen: cards where they fit, labelled rows where stacked
 // cards would not. Every link has a group either way.

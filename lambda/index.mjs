@@ -36,6 +36,54 @@ const HOME = {
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 
+/* ------------------------------------------------ the homepage's weather */
+
+/*
+ * /api/here answers "what is the weather where this visitor is", for the
+ * homepage's sky. The location comes ONLY from CloudFront's viewer headers,
+ * never from the query string: the origin request policy forwards query
+ * strings, the /weather/api/here cache key does not include them, so a
+ * Lambda that honoured ?lat= would let one request poison the edge cache
+ * for everyone in that city. The dev server injects these headers itself.
+ */
+
+/** The city header, decoded and checked, or null. Untrusted text. */
+export function cityFrom(raw) {
+  if (typeof raw !== 'string' || !raw || raw.length > 200) return null;
+  let v = raw;
+  // CloudFront's encoding of non-ASCII names is unverified; decode %XX if
+  // present rather than drop "San Jos%C3%A9" as not a place.
+  if (/%[0-9a-f]{2}/i.test(v)) { try { v = decodeURIComponent(v); } catch { return null; } }
+  v = v.trim();
+  return /^[\p{L}\p{M}0-9 .,'&()\/-]{1,40}$/u.test(v) ? v : null;
+}
+
+/** Where the viewer is, from CloudFront's headers; HOME when they are absent. */
+export function viewerFrom(headers) {
+  const h = headers || {};
+  const lat = Number(h['cloudfront-viewer-latitude']);
+  const lon = Number(h['cloudfront-viewer-longitude']);
+  if (h['cloudfront-viewer-latitude'] == null || h['cloudfront-viewer-longitude'] == null
+      || !Number.isFinite(lat) || !Number.isFinite(lon)
+      || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    return { lat: HOME.latitude, lon: HOME.longitude, city: HOME.name, located: false };
+  }
+  return { lat, lon, city: cityFrom(h['cloudfront-viewer-city']), located: true };
+}
+
+/** The lean answer, from Open-Meteo's `current` block. */
+export function hereShape(where, current) {
+  const c = current || {};
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  return {
+    city: where.city,
+    code: num(c.weather_code),
+    cloud: num(c.cloud_cover),
+    precip: num(c.precipitation),
+    isDay: c.is_day === 0 ? 0 : 1,
+  };
+}
+
 /* ------------------------------------------------------------------ cache */
 
 const mem = new Map();
@@ -187,6 +235,19 @@ function climateURL(lat, lon) {
 /* ---------------------------------------------------------------- handlers */
 
 const routes = {
+
+  /** The homepage's weather: ~150 bytes for the visitor's city. */
+  async '/api/here'(_q, event) {
+    // The query is ignored on purpose; see viewerFrom.
+    const where = viewerFrom(event?.headers);
+    const cell = `${where.lat.toFixed(1)},${where.lon.toFixed(1)}`;
+    const url = 'https://api.open-meteo.com/v1/forecast?' + new URLSearchParams({
+      latitude: where.lat.toFixed(2), longitude: where.lon.toFixed(2),
+      current: 'weather_code,cloud_cover,precipitation,is_day', timezone: 'auto',
+    });
+    const fc = await cachedJSON(`here_${cell}`, 10 * MIN, url);
+    return hereShape(where, fc?.current);
+  },
 
   async '/api/config'() {
     // `public: true` is what tells the frontend to offer geolocation; the
@@ -742,6 +803,8 @@ function dayOfYear(m, d) {
  * the server's TTLs; the climate archive is effectively static once reduced.
  */
 const EDGE_CACHE = {
+  // Keyed at the edge on the viewer's location headers (cloudfront-here.py).
+  '/api/here': 'public, s-maxage=600, stale-while-revalidate=600',
   '/api/config': 'public, max-age=3600',
   '/api/bundle': 'public, s-maxage=300, stale-while-revalidate=600',
   '/api/models': 'public, s-maxage=1800, stale-while-revalidate=3600',
@@ -794,7 +857,7 @@ export const handler = async (event) => {
 
   const params = new URLSearchParams(event.rawQueryString || '');
   try {
-    const body = await routes[route](params);
+    const body = await routes[route](params, event);
     return reply(200, body, EDGE_CACHE[route]);
   } catch (err) {
     const status = err.status || 502;

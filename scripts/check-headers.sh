@@ -79,5 +79,14 @@ for p in /game/ /slingshot/; do
 done
 
 echo
+echo "The homepage weather is keyed on the viewer, never the query"
+a=$(curl -s "$SITE/weather/api/here?lat=0&lon=0")
+b=$(curl -s "$SITE/weather/api/here?lat=51.5&lon=-0.1")
+printf '  %-26s ' "/weather/api/here"
+if [ -z "$a" ] || ! printf '%s' "$a" | grep -q '"code"'; then printf 'no answer: %s\n' "$a"; fail=1
+elif [ "$a" != "$b" ]; then printf 'QUERY CHANGES THE ANSWER - cache poisoning risk\n'; fail=1
+else printf 'ok  %s\n' "$a"; fi
+
+echo
 [ "$fail" -eq 0 ] && echo "All good." || echo "Some checks failed (see above)."
 exit "$fail"

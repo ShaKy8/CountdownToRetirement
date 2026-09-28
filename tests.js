@@ -1606,6 +1606,91 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.deepStrictEqual(Sky.bounds(s, [0, 0, 0, 0]), bare, 'An invisible fill changes nothing');
     });
 
+    test('Every minute of every weather should read: the census, 11,520 states', () => {
+        // Eight conditions times 1,440 minutes, on the sky and on the cards,
+        // with the motion overlay composited. A condition that fails is
+        // retuned, never exempted.
+        const bad = [];
+        for (const c of Sky.CONDITIONS) {
+            for (let m = 0; m < 1440; m++) {
+                const p = Sky.paletteAt(m, c);
+                for (const [where, b] of [['sky', p.bounds], ['card', p.cardBounds]]) {
+                    const r = { text: worst(p.text, b), muted: worst(p.muted, b), hover: worst(p.accentDark, b), underline: worst(p.accent, b) };
+                    if (r.text < 4.5 || r.muted < 4.5 || r.hover < 4.5 || r.underline < 3) {
+                        bad.push(`${c} ${m} on ${where}: ` + Object.entries(r).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', '));
+                    }
+                }
+            }
+        }
+        assert.strictEqual(bad.length, 0, `failing states:\n${bad.slice(0, 8).join('\n')}`);
+    });
+
+    test('Every weather should flip its ink only on a flat sky', () => {
+        // The clear sky flips on deliberately flat stops. A weathered sky can
+        // be sloped across FLIP, where no ink reads against both ends; there
+        // weatherize() flattens it. So at every flip, the sky on one side of
+        // it is one colour.
+        for (const c of Sky.CONDITIONS) {
+            let last = Sky.paletteAt(0, c), flips = 0;
+            for (let m = 1; m < 1440; m++) {
+                const p = Sky.paletteAt(m, c);
+                if (p.polarity !== last.polarity) {
+                    flips++;
+                    assert.ok(p.sky.top === p.sky.bottom || last.sky.top === last.sky.bottom, `${c}: flip at minute ${m} on a flat sky`);
+                }
+                last = p;
+            }
+            assert.strictEqual(flips, 2, `${c}: once at dawn and once at dusk`);
+        }
+        // And the rule itself: a sky sloped across FLIP comes back flat.
+        const sloped = { top: '#8a8a8a', bottom: '#6a6a6a', glow: [0, 0, 0, 0], glowX: 50 };
+        const b = Sky.bounds(sloped);
+        assert.ok(b.min < Sky.FLIP && b.max >= Sky.FLIP, 'the fixture straddles FLIP');
+        const w = Sky.weatherize(sloped, 'partly');
+        assert.ok(w.flat && w.top === w.bottom, 'weatherize flattens a sky that straddles FLIP');
+        assert.strictEqual(Sky.paletteAt(720, 'partly').overlay !== null, true, 'a sloped, unflattened sky keeps its overlay');
+    });
+
+    test('The weather should map every code the console knows, and clear should change nothing', () => {
+        const util = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'lib', 'util.js'), 'utf8');
+        const table = util.slice(util.indexOf('const WMO = {'), util.indexOf('};', util.indexOf('const WMO = {')));
+        const codes = [...table.matchAll(/^\s*(\d+):\s*\[/gm)].map(m => Number(m[1]));
+        assert.ok(codes.length >= 25, 'read the console\'s table');
+        const KIND = { clear: ['clear', 'partly'], cloud: ['partly', 'cloudy'], fog: ['fog'], rain: ['drizzle', 'rain'], snow: ['snow'], storm: ['storm'] };
+        for (const code of codes) {
+            const kind = table.match(new RegExp('^\\s*' + code + ':\\s*\\[[^\\]]*\'(\\w+)\',\\s*[\\d.]+\\]', 'm'))[1];
+            const cond = Sky.conditionFor(code, 50);
+            assert.ok(Sky.CONDITIONS.includes(cond), `code ${code} has a condition`);
+            assert.ok(KIND[kind].includes(cond), `code ${code} (${kind}) became ${cond}`);
+            assert.ok(Sky.wordsFor(code), `code ${code} has words for the caption`);
+        }
+        assert.strictEqual(Sky.conditionFor(null, null), 'clear', 'no reading is a clear sky');
+        assert.strictEqual(Sky.wordsFor(null), null, 'and no caption');
+        for (let m = 0; m < 1440; m += 17) {
+            assert.deepStrictEqual(Sky.paletteAt(m, 'clear').sky, Sky.skyAt(m), 'clear is the clock\'s sky, unchanged');
+            assert.strictEqual(Sky.paletteAt(m, 'clear').overlay, null, 'and draws nothing');
+        }
+    });
+
+    test('The motion should be CSS only, opposite the ink, and gone under reduced motion', () => {
+        for (let m = 0; m < 1440; m += 29) {
+            for (const c of ['rain', 'snow', 'cloudy']) {
+                const p = Sky.paletteAt(m, c);
+                if (!p.overlay) continue;
+                assert.strictEqual(p.overlay[0], p.polarity === 'dark' ? 255 : 0, `${c} at ${m}: the mark is opposite the ink`);
+                assert.ok(p.overlay[3] > 0 && p.overlay[3] <= 0.3, 'faint');
+            }
+        }
+        assert.ok(!/requestAnimationFrame|\.animate\(/.test(homeJs), 'The script sets, it does not animate');
+        const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+        assert.ok(/body::before \{\s*display: none !important;/.test(reduced.slice(0, reduced.indexOf('\n}\n'))), 'Reduced motion: no layer at all');
+        const more = css.slice(css.indexOf('@media (prefers-contrast: more)'));
+        assert.ok(/body::before \{\s*display: none !important;/.test(more.slice(0, more.indexOf('\n}\n'))), 'High contrast: no layer');
+        assert.ok(/\.wx \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/.test(css), 'A long city is cut, never wrapped');
+        assert.ok(/<span class="wx" id="wx" hidden><\/span>/.test(html), 'The caption starts hidden');
+        assert.ok(/el\.textContent = words/.test(homeJs) && !/innerHTML/.test(homeJs), 'and is written as text, never markup');
+    });
+
     test('The ink should flip polarity exactly once at dawn and once at dusk, on a flat sky', () => {
         const flips = [];
         let last = Sky.paletteAt(0).polarity;
@@ -1653,9 +1738,28 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.ok(html.includes('<meta name="theme-color" content="' + noon.top + '"'), 'theme-color defaults to the morning sky');
     });
 
-    test('The script should ask for nothing: no network, no location, no storage', () => {
-        assert.ok(!/fetch\(|XMLHttpRequest|navigator\.|import\(|localStorage|sessionStorage|WebSocket/.test(homeJs),
-            'The visitor\'s clock is the only input');
+    test('The script should make one same-origin request, and ask for nothing else', () => {
+        // Since 2026-09-28 the sky wears the visitor's weather. The location
+        // is the CDN's, from the request itself: never a permission prompt,
+        // never a third-party host, and the absolute path so it cannot
+        // resolve under some other directory.
+        const code = homeJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+        const fetches = code.match(/fetch\(/g) || [];
+        assert.strictEqual(fetches.length, 1, 'One fetch');
+        assert.ok(/root\.fetch\('\/weather\/api\/here'/.test(code), 'to /weather/api/here, same origin, absolute');
+        assert.ok(!/XMLHttpRequest|navigator\.|import\(|sessionStorage|WebSocket|https?:\/\//.test(code),
+            'No geolocation, no other host, no other transport');
+        // Storage: one key, and only inside try/catch (a private window throws).
+        const uses = code.match(/localStorage\.(getItem|setItem)\([^)]*/g) || [];
+        assert.ok(uses.length === 2 && uses.every(u => /STORE_KEY/.test(u)), 'localStorage only under STORE_KEY');
+        code.split('\n').forEach((line, i, all) => {
+            if (/localStorage\./.test(line)) {
+                const before = all.slice(Math.max(0, i - 2), i + 1).join('\n');
+                assert.ok(/try \{/.test(before), `storage access inside try: ${line.trim()}`);
+            }
+        });
+        const Sky = require('./home.js');
+        assert.strictEqual(Sky.STORE_KEY, 'branyon.sky.v1');
     });
 
     test('The script should stand aside for a contrast preference', () => {
@@ -1667,7 +1771,8 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.ok(/if \(prefersOwnContrast\(\)\) \{ clear\(\); return null; \}/.test(homeJs), 'apply() bails and clears');
         assert.ok(/addEventListener\('change', tick\)/.test(homeJs), 'And listens for the preference changing');
         assert.ok(/removeProperty\(v\)/.test(homeJs), 'clear() removes every var it set');
-        assert.ok(/'--rule', '--card', '--card-edge'\]/.test(homeJs), 'The card tokens are in VARS, so clear() removes them too');
+        assert.ok(/'--rule', '--card', '--card-edge', '--wx-ink'\]/.test(homeJs), 'The card and weather tokens are in VARS, so clear() removes them too');
+        assert.ok(/removeAttribute\('data-wx'\)/.test(homeJs.slice(homeJs.indexOf('function clear()'))), 'clear() stops the motion too');
         assert.ok(/setProperty\('--card', rgba\(p\.card\)\)/.test(homeJs) && /setProperty\('--card-edge', p\.edge\)/.test(homeJs),
             'apply() sets both');
     });
@@ -3014,6 +3119,58 @@ describe('ONE PUTT - Impact is an event', () => {
             'The gate drives the loop rather than waiting for the compositor');
         assert.ok(/__fxAdvance = \(want\)/.test(gate) && /ticks >= target/.test(gate),
             'and it advances by clock ticks, not frames: the loop stops itself when the ball is still');
+    });
+});
+
+describe('WEATHER API - The homepage\'s weather', () => {
+    const fs = require('fs');
+    const lambda = fs.readFileSync(path.join(__dirname, 'lambda', 'index.mjs'), 'utf8');
+    const run = (body) => {
+        const code = `import('${path.join(__dirname, 'lambda', 'index.mjs').replace(/\\\\/g, '/')}').then(m => { ${body} })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        return JSON.parse(r.stdout);
+    };
+
+    test('Should locate the viewer from the CDN\'s headers, and only from them', () => {
+        const out = run(`console.log(JSON.stringify([
+            m.viewerFrom({ 'cloudfront-viewer-latitude': '33.68', 'cloudfront-viewer-longitude': '-117.82', 'cloudfront-viewer-city': 'Irvine' }),
+            m.viewerFrom(undefined),
+            m.viewerFrom({ 'cloudfront-viewer-latitude': 'x', 'cloudfront-viewer-longitude': '1' }),
+            m.viewerFrom({ 'cloudfront-viewer-latitude': '91', 'cloudfront-viewer-longitude': '1' })
+        ]))`);
+        assert.deepStrictEqual(out[0], { lat: 33.68, lon: -117.82, city: 'Irvine', located: true });
+        assert.strictEqual(out[1].city, 'Los Angeles', 'no headers (the dev server, a CDN miss): HOME');
+        assert.strictEqual(out[2].located, false, 'junk is not a location');
+        assert.strictEqual(out[3].located, false, 'nor is latitude 91');
+    });
+
+    test('Should never let the query choose the answer: the cache-poisoning guard', () => {
+        // The origin request policy forwards query strings; the edge cache
+        // for /weather/api/here does not key on them. If the route honoured
+        // ?lat=, one request would set the weather for everyone in a city.
+        const route = lambda.slice(lambda.indexOf("async '/api/here'"), lambda.indexOf("async '/api/config'"));
+        assert.ok(/async '\/api\/here'\(_q, event\)/.test(route), 'The query is taken as _q');
+        assert.ok(!/_q\.|q\.get/.test(route), 'and never read');
+        assert.ok(/viewerFrom\(event\?\.headers\)/.test(route), 'The location is the headers\'');
+        assert.ok(/const body = await routes\[route\]\(params, event\);/.test(lambda), 'The handler passes the event');
+        assert.ok(/'\/api\/here': 'public, s-maxage=600/.test(lambda), 'Cached at the edge');
+    });
+
+    test('Should keep only a city that looks like a city', () => {
+        const out = run(`console.log(JSON.stringify([
+            m.cityFrom('Irvine'), m.cityFrom('San%20Jos%C3%A9'), m.cityFrom('Zürich'),
+            m.cityFrom('<img src=x onerror=alert(1)>'), m.cityFrom('x'.repeat(200)), m.cityFrom('%E0%A4%A'),
+            m.cityFrom(''), m.cityFrom(undefined)
+        ]))`);
+        assert.deepStrictEqual(out, ['Irvine', 'San José', 'Zürich', null, null, null, null, null]);
+    });
+
+    test('Should answer in a few hundred bytes', () => {
+        const out = run(`console.log(JSON.stringify(m.hereShape({ city: 'Irvine' },
+            { weather_code: 61, cloud_cover: 90, precipitation: 0.4, is_day: 1, temperature_2m: 70 })))`);
+        assert.deepStrictEqual(out, { city: 'Irvine', code: 61, cloud: 90, precip: 0.4, isDay: 1 });
+        assert.ok(JSON.stringify(out).length < 300);
     });
 });
 

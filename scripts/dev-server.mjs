@@ -32,9 +32,29 @@ http.createServer(async (req, res) => {
 
   // Anything under an /api/ segment goes to the Lambda, as CloudFront will do.
   if (/\/api\/[a-z]+\/?$/.test(pathname)) {
+    /*
+     * /api/here reads the viewer's location from CloudFront's headers and
+     * ignores the query on purpose (a query the edge cache does not key on
+     * must not choose the answer). Locally there is no CloudFront, so the
+     * dev server plays it: ?wx=lat,lon,City becomes the three headers, and
+     * ?wx=fail answers 500 so the page's failure path can be exercised.
+     */
+    const headers = {};
+    const wx = url.searchParams.get('wx');
+    if (/\/api\/here\/?$/.test(pathname) && wx === 'fail') {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      return res.end('{"error":"simulated"}');
+    }
+    if (/\/api\/here\/?$/.test(pathname) && wx) {
+      const [lat, lon, ...city] = wx.split(',');
+      headers['cloudfront-viewer-latitude'] = lat;
+      headers['cloudfront-viewer-longitude'] = lon;
+      if (city.length) headers['cloudfront-viewer-city'] = city.join(',');
+    }
     const out = await handler({
       rawPath: pathname,
       rawQueryString: url.searchParams.toString(),
+      headers,
       requestContext: { http: { method: req.method } },
     });
     res.writeHead(out.statusCode, out.headers);

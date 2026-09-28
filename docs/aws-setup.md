@@ -170,6 +170,32 @@ aws cloudfront create-cache-policy --cache-policy-config '{
 }'
 ```
 
+## 3c. CloudFront: `/weather/api/here`, keyed on the viewer
+
+The homepage's sky wears the visitor's weather. `/api/here` locates the
+visitor from CloudFront's `CloudFront-Viewer-Latitude`, `-Longitude` and
+`-City` headers, which `/weather/api/*` neither forwards nor caches on. One
+script does it, dry run by default:
+
+```bash
+python3 scripts/cloudfront-here.py            # show the plan
+python3 scripts/cloudfront-here.py --apply    # create policy + behaviour
+```
+
+It creates the cache policy `atmos-here` (the three headers in the key,
+which also forwards them; **query strings none**) and a `/weather/api/here`
+behaviour copied from `/weather/api/*`, inserted **before** it.
+
+> **The query must never choose the answer.** The origin request policy still
+> forwards query strings to the Lambda, and this cache key does not include
+> them. If the route ever read `?lat=`, one request would set the weather for
+> everyone in that city. It does not; a test pins it, and
+> `scripts/check-headers.sh` asks twice with different queries and fails if
+> the answers differ.
+
+Until this is applied, the route answers for Los Angeles (`HOME`) for every
+visitor, because the headers are absent — the page still works.
+
 ## 4. Verify
 
 ```bash
