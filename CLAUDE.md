@@ -21,8 +21,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # subpath. This is what catches absolute-path bugs before they ship.
 node scripts/dev-server.mjs        # http://localhost:8000
 
-# Re-copy the weather console out of ../Weather after changing it there
-./scripts/sync-weather.sh
+# Re-copy the weather console after changing it in the Weather repo. Pass the
+# source: the script's default (../../Weather/public) does not exist on this
+# machine, and ~/VibeCoding/Weather is a stale checkout (see Weather console)
+./scripts/sync-weather.sh ~/Projects/Weather/public
 
 # Original static server (site + countdown; sets the security headers)
 node server.js
@@ -50,42 +52,14 @@ PORT=8137 node tests-server.js
 - **Game URL:** https://branyontech.com/game/
 - **Slingshot URL:** https://branyontech.com/slingshot/
 
-```bash
-# Deploy to S3
-aws s3 sync . s3://branyontech.com/ \
-  --exclude "*" \
-  --include "index.html" \
-  --include "styles.css" \
-  --include "favicon.svg" \
-  --include "countdown/index.html" \
-  --include "countdown/script.js" \
-  --include "countdown/calc.js" \
-  --include "countdown/styles.css" \
-  --include "countdown/favicon.svg" \
-  --include "countdown/stats.json" \
-  --include "game/index.html" \
-  --include "game/putt.js" \
-  --include "game/script.js" \
-  --include "game/styles.css" \
-  --include "game/favicon.svg" \
-  --include "shared/daily.js" \
-  --include "slingshot/index.html" \
-  --include "slingshot/orbit.js" \
-  --include "slingshot/script.js" \
-  --include "slingshot/audio.js" \
-  --include "slingshot/styles.css" \
-  --include "slingshot/favicon.svg" \
-  --include "shared/daily.js" \
-  --include "slingshot/index.html" \
-  --include "slingshot/orbit.js" \
-  --include "slingshot/script.js" \
-  --include "slingshot/audio.js" \
-  --include "slingshot/styles.css" \
-  --include "slingshot/favicon.svg"
-
-# Invalidate CloudFront cache
-aws cloudfront create-invalidation --distribution-id E1MBTRO86GIH7E --paths "/*"
-```
+**Deploys run from `.github/workflows/deploy.yml` on every push to `main`**
+— bake the homepage counts, stamp the assets, sync the static site to S3 with
+an explicit `--include` list, sync `weather/`, update the Lambda, invalidate
+CloudFront. That workflow is the source of truth for what ships, and tests
+make its lists agree with the pages; a hand-written copy of the list here
+drifted (SLINGSHOT's files listed twice, the homepage script, the fish
+hatchery and ONE PUTT's audio missing) and was removed. To deploy by hand,
+run the workflow's steps rather than reconstructing them.
 
 ### Local Server (Systemd)
 ```bash
@@ -103,12 +77,14 @@ sudo systemctl status countdown-retirement
 
 ```
 CountdownToRetirement/
-├── index.html              # One-screen personal landing page (no JS)
+├── index.html              # One-screen personal landing page (one script: home.js)
+├── home.js                 # The sky right now: time of day + the visitor's weather
 ├── styles.css              # Landing page styles (warm cream, plum text, coral accent)
 ├── favicon.svg             # Professional "BT" monogram favicon
 ├── weather/                # ATMOS//NET console (generated — scripts/sync-weather.sh)
 ├── lambda/index.mjs        # Weather API, derived from ../Weather/server.mjs
-├── scripts/                # dev-server.mjs, sync-weather.sh, inject-backlink.py
+├── scripts/                # dev server, sync-weather.sh, bake-home.mjs, stamp-assets.mjs,
+│                           #   the *-audit.mjs gates, CloudFront scripts
 ├── docs/aws-setup.md       # One-time IAM / Lambda / CloudFront setup
 ├── 404.html  robots.txt  sitemap.xml
 ├── server.js               # Node.js HTTP server with security headers
@@ -147,15 +123,17 @@ CountdownToRetirement/
 ## Key Features
 
 ### Landing Page (/)
-- **Content:** "Kyle Shaver", the tagline "Retired technologist. Since February: 6 trips, 10 concerts, 4 books, 15 things built with AI. Consulting by referral.", and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Since February: N trips, N concerts, N books, N things built with AI. Consulting by referral." — the numbers are counted from `countdown/stats.json` at build time (see below), so read them off the live page, not this file — and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, and exactly one script: `home.js`, the sky right now.
 - **The sky right now.** `home.js` makes the page's colours follow the
   visitor's local time of day — the favicon's navy at night, the clock's
   dawn at sunrise, the cream the page always had by mid-morning, gold and
   dusk in the evening, the glow at the top edge crossing left to right as
-  the sun. No location, no permission, no network: the device's clock is the
-  only input, so it is *a* day, not the visitor's sky. `node
-  scripts/home-audit.mjs` is the gate. What is load-bearing:
+  the sun. The device's clock sets the time of day; since September 28, 2026
+  the visitor's weather sets what that sky is doing (below) — still no
+  permission prompt: the location is the CDN's, and a failed request leaves
+  the clock's sky. `node scripts/home-audit.mjs` is the gate. What is
+  load-bearing:
   - **Sky and ink are separate.** The sky interpolates by the minute; the
     ink (text, muted, accent) is a function of the sky's *luminance*, never
     the hour. Interpolating plum text toward cream text across dusk passes
@@ -888,7 +866,7 @@ too — the narrowest phones still in use are where things break.
 
 **Touch targets are judged by WCAG 2.5.8, not by a flat 44px.** 24x24 CSS px
 always, and 44x44 only where another target sits within 12px. A flat 44 would
-have forced the landing page's six text links — 36px tall with 16px of air and
+have forced the landing page's text links (six of them then, as a flat row) — 36px tall with 16px of air and
 nothing else near them — to grow boxes that pull their underlines off the
 words. That is a worse page, not a more accessible one. Controls that sit
 beside other controls do get 44, in `@media (pointer: coarse)` blocks so the
