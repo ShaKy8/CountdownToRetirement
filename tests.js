@@ -3201,9 +3201,9 @@ describe('WEATHER CONSOLE - Activity windows you can read', () => {
         return JSON.parse(r.stdout);
     };
 
-    test('A run or a ride is never at 3 AM, and a window stops at the boundary', () => {
+    test('A walk or a ride is never at 3 AM, and a window stops at the boundary', () => {
         const out = run(`const res = {};
-            for (const k of ['run', 'bike', 'grill', 'openWindows']) {
+            for (const k of ['walk', 'bike', 'grill', 'openWindows']) {
                 const w = m.bestWindows(k, store, { hours: 36, limit: 3, minScore: 50 });
                 const rows = m.scoredHours(k, store, 36);
                 res[k] = { hours: w.flatMap(x => { const a = []; for (let t = x.start; t < x.end; t += 3600e3) a.push(hod(t)); return a; }),
@@ -3219,25 +3219,43 @@ describe('WEATHER CONSOLE - Activity windows you can read', () => {
 
     test('Great hours are the eligible hours scoring 90+, counted on the windows\' own scores', () => {
         const out = run(`const res = {};
-            for (const k of ['run', 'bike', 'grill', 'stargaze', 'photo', 'laundry', 'openWindows']) {
+            for (const k of ['walk', 'bike', 'grill', 'stargaze', 'photo', 'swim', 'openWindows']) {
                 const g = m.greatHours(k, store, { hours: 36, at: 90 });
                 const rows = m.scoredHours(k, store, 36);
                 res[k] = { g, direct: rows.filter(r => r.eligible && r.score >= 90).length,
                            eligible: rows.filter(r => r.eligible).length,
                            dayCounted: rows.filter(r => r.eligible && r.score >= 90 && hod(r.t) >= 7 && hod(r.t) < 19).length,
-                           nightCounted: rows.filter(r => r.eligible && r.score >= 90 && (hod(r.t) < 7 || hod(r.t) >= 19)).length };
+                           nightCounted: rows.filter(r => r.eligible && r.score >= 90 && (hod(r.t) < 7 || hod(r.t) >= 19)).length,
+                           nightEligible: rows.filter(r => r.eligible && (hod(r.t) < 7 || hod(r.t) >= 19)).length };
             }
             console.log(JSON.stringify(res));`);
         for (const [k, r] of Object.entries(out)) {
             assert.strictEqual(r.g.great, r.direct, `${k}: the count is the windows' own scoring`);
             assert.strictEqual(r.g.eligible, r.eligible, `${k}: and so is the denominator`);
         }
-        assert.strictEqual(out.laundry.nightCounted, 0, 'Line dry never counts a night hour');
+        assert.strictEqual(out.swim.nightEligible, 0, 'A swim is never in the dark');
         assert.strictEqual(out.stargaze.dayCounted, 0, 'Stargazing never counts a daylight hour');
         // 36 hours spans two days: at most 32 waking hours, and on perfect
         // weather every one of them is great and nothing else counts.
-        assert.ok(out.run.g.great > 0 && out.run.g.great === out.run.g.eligible && out.run.g.eligible <= 32,
-            `A perfect day: every waking hour is great, and only those (${out.run.g.great} of ${out.run.g.eligible})`);
+        assert.ok(out.walk.g.great > 0 && out.walk.g.great === out.walk.g.eligible && out.walk.g.eligible <= 32,
+            `A perfect day: every waking hour is great, and only those (${out.walk.g.great} of ${out.walk.g.eligible})`);
+    });
+
+    test('The seven are walk, bike, grill, stargaze, photo, swim and open up', () => {
+        const out = run(`console.log(JSON.stringify({ keys: m.ACTIVITY_KEYS, labels: m.ACTIVITY_KEYS.map(k => m.activityMeta(k).label) }))`);
+        assert.deepStrictEqual([...out.keys].sort(), ['bike', 'grill', 'openWindows', 'photo', 'stargaze', 'swim', 'walk']);
+        assert.ok(out.labels.includes('WALK') && out.labels.includes('SWIM') && !out.labels.includes('RUN') && !out.labels.includes('LINE DRY'));
+    });
+
+    test('Nothing a reader needs is in the faint grey', () => {
+        // --faint (#3a5064) is about 2.3:1 on the panel; the good stretch and
+        // "great hours" were in it and could not be read.
+        const css = fs.readFileSync(path.join(__dirname, 'weather', 'css',
+            fs.readdirSync(path.join(__dirname, 'weather', 'css')).find(f => /^views\.[0-9a-f]+\.css$/.test(f))), 'utf8');
+        for (const sel of ['.act-good', '.act-note', '.act-unit', '.act-whyhd', '.act-fpts']) {
+            const rule = css.slice(css.indexOf(sel + ' {'), css.indexOf('}', css.indexOf(sel + ' {')));
+            assert.ok(rule && !/var\(--faint\)/.test(rule) && /var\(--(dim|ink)\)/.test(rule), `${sel} is --dim or --ink`);
+        }
     });
 
     test('The panel says what it means, sorted by great hours', () => {
@@ -3245,7 +3263,7 @@ describe('WEATHER CONSOLE - Activity windows you can read', () => {
         const fn = deck.slice(deck.indexOf('function renderActivity()'), deck.indexOf('function renderTenDay()'));
         assert.ok(/greatHours\(k, store, \{ hours: 36, at: 90 \}\)/.test(fn), 'The number is great hours in the next 36');
         assert.ok(/\(b\.g\.great - a\.g\.great\) \|\| \(\(b\.w\?\.peak/.test(fn), 'Sorted by great hours, then the best hour');
-        assert.ok(/Best \$\{at\(w\.peakAt\)\}/.test(fn) && /good \$\{span\(w\.start, w\.end\)\}/.test(fn), 'Labelled: best and good');
+        assert.ok(/Best \$\{at\(w\.peakAt\)\}/.test(fn) && /Good \$\{span\(w\.start, w\.end\)\}/.test(fn), 'Labelled: best and good');
         assert.ok(/great hours<\/small>/.test(fn), 'and the number says what it counts');
         assert.ok(/aria-expanded=/.test(fn) && /aria-controls="act-why-/.test(fn), 'A row is a button that opens its reasons');
         assert.ok(/tf\.isoDate\(a\) === tf\.isoDate\(b\)/.test(fn), 'The day is repeated only when the window crosses midnight');

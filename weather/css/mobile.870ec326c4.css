@@ -338,6 +338,7 @@
   .act-when,
   .act-unit,
   .act-why,
+  .act-note,
   .alert-item b,
   .alert-item span,
   .alertbtn[data-n]:not([data-n="0"])::after,

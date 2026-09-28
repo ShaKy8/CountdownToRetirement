@@ -45,19 +45,20 @@ function band(v, min, best0, best1, max) {
 }
 
 const ACTIVITIES = {
-  run: {
-    label: 'RUN', icon: '🏃', color: '#00eaff',
+  walk: {
+    label: 'WALK', icon: '🚶', color: '#00eaff',
     hours: waking,
     score(h) {
       return [
-        ['temperature', band(h.feels ?? h.temp, 15, 45, 62, 92), 0.30],
-        ['dry', 1 - clamp((h.pop ?? 0) / 100, 0, 1) * 0.9, 0.20],
-        ['humidity', band(h.dew, -20, 20, 55, 74), 0.15],
-        ['wind', band(h.wind, -1, 0, 9, 26), 0.13],
-        ['UV', band(h.uv, -1, 0, 3, 10), 0.09],
-        ['air quality', band(h.air?.aqi, -1, 0, 50, 160), 0.05],
-        // A nudge, not a veto: plenty of people run after dark.
-        ['daylight', h.isDay ? 1 : 0.45, 0.08],
+        // A wider comfortable band than a run's: nobody overheats strolling at 72°F.
+        ['temperature', band(h.feels ?? h.temp, 30, 50, 75, 95), 0.30],
+        ['dry', 1 - clamp((h.pop ?? 0) / 100, 0, 1) * 0.9, 0.24],
+        ['wind', band(h.wind, -1, 0, 12, 30), 0.12],
+        ['humidity', band(h.dew, -20, 20, 60, 76), 0.10],
+        ['UV', band(h.uv, -1, 0, 5, 11), 0.07],
+        ['air quality', band(h.air?.aqi, -1, 0, 50, 160), 0.07],
+        // A nudge: an evening walk is common, a midnight one is not the pick.
+        ['daylight', h.isDay ? 1 : 0.5, 0.10],
       ];
     },
   },
@@ -124,22 +125,27 @@ const ACTIVITIES = {
       ];
     },
   },
-  laundry: {
-    label: 'LINE DRY', icon: '≋', color: '#8ab6ff',
-    hours: (h) => !!h.isDay,
+  swim: {
+    label: 'SWIM', icon: '🏊', color: '#8ab6ff',
+    // Outdoors, in daylight, at an hour people swim.
+    hours: (h, ctx, hod) => !!h.isDay && hod >= 7 && hod < 20,
     score(h) {
+      const thunder = [95, 96, 99].includes(Number(h.code));
       return [
-        ['dry', 1 - clamp((h.pop ?? 0) / 100, 0, 1), 0.34],
-        // Evaporative demand is the real driver here.
-        ['evaporation', band(h.et0, -0.01, 0.012, Infinity, Infinity), 0.24],
-        ['low humidity', band(h.rh, -1, 0, 50, 95), 0.20],
-        ['breeze', band(h.wind, -1, 5, 16, 32), 0.14],
-        ['daylight', h.isDay ? 1 : 0.2, 0.08],
+        // Warm air is what makes getting out of the water bearable.
+        ['temperature', band(h.feels ?? h.temp, 65, 80, 95, 105), 0.34],
+        ['dry', 1 - clamp((h.pop ?? 0) / 100, 0, 1), 0.18],
+        // Lightning is the one real hazard; not a nudge.
+        ['no thunder', thunder ? 0 : 1, 0.10],
+        ['sunshine', band(h.cloud, -1, 0, 40, 100), 0.12],
+        ['wind', band(h.wind, -1, 0, 10, 25), 0.12],
+        ['UV', band(h.uv, -1, 2, 7, 11), 0.08],
+        ['air quality', band(h.air?.aqi, -1, 0, 50, 150), 0.06],
       ];
     },
   },
   openWindows: {
-    label: 'OPEN UP', icon: '⌷', color: '#3ce0c0',
+    label: 'OPEN UP', icon: '🪟', color: '#3ce0c0',
     hours: waking,
     score(h) {
       return [

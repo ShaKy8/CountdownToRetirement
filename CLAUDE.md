@@ -29,7 +29,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (454 tests)
+# Run client-side tests (456 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -112,7 +112,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (454 tests)
+├── tests.js                # Client-side unit tests (456 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -948,8 +948,12 @@ serving new HTML against hour-old CSS and JS.
 
 ### ACTIVITY WINDOWS — when to go and do it
 
-The DECK panel scoring seven activities (run, bike, grill, stargaze, photo,
-line dry, open up) over the next 36 hours, in `js/activity.js`. Kyle could
+The DECK panel scoring seven activities (walk, bike, grill, stargaze, photo,
+swim, open up — Kyle swapped run for walk and line dry for swim on
+September 28, 2026) over the next 36 hours, in `js/activity.js`. Swim is
+outdoors in daylight between 7 AM and 8 PM, warm air first, and a
+thunderstorm code scores its "no thunder" factor 0: lightning is the one
+real hazard, not a nudge. Kyle could
 not read it ("RUN – Tuesday 07:00 · window 20:00–09:00 · 100"), and he was
 right: nothing was labelled, the window crossed midnight silently on a
 24-hour clock, the run window went straight through 3 AM, and on a good day
@@ -962,19 +966,26 @@ every number read 99 or 100. Reworked September 28, 2026:
 - **The number is GREAT HOURS**: how many of the next 36 score 90+, not the
   best hour's score. On a good Southern California day every best hour scored
   95–100 and the numbers stopped telling activities apart; great hours read
-  Grill 19, Bike 13, Run 3, Photo 0 on the same day. Rows sort by great hours,
+  Grill 19, Walk 16, Bike 13, Photo 0 on the same day. Rows sort by great hours,
   then by the best hour; the bar is great hours over eligible hours. With no
   great hours the row says what the best hour scores instead.
 - **Sensible hours are declared per activity** (`hours` next to `score`):
-  run, bike, grill and open up 6 AM–10 PM in the place's time; line dry in
-  daylight; photo in daylight and the golden edges (sun above −8°);
+  walk, bike, grill and open up 6 AM–10 PM in the place's time; swim in
+  daylight from 7 AM to 8 PM; photo in daylight and the golden edges (sun above −8°);
   stargaze in the dark. An hour outside cannot be a best hour, cannot sit
   in a window (the window stops at the boundary), and is not a great hour.
-  Darkness costs a run only ~4 points, which is why without this the good
+  Darkness cost a run (as it then was) only ~4 points, which is why without this the good
   window ran 8 PM to 9 AM. **`scoredHours` is the one scoring path** for the
   windows and the count, so they cannot disagree; a test runs a synthetic
   36 hours of perfect weather, 3 AM included, so the rule is the only thing
   keeping the night out — and fails with the rule removed.
+- **Readable, measured.** The good stretch and "great hours" were in
+  `--faint` (#3a5064), about 2.3:1 on the panel; they are `--dim` now,
+  6.4:1, and the best hour is `--ink`, 15.9:1. The stretch has its own line
+  rather than trailing a middle dot, and the secondary lines are 10.8px and
+  9.6px on desktop (the phone's floor is 12px). A test forbids `--faint` on
+  any of them. OPEN UP's icon was U+2337, which no font here has; it drew
+  as an empty box and is 🪟 now.
 - **A tap opens "why"**: each row is a `<button aria-expanded>` and shows the
   best hour's factors with the points each cost. One row open at a time,
   Escape closes it, and the open row survives the re-render every cursor

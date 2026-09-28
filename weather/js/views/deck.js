@@ -416,11 +416,13 @@ export function createDeck(root) {
       const share = g.eligible ? great / g.eligible : 0;
       const col = great > 0 ? STATUS.good : (w?.peak ?? 0) >= 60 ? STATUS.warn : STATUS.serious;
       const when = w
-        ? `<b style="color:var(--ink)">Best ${at(w.peakAt)}</b>`
-          + ` <em>· good ${span(w.start, w.end)}</em>`
-          + (great === 0 ? `<br><em>best hour scores ${w.peak}/100</em>` : '')
-          + (w.limiter ? `<br><em>held back by ${w.limiter}</em>` : '')
-        : '<em>no good time in the next 36 hours</em>';
+        // Two lines: the best hour, then the good stretch. A middle dot and
+        // the faint grey put the stretch at 2.3:1 on the panel, unreadable.
+        ? `<b class="act-best">Best ${at(w.peakAt)}</b>`
+          + `<span class="act-good">Good ${span(w.start, w.end)}</span>`
+          + (great === 0 ? `<span class="act-note">Best hour scores ${w.peak}/100</span>` : '')
+          + (w.limiter ? `<span class="act-note">Held back by ${w.limiter}</span>` : '')
+        : '<span class="act-note">No good time in the next 36 hours</span>';
       const open = openAct === k && w;
       const why = w ? w.parts.map((p) => {
         const lost = Math.round((1 - p.value) * p.weight * 100);
