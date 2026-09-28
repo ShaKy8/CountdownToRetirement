@@ -214,9 +214,11 @@ CountdownToRetirement/
       query as `_q` and never reads it; tests pin it; `check-headers.sh`
       asks twice with different queries. The dev server plays CloudFront:
       `?wx=lat,lon,City` on the API request becomes the headers, `?wx=fail` a 500.
-    - **The city is untrusted header text**: percent-decoded (CloudFront's
-      encoding of non-ASCII names is unverified), kept only if it looks like a
-      place and is under 40 characters, and written with `textContent`.
+    - **The city is untrusted header text**: percent-decoded (AWS documents
+      that CloudFront percent-encodes non-ASCII characters in the location
+      headers per RFC 3986, so "San José" arrives as `San Jos%C3%A9`), kept
+      only if it looks like a place and is under 40 characters, and written
+      with `textContent`.
     - **The last reading is kept an hour** in `localStorage['branyon.sky.v1']`,
       read before first paint, so a repeat visit never shows clear-then-rain;
       every access is in try/catch and the gate runs with storage throwing.

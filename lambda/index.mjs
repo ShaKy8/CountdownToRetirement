@@ -51,8 +51,9 @@ const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 export function cityFrom(raw) {
   if (typeof raw !== 'string' || !raw || raw.length > 200) return null;
   let v = raw;
-  // CloudFront's encoding of non-ASCII names is unverified; decode %XX if
-  // present rather than drop "San Jos%C3%A9" as not a place.
+  // CloudFront percent-encodes non-ASCII characters in the viewer location
+  // headers (RFC 3986; documented under "Viewer location headers"), leaving
+  // ASCII as is: "San José" arrives as "San Jos%C3%A9".
   if (/%[0-9a-f]{2}/i.test(v)) { try { v = decodeURIComponent(v); } catch { return null; } }
   v = v.trim();
   return /^[\p{L}\p{M}0-9 .,'&()\/-]{1,40}$/u.test(v) ? v : null;

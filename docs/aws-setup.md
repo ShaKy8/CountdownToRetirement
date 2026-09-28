@@ -199,7 +199,9 @@ on them — so without this behaviour each edge serves the first visitor's
 city and weather to everyone for ten minutes. That happened for about half
 an hour on 2026-09-28. To prove it works, compare this machine's answer with
 one fetched from elsewhere (e.g. `curl https://r.jina.ai/https://branyontech.com/weather/api/here`):
-different cities, different weather.
+different cities, different weather. Non-ASCII city names arrive
+percent-encoded ("San Jos%C3%A9", per AWS's "Viewer location headers"
+documentation); the route decodes them.
 
 ## 4. Verify
 

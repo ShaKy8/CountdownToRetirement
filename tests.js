@@ -3159,10 +3159,12 @@ describe('WEATHER API - The homepage\'s weather', () => {
 
     test('Should keep only a city that looks like a city', () => {
         const out = run(`console.log(JSON.stringify([
-            m.cityFrom('Irvine'), m.cityFrom('San%20Jos%C3%A9'), m.cityFrom('Zürich'),
+            m.cityFrom('Irvine'), m.cityFrom('San Jos%C3%A9'), m.cityFrom('Z%C3%BCrich'),
             m.cityFrom('<img src=x onerror=alert(1)>'), m.cityFrom('x'.repeat(200)), m.cityFrom('%E0%A4%A'),
             m.cityFrom(''), m.cityFrom(undefined)
         ]))`);
+        // The first three as CloudFront sends them: non-ASCII percent-encoded
+        // (RFC 3986), ASCII left alone.
         assert.deepStrictEqual(out, ['Irvine', 'San José', 'Zürich', null, null, null, null, null]);
     });
 
