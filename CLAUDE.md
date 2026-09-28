@@ -206,7 +206,11 @@ CountdownToRetirement/
     - **The query must never choose the answer.** The edge cache for
       `/weather/api/here` keys on the viewer headers, not the query, and the
       origin request policy still forwards the query; a route that read
-      `?lat=` would let one request set a city's weather. The route takes the
+      `?lat=` would let one request set a city's weather. And the CDN change
+      must go live *with* the route, not after: `/weather/api/*` already
+      forwards the viewer headers (assumed not to, wrongly), so before
+      `cloudfront-here.py --apply` each edge served the first visitor's city
+      to everyone for ten minutes — about half an hour on launch day. The route takes the
       query as `_q` and never reads it; tests pin it; `check-headers.sh`
       asks twice with different queries. The dev server plays CloudFront:
       `?wx=lat,lon,City` on the API request becomes the headers, `?wx=fail` a 500.

@@ -3,10 +3,13 @@
 Route /weather/api/here with the viewer's location in the cache key.
 
 The homepage's sky wears the visitor's weather. /api/here reads the viewer's
-approximate location from CloudFront's viewer headers, which the existing
-/weather/api/* behaviour does not forward (its origin request policy is
-Managed-AllViewerExceptHostHeader, which carries no CloudFront-generated
-headers) and does not cache on (its cache policy keys on query strings only).
+approximate location from CloudFront's viewer headers. The existing
+/weather/api/* behaviour already FORWARDS them (its origin request policy,
+Managed-AllViewerExceptHostHeader, carries them -- this was assumed not to,
+and was wrong), but it does not CACHE on them: its cache policy keys on query
+strings only. So before this was applied, each edge served the first
+visitor's city and weather to everyone for ten minutes. Applied 2026-09-28,
+within half an hour of the route going live.
 
 So this creates one cache policy, `atmos-here`, with the three location
 headers in the key -- which also forwards them -- and query strings OUT of

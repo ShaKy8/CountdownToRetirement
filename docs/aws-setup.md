@@ -193,8 +193,13 @@ behaviour copied from `/weather/api/*`, inserted **before** it.
 > `scripts/check-headers.sh` asks twice with different queries and fails if
 > the answers differ.
 
-Until this is applied, the route answers for Los Angeles (`HOME`) for every
-visitor, because the headers are absent — the page still works.
+**Apply this before the route ships, never after.** `/weather/api/*`'s origin
+request policy already forwards the viewer headers — it only fails to cache
+on them — so without this behaviour each edge serves the first visitor's
+city and weather to everyone for ten minutes. That happened for about half
+an hour on 2026-09-28. To prove it works, compare this machine's answer with
+one fetched from elsewhere (e.g. `curl https://r.jina.ai/https://branyontech.com/weather/api/here`):
+different cities, different weather.
 
 ## 4. Verify
 
