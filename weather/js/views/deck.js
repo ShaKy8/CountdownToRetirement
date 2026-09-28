@@ -17,7 +17,7 @@ import {
   dewpointComfort, windDescription, pollenCategory, alertColor, relTime, burnTime,
   escapeHtml as esc,
 } from '../lib/util.js';
-import { ACTIVITY_KEYS, activityMeta, bestWindows, precipNowcast, nowcastPhrase } from '../activity.js';
+import { ACTIVITY_KEYS, activityMeta, bestWindows, greatHours, precipNowcast, nowcastPhrase } from '../activity.js';
 import { createElsewhere } from '../elsewhere.js';
 
 export function createDeck(root) {
@@ -384,35 +384,82 @@ export function createDeck(root) {
     ncChart.render();
   }
 
+  /*
+   * ACTIVITY WINDOWS. Kyle could not read the old rows ("RUN Tue 07:00 ·
+   * window 20:00-09:00 · 100"): nothing was labelled, the window crossed
+   * midnight on a 24-hour clock without saying so, and on a good day every
+   * number read 99 or 100. Now each row says when the best hour is and when
+   * the good stretch runs, day on both ends; the number is GREAT HOURS - how
+   * many of the next 36 score 90+ within the activity's sensible hours - and
+   * a tap opens the best hour's factors. The open row survives re-renders,
+   * which happen on every cursor tick.
+   */
+  let openAct = null;
+
   function renderActivity() {
     const tf = store.fmt;
+    // Hours are whole, so "5 PM", not "5:00 PM"; the day is said once, and
+    // again only when the window crosses midnight.
+    const at = (t) => `${tf.weekday(t)} ${tf.hour(t)}`;
+    const span = (a, b) => (tf.isoDate(a) === tf.isoDate(b)
+      ? `${tf.weekday(a)} ${tf.hour(a)}–${tf.hour(b)}`
+      : `${at(a)} – ${at(b)}`);
     const rows = ACTIVITY_KEYS.map((k) => {
       const meta = activityMeta(k);
-      const wins = bestWindows(k, store, { hours: 36, limit: 1, minScore: 50 });
-      const w = wins[0];
-      return { k, meta, w };
-    }).sort((a, b) => (b.w?.peak ?? 0) - (a.w?.peak ?? 0));
+      const w = bestWindows(k, store, { hours: 36, limit: 1, minScore: 50 })[0];
+      const g = greatHours(k, store, { hours: 36, at: 90 });
+      return { k, meta, w, g };
+    }).sort((a, b) => (b.g.great - a.g.great) || ((b.w?.peak ?? 0) - (a.w?.peak ?? 0)));
 
-    $('d-act').innerHTML = rows.map(({ meta, w }) => {
-      const score = w?.peak ?? 0;
-      const col = score >= 80 ? STATUS.good : score >= 60 ? STATUS.warn : score >= 40 ? STATUS.serious : STATUS.crit;
+    $('d-act').innerHTML = rows.map(({ k, meta, w, g }) => {
+      const great = g.great;
+      const share = g.eligible ? great / g.eligible : 0;
+      const col = great > 0 ? STATUS.good : (w?.peak ?? 0) >= 60 ? STATUS.warn : STATUS.serious;
       const when = w
-        ? `<b style="color:var(--ink)">${tf.weekday(w.peakAt)} ${tf.hm(w.peakAt)}</b>`
-          + ` <em>· window ${tf.hm(w.start)}–${tf.hm(w.end)}</em>`
+        ? `<b style="color:var(--ink)">Best ${at(w.peakAt)}</b>`
+          + ` <em>· good ${span(w.start, w.end)}</em>`
+          + (great === 0 ? `<br><em>best hour scores ${w.peak}/100</em>` : '')
           + (w.limiter ? `<br><em>held back by ${w.limiter}</em>` : '')
-        : '<em>no good window in 36h</em>';
+        : '<em>no good time in the next 36 hours</em>';
+      const open = openAct === k && w;
+      const why = w ? w.parts.map((p) => {
+        const lost = Math.round((1 - p.value) * p.weight * 100);
+        return `<span class="act-factor"><span class="act-fname">${p.name}</span>`
+          + `<span class="meter act-fbar" style="--ac:${lost === 0 ? STATUS.good : p.value >= 0.6 ? STATUS.warn : STATUS.serious}"><i style="width:${Math.round(p.value * 100)}%"></i></span>`
+          + `<span class="act-fpts">${lost ? '−' + lost : 'full marks'}</span></span>`;
+      }).join('') : '';
       return `
-        <div class="act-row">
-          <div class="act-icon" style="color:${meta.color}">${meta.icon}</div>
-          <div>
-            <div class="act-name">${meta.label}</div>
-            <div class="act-when">${when}</div>
-            <div class="meter act-bar" style="--ac:${col}"><i style="width:${score}%"></i></div>
-          </div>
-          <div class="act-score" style="color:${col}">${score || '--'}</div>
+        <button type="button" class="act-row" data-act="${k}" aria-expanded="${open ? 'true' : 'false'}"
+                aria-controls="act-why-${k}"${w ? '' : ' disabled'}>
+          <span class="act-icon" style="color:${meta.color}">${meta.icon}</span>
+          <span class="act-text">
+            <span class="act-name">${meta.label}</span>
+            <span class="act-when">${when}</span>
+            <span class="meter act-bar" style="--ac:${col}"><i style="width:${Math.round(share * 100)}%"></i></span>
+          </span>
+          <span class="act-score" style="color:${col}">${great}<small class="act-unit">great hours</small></span>
+        </button>
+        <div class="act-why" id="act-why-${k}"${open ? '' : ' hidden'}>
+          <span class="act-whyhd">Why the best hour (${w ? at(w.peakAt) : ''}) scores ${w?.peak ?? 0}</span>${why}
         </div>`;
     }).join('');
   }
+
+  // One row open at a time; a second tap or Escape closes it.
+  $('d-act').addEventListener('click', (e) => {
+    const row = e.target.closest('.act-row');
+    if (!row || row.disabled) return;
+    openAct = openAct === row.dataset.act ? null : row.dataset.act;
+    renderActivity();
+    $('d-act').querySelector(`.act-row[data-act="${row.dataset.act}"]`)?.focus();
+  });
+  $('d-act').addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !openAct) return;
+    const k = openAct;
+    openAct = null;
+    renderActivity();
+    $('d-act').querySelector(`.act-row[data-act="${k}"]`)?.focus();
+  });
 
   function renderTenDay() {
     const tf = store.fmt;

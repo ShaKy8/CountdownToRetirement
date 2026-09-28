@@ -8,7 +8,22 @@
  * Scores are deliberately opinionated — a "perfect" run is 45-60°F, dry, low
  * wind, low UV — and every score ships with the reason it lost points, so the
  * number is never the only output.
+ *
+ * SENSIBLE HOURS. Each activity also declares when it can happen at all
+ * (`hours`). Darkness only costs a run about four points, so without this a
+ * run's "good window" happily ran 8 PM to 9 AM straight through 3 AM - true
+ * of the weather, useless as advice. An hour outside an activity's hours
+ * cannot be its best hour, cannot sit inside its window (the window stops at
+ * the boundary), and is not counted as a great hour.
+ *
+ * GREAT HOURS. On a good Southern California day every activity's best hour
+ * scores 95-100, so the best-hour number stopped telling activities apart.
+ * The panel's number is now how many of the next 36 hours are great (90+)
+ * for it - Grill 33 and Run 9 say something that 100 and 99 did not.
  */
+
+/** Waking hours in the place's own time zone. */
+const waking = (h, ctx, hod) => hod >= 6 && hod < 22;
 
 import { clamp } from './lib/util.js';
 
@@ -32,6 +47,7 @@ function band(v, min, best0, best1, max) {
 const ACTIVITIES = {
   run: {
     label: 'RUN', icon: '🏃', color: '#00eaff',
+    hours: waking,
     score(h) {
       return [
         ['temperature', band(h.feels ?? h.temp, 15, 45, 62, 92), 0.30],
@@ -47,6 +63,7 @@ const ACTIVITIES = {
   },
   bike: {
     label: 'BIKE', icon: '🚲', color: '#6dff4a',
+    hours: waking,
     score(h) {
       return [
         ['temperature', band(h.feels ?? h.temp, 25, 58, 78, 98), 0.26],
@@ -63,6 +80,7 @@ const ACTIVITIES = {
   },
   grill: {
     label: 'GRILL', icon: '🔥', color: '#ffb02e',
+    hours: waking,
     score(h) {
       return [
         ['dry', 1 - clamp((h.pop ?? 0) / 100, 0, 1) * 1.0, 0.34],
@@ -75,6 +93,7 @@ const ACTIVITIES = {
   },
   stargaze: {
     label: 'STARGAZE', icon: '✦', color: '#a75cff',
+    hours: (h) => !h.isDay,
     score(h, ctx) {
       // Only meaningful after astronomical dusk.
       const dark = h.isDay ? 0 : 1;
@@ -90,6 +109,8 @@ const ACTIVITIES = {
   },
   photo: {
     label: 'PHOTO', icon: '◎', color: '#ff2d8f',
+    // Daylight plus the edges: golden light lives in the hour either side.
+    hours: (h, ctx) => !!h.isDay || (ctx?.sunAltDeg != null && ctx.sunAltDeg > -8),
     score(h, ctx) {
       // Golden hour with texture in the sky is the goal; flat blue is boring.
       const goldenness = ctx?.sunAltDeg == null ? 0.4
@@ -105,6 +126,7 @@ const ACTIVITIES = {
   },
   laundry: {
     label: 'LINE DRY', icon: '≋', color: '#8ab6ff',
+    hours: (h) => !!h.isDay,
     score(h) {
       return [
         ['dry', 1 - clamp((h.pop ?? 0) / 100, 0, 1), 0.34],
@@ -118,6 +140,7 @@ const ACTIVITIES = {
   },
   openWindows: {
     label: 'OPEN UP', icon: '⌷', color: '#3ce0c0',
+    hours: waking,
     score(h) {
       return [
         ['comfortable air', band(h.temp, 40, 62, 76, 90), 0.34],
@@ -157,16 +180,42 @@ export function scoreHour(key, h, ctx) {
  * Best contiguous windows for an activity over the next `hours` hours.
  * Returns at most `limit` windows, sorted by quality.
  */
-export function bestWindows(key, store, { hours = 36, limit = 3, minScore = 55 } = {}) {
+/** Hour of day in the place's time zone (the store's), else the browser's. */
+function hourOf(store, t) {
+  const v = store.fmt?.hourOfDay ? store.fmt.hourOfDay(t) : NaN;
+  return Number.isFinite(v) ? v : new Date(t).getHours();
+}
+
+/**
+ * Every hour of the next `hours`, scored for one activity, with whether it
+ * falls inside the activity's sensible hours. One scoring path for the
+ * windows and the great-hours count, so the two can never disagree.
+ */
+export function scoredHours(key, store, hours = 36) {
+  const act = ACTIVITIES[key];
+  if (!act) return [];
   const now = Date.now();
   const end = now + hours * 3600e3;
-  const rows = store.hours.filter((h) => h.t >= now - 1800e3 && h.t <= end);
-  if (!rows.length) return [];
-
-  const scored = rows.map((h) => {
+  return store.hours.filter((h) => h.t >= now - 1800e3 && h.t <= end).map((h) => {
     const ctx = contextFor(store, h.t);
-    return { t: h.t, ...scoreHour(key, { ...h, air: sampleAir(store, h.t) }, ctx) };
+    const eligible = act.hours ? !!act.hours(h, ctx, hourOf(store, h.t)) : true;
+    return { t: h.t, eligible, ...scoreHour(key, { ...h, air: sampleAir(store, h.t) }, ctx) };
   });
+}
+
+/** How many of the next `hours` are great (score >= `at`) and eligible. */
+export function greatHours(key, store, { hours = 36, at = 90 } = {}) {
+  const rows = scoredHours(key, store, hours);
+  const eligible = rows.filter((r) => r.eligible);
+  return { great: eligible.filter((r) => r.score >= at).length, eligible: eligible.length };
+}
+
+export function bestWindows(key, store, { hours = 36, limit = 3, minScore = 55 } = {}) {
+  const scored = scoredHours(key, store, hours);
+  if (!scored.length) return [];
+  // An hour outside the activity's sensible hours is simply not available:
+  // it cannot be a peak, and a window cannot grow through it.
+  for (const r of scored) if (!r.eligible) r.score = -Infinity;
 
   /*
    * Grow windows outward from local peaks rather than reporting every
@@ -205,6 +254,8 @@ export function bestWindows(key, store, { hours = 36, limit = 3, minScore = 55 }
       avg: Math.round(sum / (hi - lo + 1)),
       hours: hi - lo + 1,
       limiter: scored[bi].limiter,
+      // The best hour's factors, for "why this score".
+      parts: scored[bi].parts,
     });
   }
 

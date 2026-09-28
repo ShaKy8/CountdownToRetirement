@@ -3176,6 +3176,82 @@ describe('WEATHER API - The homepage\'s weather', () => {
     });
 });
 
+describe('WEATHER CONSOLE - Activity windows you can read', () => {
+    const fs = require('fs');
+    // A synthetic 36 hours in which EVERY hour, 3 AM included, has perfect
+    // weather for everything, so the sensible-hours rule is the only thing
+    // that can keep the night out. Hour of day comes from the store's fmt.
+    const run = (body) => {
+        const mod = path.join(__dirname, 'weather', 'js', 'activity.js').replace(/\\/g, '/');
+        const code = `import('${mod}').then(m => {
+            const start = Math.floor(Date.now() / 3600e3) * 3600e3;
+            const hod = t => new Date(t).getHours();
+            const hours = Array.from({ length: 40 }, (_, i) => {
+                const t = start + i * 3600e3, day = hod(t) >= 7 && hod(t) < 19;
+                return { t, temp: 58, feels: 58, pop: 0, dew: 40, wind: 4, gust: 6, uv: 2, isDay: day ? 1 : 0,
+                         cloud: day ? 45 : 0, vis: 30000, rh: 40, et0: 0.02 };
+            });
+            const store = { hours, air: hours.map(h => ({ t: h.t, aqi: 20 })),
+                fmt: { hourOfDay: hod },
+                frame: t => ({ sun: { altDeg: hod(t) >= 7 && hod(t) < 19 ? 30 : -30 }, moon: { fraction: 0, altDeg: -10 } }) };
+            ${body}
+        })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        return JSON.parse(r.stdout);
+    };
+
+    test('A run or a ride is never at 3 AM, and a window stops at the boundary', () => {
+        const out = run(`const res = {};
+            for (const k of ['run', 'bike', 'grill', 'openWindows']) {
+                const w = m.bestWindows(k, store, { hours: 36, limit: 3, minScore: 50 });
+                const rows = m.scoredHours(k, store, 36);
+                res[k] = { hours: w.flatMap(x => { const a = []; for (let t = x.start; t < x.end; t += 3600e3) a.push(hod(t)); return a; }),
+                           peaks: w.map(x => hod(x.peakAt)), nightEligible: rows.filter(r => r.eligible && (hod(r.t) < 6 || hod(r.t) >= 22)).length };
+            }
+            console.log(JSON.stringify(res));`);
+        for (const [k, r] of Object.entries(out)) {
+            assert.strictEqual(r.nightEligible, 0, `${k}: no hour before 6 AM or from 10 PM is eligible`);
+            assert.ok(r.peaks.every(h => h >= 6 && h < 22), `${k}: every best hour is a waking hour (${r.peaks})`);
+            assert.ok(r.hours.length > 0 && r.hours.every(h => h >= 6 && h < 22), `${k}: windows stay inside waking hours (${r.hours})`);
+        }
+    });
+
+    test('Great hours are the eligible hours scoring 90+, counted on the windows\' own scores', () => {
+        const out = run(`const res = {};
+            for (const k of ['run', 'bike', 'grill', 'stargaze', 'photo', 'laundry', 'openWindows']) {
+                const g = m.greatHours(k, store, { hours: 36, at: 90 });
+                const rows = m.scoredHours(k, store, 36);
+                res[k] = { g, direct: rows.filter(r => r.eligible && r.score >= 90).length,
+                           eligible: rows.filter(r => r.eligible).length,
+                           dayCounted: rows.filter(r => r.eligible && r.score >= 90 && hod(r.t) >= 7 && hod(r.t) < 19).length,
+                           nightCounted: rows.filter(r => r.eligible && r.score >= 90 && (hod(r.t) < 7 || hod(r.t) >= 19)).length };
+            }
+            console.log(JSON.stringify(res));`);
+        for (const [k, r] of Object.entries(out)) {
+            assert.strictEqual(r.g.great, r.direct, `${k}: the count is the windows' own scoring`);
+            assert.strictEqual(r.g.eligible, r.eligible, `${k}: and so is the denominator`);
+        }
+        assert.strictEqual(out.laundry.nightCounted, 0, 'Line dry never counts a night hour');
+        assert.strictEqual(out.stargaze.dayCounted, 0, 'Stargazing never counts a daylight hour');
+        // 36 hours spans two days: at most 32 waking hours, and on perfect
+        // weather every one of them is great and nothing else counts.
+        assert.ok(out.run.g.great > 0 && out.run.g.great === out.run.g.eligible && out.run.g.eligible <= 32,
+            `A perfect day: every waking hour is great, and only those (${out.run.g.great} of ${out.run.g.eligible})`);
+    });
+
+    test('The panel says what it means, sorted by great hours', () => {
+        const deck = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'views', 'deck.js'), 'utf8');
+        const fn = deck.slice(deck.indexOf('function renderActivity()'), deck.indexOf('function renderTenDay()'));
+        assert.ok(/greatHours\(k, store, \{ hours: 36, at: 90 \}\)/.test(fn), 'The number is great hours in the next 36');
+        assert.ok(/\(b\.g\.great - a\.g\.great\) \|\| \(\(b\.w\?\.peak/.test(fn), 'Sorted by great hours, then the best hour');
+        assert.ok(/Best \$\{at\(w\.peakAt\)\}/.test(fn) && /good \$\{span\(w\.start, w\.end\)\}/.test(fn), 'Labelled: best and good');
+        assert.ok(/great hours<\/small>/.test(fn), 'and the number says what it counts');
+        assert.ok(/aria-expanded=/.test(fn) && /aria-controls="act-why-/.test(fn), 'A row is a button that opens its reasons');
+        assert.ok(/tf\.isoDate\(a\) === tf\.isoDate\(b\)/.test(fn), 'The day is repeated only when the window crosses midnight');
+    });
+});
+
 describe('WEATHER CONSOLE - One transport', () => {
     const fs = require('fs');
     test('The radar should follow the cursor, and the gate should exist', () => {

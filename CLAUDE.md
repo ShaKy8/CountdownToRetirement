@@ -29,7 +29,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (451 tests)
+# Run client-side tests (454 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -112,7 +112,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (451 tests)
+├── tests.js                # Client-side unit tests (454 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -945,6 +945,41 @@ change is a new URL and is cached for a year. The JS cannot be — 21 ES modules
 importing each other by relative specifier with no bundler — so it ships with
 `max-age=60, stale-while-revalidate`. That combination is what stops a deploy
 serving new HTML against hour-old CSS and JS.
+
+### ACTIVITY WINDOWS — when to go and do it
+
+The DECK panel scoring seven activities (run, bike, grill, stargaze, photo,
+line dry, open up) over the next 36 hours, in `js/activity.js`. Kyle could
+not read it ("RUN – Tuesday 07:00 · window 20:00–09:00 · 100"), and he was
+right: nothing was labelled, the window crossed midnight silently on a
+24-hour clock, the run window went straight through 3 AM, and on a good day
+every number read 99 or 100. Reworked September 28, 2026:
+
+- **Each row reads "Best Tue 7 AM · good Tue 6 AM–9 AM".** The best hour is
+  the highest-scoring hour; "good" is the stretch around it within 12 points
+  of it. Whole hours ("7 AM"), and the day is said again only when the stretch
+  crosses midnight. `tf.hour`, `tf.isoDate`, the place's time zone.
+- **The number is GREAT HOURS**: how many of the next 36 score 90+, not the
+  best hour's score. On a good Southern California day every best hour scored
+  95–100 and the numbers stopped telling activities apart; great hours read
+  Grill 19, Bike 13, Run 3, Photo 0 on the same day. Rows sort by great hours,
+  then by the best hour; the bar is great hours over eligible hours. With no
+  great hours the row says what the best hour scores instead.
+- **Sensible hours are declared per activity** (`hours` next to `score`):
+  run, bike, grill and open up 6 AM–10 PM in the place's time; line dry in
+  daylight; photo in daylight and the golden edges (sun above −8°);
+  stargaze in the dark. An hour outside cannot be a best hour, cannot sit
+  in a window (the window stops at the boundary), and is not a great hour.
+  Darkness costs a run only ~4 points, which is why without this the good
+  window ran 8 PM to 9 AM. **`scoredHours` is the one scoring path** for the
+  windows and the count, so they cannot disagree; a test runs a synthetic
+  36 hours of perfect weather, 3 AM included, so the rule is the only thing
+  keeping the night out — and fails with the rule removed.
+- **A tap opens "why"**: each row is a `<button aria-expanded>` and shows the
+  best hour's factors with the points each cost. One row open at a time,
+  Escape closes it, and the open row survives the re-render every cursor
+  tick causes. A factor's colour follows the same rounded points its label
+  shows — a bar coloured by the unrounded value read "full marks" in yellow.
 
 ### OVERHEAD — what is above you, right now
 

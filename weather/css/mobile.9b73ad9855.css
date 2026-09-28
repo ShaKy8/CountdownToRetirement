@@ -336,6 +336,8 @@
    */
   .act-name,
   .act-when,
+  .act-unit,
+  .act-why,
   .alert-item b,
   .alert-item span,
   .alertbtn[data-n]:not([data-n="0"])::after,

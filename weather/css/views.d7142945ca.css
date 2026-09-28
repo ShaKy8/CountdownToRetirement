@@ -196,8 +196,29 @@
 .act-row {
   display: grid; grid-template-columns: 20px 1fr auto; align-items: center;
   gap: 9px; padding: 4px 0;
+  /* A button now (tap to see why), so undo the UA's button look. */
+  width: 100%; background: none; border: 0; color: inherit; font: inherit;
+  text-align: left; cursor: pointer;
 }
-.act-row + .act-row { border-top: 1px solid rgba(255,255,255,.045); }
+.act-row:disabled { cursor: default; }
+.act-row:focus-visible { outline: 1px solid var(--cy); outline-offset: 2px; }
+.act-text { display: flex; flex-direction: column; min-width: 0; }
+.act-row[aria-expanded="true"] .act-name::after { content: " ▾"; color: var(--faint); }
+.act-unit {
+  display: block; font-size: .5rem; font-weight: 400; letter-spacing: .08em;
+  color: var(--faint); text-transform: uppercase; white-space: nowrap;
+}
+.act-why {
+  display: grid; gap: 3px; padding: 2px 0 8px 29px;
+  font-family: var(--mono); font-size: .56rem; color: var(--dim);
+}
+.act-why[hidden] { display: none; }
+.act-whyhd { color: var(--faint); letter-spacing: .06em; margin-bottom: 2px; }
+.act-factor { display: grid; grid-template-columns: minmax(0, 8em) 1fr auto; align-items: center; gap: 8px; }
+.act-fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-fbar { height: 3px; }
+.act-fpts { text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); white-space: nowrap; }
+.act-why + .act-row, .act-row + .act-row { border-top: 1px solid rgba(255,255,255,.045); }
 .act-icon { font-size: .95rem; text-align: center; filter: drop-shadow(0 0 6px currentColor); }
 .act-name { font-size: .64rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--ink); }
 .act-when { font-size: .58rem; color: var(--dim); font-family: var(--mono); margin-top: 1px; }
