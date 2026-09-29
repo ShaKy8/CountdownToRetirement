@@ -3254,8 +3254,25 @@ describe('WEATHER CONSOLE - Activity windows you can read', () => {
             fs.readdirSync(path.join(__dirname, 'weather', 'css')).find(f => /^views\.[0-9a-f]+\.css$/.test(f))), 'utf8');
         for (const sel of ['.act-good', '.act-note', '.act-unit', '.act-whyhd', '.act-fpts']) {
             const rule = css.slice(css.indexOf(sel + ' {'), css.indexOf('}', css.indexOf(sel + ' {')));
-            assert.ok(rule && !/var\(--faint\)/.test(rule) && /var\(--(dim|ink)\)/.test(rule), `${sel} is --dim or --ink`);
+            assert.ok(rule && !/var\(--faint\)/.test(rule) && /var\(--(dim|ink|act-2nd)\)/.test(rule), `${sel} is --dim, --ink or the panel's lifted grey`);
         }
+        assert.ok(/--act-2nd: color-mix\(in srgb, var\(--dim\) 75%, var\(--ink\)\)/.test(css), 'The lifted grey is --dim a quarter toward --ink');
+    });
+
+    test('The rows read at 12px or more, in the face ELSEWHERE uses, and grow with the panel', () => {
+        // They were a thin monospace at 9.6-10.8px in a 549px panel.
+        const css = fs.readFileSync(path.join(__dirname, 'weather', 'css',
+            fs.readdirSync(path.join(__dirname, 'weather', 'css')).find(f => /^views\.[0-9a-f]+\.css$/.test(f))), 'utf8');
+        const block = css.slice(css.indexOf('/* --- activity ---'), css.indexOf('/* --- ten day --- */'));
+        assert.ok(/container-type: inline-size/.test(block), 'The panel is a size container');
+        for (const sel of ['.act-name', '.act-best', '.act-good', '.act-note', '.act-unit', '.act-why']) {
+            const rule = block.slice(block.indexOf(sel + ' {'), block.indexOf('}', block.indexOf(sel + ' {')));
+            const m = rule.match(/font-size: clamp\(([\d.]+)rem, [\d.]+cqi, [\d.]+rem\)/);
+            assert.ok(m, `${sel} scales with the panel`);
+            assert.ok(Number(m[1]) * 15 >= 12, `${sel} never goes under 12px (${Number(m[1]) * 15}px)`);
+        }
+        assert.ok(/\.act-when \{[^}]*font-family: var\(--ui\)/.test(block) && /\.act-name \{[^}]*font-family: var\(--ui\)/.test(block),
+            'The interface face, as ELSEWHERE; digits stay mono');
     });
 
     test('The panel says what it means, sorted by great hours', () => {

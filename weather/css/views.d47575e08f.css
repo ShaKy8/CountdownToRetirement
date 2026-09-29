@@ -191,52 +191,71 @@
 .nowcast-bars { height: 30px; }
 .nowcast-scale { display: flex; justify-content: space-between; font-size: .52rem; color: var(--faint); letter-spacing: .1em; }
 
-/* --- activity --- */
-.act .body { gap: 5px; overflow-y: auto; }
+/* --- activity ---
+ *
+ * Readable at a glance, measured on the live page. The rows were a thin
+ * monospace at 9.6-10.8px - at 1920 wide the panel is 549px across and the
+ * text stayed that small, because the console's root is a fixed 15px. They
+ * now use the interface face ELSEWHERE uses beside them (0.86rem, which
+ * reads easily), and the panel is a size container so the type grows with
+ * the room it has: clamp(floor, cqi, ceiling), about 15px in the 549px panel
+ * and the floor in a 361px one. The reading area has a steadier backing, so
+ * the city lights behind the translucent glass cannot pull the secondary
+ * lines under ~6:1 (they reached 3.1:1). Nothing a reader needs is --faint.
+ */
+.act .body {
+  /* Secondary text in this panel: --dim lifted a quarter toward --ink,
+     about 8:1 rather than 6:1, still plainly below the best line's 16:1. */
+  --act-2nd: color-mix(in srgb, var(--dim) 75%, var(--ink));
+  gap: 0; overflow-y: auto;
+  container-type: inline-size;
+  background: rgba(4, 9, 19, .6);
+  border-radius: 2px;
+}
 .act-row {
-  display: grid; grid-template-columns: 20px 1fr auto; align-items: center;
-  gap: 9px; padding: 4px 0;
-  /* A button now (tap to see why), so undo the UA's button look. */
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+  column-gap: 12px; padding: 8px 6px;
+  /* A button (tap to see why), so undo the UA's button look. */
   width: 100%; background: none; border: 0; color: inherit; font: inherit;
   text-align: left; cursor: pointer;
 }
 .act-row:disabled { cursor: default; }
-.act-row:focus-visible { outline: 1px solid var(--cy); outline-offset: 2px; }
-.act-text { display: flex; flex-direction: column; min-width: 0; }
-.act-row[aria-expanded="true"] .act-name::after { content: " ▾"; color: var(--faint); }
+.act-row:hover:not(:disabled) { background: rgba(255,255,255,.025); }
+.act-row:focus-visible { outline: 1px solid var(--cy); outline-offset: -1px; }
+.act-why + .act-row, .act-row + .act-row { border-top: 1px solid rgba(255,255,255,.06); }
+.act-icon {
+  font-size: clamp(1.05rem, 3.2cqi, 1.4rem); width: 1.6em; text-align: center;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+.act-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.act-name {
+  font-family: var(--ui); font-weight: 700; text-transform: uppercase;
+  font-size: clamp(.8rem, 2.3cqi, .9rem); letter-spacing: .12em; color: var(--ink);
+}
+.act-row[aria-expanded="true"] .act-name::after { content: " ▾"; color: var(--act-2nd); }
+.act-when { display: flex; flex-direction: column; gap: 1px; font-family: var(--ui); line-height: 1.3; color: var(--act-2nd); }
+.act-best { color: var(--ink); font-weight: 600; font-size: clamp(.86rem, 2.75cqi, 1.05rem); }
+.act-good { color: var(--act-2nd); font-size: clamp(.8rem, 2.5cqi, .98rem); }
+.act-note { color: var(--act-2nd); font-size: clamp(.8rem, 2.3cqi, .9rem); }
+.act-bar { height: 2px; margin-top: 5px; }
+.act-score {
+  font-family: var(--mono); font-weight: 700; text-align: right;
+  font-size: clamp(1.3rem, 4.2cqi, 1.8rem); line-height: 1.05; font-variant-numeric: tabular-nums;
+}
 .act-unit {
-  display: block; margin-top: 1px; font-size: .64rem; font-weight: 400;
-  letter-spacing: .02em; color: var(--dim); white-space: nowrap;
+  display: block; margin-top: 2px; font-family: var(--ui); font-weight: 500;
+  font-size: clamp(.8rem, 2.2cqi, .9rem); letter-spacing: .02em; color: var(--act-2nd); white-space: nowrap;
 }
 .act-why {
-  display: grid; gap: 3px; padding: 2px 0 8px 29px;
-  font-family: var(--mono); font-size: .56rem; color: var(--dim);
+  display: grid; gap: 4px; padding: 2px 8px 10px calc(1.6em + 18px);
+  font-family: var(--ui); font-size: clamp(.8rem, 2.3cqi, .9rem); color: var(--act-2nd);
 }
 .act-why[hidden] { display: none; }
-.act-whyhd { color: var(--dim); letter-spacing: .04em; margin-bottom: 2px; }
-.act-factor { display: grid; grid-template-columns: minmax(0, 8em) 1fr auto; align-items: center; gap: 8px; }
-.act-fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-whyhd { color: var(--act-2nd); margin-bottom: 2px; }
+.act-factor { display: grid; grid-template-columns: minmax(0, 9em) 1fr auto; align-items: center; gap: 10px; }
+.act-fname { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act-fbar { height: 3px; }
-.act-fpts { text-align: right; font-variant-numeric: tabular-nums; color: var(--dim); white-space: nowrap; }
-.act-why + .act-row, .act-row + .act-row { border-top: 1px solid rgba(255,255,255,.045); }
-.act-icon { font-size: .95rem; text-align: center; filter: drop-shadow(0 0 6px currentColor); }
-.act-name { font-size: .64rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--ink); }
-/*
- * Readable, measured: --faint (#3a5064) on the panel is about 2.3:1 and was
- * where the good stretch and "great hours" lived; --dim (#7b97ad) is about
- * 6.2:1 and --ink about 15:1. So the best hour is --ink, everything
- * secondary is --dim, and nothing a reader needs is --faint.
- */
-.act-when { display: flex; flex-direction: column; gap: 1px; margin-top: 2px;
-  font-family: var(--mono); font-size: .72rem; line-height: 1.35; color: var(--dim); }
-.act-best { color: var(--ink); font-weight: 700; }
-.act-good { color: var(--dim); }
-.act-note { color: var(--dim); font-size: .66rem; }
-.act-score {
-  font-family: var(--mono); font-weight: 700; font-size: .95rem;
-  min-width: 30px; text-align: right; font-variant-numeric: tabular-nums;
-}
-.act-bar { grid-column: 2 / -1; height: 3px; margin-top: 3px; }
+.act-fpts { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--act-2nd); white-space: nowrap; }
 
 /* --- ten day --- */
 .tenday .body { overflow: hidden; }

@@ -29,7 +29,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (456 tests)
+# Run client-side tests (457 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -112,7 +112,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (456 tests)
+├── tests.js                # Client-side unit tests (457 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -979,13 +979,20 @@ every number read 99 or 100. Reworked September 28, 2026:
   windows and the count, so they cannot disagree; a test runs a synthetic
   36 hours of perfect weather, 3 AM included, so the rule is the only thing
   keeping the night out — and fails with the rule removed.
-- **Readable, measured.** The good stretch and "great hours" were in
-  `--faint` (#3a5064), about 2.3:1 on the panel; they are `--dim` now,
-  6.4:1, and the best hour is `--ink`, 15.9:1. The stretch has its own line
-  rather than trailing a middle dot, and the secondary lines are 10.8px and
-  9.6px on desktop (the phone's floor is 12px). A test forbids `--faint` on
-  any of them. OPEN UP's icon was U+2337, which no font here has; it drew
-  as an empty box and is 🪟 now.
+- **Readable, measured on the real pixels** (two passes, both at Kyle's
+  prompting). Pass one moved the secondary lines off `--faint` (#3a5064,
+  2.3:1). Pass two was about size and face: the rows were a thin monospace
+  at 9.6–10.8px, and on a 1920 screen the panel is 549px wide and the text
+  stayed that small, because the console's root is a fixed 15px. Now the
+  rows use the interface face ELSEWHERE uses (which reads easily), the list
+  is a size container and every line is `clamp(floor, cqi, ceiling)` —
+  12px at the least, ~14px in the wide panel — the number 19–22px, the
+  secondary lines a lifted grey (`--act-2nd`, `--dim` a quarter toward
+  `--ink`, ~8:1), and the list has a steadier backing so city lights behind
+  the glass cannot pull them down. Tests pin the 12px floors, the face and
+  the grey. The cost: 1280×800 shows two rows before scrolling rather than
+  three; the rows are sorted best first. OPEN UP's icon was U+2337, in no
+  font here; it drew as an empty box and is 🪟 now.
 - **A tap opens "why"**: each row is a `<button aria-expanded>` and shows the
   best hour's factors with the points each cost. One row open at a time,
   Escape closes it, and the open row survives the re-render every cursor
