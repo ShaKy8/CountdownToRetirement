@@ -50,7 +50,7 @@ export function createData(root) {
 
   function pending(ctx, w, h, msg) {
     ctx.save();
-    ctx.font = "600 9px 'Chakra Petch', sans-serif";
+    ctx.font = "600 11.5px 'Chakra Petch', sans-serif";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.letterSpacing = '1.6px';
     ctx.fillText(msg.toUpperCase() + ' …', w / 2, h / 2);
@@ -127,7 +127,7 @@ export function createData(root) {
     ctx.restore();
 
     ctx.save();
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     // Every fifth year, or fewer where five years is not five labels wide.
     const yearStep = 5 * fitStride(Math.ceil(a.length / 5), box.w,
@@ -139,7 +139,7 @@ export function createData(root) {
     ctx.restore();
 
     ctx.save();
-    ctx.font = "600 9px 'Chakra Petch', sans-serif";
+    ctx.font = "600 11.5px 'Chakra Petch', sans-serif";
     ctx.letterSpacing = '1.2px';
     const trend = `TREND ${slope >= 0 ? '+' : '−'}${Math.abs(slope * 10).toFixed(2)}°F / DECADE`;
     const trendW = ctx.measureText(trend).width;
@@ -165,7 +165,7 @@ export function createData(root) {
       ctx.fillStyle = 'rgba(4,9,19,.94)';
       ctx.strokeStyle = alpha(SERIES[0], .5);
       const txt = `${d.year}  ${d.mean.toFixed(2)}°F  ${d.mean - mean >= 0 ? '+' : '−'}${Math.abs(d.mean - mean).toFixed(2)} vs period mean`;
-      ctx.font = "500 10px 'JetBrains Mono', monospace";
+      ctx.font = "500 11.5px 'JetBrains Mono', monospace";
       const tw = ctx.measureText(txt).width + 14;
       const bx = clamp(xOf(i) - tw / 2, 4, Math.max(4, w - tw - 4));
       // A finger in the top half would sit on a box pinned to the top.

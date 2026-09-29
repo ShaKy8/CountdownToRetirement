@@ -29,7 +29,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (457 tests)
+# Run client-side tests (460 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -112,7 +112,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (457 tests)
+├── tests.js                # Client-side unit tests (460 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -844,13 +844,13 @@ each needs a deliberate move:
 
 Two things the code needs from the machine, both asserted by tests:
 
-- **Node 22 or newer.** All eleven gates speak CDP over a global `WebSocket` with
+- **Node 22 or newer.** All twelve gates speak CDP over a global `WebSocket` with
   nothing to install; on an older Node they fail deep inside a browser session
   rather than up front.
 - **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
-  it from a candidate list and `$CHROMIUM` overrides. All eleven gates used to
+  it from a candidate list and `$CHROMIUM` overrides. All twelve gates used to
   hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
-  and one wrong assumption became eleven identical unhelpful failures.
+  and one wrong assumption became twelve identical unhelpful failures.
 
 **Push before switching machines.** The repos are the sync mechanism, and the
 setup script refuses to touch a working tree with uncommitted changes rather
@@ -946,6 +946,52 @@ importing each other by relative specifier with no bundler — so it ships with
 `max-age=60, stale-while-revalidate`. That combination is what stops a deploy
 serving new HTML against hour-old CSS and JS.
 
+### Every word readable — the grey ramp and the type floor
+
+Kyle: HUMIDITY, PRESSURE and the 16-day lows were too hard to read (September
+28, 2026). A census of every HTML text run and every canvas label on all six
+views at 1920×1080, measured against the real screenshot pixels behind each,
+found **1,036 runs, 882 under 12px and 564 under 4.5:1**. Two causes, fixed
+once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
+
+- **The grey ramp.** `--faint` was #3a5064, about 2:1 on the panels, and the
+  colour of most labels (in CSS it was only ever a text colour; in the charts
+  `FAINT` filled 31 labels). Now `--faint` #7b97ad and `--dim` #9ab2c5, ~6
+  and ~9:1, with `--ink` ~16: three steps still. `charts.js`'s `DIM` and
+  `FAINT` must equal the tokens; a test holds them together. The dark theme
+  was never the problem — its greys and its smallest sizes were.
+- **The type floor.** The root is a fixed 15px, and 50 CSS rules set labels at
+  .46–.66rem (7–10px). Every size under .8rem is now
+  `max(size, var(--fs-floor, 0px))` and `--fs-floor` is 12px at `:root`
+  (12.5 on phones) — the mechanism the phone layout already had, switched on
+  everywhere. Tracking on floored uppercase labels tightened to .12em so they
+  grew taller, not wider. Canvas: `MONO` 12px, `MONO_SM`/`UI_LBL` 11.5px,
+  and every literal `ctx.font` in the views at 11.5px or more; `gridY`'s
+  spacing guard went from 11 to 14px to match. Chart density is measured, so
+  larger labels thinned tight charts (~3% fewer text runs) rather than
+  colliding; the label audit is still at zero.
+- **Labels over a chart's own fills are outlined** — `haloText` in
+  `charts.js`, a thin dark stroke under the glyphs (`tag()`, axis numbers,
+  peak temperatures, REC, STORM, the AQI bands). "GOOD" drawn in green on the
+  green band measured 2:1; the outline gives every glyph its own ground.
+- **Smaller fixes the census found:** the tab digits were at opacity .5
+  (2.8:1), now .8; buttons floating on the maps sat on bright tiles (2.5:1)
+  and have their own ground, except toggled-on ones, which keep their cyan;
+  panel headers mix their accent toward `--ink`, not `--dim` (magenta was
+  ~4:1); aircraft callsigns keep their altitude colour, lifted a fifth toward
+  ink.
+- **The gate measures what is on screen.** Chart text is captured by wrapping
+  `fillText`; an outlined label is measured against its outline; text
+  scrolled out of a panel or covered is skipped (`elementFromPoint`); view
+  fade-ins are finished first — headless draws no frames, and an early run
+  measured whole views at opacity 0; radar playback is paused, or NOW is
+  caught mid-flicker. Fails under 11.5px, under 4.5:1 (3:1 large), or on text
+  hard-clipped without an ellipsis at a desktop size. Two named exceptions,
+  both glyphs: the "//" in ATMOS//NET and the "◈" location pin. With the old
+  grey restored it fails 217 times.
+- **Known, not from this:** `tap-audit`'s "a slide along the chart is not a
+  pick" fails against production too, before any of this; unexplained.
+
 ### ACTIVITY WINDOWS — when to go and do it
 
 The DECK panel scoring seven activities (walk, bike, grill, stargaze, photo,
@@ -987,8 +1033,7 @@ every number read 99 or 100. Reworked September 28, 2026:
   rows use the interface face ELSEWHERE uses (which reads easily), the list
   is a size container and every line is `clamp(floor, cqi, ceiling)` —
   12px at the least, ~14px in the wide panel — the number 19–22px, the
-  secondary lines a lifted grey (`--act-2nd`, `--dim` a quarter toward
-  `--ink`, ~8:1), and the list has a steadier backing so city lights behind
+  secondary lines `--dim` (~9:1 since the grey ramp was retuned), and the list has a steadier backing so city lights behind
   the glass cannot pull them down. Tests pin the 12px floors, the face and
   the grey. The cost: 1280×800 shows two rows before scrolling rather than
   three; the rows are sorted best first. OPEN UP's icon was U+2337, in no

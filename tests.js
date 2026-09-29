@@ -3256,7 +3256,7 @@ describe('WEATHER CONSOLE - Activity windows you can read', () => {
             const rule = css.slice(css.indexOf(sel + ' {'), css.indexOf('}', css.indexOf(sel + ' {')));
             assert.ok(rule && !/var\(--faint\)/.test(rule) && /var\(--(dim|ink|act-2nd)\)/.test(rule), `${sel} is --dim, --ink or the panel's lifted grey`);
         }
-        assert.ok(/--act-2nd: color-mix\(in srgb, var\(--dim\) 75%, var\(--ink\)\)/.test(css), 'The lifted grey is --dim a quarter toward --ink');
+        assert.ok(/--act-2nd: var\(--dim\);/.test(css), 'The panel grey is --dim now that --dim itself reads');
     });
 
     test('The rows read at 12px or more, in the face ELSEWHERE uses, and grow with the panel', () => {
@@ -3284,6 +3284,54 @@ describe('WEATHER CONSOLE - Activity windows you can read', () => {
         assert.ok(/great hours<\/small>/.test(fn), 'and the number says what it counts');
         assert.ok(/aria-expanded=/.test(fn) && /aria-controls="act-why-/.test(fn), 'A row is a button that opens its reasons');
         assert.ok(/tf\.isoDate\(a\) === tf\.isoDate\(b\)/.test(fn), 'The day is repeated only when the window crosses midnight');
+    });
+});
+
+describe('WEATHER CONSOLE - Every word readable', () => {
+    const fs = require('fs');
+    const dir = path.join(__dirname, 'weather', 'css');
+    const core = fs.readFileSync(path.join(dir, fs.readdirSync(dir).find(f => /^core\.[0-9a-f]+\.css$/.test(f))), 'utf8');
+    const views = fs.readFileSync(path.join(dir, fs.readdirSync(dir).find(f => /^views\.[0-9a-f]+\.css$/.test(f))), 'utf8');
+    const charts = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'charts.js'), 'utf8');
+    const lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const L = h => { const n = parseInt(h.slice(1), 16); return 0.2126 * lin(n >> 16 & 255) + 0.7152 * lin(n >> 8 & 255) + 0.0722 * lin(n & 255); };
+    const cr = (a, b) => (Math.max(L(a), L(b)) + 0.05) / (Math.min(L(a), L(b)) + 0.05);
+
+    test('The grey ramp reads on the panels, and the charts use the same greys', () => {
+        // --faint was #3a5064, about 2:1, and the colour of most labels.
+        const tok = n => (core.match(new RegExp('--' + n + ':\\s*(#[0-9a-f]{6})')) || [])[1];
+        for (const [n, min] of [['faint', 5], ['dim', 7], ['ink', 13]]) {
+            const c = tok(n);
+            assert.ok(c && cr(c, '#10202f') >= min, `--${n} ${c} is ${c && cr(c, '#10202f').toFixed(2)}:1 on the lightest panel ground (want ${min})`);
+        }
+        assert.ok(cr(tok('dim'), '#070d1a') > cr(tok('faint'), '#070d1a') * 1.2, 'dim stays a clear step above faint');
+        assert.ok(charts.includes(`export const FAINT = '${tok('faint')}'`) && charts.includes(`export const DIM = '${tok('dim')}'`), 'charts.js matches core.css');
+    });
+
+    test('Nothing is set under 12px: the floor is on everywhere', () => {
+        assert.ok(/--fs-floor: 12px;/.test(core.slice(0, core.indexOf('}'))), 'The floor is set at :root, not only on phones');
+        for (const [name, css] of [['core', core], ['views', views]]) {
+            const bare = [...css.matchAll(/font-size:\s*(\.\d+)rem(?!,)/g)].filter(m => Number(m[1]) < 0.8 && !/max\($/.test(css.slice(m.index - 12, m.index + 10).split('font-size:')[1] || ''));
+            const unfloored = [...css.matchAll(/font-size:\s*([^;]+);/g)].map(m => m[1]).filter(v => /^\.\d+rem$/.test(v.trim()) && Number(v.trim().replace('rem', '')) < 0.8);
+            assert.deepStrictEqual(unfloored, [], `${name}: every small size is max(size, var(--fs-floor))`);
+        }
+        for (const m of charts.matchAll(/export const (MONO|MONO_SM|UI_LBL) = "\d+ ([\d.]+)px/g)) {
+            assert.ok(Number(m[2]) >= 11.5, `${m[1]} is ${m[2]}px`);
+        }
+        const js = ['main.js', 'map.js', 'plots.js', 'timeline.js', ...fs.readdirSync(path.join(__dirname, 'weather', 'js', 'views')).map(f => 'views/' + f)]
+            .map(f => fs.readFileSync(path.join(__dirname, 'weather', 'js', f), 'utf8')).join('\n');
+        const small = [...js.matchAll(/ctx\.font = ["'`](?:\d{3} )?(\d+(?:\.\d+)?)px/g)].filter(m => Number(m[1]) < 11.5);
+        assert.strictEqual(small.length, 0, 'No canvas font under 11.5px: ' + small.map(m => m[0]).join(', '));
+    });
+
+    test('Labels over a chart\'s own fills are outlined, and the gate exists', () => {
+        assert.ok(/export function haloText\(/.test(charts) && /strokeText\(text, x, y\)/.test(charts), 'charts.js outlines text');
+        assert.ok(/haloText\(ctx, text\.toUpperCase\(\), x, y\)/.test(charts), 'tag() uses it');
+        const gate = path.join(__dirname, 'scripts', 'read-audit.mjs');
+        assert.ok(fs.existsSync(gate), 'scripts/read-audit.mjs exists');
+        const g = fs.readFileSync(gate, 'utf8');
+        assert.ok(/x\.px < 11\.5/.test(g) && /x\.large \? 3 : 4\.5/.test(g), 'and fails under 11.5px or 4.5:1 (3:1 large)');
+        assert.ok(/getAnimations\(\)\.forEach/.test(g) && /elementFromPoint/.test(g), 'measuring finished, visible text only');
     });
 });
 
@@ -4505,8 +4553,8 @@ describe('WEATHER CONSOLE - charts fitted to their box', () => {
         // The UV panel's ticks are a hard-coded [3, 6, 8, 11]; on a panel
         // 40px tall that is four numbers in 40px. gridY thins them itself so
         // no call site has to remember.
-        assert.ok(/MONO_SM is 9px/.test(charts), 'gridY should say why the gap is what it is');
-        assert.ok(/if \(Math\.abs\(ly - lastY\) < 11\) continue;/.test(charts),
+        assert.ok(/MONO_SM is 11\.5px/.test(charts), 'gridY should say why the gap is what it is');
+        assert.ok(/if \(Math\.abs\(ly - lastY\) < 14\) continue;/.test(charts),
             'gridY should skip a label that would touch the last one');
         assert.ok(/y - box\.y < 9 \? y \+ 6 : y - 5/.test(charts),
             'the top gridline label belongs inside the box, not in the title row');

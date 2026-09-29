@@ -379,7 +379,7 @@ export function drawMarker(ctx, x, y, color = '#ff2d8f', label = null, pulse = 0
   }
   if (label) {
     ctx.shadowBlur = 0;
-    ctx.font = "600 9px 'Chakra Petch', sans-serif";
+    ctx.font = "600 11.5px 'Chakra Petch', sans-serif";
     ctx.letterSpacing = '1.4px';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     const w = ctx.measureText(label).width + 10;
@@ -406,7 +406,7 @@ export function drawScaleBar(ctx, map, x, y) {
   ctx.beginPath();
   ctx.moveTo(x, y - 4); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 4);
   ctx.stroke();
-  ctx.font = "500 9px 'JetBrains Mono', monospace";
+  ctx.font = "500 11.5px 'JetBrains Mono', monospace";
   ctx.fillStyle = 'rgba(214,236,250,.75)';
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
   ctx.fillText(`${mi} mi`, x + px / 2, y - 5);

@@ -21,14 +21,19 @@ import { clamp, lerp } from './lib/util.js';
 export const SERIES = ['#00eaff', '#ff2d8f', '#ffb02e', '#a75cff', '#8ab6ff'];
 export const STATUS = { good: '#6dff4a', warn: '#ffe14e', serious: '#ffa040', crit: '#ff3b57' };
 export const INK = '#d6ecfa';
-export const DIM = '#7b97ad';
-export const FAINT = '#3a5064';
+// Kept equal to core.css's --dim and --faint: the retuned ramp (FAINT was
+// #3a5064, about 2:1 on the panels, and was the colour of most chart labels).
+export const DIM = '#9ab2c5';
+export const FAINT = '#7b97ad';
 export const GHOST = 'rgba(255,255,255,.055)';
 export const SURFACE = '#03050b';
 
-export const MONO = "500 10px 'JetBrains Mono', ui-monospace, monospace";
-export const MONO_SM = "500 9px 'JetBrains Mono', ui-monospace, monospace";
-export const UI_LBL = "600 9px 'Chakra Petch', system-ui, sans-serif";
+// Chart text was 9-10px. Density is decided from measured pixels (fitTicks,
+// fitStride, tagRow are ceilings), so larger labels thin out where a chart is
+// tight rather than collide; label-audit proves it.
+export const MONO = "500 12px 'JetBrains Mono', ui-monospace, monospace";
+export const MONO_SM = "500 11.5px 'JetBrains Mono', ui-monospace, monospace";
+export const UI_LBL = "600 11.5px 'Chakra Petch', system-ui, sans-serif";
 
 /** Temperature -> color. A single perceptual ramp, cold blue to hot magenta. */
 export function tempColor(f) {
@@ -250,9 +255,9 @@ export function gridY(ctx, box, ticks, fmt = String, { color = GHOST, label = tr
     // The top line's number sits above the box by default, which is the row
     // the panel's title and legend live in. Put that one inside instead.
     const ly = y - box.y < 9 ? y + 6 : y - 5;
-    // MONO_SM is 9px, so anything closer than this is two numbers touching.
-    if (Math.abs(ly - lastY) < 11) continue;
-    ctx.fillText(fmt(v), box.x + box.w - 2, ly);
+    // MONO_SM is 11.5px, so anything closer than this is two numbers touching.
+    if (Math.abs(ly - lastY) < 14) continue;
+    haloText(ctx, fmt(v), box.x + box.w - 2, ly);
     lastY = ly;
   }
   ctx.restore();
@@ -275,13 +280,29 @@ export function capBar(ctx, x, yTop, w, yBase, color, r = 3) {
   ctx.fill();
 }
 
+/**
+ * Text that has to read over a chart's own fills and lines: a thin dark
+ * outline under the glyphs, then the fill. Labels drawn in a series colour on
+ * top of an area of the same family (GOOD on the AQI band, 92° on the
+ * temperature fill) measured 2-4:1 against the pixels actually behind them;
+ * the outline gives each glyph its own ground whatever is underneath.
+ */
+export function haloText(ctx, text, x, y, width = 3) {
+  ctx.save();
+  ctx.lineWidth = width; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(4, 9, 19, .9)';
+  ctx.strokeText(text, x, y);
+  ctx.restore();
+  ctx.fillText(text, x, y);
+}
+
 /** Small caps label, used for axis titles and panel names inside plots. */
 export function tag(ctx, x, y, text, color = FAINT, align = 'left') {
   ctx.save();
   ctx.font = UI_LBL; ctx.fillStyle = color;
   ctx.textAlign = align; ctx.textBaseline = 'top';
   ctx.letterSpacing = '1.4px';
-  ctx.fillText(text.toUpperCase(), x, y);
+  haloText(ctx, text.toUpperCase(), x, y);
   ctx.restore();
 }
 
@@ -600,7 +621,7 @@ export function gauge(ctx, cx, cy, r, {
   if (sub) {
     ctx.font = UI_LBL; ctx.fillStyle = color;
     ctx.letterSpacing = '1.2px';
-    ctx.fillText(sub.toUpperCase(), cx, cy - r * 0.42);
+    haloText(ctx, sub.toUpperCase(), cx, cy - r * 0.42);
   }
   ctx.restore();
 }

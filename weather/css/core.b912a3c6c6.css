@@ -22,8 +22,13 @@
 
   /* --- text --------------------------------------------------- */
   --ink:   #d6ecfa;
-  --dim:   #7b97ad;
-  --faint: #3a5064;
+  /* The grey ramp, measured on the panels' real ground (darkest/typical/
+     lightest): --ink 15.9/14.9/13.6:1, --dim ~8.8/8.2/7.5, --faint 6.4/5.9/
+     5.4 (and ~5 on the glassiest panels, which show the sky through). --faint was #3a5064, about 2:1, and was the colour of most labels;
+     --dim was #7b97ad, 6.4/5.9/5.4. Three distinct steps still, all legible.
+     --ghost stays for rules and fills, never for text. */
+  --dim:   #9ab2c5;
+  --faint: #7b97ad;
   --ghost: #1e2c3a;
 
   /* --- geometry ----------------------------------------------- */
@@ -34,6 +39,10 @@
   --edge: rgba(0,234,255,.26);
 
   /* --- type --------------------------------------------------- */
+  /* Every small font-size is max(<size>, var(--fs-floor)): nothing a reader
+     needs is drawn under 12px. It was set only on phones; desktop labels
+     were 7-10px. */
+  --fs-floor: 12px;
   --ui: 'Chakra Petch', 'Rajdhani', ui-sans-serif, system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
@@ -222,9 +231,11 @@ html[data-q="1"] #fx .grain { display: none; }
 /* Panel heading: tiny caps label + rule + optional right-hand value. */
 .hd {
   display: flex; align-items: center; gap: 8px;
-  font-size: .62rem; font-weight: 700; letter-spacing: .2em;
+  font-size: max(.62rem, var(--fs-floor, 0px)); font-weight: 700; letter-spacing: .12em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--ac) 78%, var(--dim));
+  /* The accent lifted toward --ink (it was mixed toward --dim, which put
+     the magenta headers at ~4:1). */
+  color: color-mix(in srgb, var(--ac) 80%, var(--ink));
   margin-bottom: 8px;
   flex: 0 0 auto;
   white-space: nowrap;
@@ -236,7 +247,7 @@ html[data-q="1"] #fx .grain { display: none; }
   transform: rotate(45deg);
 }
 .hd .rule { flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 30%, transparent), transparent); }
-.hd .val { color: var(--ink); font-family: var(--mono); letter-spacing: .04em; font-size: .68rem; }
+.hd .val { color: var(--ink); font-family: var(--mono); letter-spacing: .04em; font-size: max(.68rem, var(--fs-floor, 0px)); }
 
 .body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 
@@ -245,7 +256,7 @@ html[data-q="1"] #fx .grain { display: none; }
    ============================================================ */
 
 .lbl {
-  font-size: .58rem; font-weight: 600; letter-spacing: .19em;
+  font-size: max(.58rem, var(--fs-floor, 0px)); font-weight: 600; letter-spacing: .12em;
   text-transform: uppercase; color: var(--faint);
   white-space: nowrap;
 }
@@ -304,8 +315,8 @@ html[data-q="0"] .chroma { text-shadow: 0 0 12px rgba(0,234,255,.3); }
 nav { display: flex; gap: 2px; flex: 0 0 auto; }
 nav button {
   position: relative;
-  font-family: var(--ui); font-size: .68rem; font-weight: 600;
-  letter-spacing: .16em; text-transform: uppercase;
+  font-family: var(--ui); font-size: max(.68rem, var(--fs-floor, 0px)); font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
   color: var(--dim); background: transparent; border: 0;
   padding: 7px 14px 7px 12px; cursor: pointer;
   display: flex; align-items: center; gap: 7px;
@@ -313,8 +324,11 @@ nav button {
   transition: color .2s, background .2s;
 }
 nav button kbd {
-  font-family: var(--mono); font-size: .58rem; opacity: .5;
+  font-family: var(--mono); font-size: max(.58rem, var(--fs-floor, 0px));
   border: 1px solid currentColor; padding: 0 3px; line-height: 1.3;
+  /* Was .5, which halved the digits' contrast to 2.8:1; still quieter than
+     the tab's word at .8. */
+  opacity: .8;
 }
 nav button:hover { color: var(--ink); background: rgba(0,234,255,.07); }
 nav button[aria-selected="true"] {
@@ -322,7 +336,7 @@ nav button[aria-selected="true"] {
   text-shadow: none;
   box-shadow: 0 0 18px rgba(0,234,255,.5);
 }
-nav button[aria-selected="true"] kbd { opacity: .65; }
+nav button[aria-selected="true"] kbd { opacity: .8; }
 
 .spacer { flex: 1 1 auto; }
 
@@ -338,8 +352,8 @@ nav button[aria-selected="true"] kbd { opacity: .65; }
 }
 .loc:hover { background: rgba(0,234,255,.1); border-color: rgba(0,234,255,.4); }
 .loc .pin { color: var(--mg); font-size: .8rem; }
-.loc .name { font-weight: 600; font-size: .78rem; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.loc .sub { font-size: .58rem; color: var(--faint); letter-spacing: .12em; text-transform: uppercase; }
+.loc .name { font-weight: 600; font-size: max(.78rem, var(--fs-floor, 0px)); letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loc .sub { font-size: max(.58rem, var(--fs-floor, 0px)); color: var(--faint); letter-spacing: .12em; text-transform: uppercase; }
 
 .clock {
   font-family: var(--mono); font-size: .82rem; font-weight: 500;
@@ -347,7 +361,7 @@ nav button[aria-selected="true"] kbd { opacity: .65; }
   text-shadow: 0 0 12px rgba(0,234,255,.45);
   flex: 0 0 auto; font-variant-numeric: tabular-nums;
 }
-.clock small { display: block; font-size: .52rem; color: var(--faint); letter-spacing: .18em; text-align: right; text-shadow: none; }
+.clock small { display: block; font-size: max(.52rem, var(--fs-floor, 0px)); color: var(--faint); letter-spacing: .12em; text-align: right; text-shadow: none; }
 
 /* The four bar icons travel together, so a narrow viewport can fold them as a
    group instead of orphaning one onto a second row. */
@@ -374,7 +388,7 @@ nav button[aria-selected="true"] kbd { opacity: .65; }
   content: attr(data-n);
   position: absolute; top: -5px; right: -5px;
   background: var(--rd); color: #fff;
-  font-family: var(--mono); font-size: .5rem; font-weight: 700;
+  font-family: var(--mono); font-size: max(.5rem, var(--fs-floor, 0px)); font-weight: 700;
   min-width: 13px; height: 13px; display: grid; place-items: center;
   border-radius: 50%;
 }
@@ -414,7 +428,7 @@ nav button[aria-selected="true"] kbd { opacity: .65; }
   line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums;
 }
 .stat .v small { font-size: .58em; font-weight: 500; color: var(--dim); margin-left: 2px; }
-.stat .c { font-size: .58rem; letter-spacing: .1em; color: var(--faint); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .c { font-size: max(.58rem, var(--fs-floor, 0px)); letter-spacing: .1em; color: var(--faint); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Horizontal meter with a neon fill. */
 .meter { height: 4px; background: rgba(255,255,255,.06); position: relative; overflow: hidden; }
@@ -429,13 +443,13 @@ nav button[aria-selected="true"] kbd { opacity: .65; }
 /* Key/value row used throughout the detail panels. */
 .kv { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 3px 0; }
 .kv + .kv { border-top: 1px solid rgba(255,255,255,.045); }
-.kv dt { font-size: .62rem; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
-.kv dd { font-family: var(--mono); font-size: .78rem; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kv dt { font-size: max(.62rem, var(--fs-floor, 0px)); letter-spacing: .11em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+.kv dd { font-family: var(--mono); font-size: max(.78rem, var(--fs-floor, 0px)); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Status chip. */
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: .56rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  font-size: max(.56rem, var(--fs-floor, 0px)); font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
   padding: 2px 7px; color: var(--ac, var(--cy));
   border: 1px solid color-mix(in srgb, var(--ac, var(--cy)) 45%, transparent);
   background: color-mix(in srgb, var(--ac, var(--cy)) 10%, transparent);
@@ -448,7 +462,7 @@ canvas.chart { display: block; width: 100%; height: 100%; }
 /* Empty / error state inside a panel. */
 .nodata {
   flex: 1; display: grid; place-items: center; text-align: center;
-  color: var(--faint); font-size: .64rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--faint); font-size: max(.64rem, var(--fs-floor, 0px)); letter-spacing: .12em; text-transform: uppercase;
   padding: 14px;
 }
 

@@ -411,11 +411,11 @@ function openAlerts() {
       ${a.map((x) => `
         <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)">
           <b style="color:#ff4d5e;font-size:.82rem;letter-spacing:.08em">${escape2(x.event)}</b>
-          <div style="font-family:var(--mono);font-size:.6rem;color:var(--faint);margin:3px 0 6px">
+          <div style="font-family:var(--mono);font-size:max(.6rem,var(--fs-floor,0px));color:var(--faint);margin:3px 0 6px">
             ${escape2(x.senderName || '')} · until ${store.fmt.weekday(x.expires)} ${store.fmt.hm(x.expires)}
           </div>
-          <div style="font-size:.72rem;color:var(--dim);line-height:1.5;white-space:pre-wrap">${escape2((x.description || '').slice(0, 900))}</div>
-          ${x.instruction ? `<div style="margin-top:7px;font-size:.7rem;color:var(--am);line-height:1.5">${escape2(x.instruction.slice(0, 400))}</div>` : ''}
+          <div style="font-size:max(.72rem,var(--fs-floor,0px));color:var(--dim);line-height:1.5;white-space:pre-wrap">${escape2((x.description || '').slice(0, 900))}</div>
+          ${x.instruction ? `<div style="margin-top:7px;font-size:max(.7rem,var(--fs-floor,0px));color:var(--am);line-height:1.5">${escape2(x.instruction.slice(0, 400))}</div>` : ''}
         </div>`).join('')}
     </div>
   `);

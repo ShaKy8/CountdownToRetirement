@@ -6,7 +6,7 @@
  * the crossing point of two lines look meaningful when it isn't.
  */
 
-import {
+import { haloText,
   SERIES, STATUS, INK, DIM, FAINT, GHOST, SURFACE, MONO, MONO_SM, UI_LBL,
   tempColor, alpha, mixHex, neonLine, smoothPath, gridY, capBar, tag, tooltip,
   legend, nightBands, marker, niceTicks, fitTicks, fitStride, fitLabel, tagRow,
@@ -151,7 +151,7 @@ export function meteogram(ctx, w, h, hover, opts) {
         const flip = al === 'top' ? ly + 9 > b.y + b.h : ly - 9 < b.y;
         ctx.textBaseline = flip ? (al === 'top' ? 'bottom' : 'top') : al;
         ctx.fillStyle = tempColor(p.temp);
-        ctx.fillText(`${Math.round(p.temp)}°`, x, flip ? yOf(p.temp) - dy : ly);
+        haloText(ctx, `${Math.round(p.temp)}°`, x, flip ? yOf(p.temp) - dy : ly);
       }
     }
     ctx.restore();
@@ -279,7 +279,7 @@ export function meteogram(ctx, w, h, hover, opts) {
       ctx.fillStyle = 'rgba(4,9,19,.75)';
       ctx.fillRect(b.x + b.w - 30, y - 5, 30, 10);
       ctx.fillStyle = FAINT;
-      ctx.fillText(l, b.x + b.w - 2, y);
+      haloText(ctx, l, b.x + b.w - 2, y);
     });
     ctx.restore();
     tag(ctx, b.x + 2, b.y - 11, 'cloud decks %');
@@ -599,7 +599,7 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
       ctx.save();
       ctx.fillStyle = STATUS.crit; ctx.font = MONO_SM;
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText('REC', xOf(i), yOf(r.tmax) - 4);
+      haloText(ctx, 'REC', xOf(i), yOf(r.tmax) - 4);
       ctx.restore();
     }
   });
@@ -660,7 +660,7 @@ export function kpChart(ctx, w, h, hover, { rows, tf, now }) {
   ctx.setLineDash([]);
   ctx.font = UI_LBL; ctx.fillStyle = alpha(STATUS.serious, .8);
   ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-  ctx.fillText('STORM', box.x + 3, yOf(5) - 2);
+  haloText(ctx, 'STORM', box.x + 3, yOf(5) - 2);
   ctx.restore();
 
   rows.forEach((r, i) => {

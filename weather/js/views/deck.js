@@ -140,7 +140,7 @@ export function createDeck(root) {
     const pts = spark(ctx, { x: 0, y: 4, w, h: h - 14 }, rows.map((d) => d.temp), { color: SERIES[0], glow: 9 });
     // Hour ticks so the sparkline has a readable time base.
     ctx.save();
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     for (let i = 0; i < rows.length; i += 6) {
       // The first and last are centred on x = 0 and x = w, so half of each

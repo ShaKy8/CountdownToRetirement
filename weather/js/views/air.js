@@ -8,7 +8,7 @@
  */
 
 import { store } from '../state.js';
-import {
+import { haloText,
   SERIES, STATUS, INK, DIM, FAINT, mount, gauge, spark, capBar, alpha, tag, mixHex,
   tooltip, fitLabel,
 } from '../charts.js';
@@ -104,9 +104,9 @@ export function createAir(root) {
       ctx.strokeStyle = alpha(c, .3); ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(box.x, yOf(v)); ctx.lineTo(box.x + box.w, yOf(v)); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font = "500 8px 'JetBrains Mono', monospace";
+      ctx.font = "500 11.5px 'JetBrains Mono', monospace";
       ctx.fillStyle = alpha(c, .8); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-      ctx.fillText(l, box.x + box.w - 2, yOf(v) - 1);
+      haloText(ctx, l, box.x + box.w - 2, yOf(v) - 1);
       ctx.restore();
     }
 
@@ -128,7 +128,7 @@ export function createAir(root) {
     ctx.stroke(); ctx.restore();
 
     ctx.save();
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     rows.forEach((d, i) => {
       const hod = store.fmt.hourOfDay(d.t);
@@ -155,9 +155,9 @@ export function createAir(root) {
       ctx.strokeStyle = alpha(c, .28); ctx.setLineDash([4, 3]);
       ctx.beginPath(); ctx.moveTo(box.x, yOf(v)); ctx.lineTo(box.x + box.w, yOf(v)); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font = "500 8px 'JetBrains Mono', monospace";
+      ctx.font = "500 11.5px 'JetBrains Mono', monospace";
       ctx.fillStyle = alpha(c, .85); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-      ctx.fillText(l, box.x + box.w - 2, yOf(v) - 2);
+      haloText(ctx, l, box.x + box.w - 2, yOf(v) - 2);
       ctx.restore();
     }
 
@@ -170,7 +170,7 @@ export function createAir(root) {
     });
 
     ctx.save();
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.strokeStyle = 'rgba(255,255,255,.07)';
     let last = '';
@@ -212,7 +212,7 @@ export function createAir(root) {
 
   function noData(ctx, w, h, msg) {
     ctx.save();
-    ctx.font = "600 9px 'Chakra Petch', sans-serif";
+    ctx.font = "600 11.5px 'Chakra Petch', sans-serif";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.letterSpacing = '1.6px'; ctx.fillText(msg.toUpperCase(), w / 2, h / 2);
     ctx.restore();
@@ -260,7 +260,7 @@ export function createAir(root) {
         <div style="margin-bottom:7px">
           <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
             <span class="lbl" style="color:var(--dim)">${p.label}</span>
-            <span class="num" style="font-size:.72rem;color:${col}">${v.toFixed(v < 10 ? 1 : 0)}<span style="color:var(--faint);font-size:max(.85em,var(--fs-floor,0px))"> ${p.unit}</span></span>
+            <span class="num" style="font-size:max(.72rem,var(--fs-floor,0px));color:${col}">${v.toFixed(v < 10 ? 1 : 0)}<span style="color:var(--faint);font-size:max(.85em,var(--fs-floor,0px))"> ${p.unit}</span></span>
           </div>
           <div class="meter" style="--ac:${col};margin:3px 0 2px;position:relative">
             <i style="width:${pct}%"></i>

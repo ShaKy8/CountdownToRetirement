@@ -103,7 +103,7 @@ export function createSkyView(root) {
 
     // Readouts around the rim.
     ctx.save();
-    ctx.font = "500 10px 'JetBrains Mono', monospace";
+    ctx.font = "500 12px 'JetBrains Mono', monospace";
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     const rows = [
       ['SUN', `${f.sun.altDeg.toFixed(1)}°  ${compass(f.sun.compass)}`, '#ffb02e'],
@@ -138,7 +138,7 @@ export function createSkyView(root) {
     ctx.strokeStyle = 'rgba(0,234,255,.30)'; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(box.x, yOf(0)); ctx.lineTo(box.x + box.w, yOf(0)); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText('0°', box.x + box.w + 18, yOf(0));
     ctx.restore();
@@ -157,7 +157,7 @@ export function createSkyView(root) {
     ctx.restore();
 
     ctx.save();
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     for (let hh = 0; hh <= 24; hh += 6) {
       if (hh === 24) continue;
@@ -200,7 +200,7 @@ export function createSkyView(root) {
 
     // Hour ticks
     ctx.save();
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.strokeStyle = 'rgba(255,255,255,.10)';
     for (let hh = 0; hh <= 24; hh += 3) {
@@ -217,7 +217,7 @@ export function createSkyView(root) {
       ctx.save();
       ctx.strokeStyle = color; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x, barY - 4); ctx.lineTo(x, barY + barH); ctx.stroke();
-      ctx.font = "600 8px 'Chakra Petch', sans-serif";
+      ctx.font = "600 11.5px 'Chakra Petch', sans-serif";
       ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ctx.fillText(txt, x, barY - 5);
       ctx.restore();
@@ -242,7 +242,7 @@ export function createSkyView(root) {
 
   function noData(ctx, w, h, msg) {
     ctx.save();
-    ctx.font = "600 9px 'Chakra Petch', sans-serif";
+    ctx.font = "600 11.5px 'Chakra Petch', sans-serif";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.letterSpacing = '1.6px';
     ctx.fillText(msg.toUpperCase(), w / 2, h / 2);

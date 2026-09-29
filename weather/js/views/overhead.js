@@ -109,7 +109,7 @@ export function createOverhead(root) {
     ctx.strokeStyle = 'rgba(0,234,255,.13)';
     ctx.setLineDash([2, 4]);
     ctx.lineWidth = 1;
-    ctx.font = "500 8px 'JetBrains Mono', monospace";
+    ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = 'rgba(0,234,255,.4)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     for (const nm of [10, 20, 40]) {
@@ -162,7 +162,7 @@ export function createOverhead(root) {
       // Only label what you asked about — a hundred callsigns is a smear.
       if (on && a.cs) {
         ctx.save();
-        ctx.font = "600 9px 'Chakra Petch', sans-serif";
+        ctx.font = "600 11.5px 'Chakra Petch', sans-serif";
         ctx.letterSpacing = '1.2px';
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const w = ctx.measureText(a.cs).width + 10;
@@ -274,7 +274,7 @@ export function createOverhead(root) {
     $('o-near').innerHTML = '<div class="oh-head"><span>callsign</span><span>type</span>'
       + '<span>range</span><span>alt</span></div>' + list.map((a) => `
       <button class="oh-row" data-hex="${esc(a.hex)}" aria-pressed="${a.hex === sel}">
-        <span class="oh-cs" style="color:${altColour(a.alt, a.gnd)}">${esc(a.cs || a.reg || a.hex)}</span>
+        <span class="oh-cs" style="color:color-mix(in srgb, ${altColour(a.alt, a.gnd)} 80%, var(--ink))">${esc(a.cs || a.reg || a.hex)}</span>
         <span class="oh-t">${esc(a.type || '')}</span>
         <span class="oh-d">${(a.dst ?? 0).toFixed(1)} nm</span>
         <span class="oh-a">${a.alt == null ? '—' : `${(a.alt / 1000).toFixed(1)}k`}</span>

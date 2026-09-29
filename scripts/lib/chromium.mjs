@@ -1,9 +1,9 @@
 /**
  * Where Chromium is.
  *
- * Eleven gates spawn a headless browser and every one of them hardcoded
+ * Twelve gates spawn a headless browser and every one of them hardcoded
  * `/usr/bin/chromium`, which is right on Arch and wrong nearly everywhere
- * else. Moving this work to another machine turns that into eleven identical
+ * else. Moving this work to another machine turns that into twelve identical
  * unhelpful failures, so the answer lives in one place and says what to do
  * when it cannot find one.
  *
