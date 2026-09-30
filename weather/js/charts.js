@@ -23,8 +23,8 @@ export const STATUS = { good: '#6dff4a', warn: '#ffe14e', serious: '#ffa040', cr
 export const INK = '#d6ecfa';
 // Kept equal to core.css's --dim and --faint: the retuned ramp (FAINT was
 // #3a5064, about 2:1 on the panels, and was the colour of most chart labels).
-export const DIM = '#9ab2c5';
-export const FAINT = '#7b97ad';
+export const DIM = '#a7bdce';
+export const FAINT = '#87a2b7';
 export const GHOST = 'rgba(255,255,255,.055)';
 export const SURFACE = '#03050b';
 

@@ -181,7 +181,9 @@
 .alert-item:last-child { margin-bottom: 0; }
 .alert-item b {
   display: block; font-size: max(.68rem, var(--fs-floor, 0px)); letter-spacing: .09em; text-transform: uppercase;
-  color: var(--ac); margin-bottom: 2px;
+  /* The alert colour lifted a fifth toward --ink: pure alert red on its own
+     tinted ground measured 4.3:1 on a live Extreme Heat Watch. */
+  color: color-mix(in srgb, var(--ac) 80%, var(--ink)); margin-bottom: 2px;
 }
 .alert-item span { font-size: max(.6rem, var(--fs-floor, 0px)); color: var(--dim); font-family: var(--mono); }
 

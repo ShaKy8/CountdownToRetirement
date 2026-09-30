@@ -23,12 +23,15 @@
   /* --- text --------------------------------------------------- */
   --ink:   #d6ecfa;
   /* The grey ramp, measured on the panels' real ground (darkest/typical/
-     lightest): --ink 15.9/14.9/13.6:1, --dim ~8.8/8.2/7.5, --faint 6.4/5.9/
-     5.4 (and ~5 on the glassiest panels, which show the sky through). --faint was #3a5064, about 2:1, and was the colour of most labels;
+     lightest): --ink 15.9/14.9/13.6:1, --dim ~10/9.3/8.5, --faint ~7.4/6.9/6.3.
+     The glassy panels show the live sky through, and at dusk that pulled
+     #7b97ad to 4.1:1 on the SKY view's MOON panel, measured on production,
+     so --faint went one step lighter again. */
+  /* --faint was #3a5064, about 2:1, and was the colour of most labels;
      --dim was #7b97ad, 6.4/5.9/5.4. Three distinct steps still, all legible.
      --ghost stays for rules and fills, never for text. */
-  --dim:   #9ab2c5;
-  --faint: #7b97ad;
+  --dim:   #a7bdce;
+  --faint: #87a2b7;
   --ghost: #1e2c3a;
 
   /* --- geometry ----------------------------------------------- */
@@ -234,8 +237,9 @@ html[data-q="1"] #fx .grain { display: none; }
   font-size: max(.62rem, var(--fs-floor, 0px)); font-weight: 700; letter-spacing: .12em;
   text-transform: uppercase;
   /* The accent lifted toward --ink (it was mixed toward --dim, which put
-     the magenta headers at ~4:1). */
-  color: color-mix(in srgb, var(--ac) 80%, var(--ink));
+     the magenta headers at ~4:1). 65%, not 80%: at dusk the violet and magenta
+     headers still measured 4.0-4.4:1 on production's brighter sky. */
+  color: color-mix(in srgb, var(--ac) 65%, var(--ink));
   margin-bottom: 8px;
   flex: 0 0 auto;
   white-space: nowrap;

@@ -956,8 +956,13 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
 
 - **The grey ramp.** `--faint` was #3a5064, about 2:1 on the panels, and the
   colour of most labels (in CSS it was only ever a text colour; in the charts
-  `FAINT` filled 31 labels). Now `--faint` #7b97ad and `--dim` #9ab2c5, ~6
-  and ~9:1, with `--ink` ~16: three steps still. `charts.js`'s `DIM` and
+  `FAINT` filled 31 labels). Now `--faint` #87a2b7 and `--dim` #a7bdce, ~7
+  and ~10:1, with `--ink` ~16: three steps still. (The first retune, #7b97ad,
+  passed locally and then read 4.1:1 on production at dusk, where the live sky
+  behind the glassy panels is brighter; a live Extreme Heat Watch in alert red
+  read 4.3:1. So `--faint` went a step lighter, alert titles mix toward ink,
+  and panel headers mix their accent 65/35 with ink. Run the gate against
+  production too: its conditions are not the dev machine's.) `charts.js`'s `DIM` and
   `FAINT` must equal the tokens; a test holds them together. The dark theme
   was never the problem — its greys and its smallest sizes were.
 - **The type floor.** The root is a fixed 15px, and 50 CSS rules set labels at
@@ -978,7 +983,7 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   (2.8:1), now .8; buttons floating on the maps sat on bright tiles (2.5:1)
   and have their own ground, except toggled-on ones, which keep their cyan;
   panel headers mix their accent toward `--ink`, not `--dim` (magenta was
-  ~4:1); aircraft callsigns keep their altitude colour, lifted a fifth toward
+  ~4:1; 65% accent, since violet and magenta are dark hues); aircraft callsigns keep their altitude colour, lifted a fifth toward
   ink.
 - **The gate measures what is on screen.** Chart text is captured by wrapping
   `fillText`; an outlined label is measured against its outline; text
