@@ -128,8 +128,8 @@
     position: fixed; left: 0; right: 0; bottom: 0;
     z-index: 20;
     gap: 0;
-    background: linear-gradient(0deg, rgba(4,9,19,.97), rgba(6,12,24,.92));
-    border-top: 1px solid rgba(0,234,255,.22);
+    background: linear-gradient(0deg, color-mix(in srgb, var(--panel-solid) 97%, transparent), rgba(22,33,47,.92));
+    border-top: 1px solid color-mix(in srgb, var(--cy) 22%, transparent);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
@@ -403,8 +403,8 @@
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
-  #topbar { background: rgba(4,9,19,.96); }
-  #scrub { background: rgba(4,9,19,.96); }
+  #topbar { background: color-mix(in srgb, var(--panel-solid) 96%, transparent); }
+  #scrub { background: color-mix(in srgb, var(--panel-solid) 96%, transparent); }
 }
 
 /* Landscape on a phone: the bottom bar eats too much of a short

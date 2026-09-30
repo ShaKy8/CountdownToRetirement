@@ -151,7 +151,7 @@ export function createDeck(root) {
     ctx.restore();
     if (pts?.length) {
       ctx.save();
-      ctx.fillStyle = '#fff'; ctx.shadowColor = SERIES[0]; ctx.shadowBlur = 10;
+      ctx.fillStyle = INK; ctx.shadowColor = SERIES[0]; ctx.shadowBlur = 5;
       ctx.beginPath(); ctx.arc(pts[1]?.[0] ?? pts[0][0], pts[1]?.[1] ?? pts[0][1], 3, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
@@ -304,7 +304,7 @@ export function createDeck(root) {
     if (c && day?.tmax != null) {
       const d = day.tmax - c.normalHigh;
       anomEl.textContent = `${F.signed(d, 1)}°`;
-      anomEl.style.color = Math.abs(d) < 2 ? DIM : d > 0 ? '#ffb02e' : '#8ab6ff';
+      anomEl.style.color = Math.abs(d) < 2 ? DIM : d > 0 ? '#f2b45a' : '#7fb2f0';
     } else {
       anomEl.textContent = '--';
       anomEl.style.color = '';

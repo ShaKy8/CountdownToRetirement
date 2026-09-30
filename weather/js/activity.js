@@ -46,7 +46,7 @@ function band(v, min, best0, best1, max) {
 
 const ACTIVITIES = {
   walk: {
-    label: 'WALK', icon: '🚶', color: '#00eaff',
+    label: 'WALK', icon: '🚶', color: '#3fd0d8',
     hours: waking,
     score(h) {
       return [
@@ -63,7 +63,7 @@ const ACTIVITIES = {
     },
   },
   bike: {
-    label: 'BIKE', icon: '🚲', color: '#6dff4a',
+    label: 'BIKE', icon: '🚲', color: '#8fdc6a',
     hours: waking,
     score(h) {
       return [
@@ -80,7 +80,7 @@ const ACTIVITIES = {
     },
   },
   grill: {
-    label: 'GRILL', icon: '🔥', color: '#ffb02e',
+    label: 'GRILL', icon: '🔥', color: '#f2b45a',
     hours: waking,
     score(h) {
       return [
@@ -93,7 +93,7 @@ const ACTIVITIES = {
     },
   },
   stargaze: {
-    label: 'STARGAZE', icon: '✦', color: '#a75cff',
+    label: 'STARGAZE', icon: '✦', color: '#b39dfa',
     hours: (h) => !h.isDay,
     score(h, ctx) {
       // Only meaningful after astronomical dusk.
@@ -109,7 +109,7 @@ const ACTIVITIES = {
     },
   },
   photo: {
-    label: 'PHOTO', icon: '◎', color: '#ff2d8f',
+    label: 'PHOTO', icon: '◎', color: '#f07aa6',
     // Daylight plus the edges: golden light lives in the hour either side.
     hours: (h, ctx) => !!h.isDay || (ctx?.sunAltDeg != null && ctx.sunAltDeg > -8),
     score(h, ctx) {
@@ -126,7 +126,7 @@ const ACTIVITIES = {
     },
   },
   swim: {
-    label: 'SWIM', icon: '🏊', color: '#8ab6ff',
+    label: 'SWIM', icon: '🏊', color: '#7fb2f0',
     // Outdoors, in daylight, at an hour people swim.
     hours: (h, ctx, hod) => !!h.isDay && hod >= 7 && hod < 20,
     score(h) {
@@ -145,7 +145,7 @@ const ACTIVITIES = {
     },
   },
   openWindows: {
-    label: 'OPEN UP', icon: '🪟', color: '#3ce0c0',
+    label: 'OPEN UP', icon: '🪟', color: '#5cd6bc',
     hours: waking,
     score(h) {
       return [

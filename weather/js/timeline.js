@@ -67,7 +67,7 @@ export function createTimeline(root) {
 
     /* --- night shading --- */
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,.42)';
+    ctx.fillStyle = 'rgba(8,13,22,.4)';
     for (let i = 0; i < store.days.length; i++) {
       const d = store.days[i], next = store.days[i + 1];
       if (!d.sunset) continue;
@@ -102,7 +102,7 @@ export function createTimeline(root) {
       lg.addColorStop(i / 12, tempColor(d?.temp));
     }
     ctx.save();
-    ctx.shadowColor = alpha(SERIES[0], .8); ctx.shadowBlur = 8;
+    ctx.shadowColor = alpha(SERIES[0], .8); ctx.shadowBlur = 4;
     ctx.beginPath(); smoothPath(ctx, pts);
     ctx.strokeStyle = lg; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
     ctx.stroke();
@@ -175,7 +175,7 @@ export function createTimeline(root) {
       ctx.strokeStyle = alpha(STATUS.good, .85);
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 3]);
-      ctx.shadowColor = STATUS.good; ctx.shadowBlur = 8;
+      ctx.shadowColor = STATUS.good; ctx.shadowBlur = 4;
       ctx.beginPath();
       ctx.moveTo(Math.round(nx) + .5, box.y - 4);
       ctx.lineTo(Math.round(nx) + .5, box.y + box.h);
@@ -205,7 +205,7 @@ export function createTimeline(root) {
     ctx.save();
     ctx.strokeStyle = SERIES[1];
     ctx.lineWidth = 1.5;
-    ctx.shadowColor = SERIES[1]; ctx.shadowBlur = 14;
+    ctx.shadowColor = SERIES[1]; ctx.shadowBlur = 7;
     ctx.beginPath();
     ctx.moveTo(Math.round(cx) + .5, box.y - 6);
     ctx.lineTo(Math.round(cx) + .5, box.y + box.h + 3);

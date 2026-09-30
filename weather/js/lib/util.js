@@ -111,22 +111,22 @@ export function wxGlyph(code, isDay = true) {
 
 /** US AQI category with the official EPA colors, re-tinted for the console. */
 export function aqiCategory(aqi) {
-  if (aqi == null) return { name: 'NO DATA', color: '#6f8ba3', level: 0 };
-  if (aqi <= 50) return { name: 'GOOD', color: '#7bff5a', level: 1 };
-  if (aqi <= 100) return { name: 'MODERATE', color: '#ffe14e', level: 2 };
-  if (aqi <= 150) return { name: 'SENSITIVE GROUPS', color: '#ffa040', level: 3 };
-  if (aqi <= 200) return { name: 'UNHEALTHY', color: '#ff4d5e', level: 4 };
-  if (aqi <= 300) return { name: 'VERY UNHEALTHY', color: '#c25cff', level: 5 };
-  return { name: 'HAZARDOUS', color: '#ff2a4a', level: 6 };
+  if (aqi == null) return { name: 'NO DATA', color: '#8d9aab', level: 0 };
+  if (aqi <= 50) return { name: 'GOOD', color: '#8fdc6a', level: 1 };
+  if (aqi <= 100) return { name: 'MODERATE', color: '#ecd46a', level: 2 };
+  if (aqi <= 150) return { name: 'SENSITIVE GROUPS', color: '#f59a5b', level: 3 };
+  if (aqi <= 200) return { name: 'UNHEALTHY', color: '#f47171', level: 4 };
+  if (aqi <= 300) return { name: 'VERY UNHEALTHY', color: '#c89af5', level: 5 };
+  return { name: 'HAZARDOUS', color: '#ef5a6a', level: 6 };
 }
 
 export function uvCategory(uv) {
-  if (uv == null) return { name: 'NO DATA', color: '#6f8ba3' };
-  if (uv < 3) return { name: 'LOW', color: '#7bff5a' };
-  if (uv < 6) return { name: 'MODERATE', color: '#ffe14e' };
-  if (uv < 8) return { name: 'HIGH', color: '#ffa040' };
-  if (uv < 11) return { name: 'VERY HIGH', color: '#ff4d5e' };
-  return { name: 'EXTREME', color: '#c25cff' };
+  if (uv == null) return { name: 'NO DATA', color: '#8d9aab' };
+  if (uv < 3) return { name: 'LOW', color: '#8fdc6a' };
+  if (uv < 6) return { name: 'MODERATE', color: '#ecd46a' };
+  if (uv < 8) return { name: 'HIGH', color: '#f59a5b' };
+  if (uv < 11) return { name: 'VERY HIGH', color: '#f47171' };
+  return { name: 'EXTREME', color: '#c89af5' };
 }
 
 /**
@@ -147,25 +147,25 @@ export function burnTime(uv, skinType = 3) {
 
 /** Pollen.com publishes a 0-12 index; these are its own bands. */
 export function pollenCategory(idx) {
-  if (idx == null) return { name: 'NO DATA', color: '#6f8ba3' };
-  if (idx < 2.5) return { name: 'LOW', color: '#7bff5a' };
-  if (idx < 4.9) return { name: 'LOW-MED', color: '#c8ff4e' };
-  if (idx < 7.3) return { name: 'MEDIUM', color: '#ffe14e' };
-  if (idx < 9.7) return { name: 'MED-HIGH', color: '#ffa040' };
-  return { name: 'HIGH', color: '#ff4d5e' };
+  if (idx == null) return { name: 'NO DATA', color: '#8d9aab' };
+  if (idx < 2.5) return { name: 'LOW', color: '#8fdc6a' };
+  if (idx < 4.9) return { name: 'LOW-MED', color: '#c6dc6e' };
+  if (idx < 7.3) return { name: 'MEDIUM', color: '#ecd46a' };
+  if (idx < 9.7) return { name: 'MED-HIGH', color: '#f59a5b' };
+  return { name: 'HIGH', color: '#f47171' };
 }
 
 /** Kp 0-9 -> aurora visibility band. */
 export function kpCategory(kp) {
-  if (kp == null) return { name: 'NO DATA', color: '#6f8ba3', lat: null };
-  if (kp < 3) return { name: 'QUIET', color: '#3d7f8f', lat: 66 };
-  if (kp < 4) return { name: 'UNSETTLED', color: '#00f0ff', lat: 63 };
-  if (kp < 5) return { name: 'ACTIVE', color: '#7bff5a', lat: 60 };
-  if (kp < 6) return { name: 'G1 STORM', color: '#ffe14e', lat: 56 };
-  if (kp < 7) return { name: 'G2 STORM', color: '#ffa040', lat: 53 };
-  if (kp < 8) return { name: 'G3 STORM', color: '#ff4d5e', lat: 50 };
-  if (kp < 9) return { name: 'G4 STORM', color: '#c25cff', lat: 47 };
-  return { name: 'G5 EXTREME', color: '#ff2a4a', lat: 42 };
+  if (kp == null) return { name: 'NO DATA', color: '#8d9aab', lat: null };
+  if (kp < 3) return { name: 'QUIET', color: '#6bb3bd', lat: 66 };
+  if (kp < 4) return { name: 'UNSETTLED', color: '#3fd0d8', lat: 63 };
+  if (kp < 5) return { name: 'ACTIVE', color: '#8fdc6a', lat: 60 };
+  if (kp < 6) return { name: 'G1 STORM', color: '#ecd46a', lat: 56 };
+  if (kp < 7) return { name: 'G2 STORM', color: '#f59a5b', lat: 53 };
+  if (kp < 8) return { name: 'G3 STORM', color: '#f47171', lat: 50 };
+  if (kp < 9) return { name: 'G4 STORM', color: '#c89af5', lat: 47 };
+  return { name: 'G5 EXTREME', color: '#ef5a6a', lat: 42 };
 }
 
 /**
@@ -194,39 +194,39 @@ export function windDescription(mph) {
  * than relative humidity, which is why it gets top billing on the deck.
  */
 export function dewpointComfort(dpF) {
-  if (dpF == null) return { name: '--', color: '#6f8ba3', note: '' };
-  if (dpF < 30) return { name: 'VERY DRY', color: '#8ab6ff', note: 'static, chapped lips' };
-  if (dpF < 45) return { name: 'DRY', color: '#00f0ff', note: 'crisp and comfortable' };
-  if (dpF < 55) return { name: 'COMFORTABLE', color: '#7bff5a', note: 'ideal' };
-  if (dpF < 60) return { name: 'STICKY', color: '#c8ff4e', note: 'noticeable humidity' };
-  if (dpF < 65) return { name: 'HUMID', color: '#ffe14e', note: 'uncomfortable' };
-  if (dpF < 70) return { name: 'OPPRESSIVE', color: '#ffa040', note: 'sweat does not evaporate' };
-  if (dpF < 75) return { name: 'MISERABLE', color: '#ff4d5e', note: 'dangerous for exertion' };
-  return { name: 'LETHAL', color: '#ff2a4a', note: 'limit outdoor exposure' };
+  if (dpF == null) return { name: '--', color: '#8d9aab', note: '' };
+  if (dpF < 30) return { name: 'VERY DRY', color: '#7fb2f0', note: 'static, chapped lips' };
+  if (dpF < 45) return { name: 'DRY', color: '#3fd0d8', note: 'crisp and comfortable' };
+  if (dpF < 55) return { name: 'COMFORTABLE', color: '#8fdc6a', note: 'ideal' };
+  if (dpF < 60) return { name: 'STICKY', color: '#c6dc6e', note: 'noticeable humidity' };
+  if (dpF < 65) return { name: 'HUMID', color: '#ecd46a', note: 'uncomfortable' };
+  if (dpF < 70) return { name: 'OPPRESSIVE', color: '#f59a5b', note: 'sweat does not evaporate' };
+  if (dpF < 75) return { name: 'MISERABLE', color: '#f47171', note: 'dangerous for exertion' };
+  return { name: 'LETHAL', color: '#ef5a6a', note: 'limit outdoor exposure' };
 }
 
 /** CAPE + lifted index -> thunderstorm potential. */
 export function convectiveRisk(cape, li) {
-  if (cape == null) return { name: 'NO DATA', color: '#6f8ba3', score: 0 };
+  if (cape == null) return { name: 'NO DATA', color: '#8d9aab', score: 0 };
   let s = clamp(cape / 3000, 0, 1) * 0.7;
   if (li != null) s += clamp(-li / 8, 0, 1) * 0.3;
   const score = clamp(s, 0, 1);
-  if (cape < 300) return { name: 'STABLE', color: '#3d7f8f', score };
-  if (cape < 1000) return { name: 'MARGINAL', color: '#00f0ff', score };
-  if (cape < 2500) return { name: 'MODERATE', color: '#ffe14e', score };
-  if (cape < 4000) return { name: 'STRONG', color: '#ffa040', score };
-  return { name: 'EXTREME', color: '#ff2a4a', score };
+  if (cape < 300) return { name: 'STABLE', color: '#6bb3bd', score };
+  if (cape < 1000) return { name: 'MARGINAL', color: '#3fd0d8', score };
+  if (cape < 2500) return { name: 'MODERATE', color: '#ecd46a', score };
+  if (cape < 4000) return { name: 'STRONG', color: '#f59a5b', score };
+  return { name: 'EXTREME', color: '#ef5a6a', score };
 }
 
 /** NWS alert severity -> console color. */
 export function alertColor(event = '', severity = '') {
   const e = event.toLowerCase();
-  if (/tornado|hurricane|extreme|tsunami/.test(e)) return '#ff2a4a';
-  if (/warning/.test(e)) return '#ff4d5e';
-  if (/watch/.test(e)) return '#ffa040';
-  if (/advisory|statement/.test(e)) return '#ffe14e';
-  if (severity === 'Extreme' || severity === 'Severe') return '#ff4d5e';
-  return '#00f0ff';
+  if (/tornado|hurricane|extreme|tsunami/.test(e)) return '#ef5a6a';
+  if (/warning/.test(e)) return '#f47171';
+  if (/watch/.test(e)) return '#f59a5b';
+  if (/advisory|statement/.test(e)) return '#ecd46a';
+  if (severity === 'Extreme' || severity === 'Severe') return '#f47171';
+  return '#3fd0d8';
 }
 
 /** Local-time helpers that respect the location's timezone, not the browser's. */

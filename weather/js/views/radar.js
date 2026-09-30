@@ -132,7 +132,7 @@ export function createRadar(root) {
 
     // Crosshair graticule, purely for the control-room feel.
     ctx.save();
-    ctx.strokeStyle = 'rgba(0,234,255,.06)';
+    ctx.strokeStyle = 'rgba(63,208,216,.06)';
     ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
       ctx.beginPath();
@@ -241,8 +241,8 @@ export function createRadar(root) {
     // RainViewer colour scheme 4, labelled by intensity rather than dBZ so
     // it means something without a meteorology degree.
     const steps = [
-      ['#3ba1ff', 'light'], ['#37d67a', 'moderate'], ['#ffe14e', 'heavy'],
-      ['#ffa040', 'very heavy'], ['#ff3b57', 'intense'], ['#c25cff', 'hail'],
+      ['#62a4ef', 'light'], ['#6cc98f', 'moderate'], ['#ecd46a', 'heavy'],
+      ['#f59a5b', 'very heavy'], ['#f47171', 'intense'], ['#c89af5', 'hail'],
     ];
     $('r-legend').innerHTML =
       '<span class="lg-title">intensity</span>' +

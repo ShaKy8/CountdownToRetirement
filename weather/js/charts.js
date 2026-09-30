@@ -18,15 +18,18 @@ import { clamp, lerp } from './lib/util.js';
 // Fixed categorical order. Lime is deliberately absent: against amber it
 // falls to dE 6.6 under deuteranopia, so it is reserved for status, where it
 // always appears with a word next to it.
-export const SERIES = ['#00eaff', '#ff2d8f', '#ffb02e', '#a75cff', '#8ab6ff'];
-export const STATUS = { good: '#6dff4a', warn: '#ffe14e', serious: '#ffa040', crit: '#ff3b57' };
-export const INK = '#d6ecfa';
-// Kept equal to core.css's --dim and --faint: the retuned ramp (FAINT was
-// #3a5064, about 2:1 on the panels, and was the colour of most chart labels).
-export const DIM = '#a7bdce';
-export const FAINT = '#87a2b7';
+export const SERIES = ['#3fd0d8', '#f07aa6', '#f2b45a', '#b39dfa', '#7fb2f0'];
+export const STATUS = { good: '#8fdc6a', warn: '#ecd46a', serious: '#f59a5b', crit: '#f47171' };
+export const INK = '#dde2e8';
+// Every colour here is kept equal to its core.css token (--cy, --mg, --am,
+// --vi, --ice; --lm, --rd; --ink, --dim, --faint; --panel-solid), and a test
+// holds them together. The canvas cannot read a custom property cheaply per
+// draw, so the palette is written twice and checked once.
+export const DIM = '#b3bfcc';
+export const FAINT = '#8d9aab';
 export const GHOST = 'rgba(255,255,255,.055)';
-export const SURFACE = '#03050b';
+export const SURFACE = '#0f1826';
+export const GROUND = '#16212f';
 
 // Chart text was 9-10px. Density is decided from measured pixels (fitTicks,
 // fitStride, tagRow are ceilings), so larger labels thin out where a chart is
@@ -39,8 +42,8 @@ export const UI_LBL = "600 11.5px 'Chakra Petch', system-ui, sans-serif";
 export function tempColor(f) {
   if (f == null) return DIM;
   const stops = [
-    [-20, '#7b5cff'], [10, '#4aa8ff'], [32, '#00eaff'], [50, '#3ce0c0'],
-    [65, '#8dea4a'], [78, '#ffe14e'], [88, '#ffa040'], [100, '#ff3b57'], [115, '#ff2d8f'],
+    [-20, '#9d8ef5'], [10, '#6aa9f0'], [32, '#3fd0d8'], [50, '#5cd6bc'],
+    [65, '#a2d86a'], [78, '#ecd46a'], [88, '#f59a5b'], [100, '#f47171'], [115, '#f07aa6'],
   ];
   if (f <= stops[0][0]) return stops[0][1];
   if (f >= stops.at(-1)[0]) return stops.at(-1)[1];
@@ -217,7 +220,7 @@ export function neonLine(ctx, pts, color, { width = 2, glow = 12, closed = false
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   if (glow) {
     ctx.save();
-    ctx.shadowColor = color; ctx.shadowBlur = glow;
+    ctx.shadowColor = color; ctx.shadowBlur = glow / 2;
     ctx.strokeStyle = alpha(color, 0.55); ctx.lineWidth = width;
     path(); ctx.stroke();
     ctx.restore();
@@ -276,8 +279,17 @@ export function capBar(ctx, x, yTop, w, yBase, color, r = 3) {
   ctx.quadraticCurveTo(x + w, yTop, x + w, yTop + rr);
   ctx.lineTo(x + w, yBase);
   ctx.closePath();
+  // The body at 60%, the cap at full strength: a week of solid yellow AQI
+  // bars was the brightest area on the screen, and the value reads off the
+  // cap's edge anyway.
   ctx.fillStyle = color;
+  ctx.save();
+  ctx.globalAlpha *= 0.6;
   ctx.fill();
+  ctx.clip();
+  ctx.globalAlpha /= 0.6;
+  ctx.fillRect(x, yTop, w, Math.min(2.5, h));
+  ctx.restore();
 }
 
 /**
@@ -290,7 +302,7 @@ export function capBar(ctx, x, yTop, w, yBase, color, r = 3) {
 export function haloText(ctx, text, x, y, width = 3) {
   ctx.save();
   ctx.lineWidth = width; ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(4, 9, 19, .9)';
+  ctx.strokeStyle = alpha(GROUND, .9);
   ctx.strokeText(text, x, y);
   ctx.restore();
   ctx.fillText(text, x, y);
@@ -314,7 +326,7 @@ export function tag(ctx, x, y, text, color = FAINT, align = 'left') {
  * asked for it. Following the pointer is right for a mouse, where the
  * cursor is a few pixels wide and the hand is somewhere else entirely.
  */
-export function tooltip(ctx, x, y, lines, w, h, accent = '#00eaff', { pin = false } = {}) {
+export function tooltip(ctx, x, y, lines, w, h, accent = '#3fd0d8', { pin = false } = {}) {
   const pad = 7, lh = 13;
   ctx.save();
   ctx.font = MONO;
@@ -331,7 +343,7 @@ export function tooltip(ctx, x, y, lines, w, h, accent = '#00eaff', { pin = fals
     bx = clamp(bx, 4, Math.max(4, w - tw - 4));
   }
 
-  ctx.fillStyle = 'rgba(4,9,19,.94)';
+  ctx.fillStyle = alpha(GROUND, .94);
   ctx.strokeStyle = alpha(accent, 0.5);
   ctx.lineWidth = 1;
   const c = 5;
@@ -390,7 +402,7 @@ export function legend(ctx, x, y, items, { align = 'left' } = {}) {
 /** Shade the hours between sunset and sunrise across a time axis. */
 export function nightBands(ctx, box, days, xOf, tz) {
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,.30)';
+  ctx.fillStyle = 'rgba(8,13,22,.32)';
   for (const d of days) {
     if (!d.sunset || !d.sunrise) continue;
     // Night runs from this day's sunset to the next day's sunrise.
@@ -409,7 +421,7 @@ export function marker(ctx, x, box, color, label, { dash = null, flagTop = true 
   ctx.save();
   ctx.strokeStyle = color; ctx.lineWidth = 1;
   if (dash) ctx.setLineDash(dash);
-  ctx.shadowColor = color; ctx.shadowBlur = 8;
+  ctx.shadowColor = color; ctx.shadowBlur = 4;
   ctx.beginPath();
   ctx.moveTo(Math.round(x) + 0.5, box.y);
   ctx.lineTo(Math.round(x) + 0.5, box.y + box.h);
@@ -576,7 +588,7 @@ export function gauge(ctx, cx, cy, r, {
   // Value arc
   if (value != null && frac > 0.001) {
     ctx.save();
-    ctx.shadowColor = color; ctx.shadowBlur = 14;
+    ctx.shadowColor = color; ctx.shadowBlur = 7;
     ctx.beginPath();
     ctx.arc(cx, cy, r, A0, aVal);
     ctx.strokeStyle = color; ctx.lineWidth = 6;
@@ -587,8 +599,8 @@ export function gauge(ctx, cx, cy, r, {
     const c = Math.cos(aVal), s = Math.sin(aVal);
     ctx.beginPath();
     ctx.arc(cx + c * r, cy + s * r, 3.2, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.shadowColor = color; ctx.shadowBlur = 10;
+    ctx.fillStyle = INK;
+    ctx.shadowColor = color; ctx.shadowBlur = 5;
     ctx.fill();
     ctx.shadowBlur = 0;
   }
@@ -656,7 +668,7 @@ export function spark(ctx, box, values, {
   }
 
   ctx.save();
-  if (glow) { ctx.shadowColor = color; ctx.shadowBlur = glow; }
+  if (glow) { ctx.shadowColor = color; ctx.shadowBlur = glow / 2; }
   ctx.beginPath();
   smoothPath(ctx, pts);
   ctx.strokeStyle = color; ctx.lineWidth = width;
@@ -715,7 +727,7 @@ export function windRose(ctx, cx, cy, r, { dir, speed, gust, color = SERIES[0] }
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(a);
-    ctx.shadowColor = color; ctx.shadowBlur = 12;
+    ctx.shadowColor = color; ctx.shadowBlur = 6;
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(len, 0);
@@ -755,9 +767,9 @@ export function moonDisc(ctx, cx, cy, r, phase, fraction) {
   ctx.save();
   // Dark limb
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a1220';
+  ctx.fillStyle = '#16212f';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(138,182,255,.22)';
+  ctx.strokeStyle = 'rgba(127,178,240,.22)';
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -827,7 +839,7 @@ export function skyDome(ctx, cx, cy, r, {
   for (const alt of [30, 60]) {
     ctx.beginPath(); ctx.arc(cx, cy, (1 - alt / 90) * r, 0, Math.PI * 2); ctx.stroke();
   }
-  ctx.strokeStyle = 'rgba(0,234,255,.28)';
+  ctx.strokeStyle = 'rgba(63,208,216,.28)';
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
 
   // Cardinal spokes
@@ -859,15 +871,15 @@ export function skyDome(ctx, cx, cy, r, {
     }
     flush();
   };
-  drawTrack(sunTrack, '#ffb02e', null);
-  drawTrack(moonTrack, '#8ab6ff', [3, 3]);
+  drawTrack(sunTrack, '#f2b45a', null);
+  drawTrack(moonTrack, '#7fb2f0', [3, 3]);
 
   // Bodies
   const body = (b, color, rad) => {
     if (!b || b.alt < -2) return;
     const [x, y] = proj(b.az, Math.max(0, b.alt));
     ctx.save();
-    ctx.shadowColor = color; ctx.shadowBlur = 16;
+    ctx.shadowColor = color; ctx.shadowBlur = 8;
     ctx.fillStyle = color;
     ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
@@ -879,12 +891,12 @@ export function skyDome(ctx, cx, cy, r, {
     }
   };
   body(moon, '#c9d8f5', 5);
-  body(sun, '#ffd24a', 6.5);
+  body(sun, '#efc865', 6.5);
   if (iss) {
     const [x, y] = proj(iss.az, Math.max(0, iss.alt));
     ctx.save();
-    ctx.strokeStyle = '#6dff4a'; ctx.lineWidth = 1.5;
-    ctx.shadowColor = '#6dff4a'; ctx.shadowBlur = 10;
+    ctx.strokeStyle = '#8fdc6a'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#8fdc6a'; ctx.shadowBlur = 5;
     ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.lineTo(x + 7, y); ctx.stroke();
     ctx.restore();

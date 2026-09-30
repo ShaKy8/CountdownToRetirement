@@ -14,8 +14,8 @@
  * both map views want the same graded basemap and a divergence would show.
  */
 export const ESRI_CANVAS = 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas';
-export const ESRI_BASE_FILTER = 'grayscale(1) brightness(1.08) contrast(1.45) sepia(1) hue-rotate(152deg) saturate(2.2)';
-export const ESRI_LABEL_FILTER = 'grayscale(1) brightness(2.6) contrast(1.3) sepia(1) hue-rotate(152deg) saturate(1.2)';
+export const ESRI_BASE_FILTER = 'grayscale(1) brightness(1.18) contrast(1.05) sepia(.6) hue-rotate(170deg) saturate(1.3)';
+export const ESRI_LABEL_FILTER = 'grayscale(1) brightness(1.9) contrast(1.1) sepia(.4) hue-rotate(170deg) saturate(.8)';
 
 const TILE = 256;
 const MAX_CACHE = 600;
@@ -263,7 +263,7 @@ export class SlippyMap {
     const { ctx, w, h } = this;
     if (!w || !h) return;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#03050b';
+    ctx.fillStyle = '#0f1826';
     ctx.fillRect(0, 0, w, h);
 
     const zi = Math.max(0, Math.min(this.maxZoom, Math.round(this.zoom)));
@@ -348,7 +348,7 @@ export function drawGeometry(ctx, map, geom, { stroke, fill, width = 1.5, glow =
   if (fill) { ctx.fillStyle = fill; ctx.fill('evenodd'); }
   if (stroke) {
     ctx.save();
-    if (glow) { ctx.shadowColor = stroke; ctx.shadowBlur = glow; }
+    if (glow) { ctx.shadowColor = stroke; ctx.shadowBlur = glow / 2; }
     ctx.strokeStyle = stroke; ctx.lineWidth = width;
     ctx.stroke();
     ctx.restore();
@@ -356,9 +356,9 @@ export function drawGeometry(ctx, map, geom, { stroke, fill, width = 1.5, glow =
 }
 
 /** The "you are here" reticle. */
-export function drawMarker(ctx, x, y, color = '#ff2d8f', label = null, pulse = 0) {
+export function drawMarker(ctx, x, y, color = '#f07aa6', label = null, pulse = 0) {
   ctx.save();
-  ctx.shadowColor = color; ctx.shadowBlur = 14;
+  ctx.shadowColor = color; ctx.shadowBlur = 7;
   ctx.strokeStyle = color; ctx.lineWidth = 1.5;
 
   const r = 7;
@@ -383,7 +383,7 @@ export function drawMarker(ctx, x, y, color = '#ff2d8f', label = null, pulse = 0
     ctx.letterSpacing = '1.4px';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     const w = ctx.measureText(label).width + 10;
-    ctx.fillStyle = 'rgba(4,9,19,.85)';
+    ctx.fillStyle = 'rgba(22,33,47,.85)';
     ctx.fillRect(x + r + 8, y - 7, w, 14);
     ctx.fillStyle = color;
     ctx.fillText(label, x + r + 13, y);
@@ -401,13 +401,13 @@ export function drawScaleBar(ctx, map, x, y) {
   const px = (mi * 1609.344) / metersPerPx;
 
   ctx.save();
-  ctx.strokeStyle = 'rgba(214,236,250,.75)';
+  ctx.strokeStyle = 'rgba(221,226,232,.75)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(x, y - 4); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 4);
   ctx.stroke();
   ctx.font = "500 11.5px 'JetBrains Mono', monospace";
-  ctx.fillStyle = 'rgba(214,236,250,.75)';
+  ctx.fillStyle = 'rgba(221,226,232,.75)';
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
   ctx.fillText(`${mi} mi`, x + px / 2, y - 5);
   ctx.restore();

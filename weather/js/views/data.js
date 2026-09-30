@@ -106,8 +106,8 @@ export function createData(root) {
     a.forEach((d, i) => {
       const dev = d.mean - mean;
       const c = dev >= 0
-        ? mixHex('#7b97ad', '#ffb02e', clamp(Math.abs(dev) / 1.6, 0, 1))
-        : mixHex('#7b97ad', '#8ab6ff', clamp(Math.abs(dev) / 1.6, 0, 1));
+        ? mixHex('#8d9aab', '#f2b45a', clamp(Math.abs(dev) / 1.6, 0, 1))
+        : mixHex('#8d9aab', '#7fb2f0', clamp(Math.abs(dev) / 1.6, 0, 1));
       const y0 = yOf(mean), y1 = yOf(d.mean);
       ctx.fillStyle = alpha(c, .9);
       ctx.fillRect(xOf(i) - bw / 2, Math.min(y0, y1), bw, Math.max(1.5, Math.abs(y1 - y0)));
@@ -123,7 +123,7 @@ export function createData(root) {
     const line = a.map((d, i) => [xOf(i), yOf(sy + slope * (d.year - sx))]);
     ctx.save();
     ctx.setLineDash([5, 3]);
-    neonLine(ctx, line, slope >= 0 ? '#ffb02e' : '#8ab6ff', { width: 2, glow: 10 });
+    neonLine(ctx, line, slope >= 0 ? '#f2b45a' : '#7fb2f0', { width: 2, glow: 10 });
     ctx.restore();
 
     ctx.save();
@@ -143,7 +143,7 @@ export function createData(root) {
     ctx.letterSpacing = '1.2px';
     const trend = `TREND ${slope >= 0 ? '+' : '−'}${Math.abs(slope * 10).toFixed(2)}°F / DECADE`;
     const trendW = ctx.measureText(trend).width;
-    ctx.fillStyle = slope >= 0 ? '#ffb02e' : '#8ab6ff';
+    ctx.fillStyle = slope >= 0 ? '#f2b45a' : '#7fb2f0';
     ctx.textAlign = 'right'; ctx.textBaseline = 'top';
     ctx.fillText(trend, box.x + box.w, 3);
     ctx.restore();
@@ -162,7 +162,7 @@ export function createData(root) {
       const i = clamp(Math.round(((hover.x - box.x) / box.w) * (a.length - 1)), 0, a.length - 1);
       const d = a[i];
       ctx.save();
-      ctx.fillStyle = 'rgba(4,9,19,.94)';
+      ctx.fillStyle = 'rgba(22,33,47,.94)';
       ctx.strokeStyle = alpha(SERIES[0], .5);
       const txt = `${d.year}  ${d.mean.toFixed(2)}°F  ${d.mean - mean >= 0 ? '+' : '−'}${Math.abs(d.mean - mean).toFixed(2)} vs period mean`;
       ctx.font = "500 11.5px 'JetBrains Mono', monospace";
@@ -200,7 +200,7 @@ export function createData(root) {
           ${tf.monthDay(store.cursor)} since ${c.start.slice(0, 4)}
         </div>
         <dl style="margin:0">
-          ${kvc('Forecast high', F.temp(day.tmax), dHigh >= 0 ? '#ffb02e' : '#8ab6ff')}
+          ${kvc('Forecast high', F.temp(day.tmax), dHigh >= 0 ? '#f2b45a' : '#7fb2f0')}
           ${kv('Normal high', `${F.temp(cd.normalHigh)}  (${F.signed(dHigh)}°)`)}
           ${kvc('Record high', `${F.temp(cd.recordHigh)} in ${cd.recordHighYear}`, day.tmax >= cd.recordHigh ? STATUS.crit : DIM)}
           ${kv('Forecast low', F.temp(day.tmin))}

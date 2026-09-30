@@ -106,10 +106,10 @@ export function createSkyView(root) {
     ctx.font = "500 12px 'JetBrains Mono', monospace";
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     const rows = [
-      ['SUN', `${f.sun.altDeg.toFixed(1)}°  ${compass(f.sun.compass)}`, '#ffb02e'],
-      ['MOON', `${f.moon.altDeg.toFixed(1)}°  ${compass(f.moon.compass)}`, '#8ab6ff'],
+      ['SUN', `${f.sun.altDeg.toFixed(1)}°  ${compass(f.sun.compass)}`, '#f2b45a'],
+      ['MOON', `${f.moon.altDeg.toFixed(1)}°  ${compass(f.moon.compass)}`, '#7fb2f0'],
     ];
-    if (iss) rows.push(['ISS', `${iss.alt > 0 ? `${iss.alt.toFixed(0)}° ${compass(iss.az)}` : 'below horizon'}`, '#6dff4a']);
+    if (iss) rows.push(['ISS', `${iss.alt > 0 ? `${iss.alt.toFixed(0)}° ${compass(iss.az)}` : 'below horizon'}`, '#8fdc6a']);
     rows.forEach(([k, v, c], i) => {
       ctx.fillStyle = c; ctx.fillText(k, 10, 10 + i * 15);
       ctx.fillStyle = INK; ctx.fillText(v, 52, 10 + i * 15);
@@ -135,7 +135,7 @@ export function createSkyView(root) {
 
     // Horizon line: the only value that matters on this chart.
     ctx.save();
-    ctx.strokeStyle = 'rgba(0,234,255,.30)'; ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = 'rgba(63,208,216,.30)'; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(box.x, yOf(0)); ctx.lineTo(box.x + box.w, yOf(0)); ctx.stroke();
     ctx.setLineDash([]);
     ctx.font = "500 11.5px 'JetBrains Mono', monospace";
@@ -143,10 +143,10 @@ export function createSkyView(root) {
     ctx.fillText('0°', box.x + box.w + 18, yOf(0));
     ctx.restore();
 
-    neonLine(ctx, sun.map((p, i) => [xOf(i), yOf(p.alt)]), '#ffb02e', { width: 1.4, glow: 6 });
+    neonLine(ctx, sun.map((p, i) => [xOf(i), yOf(p.alt)]), '#f2b45a', { width: 1.4, glow: 6 });
     ctx.save();
     ctx.setLineDash([3, 3]);
-    neonLine(ctx, moon.map((p, i) => [xOf(i), yOf(p.alt)]), '#8ab6ff', { width: 1.6, glow: 7 });
+    neonLine(ctx, moon.map((p, i) => [xOf(i), yOf(p.alt)]), '#7fb2f0', { width: 1.6, glow: 7 });
     ctx.restore();
 
     // Cursor
@@ -186,14 +186,14 @@ export function createSkyView(root) {
       ctx.fillRect(x0, barY, x1 - x0, barH);
     };
 
-    ctx.fillStyle = '#05070f';
+    ctx.fillStyle = '#0f1826';
     ctx.fillRect(0, barY, w, barH);
     seg(st.nightEnd, st.nauticalDawn, 'rgba(30,20,70,.9)');
     seg(st.nauticalDawn, st.dawn, 'rgba(40,40,120,.9)');
     seg(st.dawn, st.sunrise, 'rgba(90,60,150,.9)');
-    seg(st.sunrise, st.goldenHourEnd, 'rgba(255,150,60,.85)');
+    seg(st.sunrise, st.goldenHourEnd, 'rgba(245,154,91,.85)');
     seg(st.goldenHourEnd, st.goldenHour, 'rgba(90,180,235,.75)');
-    seg(st.goldenHour, st.sunset, 'rgba(255,150,60,.85)');
+    seg(st.goldenHour, st.sunset, 'rgba(245,154,91,.85)');
     seg(st.sunset, st.dusk, 'rgba(150,70,140,.9)');
     seg(st.dusk, st.nauticalDusk, 'rgba(60,45,130,.9)');
     seg(st.nauticalDusk, st.night, 'rgba(30,20,70,.9)');
@@ -222,14 +222,14 @@ export function createSkyView(root) {
       ctx.fillText(txt, x, barY - 5);
       ctx.restore();
     };
-    label(st.sunrise, '↑', '#ffb02e');
-    label(st.sunset, '↓', '#ffb02e');
+    label(st.sunrise, '↑', '#f2b45a');
+    label(st.sunset, '↓', '#f2b45a');
 
     // Cursor
     const cx = clamp(xOf(store.cursor), 0, w);
     ctx.save();
     ctx.strokeStyle = SERIES[1]; ctx.lineWidth = 1.5;
-    ctx.shadowColor = SERIES[1]; ctx.shadowBlur = 8;
+    ctx.shadowColor = SERIES[1]; ctx.shadowBlur = 4;
     ctx.beginPath(); ctx.moveTo(cx, barY - 6); ctx.lineTo(cx, barY + barH + 2); ctx.stroke();
     ctx.restore();
   });

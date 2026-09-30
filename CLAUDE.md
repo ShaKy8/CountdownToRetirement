@@ -956,7 +956,7 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
 
 - **The grey ramp.** `--faint` was #3a5064, about 2:1 on the panels, and the
   colour of most labels (in CSS it was only ever a text colour; in the charts
-  `FAINT` filled 31 labels). Now `--faint` #87a2b7 and `--dim` #a7bdce, ~7
+  `FAINT` filled 31 labels). Then `--faint` #87a2b7 and `--dim` #a7bdce (since replaced — see Midnight Slate below), ~7
   and ~10:1, with `--ink` ~16: three steps still. (The first retune, #7b97ad,
   passed locally and then read 4.1:1 on production at dusk, where the live sky
   behind the glassy panels is brighter; a live Extreme Heat Watch in alert red
@@ -996,6 +996,45 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   grey restored it fails 217 times.
 - **Known, not from this:** `tap-audit`'s "a slide along the chart is not a
   pick" fails against production too, before any of this; unexplained.
+
+### Midnight Slate — the palette, and why it is not black
+
+Kyle, once every word passed the floor: "light gray text on a black
+background. It's very hard on the eyes." (September 30, 2026). That was
+glare, the opposite failure: #d6ecfa on #03050b is 16.7:1, and light glyphs
+on near-black bloom. He chose a dark scheme that is not black, with the
+neon toned to jewel tones. `read-audit.mjs` now holds both ends — against
+production's old palette it found **149 glare and 373 near-black** among
+1,001 runs; now none, 4.2–13.4:1 at all three sizes.
+
+- **The tokens** (core.css, the one place a hue lives): ground `--void`
+  #0f1826, panels `--panel-solid` #16212f at ~94% opacity (text sits on a
+  known ground, not on the sky), `--raised` #1c2939; `--ink` #dde2e8
+  (~12:1), `--dim` #b3bfcc, `--faint` #8d9aab; accents `--cy` #3fd0d8,
+  `--mg` #f07aa6, `--am` #f2b45a, `--lm` #8fdc6a, `--vi` #b39dfa,
+  `--rd` #f47171, `--ice` #7fb2f0 — every one ≥5:1 on `--raised`. CSS
+  literals are `color-mix()` of the tokens; `charts.js` repeats the palette
+  for the canvas (`SERIES`, `STATUS`, `INK`, `DIM`, `FAINT`, `GROUND`) and a
+  test holds the two copies together and fails on any neon left. The status
+  ramps (AQI, UV, Kp, dew point, CAPE, alerts, radar legend) moved one for
+  one, keeping their order.
+- **The gate's two new checks:** small text over 14:1 (large numerals
+  exempt), and any text whose measured ground has luminance under 0.008.
+  It samples only what a scroller shows — a row half out of a scrolling
+  panel had been measuring the gap beyond the panel as its ground.
+  `SHOTS=dir` saves every screenshot it measured; look at them.
+- **Where the black was hiding**, none of it a token: the screen-wide
+  vignette (55% black at every edge — the lower-left panel sat in it), the
+  basemap filter (`ESRI_BASE_FILTER` in `map.js`; slate land, water the
+  ground's colour), chart night bands in `rgba(0,0,0)`, and a `<button>`
+  (`.loc`) with no colour, which dark mode paints pure white.
+- **Glow is faint on purpose.** A 7px full-strength `text-shadow` blurred
+  glyph edges, and the big numerals' chromatic split was a double image;
+  both are a distant halo now. Canvas `shadowBlur` halved. Bars fill at 60%
+  with a full-strength cap (`capBar`, and the pollen outlook in CSS): a week
+  of solid yellow AQI bars was the brightest area on the screen.
+- **Not yet:** ONE PUTT and SLINGSHOT still carry the old neon tokens
+  (`game/styles.css`), and the WebGL sky is untouched.
 
 ### ACTIVITY WINDOWS — when to go and do it
 

@@ -17,7 +17,16 @@
  * early run measured whole views at opacity 0.
  *
  * Fails on: text under 11.5px; under 4.5:1 (3:1 at 24px, or 18.66px bold);
- * text hard-clipped without an ellipsis at a desktop size. One named
+ * text hard-clipped without an ellipsis at a desktop size.
+ *
+ * And at the other end, since Kyle found the console "light gray text on a
+ * black background, very hard on the eyes" once it passed all of the above:
+ * GLARE, small text over 14:1 (light glyphs on near-black bloom; the console
+ * was 16.7:1), and a NEAR-BLACK GROUND, any text whose measured ground has a
+ * luminance under 0.008 (the slate panels are ~0.015; the old ground 0.0015).
+ * Large display numerals are exempt from the glare ceiling.
+ *
+ * SHOTS=dir saves each measured screenshot as dir/<size>-<view>.png. One named
  * exception: the "//" in the ATMOS//NET logo, which is art.
  *
  *   PORT=8137 node scripts/dev-server.mjs &
@@ -154,11 +163,22 @@ for (const v of [...new Set(views)]) {
         const top = document.elementFromPoint(cx, cy);
         if (!top || !(top === el || el.contains(top) || top.contains(el))) continue;
         let op = 1; for (let e = el; e; e = e.parentElement) op *= +getComputedStyle(e).opacity;
+        // Measure only the part a scroller shows. A row half out of a
+        // scrolling panel sampled the gap beyond the panel's edge as its
+        // ground; less than half visible is not being read.
+        let vx0 = r.left, vy0 = r.top, vx1 = r.right, vy1 = r.bottom;
+        for (let e = el.parentElement; e; e = e.parentElement) {
+          const o = getComputedStyle(e);
+          if (o.overflowY === 'visible' && o.overflowX === 'visible') continue;
+          const q = e.getBoundingClientRect();
+          vx0 = Math.max(vx0, q.left); vy0 = Math.max(vy0, q.top); vx1 = Math.min(vx1, q.right); vy1 = Math.min(vy1, q.bottom);
+        }
+        if (vy1 - vy0 < r.height / 2 || vx1 - vx0 < 1) continue;
         const cls = (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/)[0] : '') || el.id && '#' + el.id || el.tagName.toLowerCase();
         const panel = el.closest('.panel');
         const ph = panel ? (panel.querySelector('.hd')?.firstChild?.textContent || panel.className).trim().slice(0, 22) : root.id || 'view';
         out.push({ kind: 'dom', where: ph, sel: el.tagName.toLowerCase() + cls, t: el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 30),
-          color: cs.color, op, px: parseFloat(cs.fontSize), bold: +cs.fontWeight >= 600, x: r.x, y: r.y, w: r.width, h: r.height });
+          color: cs.color, op, px: parseFloat(cs.fontSize), bold: +cs.fontWeight >= 600, x: vx0, y: vy0, w: vx1 - vx0, h: vy1 - vy0, clip: [vx0, vy0, vx1, vy1] });
       }
     }
     return out;
@@ -181,12 +201,15 @@ for (const v of [...new Set(views)]) {
     return out;
   })()`);
   const { result: { data } } = await S('Page.captureScreenshot', { format: 'png' });
+  if (process.env.SHOTS) fs.writeFileSync(`${process.env.SHOTS}/${W}x${H}-${v}.png`, Buffer.from(data, 'base64'));
   const png = decodePNG(Buffer.from(data, 'base64'));
   for (const it of [...(dom || []), ...(cans || [])]) {
     const col = toRGB(it.color); if (!col) continue;
     // Effective text colour: its alpha/opacity composited over the ground.
     const G = [];
-    for (let y = it.y - 2; y < it.y + it.h + 2; y += 1) for (let x = it.x - 3; x < it.x + it.w + 3; x += Math.max(1, it.w / 60)) G.push(png.px(x, y));
+    const [cx0, cy0, cx1, cy1] = it.clip || [-1e9, -1e9, 1e9, 1e9];
+    for (let y = Math.max(cy0, it.y - 2); y < Math.min(cy1, it.y + it.h + 2); y += 1)
+      for (let x = Math.max(cx0, it.x - 3); x < Math.min(cx1, it.x + it.w + 3); x += Math.max(1, it.w / 60)) G.push(png.px(x, y));
     G.sort((a, b) => lum(a) - lum(b));
     // The ground is the pixels least like the text: text is usually lighter,
     // so take the darker half's median as typical ground; else the lighter.
@@ -218,14 +241,21 @@ for (const v of [...new Set(views)]) {
 }
 ws.close(); chrome.kill();
 
-const fails = all.filter(x => !allowed(x) && (x.px < 11.5 || x.contrast < (x.large ? 3 : 4.5)));
+const GLARE = 14, BLACK = 0.008;
+const why = (x) => x.px < 11.5 ? 'small' : x.contrast < (x.large ? 3 : 4.5) ? 'faint'
+  : !x.large && x.contrast > GLARE ? 'glare' : lum(x.ground) < BLACK ? 'black ground' : null;
+const fails = all.filter(x => !allowed(x) && why(x));
 console.log(`\n  ${URL}\n`);
 for (const [W, H] of SIZES) {
   const k = `${W}x${H}`, here = all.filter(x => x.size === k), bad = fails.filter(x => x.size === k);
   const worst = here.filter(x => !allowed(x)).reduce((m, x) => Math.min(m, x.contrast), 99);
   const small = here.filter(x => !allowed(x)).reduce((m, x) => Math.min(m, x.px), 99);
-  console.log(`  ${bad.length ? 'FAIL' : 'PASS'} ${k.padEnd(10)} ${String(here.length).padStart(5)} runs of text  smallest ${small.toFixed(1)}px  lowest ${worst.toFixed(2)}:1`);
-  for (const x of bad.slice(0, 12)) console.log(`         ${x.contrast.toFixed(2)}:1 ${x.px.toFixed(1)}px  ${x.view}/${x.where}: "${x.t}" [${x.sel}] ${x.color}`);
+  const most = here.filter(x => !allowed(x) && !x.large).reduce((m, x) => Math.max(m, x.contrast), 0);
+  const darkest = here.filter(x => !allowed(x)).reduce((m, x) => Math.min(m, lum(x.ground)), 1);
+  console.log(`  ${bad.length ? 'FAIL' : 'PASS'} ${k.padEnd(10)} ${String(here.length).padStart(5)} runs of text  smallest ${small.toFixed(1)}px  contrast ${worst.toFixed(2)}-${most.toFixed(2)}:1  darkest ground ${darkest.toFixed(4)}`);
+  const tally = {}; for (const x of bad) tally[why(x)] = (tally[why(x)] || 0) + 1;
+  if (bad.length) console.log('         ' + Object.entries(tally).map(([k, n]) => `${n} ${k}`).join(', '));
+  for (const x of bad.slice(0, 12)) console.log(`         ${why(x).padEnd(12)} ${x.contrast.toFixed(2)}:1 ${x.px.toFixed(1)}px  ground ${lum(x.ground).toFixed(4)}  ${x.view}/${x.where}: "${x.t}" [${x.sel}] ${x.color}`);
 }
 console.log(`  ${clipped.length ? 'FAIL' : 'PASS'} hard-clipped text   ${clipped.length ? clipped.slice(0, 6).join(' | ') : 'none'}`);
 console.log(`\n  allowed: ${ALLOW.map(a => `"${a.t}" (${a.why})`).join('; ')}`);

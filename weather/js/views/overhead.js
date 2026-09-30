@@ -19,7 +19,7 @@
 import { store } from '../state.js';
 import { api } from '../api.js';
 import { SlippyMap, drawMarker, drawScaleBar, ESRI_CANVAS, ESRI_BASE_FILTER, ESRI_LABEL_FILTER } from '../map.js';
-import { FAINT, alpha, mixHex } from '../charts.js';
+import { FAINT, SERIES, alpha, mixHex, haloText } from '../charts.js';
 import { sunPosition, moonPosition, toCompass, toDeg, topocentric } from '../lib/astro.js';
 import { compass, clamp, escapeHtml as esc } from '../lib/util.js';
 
@@ -29,7 +29,7 @@ const PICK_PX = 24;           // how close a tap has to land, in CSS pixels
 
 /** Low is warm, high is cold — the convention every traffic display uses. */
 const altColour = (ft, ground) =>
-  (ground ? FAINT : mixHex('#ff2d8f', '#00eaff', clamp((ft ?? 0) / 38000, 0, 1)));
+  (ground ? FAINT : mixHex('#f07aa6', '#3fd0d8', clamp((ft ?? 0) / 38000, 0, 1)));
 
 export function createOverhead(root) {
   root.className = 'view overheadview';
@@ -106,17 +106,18 @@ export function createOverhead(root) {
 
     // Range rings, so "how far away is that" has an answer without tapping.
     ctx.save();
-    ctx.strokeStyle = 'rgba(0,234,255,.13)';
+    ctx.strokeStyle = 'rgba(63,208,216,.13)';
     ctx.setLineDash([2, 4]);
     ctx.lineWidth = 1;
     ctx.font = "500 11.5px 'JetBrains Mono', monospace";
-    ctx.fillStyle = 'rgba(0,234,255,.4)';
+    // Outlined, in the full accent: at .4 alpha they read only on a black map.
+    ctx.fillStyle = SERIES[0];
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     for (const nm of [10, 20, 40]) {
       const r = (nm * NM) / mPerPx;
       if (r < 24 || r > Math.max(m.w, m.h)) continue;
       ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillText(`${nm} NM`, ox, oy - r - 2);
+      haloText(ctx, `${nm} NM`, ox, oy - r - 2);
     }
     ctx.restore();
 
@@ -140,7 +141,7 @@ export function createOverhead(root) {
         }
         ctx.save();
         ctx.strokeStyle = c; ctx.lineWidth = 1.5;
-        ctx.shadowColor = c; ctx.shadowBlur = 10;
+        ctx.shadowColor = c; ctx.shadowBlur = 5;
         ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
       }
@@ -149,7 +150,7 @@ export function createOverhead(root) {
       ctx.translate(x, y);
       ctx.rotate(((a.trk ?? 0) * Math.PI) / 180);   // the glyph is drawn nose-up
       ctx.fillStyle = c;
-      if (on) { ctx.shadowColor = c; ctx.shadowBlur = 8; }
+      if (on) { ctx.shadowColor = c; ctx.shadowBlur = 4; }
       ctx.beginPath();
       ctx.moveTo(0, -6.5);
       ctx.lineTo(4.5, 5);
@@ -166,7 +167,7 @@ export function createOverhead(root) {
         ctx.letterSpacing = '1.2px';
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const w = ctx.measureText(a.cs).width + 10;
-        ctx.fillStyle = 'rgba(4,9,19,.88)';
+        ctx.fillStyle = 'rgba(22,33,47,.88)';
         ctx.fillRect(x + 16, y - 7, w, 14);
         ctx.fillStyle = c;
         ctx.fillText(a.cs, x + 21, y);
@@ -174,7 +175,7 @@ export function createOverhead(root) {
       }
     }
 
-    if (store.loc) drawMarker(ctx, ox, oy, '#ff2d8f', null);
+    if (store.loc) drawMarker(ctx, ox, oy, '#f07aa6', null);
     drawScaleBar(ctx, m, 12, m.h - 12);
   });
 
@@ -297,12 +298,12 @@ export function createOverhead(root) {
       }</dd></div>`;
     };
     const out = [
-      line('Sun', toDeg(s.altitude), toCompass(s.azimuth), '#ffb02e'),
-      line('Moon', toDeg(mo.altitude), toCompass(mo.azimuth), '#8ab6ff'),
+      line('Sun', toDeg(s.altitude), toCompass(s.azimuth), '#f2b45a'),
+      line('Moon', toDeg(mo.altitude), toCompass(mo.azimuth), '#7fb2f0'),
     ];
     out.push(iss && iss.alt > 0
-      ? line('ISS', iss.alt, iss.az, '#6dff4a')
-      : '<div class="kv"><dt style="color:#6dff4a">ISS</dt><dd><span class="dim">'
+      ? line('ISS', iss.alt, iss.az, '#8fdc6a')
+      : '<div class="kv"><dt style="color:#8fdc6a">ISS</dt><dd><span class="dim">'
         + `${iss ? `below the horizon, ${iss.range.toLocaleString()} km away` : 'no fix'}`
         + '</span></dd></div>');
     // The sun and moon follow the scrubber, so the header must not claim "now".

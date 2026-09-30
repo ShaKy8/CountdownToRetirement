@@ -84,7 +84,7 @@ export function createAir(root) {
       bands: [
         { from: 0, to: 50, color: STATUS.good }, { from: 50, to: 100, color: STATUS.warn },
         { from: 100, to: 150, color: STATUS.serious }, { from: 150, to: 200, color: STATUS.crit },
-        { from: 200, to: 300, color: '#c25cff' },
+        { from: 200, to: 300, color: '#c89af5' },
       ],
       ticks: 6,
     });
@@ -369,7 +369,7 @@ export function createAir(root) {
           ${p.forecast.map((d) => {
             const c = pollenCategory(d.index);
             return `<div>
-              <span class="bar" style="height:${clamp((d.index / 12) * 100, 4, 100)}%;background:${c.color};box-shadow:0 0 8px ${c.color}66"></span>
+              <span class="bar" style="height:${clamp((d.index / 12) * 100, 4, 100)}%;--c:${c.color}"></span>
               <b>${d.index.toFixed(1)}</b>
               <span>${tf.weekday(Date.parse(d.date))}</span>
             </div>`;

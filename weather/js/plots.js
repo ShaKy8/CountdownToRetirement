@@ -122,7 +122,7 @@ export function meteogram(ctx, w, h, hover, opts) {
       lg.addColorStop(i / 8, tempColor(d?.temp));
     }
     ctx.save();
-    ctx.shadowColor = alpha(SERIES[0], 0.9); ctx.shadowBlur = 12;
+    ctx.shadowColor = alpha(SERIES[0], 0.9); ctx.shadowBlur = 6;
     ctx.beginPath(); smoothPath(ctx, pts);
     ctx.strokeStyle = lg; ctx.lineWidth = 2.2;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -276,7 +276,7 @@ export function meteogram(ctx, w, h, hover, opts) {
     ctx.font = UI_LBL; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ['HIGH', 'MID', 'LOW'].forEach((l, j) => {
       const y = b.y + (b.h / 3) * (j + 0.5);
-      ctx.fillStyle = 'rgba(4,9,19,.75)';
+      ctx.fillStyle = 'rgba(22,33,47,.75)';
       ctx.fillRect(b.x + b.w - 30, y - 5, 30, 10);
       ctx.fillStyle = FAINT;
       haloText(ctx, l, b.x + b.w - 2, y);
@@ -391,8 +391,8 @@ export function meteogram(ctx, w, h, hover, opts) {
           : p.key === 'uv' ? d.uv : p.key === 'cape' ? d.cape : null;
         if (v == null) continue;
         ctx.save();
-        ctx.fillStyle = '#fff';
-        ctx.shadowColor = SERIES[0]; ctx.shadowBlur = 10;
+        ctx.fillStyle = INK;
+        ctx.shadowColor = SERIES[0]; ctx.shadowBlur = 5;
         ctx.beginPath(); ctx.arc(x, p.yOf(v), 3.5, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
@@ -411,7 +411,7 @@ export function meteogram(ctx, w, h, hover, opts) {
       if (boxes.uv) lines.push(`UV|${d.uv?.toFixed(1) ?? '--'}`);
       if (boxes.cape) lines.push(`CAPE|${Math.round(d.cape ?? 0)}`);
       lines.push(`SKY|${wx(Math.round(d.code ?? 0)).label}`);
-      tooltip(ctx, x, hover.y, lines, w, h, '#00eaff', { pin: hover.coarse });
+      tooltip(ctx, x, hover.y, lines, w, h, '#3fd0d8', { pin: hover.coarse });
     }
   }
 
@@ -510,7 +510,7 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
         `SPREAD|${r.spread.toFixed(1)}°`,
         `CONFIDENCE|${conf}`,
         r.precipAgree != null ? `MODELS WET|${Math.round(r.precipAgree * 100)}%` : null,
-      ].filter(Boolean), w, h, '#00eaff', { pin: hover.coarse });
+      ].filter(Boolean), w, h, '#3fd0d8', { pin: hover.coarse });
     }
   }
 }
@@ -559,9 +559,9 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
   rows.forEach((r, i) => (i ? ctx.lineTo(xOf(i), yOf(r.c.normalHigh)) : ctx.moveTo(xOf(i), yOf(r.c.normalHigh))));
   for (let i = n - 1; i >= 0; i--) ctx.lineTo(xOf(i), yOf(rows[i].c.normalLow));
   ctx.closePath();
-  ctx.fillStyle = 'rgba(123,151,173,.20)';
+  ctx.fillStyle = 'rgba(141,154,171,.20)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(123,151,173,.45)';
+  ctx.strokeStyle = 'rgba(141,154,171,.45)';
   ctx.setLineDash([3, 3]); ctx.lineWidth = 1; ctx.stroke();
   ctx.restore();
 
@@ -572,12 +572,12 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
     const anomaly = ((r.tmax - r.c.normalHigh) + (r.tmin - (r.c.normalLow ?? r.c.normalHigh))) / 2;
     const mag = clamp(Math.abs(anomaly) / 15, 0, 1);
     const col = anomaly >= 0
-      ? mixHex('#7b97ad', '#ffb02e', mag)
-      : mixHex('#7b97ad', '#8ab6ff', mag);
+      ? mixHex('#8d9aab', '#f2b45a', mag)
+      : mixHex('#8d9aab', '#7fb2f0', mag);
     const x = xOf(i) - bw / 2;
     const yT = yOf(r.tmax), yB = yOf(r.tmin);
     ctx.save();
-    ctx.shadowColor = col; ctx.shadowBlur = 10;
+    ctx.shadowColor = col; ctx.shadowBlur = 5;
     ctx.fillStyle = col;
     const rr = Math.min(4, bw / 2);
     ctx.beginPath();
@@ -617,8 +617,8 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
   ctx.restore();
 
   tagRow(ctx, box, 3, 'forecast vs climate record °F', [
-    { label: 'forecast', color: '#ffb02e' },
-    { label: 'normal', color: 'rgba(123,151,173,.7)', dash: true },
+    { label: 'forecast', color: '#f2b45a' },
+    { label: 'normal', color: 'rgba(141,154,171,.7)', dash: true },
     { label: 'record range', short: 'record', color: 'rgba(255,255,255,.2)' },
   ], { short: 'climate record °F' });
 
@@ -633,7 +633,7 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
       `HIGH vs NORMAL|${F.signed(anomalyH)}°`,
       `RECORD HIGH|${F.temp(r.c.recordHigh)} (${r.c.recordHighYear})`,
       `RECORD LOW|${F.temp(r.c.recordLow)} (${r.c.recordLowYear})`,
-    ], w, h, anomalyH >= 0 ? '#ffb02e' : '#8ab6ff', { pin: hover.coarse });
+    ], w, h, anomalyH >= 0 ? '#f2b45a' : '#7fb2f0', { pin: hover.coarse });
   }
 }
 

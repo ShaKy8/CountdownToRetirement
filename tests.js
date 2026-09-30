@@ -3297,15 +3297,29 @@ describe('WEATHER CONSOLE - Every word readable', () => {
     const L = h => { const n = parseInt(h.slice(1), 16); return 0.2126 * lin(n >> 16 & 255) + 0.7152 * lin(n >> 8 & 255) + 0.0722 * lin(n & 255); };
     const cr = (a, b) => (Math.max(L(a), L(b)) + 0.05) / (Math.min(L(a), L(b)) + 0.05);
 
-    test('The grey ramp reads on the panels, and the charts use the same greys', () => {
-        // --faint was #3a5064, about 2:1, and the colour of most labels.
+    test('Midnight Slate: no black ground, no glare, every colour readable, charts on the same palette', () => {
+        // Two passes fixed text too faint to read (--faint was #3a5064, ~2:1);
+        // then Kyle found the opposite, glare: #d6ecfa on #03050b is 16.7:1.
+        // So the ramp is held at both ends.
         const tok = n => (core.match(new RegExp('--' + n + ':\\s*(#[0-9a-f]{6})')) || [])[1];
-        for (const [n, min] of [['faint', 5], ['dim', 7], ['ink', 13]]) {
-            const c = tok(n);
-            assert.ok(c && cr(c, '#10202f') >= min, `--${n} ${c} is ${c && cr(c, '#10202f').toFixed(2)}:1 on the lightest panel ground (want ${min})`);
+        const lum = h => { const n = parseInt(h.slice(1), 16); const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); };
+        for (const g of ['void', 'panel-solid', 'raised']) {
+            assert.ok(tok(g) && lum(tok(g)) >= 0.008, `--${g} ${tok(g)} is near-black (luminance ${tok(g) && lum(tok(g)).toFixed(4)})`);
         }
-        assert.ok(cr(tok('dim'), '#070d1a') > cr(tok('faint'), '#070d1a') * 1.2, 'dim stays a clear step above faint');
-        assert.ok(charts.includes(`export const FAINT = '${tok('faint')}'`) && charts.includes(`export const DIM = '${tok('dim')}'`), 'charts.js matches core.css');
+        const panel = tok('panel-solid'), raised = tok('raised');
+        const ink = cr(tok('ink'), panel);
+        assert.ok(ink >= 11 && ink <= 14, `--ink is ${ink.toFixed(1)}:1 on the panel: comfortable is 11-14`);
+        assert.ok(cr(tok('dim'), panel) > cr(tok('faint'), panel) * 1.2 && ink > cr(tok('dim'), panel) * 1.2, 'three distinct steps');
+        for (const n of ['faint', 'dim', 'cy', 'mg', 'am', 'lm', 'vi', 'rd', 'ice']) {
+            assert.ok(cr(tok(n), raised) >= 5, `--${n} ${tok(n)} is ${cr(tok(n), raised).toFixed(2)}:1 on --raised (want 5)`);
+        }
+        const same = [[`SERIES = ['${tok('cy')}', '${tok('mg')}', '${tok('am')}', '${tok('vi')}', '${tok('ice')}']`],
+            [`good: '${tok('lm')}'`], [`crit: '${tok('rd')}'`], [`INK = '${tok('ink')}'`], [`DIM = '${tok('dim')}'`],
+            [`FAINT = '${tok('faint')}'`], [`GROUND = '${panel}'`]];
+        for (const [want] of same) assert.ok(charts.includes('export const ' + want) || charts.includes(want), 'charts.js matches core.css: ' + want);
+        // No neon survives anywhere in the console.
+        const all = [core, views, charts, fs.readFileSync(path.join(__dirname, 'weather', 'js', 'lib', 'util.js'), 'utf8')].join('\n');
+        for (const neon of ['#00eaff', '#ff2d8f', '#03050b', '#d6ecfa', '0,234,255']) assert.ok(!all.includes(neon), 'neon left: ' + neon);
     });
 
     test('Nothing is set under 12px: the floor is on everywhere', () => {
