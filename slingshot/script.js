@@ -34,9 +34,9 @@
 
     const MAX_FX = 120;              // particles alive at once
     const MAX_SCARS = 10;            // per planet, oldest dropped
-    const FX_RED = '255,59,87';      // the crash red the ghost trails already use
-    const FX_GREY = '159,182,200';
-    const FX_GREEN = '109,255,74';
+    const FX_RED = '244,113,113';      // the crash red the ghost trails already use
+    const FX_GREY = '179,191,204';
+    const FX_GREEN = '143,220,106';
 
     let W = 0, H = 0, dpr = 1, k = 1, ox = 0, oy = 0;
     let level = null, day = 0, saved = null;
@@ -406,7 +406,7 @@
     function draw() {
         if (!W) fit();
         ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = '#04070f';
+        ctx.fillStyle = '#0d1522';
         ctx.fillRect(0, 0, W, H);
 
         /*
@@ -463,7 +463,7 @@
         for (let i = 0; i < ghosts.length; i++) {
             const g = ghosts[i];
             const a = 0.10 + 0.18 * (i / Math.max(1, ghosts.length - 1));
-            ctx.strokeStyle = (g.outcome === 'crash' ? 'rgba(255,59,87,' : 'rgba(159,182,200,') +
+            ctx.strokeStyle = (g.outcome === 'crash' ? 'rgba(244,113,113,' : 'rgba(179,191,204,') +
                 a.toFixed(3) + ')';
             ctx.lineWidth = 1.2;
             ctx.beginPath();
@@ -502,25 +502,25 @@
         const t = level.target;
         const pulse = reduceMotion ? 1 : 1 + 0.12 * Math.sin(Date.now() / 320);
         const fl = beaconFlare;
-        ctx.strokeStyle = 'rgba(109,255,74,' + (0.85 + 0.15 * fl).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(143,220,106,' + (0.85 + 0.15 * fl).toFixed(3) + ')';
         ctx.lineWidth = 2.5 + 2.5 * fl;
         ctx.beginPath(); ctx.arc(X(t.x), Y(t.y), t.r * k * pulse, 0, 6.283); ctx.stroke();
-        ctx.strokeStyle = 'rgba(109,255,74,' + (0.28 + 0.4 * fl).toFixed(3) + ')'; ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(143,220,106,' + (0.28 + 0.4 * fl).toFixed(3) + ')'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(X(t.x), Y(t.y), t.r * k * 1.7 * pulse, 0, 6.283); ctx.stroke();
         if (fl > 0.02) {
-            ctx.strokeStyle = 'rgba(109,255,74,' + (0.45 * fl).toFixed(3) + ')';
+            ctx.strokeStyle = 'rgba(143,220,106,' + (0.45 * fl).toFixed(3) + ')';
             ctx.beginPath();
             ctx.arc(X(t.x), Y(t.y), t.r * k * (2.2 + 1.8 * fl), 0, 6.283);
             ctx.stroke();
         }
-        ctx.fillStyle = 'rgba(109,255,74,.9)';
+        ctx.fillStyle = 'rgba(143,220,106,.9)';
         ctx.beginPath(); ctx.arc(X(t.x), Y(t.y), 3, 0, 6.283); ctx.fill();
 
         // Launch pad.
         const L = level.launch;
-        ctx.fillStyle = '#00eaff';
+        ctx.fillStyle = '#3fd0d8';
         ctx.beginPath(); ctx.arc(X(L.x), Y(L.y), 5, 0, 6.283); ctx.fill();
-        ctx.strokeStyle = 'rgba(0,234,255,.35)'; ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(63,208,216,.35)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(X(L.x), Y(L.y), 10, 0, 6.283); ctx.stroke();
 
         /*
@@ -535,7 +535,7 @@
             const pw = (aim.v - S.SIM.V_MIN) / (S.SIM.V_MAX - S.SIM.V_MIN);
             const n = Math.min(pk.path.length, Math.round(2 * 22 * (0.45 + 0.55 * pw)));
             ctx.setLineDash([5, 5]);
-            ctx.strokeStyle = 'rgba(0,234,255,.75)'; ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(63,208,216,.75)'; ctx.lineWidth = 2;
             ctx.beginPath();
             for (let j = 0; j + 1 < n; j += 2) {
                 if (j === 0) ctx.moveTo(X(pk.path[0]), Y(pk.path[1]));
@@ -550,7 +550,7 @@
             const p = probe.path;
             if (p.length >= 2) {
                 const e = clamp(probe.i, 0, p.length - 2);
-                ctx.strokeStyle = 'rgba(0,234,255,.9)'; ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(63,208,216,.9)'; ctx.lineWidth = 2;
                 ctx.beginPath();
                 for (let j = 0; j <= e; j += 2) {
                     if (j === 0) ctx.moveTo(X(p[0]), Y(p[1]));

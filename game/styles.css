@@ -3,7 +3,9 @@
  *
  * Palette and type borrowed from the weather console (weather/css/core.css) so
  * the two read as one system - the game is driven by the same API, and should
- * look like it. The fonts are the console's own, referenced by absolute path;
+ * look like it - Midnight Slate since September 30, 2026: a slate ground,
+ * never black, off-white text at ~12:1, jewel-toned accents, faint glow. The
+ * tokens below are the console's values. The fonts are the console's own, referenced by absolute path;
  * font-display: swap means the system stack is a fine outcome if they are
  * unavailable.
  */
@@ -23,17 +25,17 @@
 }
 
 :root {
-    --void: #03050b;
-    --deep: #060a14;
-    --panel-solid: #070d1a;
-    --cy: #00eaff;
-    --mg: #ff2d8f;
-    --am: #ffb02e;
-    --lm: #6dff4a;
-    --ink: #d6ecfa;
-    --dim: #7b97ad;
-    --faint: #3a5064;
-    --edge: rgba(0, 234, 255, .26);
+    --void: #0f1826;
+    --deep: #121c2a;
+    --panel-solid: #16212f;
+    --cy: #3fd0d8;
+    --mg: #f07aa6;
+    --am: #f2b45a;
+    --lm: #8fdc6a;
+    --ink: #dde2e8;
+    --dim: #b3bfcc;
+    --faint: #8d9aab;
+    --edge: rgba(63,208,216, .26);
     --cut: 10px;
     --ui: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
     --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -46,7 +48,7 @@ body {
     margin: 0;
     min-height: 100vh;
     background:
-        radial-gradient(1200px 700px at 50% -10%, #0a1526 0%, var(--void) 62%),
+        radial-gradient(1200px 700px at 50% -10%, #1a2639 0%, var(--void) 62%),
         var(--void);
     color: var(--ink);
     font-family: var(--ui);
@@ -77,7 +79,7 @@ body {
     letter-spacing: .08em;
     padding: 7px 13px;
     border: 1px solid var(--edge);
-    background: rgba(6, 10, 20, .72);
+    background: rgba(22,33,47, .92);
 }
 
 .back-link:hover, .back-link:focus { color: var(--cy); }
@@ -99,7 +101,7 @@ body {
     letter-spacing: .28em;
     text-indent: .28em;
     color: var(--cy);
-    text-shadow: 0 0 8px rgba(0, 234, 255, .5), 0 0 26px rgba(0, 234, 255, .22);
+    text-shadow: 0 0 18px rgba(63,208,216, .22);
 }
 
 .sub {
@@ -178,7 +180,7 @@ body {
     gap: 9px;
     padding: 18px;
     text-align: center;
-    background: rgba(3, 5, 11, .88);
+    background: rgba(15,24,38, .88);
 }
 
 .result-score {
@@ -244,7 +246,7 @@ button {
 button:hover:not(:disabled) { color: var(--cy); border-color: var(--cy); }
 button:disabled { opacity: .4; cursor: not-allowed; }
 button.primary { color: var(--void); background: var(--cy); border-color: var(--cy); }
-button.primary:hover:not(:disabled) { color: var(--void); background: #6df3ff; }
+button.primary:hover:not(:disabled) { color: var(--void); background: #7fdfe5; }
 
 .controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .readouts { display: flex; gap: 16px; }

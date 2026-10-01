@@ -20,15 +20,15 @@
 }
 
 :root {
-    --ink: #eaf4ff;
-    --dim: #9fb6c8;
-    --faint: #5b7288;
-    --cy: #00eaff;
-    --am: #ffb02e;
-    --lm: #6dff4a;
-    --rd: #ff3b57;
-    --panel: rgba(4, 10, 20, .78);
-    --edge: rgba(0, 234, 255, .28);
+    --ink: #dde2e8;
+    --dim: #b3bfcc;
+    --faint: #8d9aab;
+    --cy: #3fd0d8;
+    --am: #f2b45a;
+    --lm: #8fdc6a;
+    --rd: #f47171;
+    --panel: rgba(22,33,47, .92);   /* Midnight Slate, as the console: text on a known ground */
+    --edge: rgba(63,208,216, .28);
     --cut: 10px;
     --ui: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
     --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -41,7 +41,7 @@ html, body {
     margin: 0;
     height: 100%;
     overflow: hidden;
-    background: #04070f;
+    background: #0d1522;
     color: var(--ink);
     font-family: var(--ui);
 }
@@ -93,7 +93,7 @@ html, body {
 .skip-link { position: absolute; left: -9999px; }
 .skip-link:focus {
     left: 8px; top: 8px; z-index: 200;
-    background: var(--cy); color: #04121d; padding: 10px 16px; font-weight: 600;
+    background: var(--cy); color: #0f1826; padding: 10px 16px; font-weight: 600;
 }
 
 .top { text-align: left; }
@@ -103,7 +103,7 @@ html, body {
     font-size: 1.25rem;
     letter-spacing: .3em;
     color: var(--cy);
-    text-shadow: 0 0 8px rgba(0, 234, 255, .45);
+    text-shadow: 0 0 18px rgba(63,208,216, .22);
 }
 
 .sub {
@@ -185,7 +185,7 @@ html, body {
     gap: 6px;
     padding: 14px 18px;
     text-align: center;
-    background: rgba(3, 8, 16, .94);
+    background: rgba(22,33,47, .94);
     border: 1px solid var(--edge);
     pointer-events: auto;
 }
@@ -216,7 +216,7 @@ button {
     letter-spacing: .12em;
     text-transform: uppercase;
     color: var(--ink);
-    background: rgba(6, 14, 26, .9);
+    background: rgba(22,33,47, .9);
     border: 1px solid var(--edge);
     padding: 9px 16px;
     cursor: pointer;
@@ -224,8 +224,8 @@ button {
 
 button[hidden] { display: none; }
 button:hover:not(:disabled) { color: var(--cy); border-color: var(--cy); }
-button.primary { color: #04121d; background: var(--cy); border-color: var(--cy); }
-button.primary:hover { background: #6df3ff; }
+button.primary { color: #0f1826; background: var(--cy); border-color: var(--cy); }
+button.primary:hover { background: #7fdfe5; }
 
 .say, .hint {
     margin: 0;

@@ -359,7 +359,7 @@
             ctx.fillStyle = '#1d3a5a';
             ctx.fillRect(w.x, w.y, w.w, w.h);
             const hot = wallFlash && wallFlash.wall === w ? wallFlash.t : 0;
-            ctx.strokeStyle = 'rgba(0,234,255,' + (0.55 + 0.45 * hot).toFixed(3) + ')';
+            ctx.strokeStyle = 'rgba(63,208,216,' + (0.55 + 0.45 * hot).toFixed(3) + ')';
             ctx.lineWidth = 0.4 + 0.5 * hot;
             ctx.strokeRect(w.x, w.y, w.w, w.h);
         });
@@ -435,19 +435,19 @@
         const cx = hole.cup.x, cy = hole.cup.y;
         if (near > 0 && motion()) {
             const g = ctx.createRadialGradient(cx, cy, SIM.CUP_R * 0.5, cx, cy, SIM.CUP_R * 3.2);
-            g.addColorStop(0, 'rgba(0,234,255,' + (0.35 * near).toFixed(3) + ')');
-            g.addColorStop(1, 'rgba(0,234,255,0)');
+            g.addColorStop(0, 'rgba(63,208,216,' + (0.35 * near).toFixed(3) + ')');
+            g.addColorStop(1, 'rgba(63,208,216,0)');
             ctx.fillStyle = g;
             ctx.beginPath();
             ctx.arc(cx, cy, SIM.CUP_R * 3.2, 0, Math.PI * 2);
             ctx.fill();
         }
-        ctx.fillStyle = '#04121d';
+        ctx.fillStyle = '#0f1826';
         ctx.beginPath();
         ctx.arc(cx, cy, SIM.CUP_R, 0, Math.PI * 2);
         ctx.fill();
         // The lip: a lighter rim over a dark well.
-        ctx.strokeStyle = 'rgba(0,234,255,' + (0.85 + 0.15 * near).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(63,208,216,' + (0.85 + 0.15 * near).toFixed(3) + ')';
         ctx.lineWidth = 0.45 + 0.55 * near;
         ctx.stroke();
         ctx.strokeStyle = 'rgba(0,0,0,0.5)';
@@ -462,7 +462,7 @@
         const q = flagQuiver;
         const topX = cx + (q > 0 ? Math.sin(q * 26) * q * 1.4 : 0);
         const topY = cy - 9;
-        ctx.strokeStyle = '#ff2d8f';
+        ctx.strokeStyle = '#f07aa6';
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
@@ -481,7 +481,7 @@
         const px = -d.y, py = d.x;   // perpendicular
         const tipX = topX + d.x * len + px * flap;
         const tipY = topY + d.y * len + py * flap;
-        ctx.fillStyle = '#ff2d8f';
+        ctx.fillStyle = '#f07aa6';
         ctx.beginPath();
         ctx.moveTo(topX, topY);
         ctx.lineTo(tipX, tipY);
@@ -515,7 +515,7 @@
         // The preview runs the real stepBall, so it cannot lie about the wind -
         // and it starts at the roll's own gust phase, not at zero.
         const preview = P.simulateShot(hole, ball, aim, wind, { maxSteps: 90, trace: true, t0: simTime });
-        ctx.strokeStyle = 'rgba(0,234,255,0.5)';
+        ctx.strokeStyle = 'rgba(63,208,216,0.5)';
         ctx.lineWidth = 0.35;
         ctx.setLineDash([1.6, 1.6]);
         ctx.beginPath();
@@ -525,7 +525,7 @@
         ctx.setLineDash([]);
 
         const len = 6 + aim.power * 14;
-        ctx.strokeStyle = '#ffb02e';
+        ctx.strokeStyle = '#f2b45a';
         ctx.lineWidth = 0.7;
         ctx.beginPath();
         ctx.moveTo(ball.x, ball.y);
@@ -572,7 +572,7 @@
         const back = 5 * (1 - p) * (1 - p);
         const dx = Math.cos(aim.angle), dy = Math.sin(aim.angle);
         const bx = ball.x - dx * (back + 0.6), by = ball.y - dy * (back + 0.6);
-        ctx.strokeStyle = 'rgba(255,176,46,0.9)';
+        ctx.strokeStyle = 'rgba(242,180,90,0.9)';
         ctx.lineWidth = 0.9;
         ctx.beginPath();
         ctx.moveTo(bx - dy * 1.7, by + dx * 1.7);
@@ -626,7 +626,7 @@
         if (!motion()) return;
         if (rings.length >= MAX_RINGS) rings.shift();
         rings.push({ x: x, y: y, r: o.r || 1, vr: o.vr || 12, age: 0, life: o.life || 500,
-            width: o.width || 0.4, color: o.color || '0,234,255' });
+            width: o.width || 0.4, color: o.color || '63,208,216' });
     }
 
     function updateFx(dtMs) {
@@ -670,7 +670,7 @@
     function onWall(prev, now) {
         const dvx = now.vx - prev.vx, dvy = now.vy - prev.vy;
         const dir = Math.atan2(dvy, dvx);
-        burst(now.x, now.y, 8, { dir: dir, spread: 1.4, speed: 26, life: 320, size: 0.55, colors: ['0,234,255', '180,240,255'] });
+        burst(now.x, now.y, 8, { dir: dir, spread: 1.4, speed: 26, life: 320, size: 0.55, colors: ['63,208,216', '180,240,255'] });
         wallFlash = { wall: nearestWall(now.x, now.y), t: 1 };
         kick(0.6);
         if (Audio) Audio.event('wall');
@@ -690,10 +690,10 @@
         // Recorded before any motion decision: the ball is in, whatever plays.
         drop = { t: motion() ? 0 : 1 };
         flagQuiver = motion() ? 1 : 0;
-        ring(hole.cup.x, hole.cup.y, { r: SIM.CUP_R, vr: 14, life: 520, width: 0.5, color: '0,234,255' });
+        ring(hole.cup.x, hole.cup.y, { r: SIM.CUP_R, vr: 14, life: 520, width: 0.5, color: '63,208,216' });
         if (strokes === 1) {
-            burst(hole.cup.x, hole.cup.y, 24, { speed: 34, life: 700, size: 0.8, colors: ['0,234,255', '255,45,143', '255,176,46'] });
-            ring(hole.cup.x, hole.cup.y, { r: SIM.CUP_R, vr: 26, life: 700, width: 0.7, color: '255,176,46' });
+            burst(hole.cup.x, hole.cup.y, 24, { speed: 34, life: 700, size: 0.8, colors: ['63,208,216', '240,122,166', '242,180,90'] });
+            ring(hole.cup.x, hole.cup.y, { r: SIM.CUP_R, vr: 26, life: 700, width: 0.7, color: '242,180,90' });
             kick(1.2);
             if (Audio) Audio.event('ace');
         } else if (Audio) {

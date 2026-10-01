@@ -872,6 +872,15 @@ words. That is a worse page, not a more accessible one. Controls that sit
 beside other controls do get 44, in `@media (pointer: coarse)` blocks so the
 desktop layout is untouched.
 
+**Two ways it hangs that are not the site.** A gate killed by `timeout`
+leaves its headless browser running, holding a debugging port the next run
+may pick (ports are `base + pid % 90`); find them with
+`pgrep -fa "[c]hrome-linux64/chrome --headless=new"` and kill those PIDs — never
+`pkill -f` with the pattern in the command line, which kills its own shell
+(exit 144). And on September 30, 2026 a `Runtime.evaluate` stalled at
+random pages against production and local alike, so a timeout here is not a
+verdict until the same run completes elsewhere.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
@@ -1033,8 +1042,14 @@ production's old palette it found **149 glare and 373 near-black** among
   both are a distant halo now. Canvas `shadowBlur` halved. Bars fill at 60%
   with a full-strength cap (`capBar`, and the pollen outlook in CSS): a week
   of solid yellow AQI bars was the brightest area on the screen.
-- **Not yet:** ONE PUTT and SLINGSHOT still carry the old neon tokens
-  (`game/styles.css`), and the WebGL sky is untouched.
+- **The games follow it** (September 30, 2026): `game/styles.css` and
+  `slingshot/styles.css` carry the console's token values, the canvas
+  accents (cup ring, pennant, probe, beacon, particles) moved to the jewel
+  tones, titles lost their glow, HUD panels are 92% slate, and SLINGSHOT's
+  space is navy #0d1522, not #04070f. The game *worlds* keep their own
+  materials — ONE PUTT's green, sand and water, SLINGSHOT's planets and
+  stars. ONE PUTT's labels had been the old #3a5064, ~2:1. The WebGL sky in
+  the console is untouched.
 
 ### ACTIVITY WINDOWS — when to go and do it
 
