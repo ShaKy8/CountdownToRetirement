@@ -896,7 +896,9 @@
         bump: function (state, result) {
             return { played: state.played + 1, aces: state.aces + (result.strokes === 1 ? 1 : 0) };
         },
-        maxDays: 30
+        // A full year and then some, so the year in review (/year/) has every
+        // round: 30 kept only a month. About 100 bytes a day, ~40 KB a year.
+        maxDays: 400
     });
 
     const emptyState = store.emptyState;

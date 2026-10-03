@@ -52,7 +52,15 @@ export function createElsewhere(root) {
     try {
       const j = await (await fetch(new URL(PLACES_URL, location.href), { cache: 'no-cache' })).json();
       const list = Array.isArray(j?.trips) ? j.trips : [];
-      places = list.filter((t) => t && typeof t.lat === 'number' && typeof t.lon === 'number');
+      // Places Kyle has been: a trip dated in the future (`date`, YYYY-MM or
+      // YYYY-MM-DD, in the retirement clock's stats.json) is a countdown there,
+      // not somewhere to compare yet. And a place visited twice is one row.
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const started = (t) => typeof t.date !== 'string' || (t.date.length === 7 ? `${t.date}-01` : t.date) <= today;
+      const seen = new Set();
+      places = list.filter((t) => t && typeof t.lat === 'number' && typeof t.lon === 'number' && started(t)
+        && typeof t.place === 'string' && !seen.has(t.place) && seen.add(t.place));
       if (!places.length) {
         console.warn('ELSEWHERE: trip list had no usable coordinates; using the fallback');
         places = FALLBACK;

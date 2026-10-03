@@ -229,6 +229,26 @@ function modelsURL(lat, lon) {
   });
 }
 
+/**
+ * One year of daily weather reduced to what the year in review says: the
+ * hottest, coldest and wettest day, how many days rained, how many reached
+ * 90°F, and how far the archive reaches (it lags about five days).
+ */
+export function reduceYear(raw, year) {
+  const d = (raw && raw.daily) || {};
+  const t = Array.isArray(d.time) ? d.time : [];
+  const at = (k, i) => (Array.isArray(d[k]) && Number.isFinite(d[k][i]) ? d[k][i] : null);
+  let hottest = null, coldest = null, wettest = null, rainyDays = 0, ninetyDays = 0, rain = 0, days = 0;
+  t.forEach((day, i) => {
+    const hi = at('temperature_2m_max', i), lo = at('temperature_2m_min', i), p = at('precipitation_sum', i);
+    if (hi != null) { days++; if (!hottest || hi > hottest.f) hottest = { date: day, f: Math.round(hi) }; if (hi >= 90) ninetyDays++; }
+    if (lo != null && (!coldest || lo < coldest.f)) coldest = { date: day, f: Math.round(lo) };
+    if (p != null) { rain += p; if (p >= 0.01) rainyDays++; if (p > 0 && (!wettest || p > wettest.inches)) wettest = { date: day, inches: +p.toFixed(2) }; }
+  });
+  return { year, through: t.length ? t[t.length - 1] : null, days, hottest, coldest, wettest,
+    rainyDays, ninetyDays, rain: +rain.toFixed(2) };
+}
+
 function climateURL(lat, lon) {
   const end = new Date(Date.now() - 6 * DAY).toISOString().slice(0, 10); // archive lags ~5d
   return om('archive-api.open-meteo.com/v1/archive', {
@@ -325,6 +345,31 @@ const routes = {
     const reduced = reduceClimate(raw);
     memSet(key + '_reduced', reduced, 12 * HOUR);
     return reduced;
+  },
+
+  /**
+   * The year in review's weather at home (/year/): one calendar year at one
+   * place, reduced here so the page gets a few hundred bytes. Lambda-only; the
+   * console never asks it. The page sends the city-level home from
+   * countdown/stats.json, never an address.
+   */
+  async '/api/yearwx'(q) {
+    const { lat, lon } = point(q);
+    const year = Number(q.get('year'));
+    if (!Number.isInteger(year) || year < 2026 || year > new Date().getUTCFullYear()) throw new HttpError(400, 'year');
+    const lastAvail = new Date(Date.now() - 6 * DAY).toISOString().slice(0, 10);   // archive lags ~5d
+    const start = `${year}-01-01`, end = [`${year}-12-31`, lastAvail].sort()[0];
+    if (end < start) return reduceYear(null, year);
+    const key = `yw_${year}_${lat.toFixed(2)},${lon.toFixed(2)}_${end}`;
+    const hit = memGet(key);
+    if (hit) return hit;
+    const raw = await cachedJSON(key + '_raw', 6 * HOUR, om('archive-api.open-meteo.com/v1/archive', {
+      latitude: lat.toFixed(2), longitude: lon.toFixed(2), start_date: start, end_date: end,
+      daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum', ...IMPERIAL,
+    }), { mem: false });
+    const out = reduceYear(raw, year);
+    memSet(key, out, 6 * HOUR);
+    return out;
   },
 
   async '/api/geocode'(q) {
@@ -851,6 +896,7 @@ const EDGE_CACHE = {
   '/api/bundle': 'public, s-maxage=300, stale-while-revalidate=600',
   '/api/models': 'public, s-maxage=1800, stale-while-revalidate=3600',
   '/api/climate': 'public, s-maxage=2592000, stale-while-revalidate=86400',
+  '/api/yearwx': 'public, s-maxage=21600, stale-while-revalidate=21600',
   '/api/geocode': 'public, s-maxage=86400',
   '/api/reverse': 'public, s-maxage=86400',
   '/api/pollen': 'public, s-maxage=10800, stale-while-revalidate=3600',

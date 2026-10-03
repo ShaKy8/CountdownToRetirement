@@ -28,6 +28,10 @@ const H = Number(process.argv[4] || 844);
 const port = 9200 + (process.pid % 90);
 
 const stats = JSON.parse(readFileSync(new URL('../countdown/stats.json', import.meta.url), 'utf8'));
+// The clock lists only what has happened: an entry dated in the future is a
+// countdown (Coming up). Same rule as the page, from the same file.
+import { createRequire } from 'node:module';
+const Journal = createRequire(import.meta.url)('../countdown/journal.js');
 
 // The tiles that open, and the key each entry is titled by. Mirrors LISTS in
 // countdown/script.js.
@@ -224,7 +228,7 @@ await load(true);
 for (const { key: k, title, noun, link } of TILES) {
   console.log(`\n  ${k.toUpperCase()}\n`);
   const list = stats[k];
-  const usable = list.filter(t => t && typeof t[title] === 'string' && t[title].trim());
+  const usable = list.filter(t => t && typeof t[title] === 'string' && t[title].trim() && Journal.hasStarted(t, new Date()));
   // A book still open is listed but not counted.
   const counted = usable.filter(t => t.reading !== true);
   let s = await E(STATE(k));

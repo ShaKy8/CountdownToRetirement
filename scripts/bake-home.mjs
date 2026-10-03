@@ -8,10 +8,13 @@
  * page and no network. The clause sits between two comment markers in
  * index.html and this rewrites exactly that and nothing else.
  *
- * It counts by the clock's own rules (LISTS in countdown/script.js and its
- * loader): an entry counts only if it is an object carrying its title key,
- * and a book still open (`reading: true`) is not counted, because the
- * phrase is books read. An empty list drops out rather than print "0".
+ * It counts by the clock's own rules, and since October 3, 2026 by the same
+ * code: countdown/journal.js countable(). An entry counts only if it is an
+ * object carrying its title key, a book still open (`reading: true`) is not
+ * counted because the phrase is books read, and an entry dated in the future
+ * (a booked trip, a concert with tickets) is a countdown, not a thing done.
+ * deploy.yml re-bakes daily, so the count rolls over the morning after.
+ * An empty list drops out rather than print "0".
  *
  *   node scripts/bake-home.mjs            rewrite the clause
  *   node scripts/bake-home.mjs --check    exit 1 if index.html is stale
@@ -22,6 +25,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const Journal = createRequire(import.meta.url)('../countdown/journal.js');
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OPEN = '<!-- since -->';
@@ -38,12 +44,9 @@ const ITEMS = [
   ['projects', 'what', 'thing built with AI', 'things built with AI'],
 ];
 
-/** How many entries of a list the clock would count. */
-export function countOf(stats, list, key) {
-  const a = stats && stats[list];
-  if (!Array.isArray(a)) return 0;
-  return a.filter((e) => e && typeof e === 'object' && !Array.isArray(e)
-    && typeof e[key] === 'string' && e[key].trim() && e.reading !== true).length;
+/** How many entries of a list the clock would count, as of a date. */
+export function countOf(stats, list, key, now = new Date()) {
+  return Journal.countable(stats, list, key, now).length;
 }
 
 /** The clause, for a stats object and a build date. */
@@ -51,7 +54,7 @@ export function sinceClause(stats, now = new Date()) {
   // "Since February" is plain this year; next year it would be ambiguous.
   const since = (now - RETIRED) > 300 * 86400e3 ? 'Since February 2026' : 'Since February';
   const parts = ITEMS
-    .map(([list, key, one, many]) => [countOf(stats, list, key), one, many])
+    .map(([list, key, one, many]) => [countOf(stats, list, key, now), one, many])
     .filter(([n]) => n > 0)
     .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`);
   return parts.length ? `${since}: ${parts.join(', ')}.` : `${since}: building with AI.`;

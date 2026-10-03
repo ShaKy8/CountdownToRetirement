@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Kyle's retirement clock - counting the days since retirement, or the days until it if you set your own date">
     <title>Kyle's Retirement Clock</title>
-    <link rel="stylesheet" href="styles.css?v=d76889b17a">
+    <link rel="stylesheet" href="styles.css?v=e6430c2d7d">
+    <link rel="stylesheet" href="journal.css?v=17cac72b5c">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body class="mode-countdown">
@@ -176,6 +177,20 @@
                 <span class="countup-label">days retired</span>
                 <p class="countup-breakdown" id="countup-breakdown"></p>
             </div>
+            <!-- Outside the live hero, so a ticking day count does not re-announce it. -->
+            <p class="next-up journal-extra" id="next-up" hidden></p>
+        </section>
+
+        <!--
+          Coming up, Places and the bookshelf (extras.js) are Kyle's, shown only
+          in count-up mode. They carry no data-mode: applyMode() un-hides every
+          [data-mode] element, which would flash them empty before stats.json
+          arrives. extras.js reveals each once it has something to show, and the
+          stylesheet hides .journal-extra outside count-up.
+        -->
+        <section class="coming-section journal-extra" id="coming-section" hidden aria-labelledby="coming-heading">
+            <h2 id="coming-heading">Coming up</h2>
+            <ol class="coming-list" id="coming-list"></ol>
         </section>
 
         <section aria-labelledby="metrics-heading">
@@ -332,6 +347,20 @@
                 </div>
             </div>
             <p class="stats-updated" id="stats-updated"></p>
+            <p class="year-link journal-extra" id="year-link" hidden><a href="/year/">Your year so far &rarr;</a></p>
+        </section>
+
+        <section class="places-section journal-extra" id="places-section" hidden aria-labelledby="places-heading">
+            <h2 id="places-heading">Where retirement has taken me</h2>
+            <div class="places-map" id="places-map"></div>
+            <p class="places-caption" id="places-caption"></p>
+            <p class="places-detail" id="places-detail" aria-live="polite"></p>
+        </section>
+
+        <section class="shelf-section journal-extra" id="shelf-section" hidden aria-labelledby="shelf-heading">
+            <h2 id="shelf-heading">On the shelf</h2>
+            <div class="shelf" id="shelf"><ul class="shelf-books" id="shelf-books"></ul></div>
+            <p class="shelf-caption" id="shelf-caption"></p>
         </section>
 
         <section class="progress-section" aria-labelledby="progress-heading">
@@ -392,6 +421,8 @@
     <div id="confetti-container" aria-hidden="true"></div>
 
     <script src="calc.js?v=7a69d7d148"></script>
-    <script src="script.js?v=9517432e25"></script>
+    <script src="journal.js?v=d094d8b52c"></script>
+    <script src="script.js?v=c69e21f4c6"></script>
+    <script type="module" src="extras.js?v=5a54bccd0f"></script>
 </body>
 </html>

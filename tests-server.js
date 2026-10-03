@@ -906,6 +906,34 @@ async function runSlingshotTests() {
             }
         });
 
+        // The retirement clock's journal (Coming up, Places, the bookshelf) and
+        // the year in review: each of these is also in deploy.yml's --include
+        // list, or production 404s what works here.
+        for (const p of ['/year/index.html', '/year/', '/year']) {
+            await test(`Should serve the year in review for ${p}`, async () => {
+                const { res, data } = await makeRequest({ hostname: TEST_HOST, port: TEST_PORT, path: p, method: 'GET' });
+                assert.strictEqual(res.statusCode, 200, `Should return 200 for ${p}`);
+                if (data) assert.ok(data.includes('Year in Review'), 'Should serve the year page');
+            });
+        }
+        await test('Should serve every journal asset with the right content type', async () => {
+            const assets = [
+                ['/countdown/journal.js', 'text/javascript'],
+                ['/countdown/extras.js', 'text/javascript'],
+                ['/countdown/places.js', 'text/javascript'],
+                ['/countdown/journal.css', 'text/css'],
+                ['/countdown/land.json', 'application/json'],
+                ['/year/year.js', 'text/javascript'],
+                ['/year/styles.css', 'text/css'],
+                ['/year/favicon.svg', 'image/svg+xml']
+            ];
+            for (const [p, type] of assets) {
+                const { res } = await makeRequest({ hostname: TEST_HOST, port: TEST_PORT, path: p, method: 'GET' });
+                assert.strictEqual(res.statusCode, 200, `${p} should be served`);
+                assert.ok(String(res.headers['content-type']).startsWith(type), `${p} content type: ${res.headers['content-type']}`);
+            }
+        });
+
         await test('Should load the shared module by absolute path', async () => {
             const { data } = await makeRequest({
                 hostname: TEST_HOST, port: TEST_PORT, path: '/slingshot/index.html', method: 'GET'

@@ -29,14 +29,14 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (466 tests)
+# Run client-side tests (481 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
 # refresh the ?v= content stamps in those pages (tests.js fails until you do)
 node scripts/stamp-assets.mjs
 
-# Run server integration tests (61 tests)
+# Run server integration tests (65 tests)
 # Note: Stop any running server first, tests start their own -- or, where
 # port 8000 belongs to the systemd service, run them on another port:
 PORT=8137 node tests-server.js
@@ -93,6 +93,11 @@ CountdownToRetirement/
 │   ├── calc.js             # Pure date math, shared by the page and tests.js
 │   ├── script.js           # DOM rendering, mode switching, celebration
 │   ├── stats.json          # Personal counters + the trip and concert lists (edit + push)
+│   ├── journal.js          # Pure: what has happened, what is coming, miles, the year
+│   ├── extras.js           # Coming up, Places, the bookshelf (a module)
+│   ├── places.js           # The flight-arc map (shared with /year/)
+│   ├── journal.css         # Their styles (shared with /year/)
+│   ├── land.json           # Natural Earth 1:110m coastline (scripts/make-land.mjs)
 │   ├── styles.css          # Night theme (countdown) + dawn theme (count-up)
 │   └── favicon.svg         # Beach/sunset themed favicon
 ├── game/                   # ONE PUTT - the daily putting game
@@ -104,6 +109,7 @@ CountdownToRetirement/
 │   ├── styles.css          # Console palette, borrowed from weather/css/core.css
 │   └── favicon.svg
 ├── shared/daily.js         # Seeding, API sampling, storage - shared by the games
+├── year/                   # Year in Review: index.html, year.js, styles.css, favicon.svg
 ├── slingshot/              # SLINGSHOT - a daily orbital puzzle
 │   ├── index.html          # One canvas, HUD, result card
 │   ├── orbit.js            # Pure rules: level generation + validation, gravity,
@@ -112,8 +118,8 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (466 tests)
-├── tests-server.js         # Server integration tests (61 tests)
+├── tests.js                # Client-side unit tests (481 tests)
+├── tests-server.js         # Server integration tests (65 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
     ├── deploy.yml          # Auto-deploy on push to main
@@ -564,6 +570,93 @@ asserted. Credit, in this order, Keith, Diane, Jeremiah, and Harley. The showcas
 - **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).
 - **Metric assumptions:** 8 work hours/day, 2 commutes of 30 minutes, 3 meetings and 1 alarm per workday, as constants at the top of `calc.js`.
 
+### Coming up · Places · the bookshelf (/countdown/)
+
+Kyle asked to make the vanity site more fun (October 3, 2026) and chose four
+things; three live on the clock and the fourth is /year/. The entries came
+from his calendar and mail, which he approved: the October Grants Pass trip
+(Fish Hatchery work), The Outsiders (counted as a concert, his call), two SF
+Gay Men's Chorus Holiday Spectacular shows, and Panama & the San Blas Islands.
+`node scripts/journal-audit.mjs` is the gate — both pages, three sizes, four
+"todays", expected values computed from journal.js in Node.
+
+- **Every entry is dated, and "coming up" is derived, never stored.** Each
+  entry has an ISO `date` (`YYYY-MM-DD`, or `YYYY-MM` when only the month is
+  known) and an optional `end`; `when` stays the display text. An entry
+  counts — tile, list, homepage, map, year — from its first day; before that
+  it is a countdown. So a booked trip is added once, to `trips`, and moves
+  itself. A separate `upcoming` list would have to be emptied by hand.
+- **One rule, in `countdown/journal.js`, used everywhere**: the clock's
+  `usableEntries`, `bake-home.mjs` (via `createRequire`), lists-audit,
+  journal-audit, the year page. ELSEWHERE (Weather repo) re-implements it in
+  three lines because the console is standalone, and also dedupes a place
+  visited twice (Grants Pass is in the file twice now). `tests.js` recounts
+  independently. **The homepage count is baked at deploy time, so
+  `deploy.yml` runs daily at 09:17 UTC** (site job only; the Lambda job is
+  skipped on `schedule`) — the count rolls over the morning after a trip.
+- **`?today=YYYY-MM-DD`** on /countdown/ and /year/ moves the journal's clock
+  only (never the retirement day count): testing, and a time machine.
+- **`home` in stats.json is a city, rounded to two decimals** (Mission Viejo,
+  Kyle's choice, for the arcs and the year's weather). A test pins its shape:
+  "City, State", no number, no street.
+- **Coming up**: a card per entry (two same-day shows by one act are one card
+  naming both times), states future/tomorrow/today/now ("Day 2 of 4"), a line
+  under the hero, and **the anniversary callout** — any retirement milestone
+  inside an entry's dates is named on its card. The first anniversary, Feb 27,
+  2027, is day 12 of Panama; a test pins it.
+- **Destination weather** inside 16 days, from `/weather/api/bundle` by
+  ABSOLUTE path (the ONE PUTT lesson), with the console's own `wx`/`wxGlyph`
+  and TONIGHT's `assessNights` imported from `/weather/js/lib` — dynamically,
+  only when needed. A test imports those three modules and fails if the names
+  change. A trip's nights run from its first day to its second-to-last: the
+  night before you fly in is not yours there (it named a Tuesday for a trip
+  starting Wednesday until that was fixed).
+- **Places is an offline map.** Tiles are CSP-blocked off /weather/ on purpose,
+  so the coastline ships as `land.json` (Natural Earth 110m, public domain,
+  46 KB, 18 KB gzipped). Mercator fitted to home and every place; SVG for
+  geometry, HTML for every word and pin (the sky-arc rule). Solid arcs draw in
+  once on first view; a trip still to come is a dashed, marching arc with a
+  pulsing pin. **Pins cluster by on-screen distance** (32px, WCAG 2.5.8): the
+  Bay Area, Grants Pass and San Diego are one pin on a phone and four on a
+  laptop, and the map redraws when the width changes. **It must be visible
+  before it draws** — a hidden container measures 0, which drew a phone's map
+  with a desktop's six overlapping pins; journal-audit caught what a resized
+  screenshot hid.
+- **The bookshelf** is drawn from `spineFor(title)` (FNV hash → cloth colour,
+  height, lean), so a book's spine never changes; every colour holds white
+  type at 4.5:1 (tested). The book being read leans out with a ribbon. The
+  books tile and its list are unchanged.
+- **Hidden by default, revealed by extras.js, and no `data-mode`**:
+  `applyMode()` un-hides every `[data-mode]` element, which would flash them
+  empty before stats.json arrives. `body:not(.mode-countup) .journal-extra`
+  hides them outside count-up. script.js hands stats.json over as
+  `window.__stats` plus a `stats:loaded` event, so it is fetched once.
+
+### Year in Review (/year/)
+
+Ten full-screen, scroll-snapped slides, the sky moving from dawn to night;
+numbers count up as each slide arrives (static under reduced motion);
+"2026 so far" until Dec 31; `?year=`; prints one slide per page. Linked from
+the clock ("Your 2026 so far →") and the sitemap — not the homepage, whose
+seven links are owner-approved.
+
+- **Sources:** stats.json through `Journal.yearStats`; Mondays, alarms and
+  meetings from `calc.computeWorkweekCounts` over the year's retired days;
+  ONE PUTT and SLINGSHOT from **this browser's** localStorage (same origin),
+  decoded with the games' own `parseState`; the weather at home from
+  **`/api/yearwx`**.
+- **The games keep 400 days now, not 30** (`maxDays`), so 2027 has every
+  round; 2026 falls back to the lifetime counters, which for the games' first
+  year are the truer count. ~40 KB a year. The two history tests moved their
+  boundary to 400 rather than going away.
+- **`/api/yearwx?lat&lon&year`** (Lambda only): `point(q)`, year 2026…now,
+  one calendar year from Open-Meteo's archive (it lags ~5 days, and the slide
+  says "through Sep 27"), reduced server-side by the exported `reduceYear` to
+  hottest, coldest, wettest, rainy days and days at 90°F+. Edge-cached 6 hours.
+  Its 400s are tested to reach no upstream, like the other routes.
+- **Each sky carries its ink** (dark to golden hour, white from sunset), and a
+  test checks the ink against both ends of all ten gradients.
+
 ### ONE PUTT (/game/)
 - **One hole a day, rolling over at LOCAL midnight.** `putt.js` `puzzleDay()` keys
   off the player's local calendar date, as Wordle does. This still gives everyone
@@ -844,11 +937,11 @@ each needs a deliberate move:
 
 Two things the code needs from the machine, both asserted by tests:
 
-- **Node 22 or newer.** All twelve gates speak CDP over a global `WebSocket` with
+- **Node 22 or newer.** All thirteen gates speak CDP over a global `WebSocket` with
   nothing to install; on an older Node they fail deep inside a browser session
   rather than up front.
 - **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
-  it from a candidate list and `$CHROMIUM` overrides. All twelve gates used to
+  it from a candidate list and `$CHROMIUM` overrides. All the gates used to
   hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
   and one wrong assumption became twelve identical unhelpful failures.
 

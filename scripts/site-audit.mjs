@@ -71,6 +71,7 @@ const PAGES = [
   ['/slingshot/', '/slingshot/', 4500],
   ['/weather/', '/weather/', 13000],
   ['/fish-hatchery/', '/fish-hatchery/', 2500],
+  ['/year/', '/year/', 3500],
 ];
 
 const rows = [];

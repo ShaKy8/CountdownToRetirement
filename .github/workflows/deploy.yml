@@ -28,11 +28,20 @@ on:
       - 'game/**'
       - 'slingshot/**'
       - 'fish-hatchery/**'
+      - 'year/**'
       - 'shared/**'
       - 'weather/**'
       - 'lambda/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
+  # Daily, so what is counted by date rolls over without a push: a booked trip
+  # or a concert in countdown/stats.json is a countdown until its day, and the
+  # homepage's baked "N trips, N concerts" picks it up the morning after.
+  # 09:17 UTC is 02:17 Pacific in summer, 01:17 in winter. Only the site job
+  # runs; the Lambda is not redeployed for a date. (GitHub pauses schedules in
+  # a repo with no commits for 60 days.)
+  schedule:
+    - cron: '17 9 * * *'
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -86,6 +95,7 @@ jobs:
             --include 'slingshot/index.html' \
             --include 'weather/index.html' \
             --include 'fish-hatchery/index.html' \
+            --include 'year/index.html' \
             --cache-control 'public, max-age=300'
 
       - name: Sync assets
@@ -96,6 +106,10 @@ jobs:
             --include 'countdown/script.js' --include 'countdown/calc.js' \
             --include 'countdown/styles.css' --include 'countdown/favicon.svg' \
             --include 'countdown/stats.json' \
+            --include 'countdown/journal.js' --include 'countdown/extras.js' \
+            --include 'countdown/places.js' --include 'countdown/journal.css' \
+            --include 'countdown/land.json' \
+            --include 'year/year.js' --include 'year/styles.css' --include 'year/favicon.svg' \
             --include 'shared/daily.js' \
             --include 'game/script.js' --include 'game/audio.js' \
             --include 'game/putt.js' --include 'game/styles.css' \
@@ -139,6 +153,7 @@ jobs:
 
   api:
     name: Weather API → Lambda
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

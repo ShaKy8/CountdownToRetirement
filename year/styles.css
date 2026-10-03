@@ -1,0 +1,214 @@
+/*
+ * The year in review. One slide per fact, full screen, and the sky moves from
+ * dawn at the top to night at the bottom. Each sky carries its own ink: dark
+ * on the bright skies, white from sunset on, chosen so every slide's text
+ * clears 4.5:1 against both ends of its gradient (tests.js checks the pairs).
+ * System fonts only; the site's CSP allows no others.
+ */
+
+:root {
+    --ink-dark: #241c2b;
+    --ink-light: #fbf6ee;
+    --accent: #9c3a22;
+    color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html {
+    scroll-snap-type: y proximity;
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: var(--ink-dark);
+    background: #0f1424;
+    line-height: 1.45;
+}
+
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus { left: 12px; top: 12px; z-index: 50; background: #fff; color: #000; padding: 8px 12px; }
+
+.back-link,
+.years a {
+    position: fixed;
+    z-index: 20;
+    top: 12px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    color: #241c2b;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.back-link { left: 12px; }
+.years { position: fixed; top: 12px; right: 12px; z-index: 20; display: flex; gap: 6px; }
+.years a { position: static; }
+.years a[aria-current="page"] { background: #241c2b; color: #fff; }
+
+.slide {
+    min-height: 100svh;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 72px 20px 48px;
+    text-align: center;
+}
+
+/* Dawn to night. ink is the colour every word on that slide uses. */
+.slide[data-sky="0"] { background: linear-gradient(180deg, #ffb88c, #f6d365); }
+.slide[data-sky="1"] { background: linear-gradient(180deg, #f6d365, #fde9b8); }
+.slide[data-sky="2"] { background: linear-gradient(180deg, #a1c4fd, #e0ecff); }
+.slide[data-sky="3"] { background: linear-gradient(180deg, #8fd3f4, #c2e9fb); }
+.slide[data-sky="4"] { background: linear-gradient(180deg, #fbc2a4, #fde1c8); }
+.slide[data-sky="5"] { background: linear-gradient(180deg, #f6a35a, #f7c873); }
+.slide[data-sky="6"] { background: linear-gradient(180deg, #a8443b, #6e3a66); color: var(--ink-light); }
+.slide[data-sky="7"] { background: linear-gradient(180deg, #6e3a66, #3b3f6b); color: var(--ink-light); }
+.slide[data-sky="8"] { background: linear-gradient(180deg, #3b3f6b, #1f2547); color: var(--ink-light); }
+.slide[data-sky="9"] {
+    background:
+        radial-gradient(1.5px 1.5px at 12% 20%, #fff, transparent),
+        radial-gradient(1px 1px at 72% 12%, #fff, transparent),
+        radial-gradient(1.5px 1.5px at 40% 34%, #fff, transparent),
+        radial-gradient(1px 1px at 88% 44%, #fff, transparent),
+        radial-gradient(1px 1px at 22% 66%, #fff, transparent),
+        linear-gradient(180deg, #1f2547, #0f1424);
+    color: var(--ink-light);
+}
+
+.kicker {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.huge {
+    margin: 0;
+    font-size: clamp(5rem, 24vw, 13rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+}
+
+.big {
+    margin: 0;
+    font-size: clamp(2.6rem, 10vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1;
+}
+
+.lede { margin: 0; font-size: clamp(1.1rem, 3.6vw, 1.5rem); font-weight: 600; max-width: 36rem; }
+.small { margin: 0; font-size: 1rem; max-width: 36rem; }
+.hint { margin: 24px 0 0; font-weight: 600; opacity: 0.85; }
+
+.count { font-variant-numeric: tabular-nums; }
+
+.stats {
+    margin: 10px 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    width: min(100%, 760px);
+}
+.stats > div {
+    padding: 16px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.45);
+}
+.slide[data-sky="6"] .stats > div,
+.slide[data-sky="7"] .stats > div,
+.slide[data-sky="8"] .stats > div { background: rgba(0, 0, 0, 0.22); }
+.stats dt { font-size: 0.95rem; font-weight: 700; }
+.stats dd { margin: 4px 0 0; font-size: clamp(1.9rem, 7vw, 3rem); font-weight: 800; line-height: 1.05; }
+.stats dd small { display: block; font-size: 0.9rem; font-weight: 600; margin-top: 4px; }
+
+.slide .places-map { width: min(100%, 820px); }
+
+.chips, .built, .milestones, .booked {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    max-width: 760px;
+}
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.chips li {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.55);
+    font-weight: 600;
+}
+
+.slide .shelf { width: min(100%, 560px); }
+
+.built { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; width: min(100%, 860px); }
+.built li { padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.5); text-align: left; }
+.built a, .built span { font-weight: 700; color: inherit; }
+.built a { text-underline-offset: 3px; display: inline-block; padding: 2px 0; }
+.built small { display: block; font-size: 0.85rem; }
+
+.games { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; width: min(100%, 760px); }
+.game {
+    padding: 16px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.22);
+    text-align: left;
+}
+.game h3 { margin: 0 0 8px; font-size: 1.3rem; }
+.game dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+.game dt { font-weight: 600; }
+.game dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.game a { color: inherit; font-weight: 700; display: inline-block; margin-top: 10px; padding: 2px 0; }
+
+.milestones { display: grid; gap: 8px; }
+.milestones li, .booked li {
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.22);
+    font-weight: 600;
+}
+.booked { display: grid; gap: 8px; width: min(100%, 560px); }
+.booked li { text-align: left; }
+.booked b { display: block; font-size: 1.1rem; }
+
+.cta {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: var(--ink-light);
+    color: #241c2b;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+[hidden] { display: none !important; }
+
+@media (max-width: 600px) {
+    .slide { padding: 64px 14px 40px; }
+    .back-link, .years a { font-size: 0.85rem; padding: 6px 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+}
+
+@media (prefers-contrast: high) {
+    .slide { background: #000 !important; color: #fff !important; }
+    .stats > div, .chips li, .built li, .game, .milestones li, .booked li { background: #000 !important; border: 2px solid #fff; }
+}
+
+/* One slide per page, so the year prints (or saves as a PDF) as a little book. */
+@media print {
+    html { scroll-snap-type: none; }
+    .back-link, .years, .hint, .skip-link { display: none; }
+    .slide { min-height: 100vh; break-after: page; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

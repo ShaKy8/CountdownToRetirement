@@ -614,11 +614,17 @@ function listEls(key) {
  * A link survives only as a root-relative path or an https URL. The file is
  * hand-edited and the panel is on a public page: "javascript:" is a script,
  * and an http link to a site that is https is a warning in the console.
+ *
+ * An entry dated in the future is a countdown (Coming Up), not a thing done,
+ * so it is neither counted nor listed until its day arrives -- the same rule
+ * the homepage bake uses, from journal.js, so the two cannot disagree.
  */
+const JOURNAL_TODAY = window.Journal ? window.Journal.todayFrom(location.search) : new Date();
 function usableEntries(list, spec) {
     if (!Array.isArray(list) || !spec || !spec.title) return [];
     return list.reduce((out, entry) => {
         if (!entry || typeof entry !== 'object') return out;
+        if (window.Journal && !window.Journal.hasStarted(entry, JOURNAL_TODAY)) return out;
         const text = key => (typeof entry[key] === 'string' ? entry[key].trim() : '');
         const title = text(spec.title);
         const url = spec.link ? text(spec.link) : '';
@@ -970,6 +976,11 @@ function loadPersonalStats() {
                 }
             });
             Object.keys(LISTS).forEach(key => renderList(key, entriesOf(key)));
+
+            // Coming Up, Places and the bookshelf (extras.js, a module) draw
+            // from the same file; hand it over rather than fetch it twice.
+            window.__stats = stats;
+            window.dispatchEvent(new CustomEvent('stats:loaded', { detail: stats }));
 
             if (typeof stats.updated === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(stats.updated)) {
                 const [y, m, d] = stats.updated.split('-').map(Number);

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Year in Review · BranyonTech</title>
+    <meta name="description" content="Kyle's year in retirement: the trips, concerts, books, things built, games and weather, one slide at a time.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="/countdown/journal.css?v=17cac72b5c">
+    <link rel="stylesheet" href="styles.css?v=157ee53329">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="/countdown/" class="back-link" aria-label="Back to the retirement clock">&larr; Retirement clock</a>
+    <nav class="years" id="years" aria-label="Other years"></nav>
+
+    <!--
+      One slide per fact, full screen, scroll-snapped: dawn at the top, night at
+      the bottom. Every number is filled by year.js from countdown/stats.json,
+      this browser's game records and /weather/api/yearwx; nothing is typed
+      here. A slide with nothing to say hides itself.
+    -->
+    <main id="main-content" class="slides">
+        <section class="slide" data-sky="0" id="s-cover" aria-labelledby="cover-title">
+            <p class="kicker" id="cover-kicker">Year one of retirement</p>
+            <h1 class="huge" id="cover-title">—</h1>
+            <p class="lede"><span class="count" id="cover-days" data-to="0">0</span> days retired<span id="cover-through"></span></p>
+            <p class="hint" aria-hidden="true">Scroll ↓</p>
+        </section>
+
+        <section class="slide" data-sky="1" id="s-freedom" aria-labelledby="freedom-title">
+            <h2 class="kicker" id="freedom-title">Freedom, by the numbers</h2>
+            <dl class="stats">
+                <div><dt>Mondays dodged</dt><dd class="count" id="f-mondays" data-to="0">0</dd></div>
+                <div><dt>Alarms not set</dt><dd class="count" id="f-alarms" data-to="0">0</dd></div>
+                <div><dt>Meetings skipped</dt><dd class="count" id="f-meetings" data-to="0">0</dd></div>
+                <div><dt>Work hours reclaimed</dt><dd class="count" id="f-hours" data-to="0">0</dd></div>
+            </dl>
+        </section>
+
+        <section class="slide" data-sky="2" id="s-miles" aria-labelledby="miles-title">
+            <h2 class="kicker" id="miles-title">Where the year went</h2>
+            <p class="big"><span class="count" id="m-miles" data-to="0">0</span> miles</p>
+            <p class="lede" id="m-trips"></p>
+            <div class="places-map" id="m-map"></div>
+            <p class="small" id="m-longest"></p>
+        </section>
+
+        <section class="slide" data-sky="3" id="s-concerts" aria-labelledby="concerts-title">
+            <h2 class="kicker" id="concerts-title">Live and in person</h2>
+            <p class="big"><span class="count" id="c-count" data-to="0">0</span> <span id="c-word">concerts</span></p>
+            <ul class="chips" id="c-list"></ul>
+            <p class="lede" id="c-most"></p>
+        </section>
+
+        <section class="slide" data-sky="4" id="s-books" aria-labelledby="books-title">
+            <h2 class="kicker" id="books-title">On the shelf</h2>
+            <p class="big"><span class="count" id="b-count" data-to="0">0</span> <span id="b-word">books</span></p>
+            <div class="shelf"><ul class="shelf-books" id="b-shelf"></ul></div>
+            <p class="small" id="b-reading"></p>
+        </section>
+
+        <section class="slide" data-sky="5" id="s-built" aria-labelledby="built-title">
+            <h2 class="kicker" id="built-title">Built with AI</h2>
+            <p class="big"><span class="count" id="p-count" data-to="0">0</span> <span id="p-word">things</span></p>
+            <ul class="built" id="p-list"></ul>
+        </section>
+
+        <section class="slide" data-sky="6" id="s-games" aria-labelledby="games-title">
+            <h2 class="kicker" id="games-title">Played</h2>
+            <div class="games" id="g-games"></div>
+            <p class="small" id="g-note"></p>
+        </section>
+
+        <section class="slide" data-sky="7" id="s-weather" aria-labelledby="weather-title">
+            <h2 class="kicker" id="weather-title">The weather at home</h2>
+            <dl class="stats" id="w-stats"></dl>
+            <p class="small" id="w-note"></p>
+        </section>
+
+        <section class="slide" data-sky="8" id="s-milestones" aria-labelledby="ms-title">
+            <h2 class="kicker" id="ms-title">Milestones</h2>
+            <ol class="milestones" id="ms-list"></ol>
+            <p class="lede" id="ms-next"></p>
+        </section>
+
+        <section class="slide" data-sky="9" id="s-next" aria-labelledby="next-title">
+            <h2 class="kicker" id="next-title">Already booked</h2>
+            <ol class="booked" id="n-list"></ol>
+            <p class="lede" id="n-end"></p>
+            <p><a class="cta" href="/countdown/">Back to the retirement clock</a></p>
+        </section>
+    </main>
+
+    <script src="/countdown/calc.js?v=7a69d7d148"></script>
+    <script src="/countdown/journal.js?v=d094d8b52c"></script>
+    <script src="/shared/daily.js?v=be6754e8a4"></script>
+    <script src="/game/putt.js?v=6b68ea8468"></script>
+    <script src="/slingshot/orbit.js?v=d0b1f5bc57"></script>
+    <script type="module" src="year.js?v=0262c9f1e5"></script>
+</body>
+</html>

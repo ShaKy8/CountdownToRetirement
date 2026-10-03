@@ -1403,8 +1403,14 @@ describe('BUSINESS SITE - HTML Structure', () => {
         // own rules: an entry is an object with its title key, and a book
         // still open is not a book read.
         const stats = JSON.parse(fs.readFileSync(path.join(__dirname, 'countdown', 'stats.json'), 'utf8'));
+        // An entry dated after today is a countdown, not a thing done. Parsed
+        // here independently of journal.js: the start is `date`, YYYY-MM or
+        // YYYY-MM-DD, compared as a string against today's YYYY-MM-DD.
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const started = e => typeof e.date !== 'string' || (e.date.length === 7 ? e.date + '-01' : e.date) <= today;
         const count = (list, key) => (stats[list] || []).filter(e => e && typeof e === 'object'
-            && typeof e[key] === 'string' && e[key].trim() && e.reading !== true).length;
+            && typeof e[key] === 'string' && e[key].trim() && e.reading !== true && started(e)).length;
         const n = { trips: count('trips', 'place'), concerts: count('concerts', 'who'),
             books: count('books', 'title'), projects: count('projects', 'what') };
         const clause = indexHtml.split('<!-- since -->')[1].split('<!-- /since -->')[0];
@@ -1851,7 +1857,8 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
         const photos = fs.readdirSync(path.join(__dirname, 'fish-hatchery', 'assets'))
             .filter(f => f.endsWith('.webp')).map(f => `assets/${f}`);
         const STAMPED_PAGES = {
-            countdown: ['calc.js', 'script.js', 'styles.css'],
+            countdown: ['calc.js', 'extras.js', 'journal.css', 'journal.js', 'script.js', 'styles.css'],
+            year: ['/countdown/calc.js', '/countdown/journal.css', '/countdown/journal.js', '/game/putt.js', '/shared/daily.js', '/slingshot/orbit.js', 'styles.css', 'year.js'],
             game: ['/shared/daily.js', 'audio.js', 'putt.js', 'script.js', 'styles.css'],
             slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],
             'fish-hatchery': ['app.js', 'styles.css', ...photos].sort(),
@@ -1935,10 +1942,17 @@ describe('BUSINESS SITE - Personal stats file', () => {
     });
     const listKeys = Object.keys(listTitles);
 
-    test('stats.json should carry nothing but the lists and the updated date', () => {
+    test('stats.json should carry nothing but the lists, home and the updated date', () => {
         // Every counter is a list now, and its number is the list's length.
         // A stray plain number would be a tile that cannot say what it counts.
-        assert.deepStrictEqual(Object.keys(stats).sort(), ['books', 'concerts', 'projects', 'trips', 'updated']);
+        // home is where the Places map's arcs start: a city, never an address.
+        assert.deepStrictEqual(Object.keys(stats).sort(), ['books', 'concerts', 'home', 'projects', 'trips', 'updated']);
+        assert.deepStrictEqual(Object.keys(stats.home).sort(), ['lat', 'lon', 'place']);
+        assert.ok(/^[^,0-9]+, [A-Za-z ]+$/.test(stats.home.place), 'home is "City, State": no street, no number');
+        for (const k of ['lat', 'lon']) {
+            assert.ok(typeof stats.home[k] === 'number' && Math.round(stats.home[k] * 100) === stats.home[k] * 100,
+                `home.${k} is rounded to 2 decimals (a kilometre), not a doorstep`);
+        }
     });
 
     test('A book still being read should be listed but not counted', () => {
@@ -2844,11 +2858,14 @@ describe('ONE PUTT - Saved state and streaks', () => {
         assert.strictEqual(s.aces, 1);
     });
 
-    test('Should keep the history small', () => {
+    test('Should keep the history bounded', () => {
+        // A year and a bit (400 days, since October 3, 2026), so the year in
+        // review has every round -- but never unbounded: localStorage is small.
         let s = Putt.emptyState();
-        for (let d = 1; d <= 100; d++) s = Putt.recordDaily(s, d, res);
-        assert.ok(Object.keys(s.days).length <= 30, `Kept ${Object.keys(s.days).length} days`);
-        assert.ok(s.days['100'], 'The most recent day should survive');
+        for (let d = 1; d <= 1000; d++) s = Putt.recordDaily(s, d, res);
+        assert.ok(Object.keys(s.days).length <= 400, `Kept ${Object.keys(s.days).length} days`);
+        assert.ok(s.days['1000'], 'The most recent day should survive');
+        assert.ok(JSON.stringify(s).length < 60000, 'A full history stays well under 60 KB');
     });
 
     test('Should not mutate the state handed to it', () => {
@@ -3635,15 +3652,15 @@ describe('DAILY SHARED - recordDaily characterisation', () => {
         assert.strictEqual(s.bestStreak, 2, 'But the best is remembered');
     });
 
-    test('Should prune at exactly thirty days', () => {
+    test('Should prune at exactly four hundred days', () => {
         let s = Putt.emptyState();
-        for (let d = 1; d <= 30; d++) s = Putt.recordDaily(s, d, res);
-        assert.strictEqual(Object.keys(s.days).length, 30);
+        for (let d = 1; d <= 400; d++) s = Putt.recordDaily(s, d, res);
+        assert.strictEqual(Object.keys(s.days).length, 400);
         assert.ok(s.days['1'], 'Day 1 still present at the boundary');
-        s = Putt.recordDaily(s, 31, res);
-        assert.strictEqual(Object.keys(s.days).length, 30);
-        assert.ok(!s.days['1'], 'The oldest day is dropped on the thirty-first');
-        assert.ok(s.days['31']);
+        s = Putt.recordDaily(s, 401, res);
+        assert.strictEqual(Object.keys(s.days).length, 400);
+        assert.ok(!s.days['1'], 'The oldest day is dropped on the four hundred and first');
+        assert.ok(s.days['401']);
     });
 
     test('Should not mutate the state handed to it', () => {
@@ -5481,6 +5498,203 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         const main = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'main.js'), 'utf8');
         assert.ok(brief.includes('${escapeHtml(store.loc.name.toUpperCase())}'), 'the briefing header');
         assert.ok(!/boot\(`[^`]*\$\{loc\.name\}/.test(main), 'the boot log, which is innerHTML');
+    });
+});
+
+describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () => {
+    /*
+     * October 3, 2026. Every entry in countdown/stats.json has an ISO date;
+     * what is coming up is derived from it, never stored, so the record keeps
+     * itself. journal.js holds every rule and is pure; these pin the rules,
+     * the data, and the plumbing that 404s in production when it drifts.
+     */
+    const fs = require('fs');
+    const J = require('./countdown/journal.js');
+    const C = require('./countdown/calc.js');
+    const stats = JSON.parse(fs.readFileSync(path.join(__dirname, 'countdown', 'stats.json'), 'utf8'));
+    const d = (s) => new Date(`${s}T12:00:00`);
+    const RETIRED = new Date(C.DEFAULT_RETIREMENT_ISO);
+
+    test('Should read a date as a calendar day, or a month, and nothing else', () => {
+        assert.strictEqual(+J.parseDate('2026-10-07'), +new Date(2026, 9, 7));
+        assert.strictEqual(+J.parseDate('2026-05'), +new Date(2026, 4, 1), 'a month starts on the 1st');
+        assert.strictEqual(+J.lastDayOf('2026-06'), +new Date(2026, 5, 30), 'and ends on its last day');
+        for (const bad of ['2026-02-31', '2026-13', 'May 2026', '', null, 20261007]) {
+            assert.strictEqual(J.parseDate(bad), null, `${JSON.stringify(bad)} is not a date`);
+        }
+    });
+
+    test('Should count an entry from its first day, and not before', () => {
+        const trip = { place: 'X', date: '2026-10-07', end: '2026-10-10' };
+        assert.strictEqual(J.hasStarted(trip, d('2026-10-06')), false);
+        assert.strictEqual(J.hasStarted(trip, d('2026-10-07')), true, 'on the day it starts');
+        assert.strictEqual(J.hasStarted({ place: 'old, undated' }, d('2026-01-01')), true, 'an undated entry counts, as it always did');
+        const n = (t) => J.LISTS.map(([l, k]) => J.countable(stats, l, k, d(t)).length);
+        assert.deepStrictEqual(n('2026-10-03'), [6, 10, 16, 4], 'today: the booked trips and shows are not counted yet');
+        assert.deepStrictEqual(n('2026-10-07').slice(0, 2), [7, 10], 'Grants Pass counts the morning it starts');
+        assert.deepStrictEqual(n('2026-12-05').slice(0, 2), [7, 13], 'and the Outsiders and both Holiday shows by Dec 5');
+    });
+
+    test('Should say what is next, and how it stands', () => {
+        const at = (t) => J.upcoming(stats, d(t)).map((u) => `${u.title.split(',')[0]}:${u.state}:${u.daysUntil}`);
+        assert.deepStrictEqual(at('2026-10-03').slice(0, 2), ['Grants Pass:future:4', 'The Outsiders:future:28'], 'soonest first');
+        assert.strictEqual(at('2026-10-06')[0], 'Grants Pass:tomorrow:1');
+        assert.strictEqual(at('2026-10-07')[0], 'Grants Pass:today:0');
+        const now = J.upcoming(stats, d('2026-10-08'))[0];
+        assert.deepStrictEqual([now.state, now.day, now.length], ['now', 2, 4], 'happening now: day 2 of 4');
+        assert.ok(!at('2026-10-11').some((x) => x.startsWith('Grants Pass')), 'and gone once it is over');
+    });
+
+    test('Should notice the first anniversary falls on day 12 of Panama', () => {
+        const pan = J.upcoming(stats, d('2026-10-03')).find((u) => u.title.startsWith('Panama'));
+        const m = J.milestonesDuring(pan, RETIRED, C.COUNTUP_MILESTONES);
+        assert.deepStrictEqual(m.map((x) => [x.text, x.dayOfEntry]), [['One Year', 12]]);
+        assert.strictEqual(m[0].date.toDateString(), 'Sat Feb 27 2027');
+        assert.deepStrictEqual(J.milestonesDuring({ start: d('2026-10-07'), end: d('2026-10-10') }, RETIRED, C.COUNTUP_MILESTONES), [],
+            'and says nothing when nothing lands');
+    });
+
+    test('Should measure miles as the crow flies, there and back', () => {
+        const la = { lat: 34.05, lon: -118.24 }, sf = { lat: 37.77, lon: -122.42 };
+        const m = J.greatCircleMiles(la, sf);
+        assert.ok(m > 340 && m < 352, `LA to SF is about 347 miles (got ${m.toFixed(0)})`);
+        assert.strictEqual(Math.round(J.milesTraveled(la, [sf, { place: 'no coords' }])), Math.round(2 * m), 'out and back; a place with no coordinates adds nothing');
+    });
+
+    test('Should give each book the same spine every time, in a colour white type reads on', () => {
+        assert.deepStrictEqual(J.spineFor('The Widow'), J.spineFor('The Widow'));
+        const src = fs.readFileSync(path.join(__dirname, 'countdown', 'journal.js'), 'utf8');
+        const cloth = src.match(/const CLOTH = \[([^\]]+)\]/)[1].match(/#[0-9a-f]{6}/g);
+        const lum = (hex) => { const n = parseInt(hex.slice(1), 16); const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+            return 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); };
+        for (const c of cloth) assert.ok(1.05 / (lum(c) + 0.05) >= 4.5, `white on ${c} is ${(1.05 / (lum(c) + 0.05)).toFixed(2)}:1`);
+    });
+
+    test('Should sum the year from the same rules, with calc counting the weekdays', () => {
+        const ys = J.yearStats(stats, 2026, d('2026-10-03'), C, RETIRED);
+        assert.deepStrictEqual([ys.trips.length, ys.concerts.length, ys.projects.length, ys.books.length], [6, 10, 16, 4]);
+        const w = C.computeWorkweekCounts(new Date(2026, 1, 28), new Date(2026, 9, 4));
+        assert.deepStrictEqual([ys.retiredDays, ys.mondays, ys.alarms], [w.totalDays, w.mondays, w.workDays * C.ALARMS_PER_WORKDAY]);
+        assert.ok(ys.partial, '"so far" until the year is out');
+        assert.deepStrictEqual(ys.mostSeen, { who: "SF Gay Men's Chorus", times: 2 });
+        assert.strictEqual(ys.nextMilestone.text, 'One Year');
+        assert.strictEqual(J.yearStats(stats, 2026, d('2026-12-31'), C, RETIRED).concerts.length, 13, 'by New Year\'s Eve the booked shows count');
+    });
+
+    test('Should keep every entry dated, and every new field well formed', () => {
+        const LINK = /^(\/(?!\/)\S*|https:\/\/\S+)$/;
+        for (const [list, key] of J.LISTS) {
+            for (const e of stats[list]) {
+                const name = `${list}: ${e[key]}`;
+                if (e.reading === true) { assert.ok(!('date' in e), `${name}: a book still open has no date`); continue; }
+                assert.ok(J.parseDate(e.date), `${name}: date "${e.date}" should be YYYY-MM or YYYY-MM-DD`);
+                if (e.end !== undefined) assert.ok(J.parseDate(e.end) && J.lastDayOf(e.end) >= J.parseDate(e.date), `${name}: end after date`);
+                if (e.url !== undefined) assert.ok(LINK.test(e.url), `${name}: url`);
+                if (e.lat !== undefined || e.lon !== undefined) {
+                    assert.ok(Math.abs(e.lat) <= 90 && Math.abs(e.lon) <= 180, `${name}: lat/lon on the globe`);
+                }
+            }
+        }
+        for (const t of stats.trips) assert.ok(typeof t.lat === 'number' && typeof t.lon === 'number', `trip ${t.place} needs lat/lon for the map`);
+    });
+
+    test('Should hand the bake and the clock the same "has it happened" rule', () => {
+        const bake = fs.readFileSync(path.join(__dirname, 'scripts', 'bake-home.mjs'), 'utf8');
+        assert.ok(/Journal\.countable\(stats, list, key, now\)/.test(bake), 'bake-home counts with journal.js');
+        const script = fs.readFileSync(path.join(__dirname, 'countdown', 'script.js'), 'utf8');
+        assert.ok(/window\.Journal\.hasStarted\(entry, JOURNAL_TODAY\)/.test(script), 'the clock filters with journal.js');
+        const html = fs.readFileSync(path.join(__dirname, 'countdown', 'index.html'), 'utf8');
+        const order = ['calc.js', 'journal.js', 'script.js', 'extras.js'].map((f) => html.indexOf(`src="${f}?`));
+        assert.ok(order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1])), 'calc, journal, script, then the extras module');
+        const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
+        assert.ok(/schedule:\s*\n\s*- cron: '17 9 \* \* \*'/.test(deploy), 'a daily re-bake, so counts roll over without a push');
+        assert.ok(/api:\n\s+name: [^\n]+\n\s+if: github\.event_name != 'schedule'/.test(deploy), 'without redeploying the Lambda for a date');
+        const ew = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'elsewhere.js'), 'utf8');
+        assert.ok(/started\(t\)/.test(ew) && /seen\.has\(t\.place\)/.test(ew), 'ELSEWHERE skips trips still to come, and repeat places');
+    });
+
+    test('Should ship every new file, in the deploy and the servers', () => {
+        const deploy = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'deploy.yml'), 'utf8');
+        const server = fs.readFileSync(path.join(__dirname, 'tests-server.js'), 'utf8');
+        const files = ['countdown/journal.js', 'countdown/extras.js', 'countdown/places.js', 'countdown/journal.css',
+            'countdown/land.json', 'year/year.js', 'year/styles.css', 'year/favicon.svg', 'year/index.html'];
+        for (const f of files) {
+            assert.ok(fs.existsSync(path.join(__dirname, f)), `${f} exists`);
+            assert.ok(deploy.includes(`--include '${f}'`), `deploy.yml uploads ${f}`);
+            if (!f.endsWith('index.html')) assert.ok(server.includes(`'/${f}'`), `tests-server.js serves /${f}`);
+        }
+        assert.ok(deploy.includes("- 'year/**'"), 'a change to /year/ deploys');
+        assert.ok(fs.readFileSync(path.join(__dirname, 'sitemap.xml'), 'utf8').includes('https://branyontech.com/year/'));
+        const land = JSON.parse(fs.readFileSync(path.join(__dirname, 'countdown', 'land.json'), 'utf8'));
+        assert.ok(land.rings.length > 100 && /public domain/.test(land.source), 'Natural Earth land, credited');
+        assert.ok(fs.statSync(path.join(__dirname, 'countdown', 'land.json')).size < 60000, 'and small');
+    });
+
+    test('Should fetch destination weather by absolute path, and only from pure console code', () => {
+        const extras = fs.readFileSync(path.join(__dirname, 'countdown', 'extras.js'), 'utf8');
+        assert.ok(extras.includes('fetch(`/weather/api/bundle?lat='), 'absolute: a relative api/ from /countdown/ is never routed to the Lambda');
+        const code = `Promise.all(['util','tonight','astro'].map(n => import('${path.join(__dirname, 'weather', 'js', 'lib').replace(/\\/g, '/')}/' + n + '.js')))
+            .then(([u, t, a]) => console.log(JSON.stringify([typeof u.wx, typeof u.wxGlyph, typeof t.assessNights, typeof a.sunTimes,
+                typeof a.moonPosition, typeof a.moonIllumination, typeof a.toDeg])))`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        assert.deepStrictEqual(JSON.parse(r.stdout), Array(7).fill('function'),
+            'the console functions Coming up imports must exist: a console change cannot break the clock silently');
+    });
+
+    test('Should keep a year of game rounds, so the year in review has them', () => {
+        for (const f of ['game/putt.js', 'slingshot/orbit.js']) {
+            assert.ok(/maxDays: 400\b/.test(fs.readFileSync(path.join(__dirname, f), 'utf8')), `${f} keeps 400 days`);
+        }
+    });
+
+    test('Should reduce a year of weather to its records', () => {
+        const code = `import(${JSON.stringify(path.join(__dirname, 'lambda', 'index.mjs'))}).then(m => console.log(JSON.stringify(m.reduceYear({ daily: {
+            time: ['2026-01-01', '2026-01-02', '2026-07-04', '2026-09-09'],
+            temperature_2m_max: [61, 58, 91.4, 104.2], temperature_2m_min: [40, 35.6, 66, 72],
+            precipitation_sum: [0, 1.25, 0, 0.004] } }, 2026))))`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        assert.deepStrictEqual(JSON.parse(r.stdout), { year: 2026, through: '2026-09-09', days: 4,
+            hottest: { date: '2026-09-09', f: 104 }, coldest: { date: '2026-01-02', f: 36 },
+            wettest: { date: '2026-01-02', inches: 1.25 }, rainyDays: 1, ninetyDays: 2, rain: 1.25 });
+    });
+
+    test('Should refuse a year it will not fetch, before going upstream', () => {
+        const code = `import(${JSON.stringify(path.join(__dirname, 'lambda', 'index.mjs'))}).then(async m => {
+            const calls = []; globalThis.fetch = async (u) => { calls.push(String(u)); return { ok: true, status: 200, json: async () => ({ daily: { time: [] } }) }; };
+            const ev = (q) => ({ rawPath: '/weather/api/yearwx', rawQueryString: q, requestContext: { http: { method: 'GET' } } });
+            const s = [];
+            for (const q of ['lat=33.6&lon=-117.67&year=1999', 'lat=33.6&lon=-117.67&year=2999', 'lat=33.6&lon=-117.67', 'lon=1&year=2026'])
+                s.push((await m.handler(ev(q))).statusCode);
+            const before = calls.length;
+            const ok = await m.handler(ev('lat=33.6&lon=-117.67&year=2026'));
+            console.log(JSON.stringify({ s, before, ok: ok.statusCode, cache: ok.headers['cache-control'], url: calls[before] }));
+        })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        const out = JSON.parse(r.stdout.trim().split('\n').pop());
+        assert.deepStrictEqual(out.s, [400, 400, 400, 400]);
+        assert.strictEqual(out.before, 0, 'nothing invalid reached the archive');
+        assert.strictEqual(out.ok, 200);
+        assert.ok(/s-maxage=21600/.test(out.cache), 'cached at the edge for six hours');
+        assert.ok(/archive-api\.open-meteo\.com.*start_date=2026-01-01/.test(out.url), 'one calendar year from the archive');
+    });
+
+    test('Should give every year slide ink that reads on both ends of its sky', () => {
+        const css = fs.readFileSync(path.join(__dirname, 'year', 'styles.css'), 'utf8');
+        const lum = (hex) => { const n = parseInt(hex.slice(1), 16); const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+            return 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); };
+        const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+        const dark = css.match(/--ink-dark: (#[0-9a-f]{6})/)[1], light = css.match(/--ink-light: (#[0-9a-f]{6})/)[1];
+        let n = 0;
+        for (const m of css.matchAll(/\.slide\[data-sky="(\d)"\] \{([\s\S]*?)\n?\}/g)) {
+            const stops = [...m[2].matchAll(/linear-gradient\(180deg, (#[0-9a-f]{6}), (#[0-9a-f]{6})\)/g)].pop();
+            const ink = /color: var\(--ink-light\)/.test(m[2]) ? light : dark;
+            for (const s of [stops[1], stops[2]]) assert.ok(cr(ink, s) >= 4.5, `sky ${m[1]}: ink ${ink} on ${s} is ${cr(ink, s).toFixed(2)}:1`);
+            n++;
+        }
+        assert.strictEqual(n, 10, 'ten skies, dawn to night');
     });
 });
 
