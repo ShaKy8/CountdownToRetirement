@@ -5372,6 +5372,99 @@ describe('SPEND CHECK - the weekly bill', () => {
     });
 });
 
+describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
+    /*
+     * The audit found the public API had no throttle anywhere, so any query
+     * CloudFront had not seen reached the Lambda: /api/elsewhere could make
+     * unlimited paid model calls, unique coordinates grew the memory cache
+     * until the 512 MB Lambda fell over, and four routes passed junk upstream.
+     * These run the real handler with fetch stubbed, and count what it sends.
+     */
+    const fs = require('fs');
+    const lambdaPath = path.join(__dirname, 'lambda', 'index.mjs');
+    const run = (body) => {
+        const code = 'import(' + JSON.stringify(lambdaPath) + ').then(async m => {'
+            + 'const calls = [];'
+            + 'globalThis.fetch = async (url) => { calls.push(String(url)); return { ok: true, status: 200,'
+            + '  json: async () => ({ content: [{ type: "text", text: "San Diego is 4 degrees colder than Los Angeles." }], usage: {} }),'
+            + '  text: async () => "" }; };'
+            + 'const ev = (p, q) => ({ rawPath: "/weather/api/" + p, rawQueryString: q, requestContext: { http: { method: "GET" } } });'
+            + 'const call = async (p, q) => { const r = await m.handler(ev(p, q)); return { status: r.statusCode, body: JSON.parse(r.body) }; };'
+            + body + '})';
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        return JSON.parse(r.stdout.trim().split('\n').pop());
+    };
+
+    test('Should cap the model calls a stranger can make, and keep the rules sentence when it does', () => {
+        const out = run(`
+            process.env.ANTHROPIC_API_KEY = 'test-key';
+            const q = (d) => Buffer.from(JSON.stringify({ here: 'Los Angeles', hereSky: 'clear', hereScore: 76,
+                rows: [{ name: 'San Diego', delta: d, sky: 'clear', better: true }] })).toString('base64url');
+            const res = [];
+            for (let d = 0; d < 25; d++) res.push((await call('elsewhere', 'q=' + q(d))).body);
+            const paid = calls.filter((u) => u.includes('api.anthropic.com')).length;
+            const again = (await call('elsewhere', 'q=' + q(0))).body;
+            console.log(JSON.stringify({ paid, after: calls.filter((u) => u.includes('api.anthropic.com')).length,
+                whys: res.slice(20).map((r) => r.why), first: res[0].text, again: again.text }));
+        `);
+        assert.strictEqual(out.paid, 20, 'twenty distinct queries an hour reach the model, and no more');
+        assert.deepStrictEqual(out.whys, ['budget', 'budget', 'budget', 'budget', 'budget'],
+            'past the budget the route answers text: null, so the page keeps its own sentence');
+        assert.ok(out.first, 'the calls inside the budget still answer');
+        assert.ok(out.again && out.after === out.paid, 'a cached sentence is served free and spends nothing');
+    });
+
+    test('Should hold the memory cache to a fixed size, however many distinct points are asked for', () => {
+        const out = run(`
+            for (let i = 0; i < 260; i++) await call('models', 'lat=' + (10 + i / 100).toFixed(2) + '&lon=20');
+            const n = calls.length;
+            await call('models', 'lat=12.59&lon=20');   // the most recent: still cached
+            const recent = calls.length - n;
+            await call('models', 'lat=10.00&lon=20');   // the oldest: evicted
+            console.log(JSON.stringify({ n, recent, oldest: calls.length - n - recent }));
+        `);
+        assert.strictEqual(out.n, 260, 'each distinct point fetched once');
+        assert.strictEqual(out.recent, 0, 'recent entries are still served from memory');
+        assert.strictEqual(out.oldest, 1, 'the oldest was evicted: the cache stopped growing');
+        const src = fs.readFileSync(lambdaPath, 'utf8');
+        assert.ok(/climateURL\(lat, lon\), \{ disk: true, mem: false \}/.test(src),
+            'the ~400 KB climate archive is kept on disk only; memory holds the reduced form');
+    });
+
+    test('Should refuse coordinates off the globe and a ZIP that is not five digits, before going upstream', () => {
+        const out = run(`
+            const r = [];
+            for (const [p, q] of [['models', 'lat=abc&lon=1'], ['models', 'lat=91&lon=1'], ['climate', 'lon=1'],
+                                  ['reverse', 'lat=1&lon=181'], ['pollen', 'zip=../../x'], ['pollen', 'zip=9001'],
+                                  ['pollen', 'lat=NaN&lon=1']]) r.push((await call(p, q)).status);
+            const before = calls.length;
+            const ok = (await call('pollen', 'zip=90012')).status;
+            console.log(JSON.stringify({ r, upstream: before, ok, pollenUrl: calls.slice(before).find((u) => u.includes('pollen.com')) }));
+        `);
+        assert.deepStrictEqual(out.r, [400, 400, 400, 400, 400, 400, 400]);
+        assert.strictEqual(out.upstream, 0, 'nothing invalid reached an upstream service');
+        assert.strictEqual(out.ok, 200);
+        assert.ok(/\/pollen\/90012$/.test(out.pollenUrl), 'a real ZIP still works');
+    });
+
+    test('Should be the same hardening in the local server', () => {
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;   // a sibling repo; CI may not have it
+        const pick = (src) => [/const MEM_MAX = \d+;[\s\S]*?\n}\n/, /function point\(q\) \{[\s\S]*?\n}\n/,
+            /const MODEL_CALLS_PER_HOUR[\s\S]*?\n}\n/].map((re) => (src.match(re) || [''])[0]);
+        const a = pick(fs.readFileSync(lambdaPath, 'utf8')), b = pick(fs.readFileSync(sibling, 'utf8'));
+        a.forEach((x, i) => { assert.ok(x, 'the Lambda has piece ' + i); assert.strictEqual(x, b[i], 'piece ' + i + ' has drifted'); });
+    });
+
+    test('Should escape the location name wherever it reaches HTML in the console', () => {
+        const brief = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'brief.js'), 'utf8');
+        const main = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'main.js'), 'utf8');
+        assert.ok(brief.includes('${escapeHtml(store.loc.name.toUpperCase())}'), 'the briefing header');
+        assert.ok(!/boot\(`[^`]*\$\{loc\.name\}/.test(main), 'the boot log, which is innerHTML');
+    });
+});
+
 // =============================================================================
 // TEST SUMMARY
 // =============================================================================

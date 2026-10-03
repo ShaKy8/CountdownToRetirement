@@ -8,6 +8,7 @@
  * one place to degrade gracefully when a single upstream is down.
  */
 import fs from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 /*
@@ -95,13 +96,18 @@ function memGet(key) {
   if (Date.now() > hit.exp) { mem.delete(key); return null; }
   return hit.data;
 }
+/*
+ * A hard cap, not just an expiry sweep. The old sweep only removed expired
+ * entries, so a run of requests for distinct coordinates grew the map until
+ * the Lambda (512 MB) ran out of memory and the visitors it was serving got
+ * errors: a few hundred requests per instance. A Map iterates in insertion
+ * order and memSet re-inserts, so the cap evicts the least recently written.
+ */
+const MEM_MAX = 200;
 function memSet(key, data, ttl) {
+  mem.delete(key);
   mem.set(key, { data, exp: Date.now() + ttl });
-  // Keep the map from growing without bound over long uptimes.
-  if (mem.size > 400) {
-    const now = Date.now();
-    for (const [k, v] of mem) if (now > v.exp) mem.delete(k);
-  }
+  while (mem.size > MEM_MAX) mem.delete(mem.keys().next().value);
 }
 
 const diskPath = (key) => path.join(CACHE_DIR, key.replace(/[^a-z0-9._-]/gi, '_') + '.json');
@@ -125,17 +131,17 @@ async function diskSet(key, data) {
  * Fetch JSON with layered caching. `disk: true` survives restarts, which is
  * what we want for the 31-year climate archive (expensive, changes yearly).
  */
-async function cachedJSON(key, ttl, url, { disk = false, text = false } = {}) {
+async function cachedJSON(key, ttl, url, { disk = false, text = false, mem: keep = true } = {}) {
   const hit = memGet(key);
   if (hit) return hit;
   if (disk) {
     const d = await diskGet(key, ttl);
-    if (d) { memSet(key, d, Math.min(ttl, HOUR)); return d; }
+    if (d) { if (keep) memSet(key, d, Math.min(ttl, HOUR)); return d; }
   }
   const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: text ? 'text/plain' : 'application/json' } });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} :: ${url.slice(0, 120)}`);
   const data = text ? await res.text() : await res.json();
-  memSet(key, data, ttl);
+  if (keep) memSet(key, data, ttl);
   if (disk) await diskSet(key, data);
   return data;
 }
@@ -233,6 +239,34 @@ function climateURL(lat, lon) {
   });
 }
 
+/** lat/lon from the query, finite and on the globe, or a 400. */
+function point(q) {
+  // Number(null) and Number('') are 0, so a missing parameter read as the
+  // equator or the meridian; require both to be there.
+  if ([q.get('lat'), q.get('lon')].some((v) => v == null || !v.trim())) throw new HttpError(400, 'lat/lon required');
+  const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    throw new HttpError(400, 'lat/lon required');
+  }
+  return { lat, lon };
+}
+
+/*
+ * /api/elsewhere's model calls, budgeted per hour per running copy. Both
+ * caches key on the exact query, so every distinct query was a paid call and
+ * nothing bounded how many a script could make. Normal use is ~46 a day; the
+ * page keeps its rules sentence when this says no. With the function's
+ * reserved concurrency (scripts/api-throttle.sh) the worst case is copies x
+ * this per hour. The Anthropic Console spend limit is the hard backstop.
+ */
+const MODEL_CALLS_PER_HOUR = 20;
+let modelBudget = { hour: 0, used: 0 };
+function spendModelCall() {
+  const h = Math.floor(Date.now() / HOUR);
+  if (modelBudget.hour !== h) modelBudget = { hour: h, used: 0 };
+  return modelBudget.used++ < MODEL_CALLS_PER_HOUR;
+}
+
 /* ---------------------------------------------------------------- handlers */
 
 const routes = {
@@ -274,7 +308,7 @@ const routes = {
   },
 
   async '/api/models'(q) {
-    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
+    const { lat, lon } = point(q);
     return cachedJSON(`md_${lat.toFixed(2)},${lon.toFixed(2)}`, 30 * MIN, modelsURL(lat, lon));
   },
 
@@ -283,11 +317,11 @@ const routes = {
    * normals and records so the browser never sees 11k rows.
    */
   async '/api/climate'(q) {
-    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
+    const { lat, lon } = point(q);
     const key = `cl_${lat.toFixed(2)},${lon.toFixed(2)}`;
     const hit = memGet(key + '_reduced');
     if (hit) return hit;
-    const raw = await cachedJSON(key, 30 * DAY, climateURL(lat, lon), { disk: true });
+    const raw = await cachedJSON(key, 30 * DAY, climateURL(lat, lon), { disk: true, mem: false });
     const reduced = reduceClimate(raw);
     memSet(key + '_reduced', reduced, 12 * HOUR);
     return reduced;
@@ -302,7 +336,7 @@ const routes = {
 
   async '/api/reverse'(q) {
     // Open-Meteo has no reverse geocoder; BigDataCloud's is free and keyless.
-    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
+    const { lat, lon } = point(q);
     return cachedJSON(`rv_${lat.toFixed(3)},${lon.toFixed(3)}`, DAY,
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
   },
@@ -314,9 +348,11 @@ const routes = {
    * ZIP endpoint (which needs a Referer to answer).
    */
   async '/api/pollen'(q) {
-    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
     let zip = q.get('zip');
+    // It goes into pollen.com's URL path, so five digits and nothing else.
+    if (zip != null && !/^\d{5}$/.test(zip)) throw new HttpError(400, 'zip');
     if (!zip) {
+      const { lat, lon } = point(q);
       const rev = await soft('rev', () => cachedJSON(`rv_${lat.toFixed(3)},${lon.toFixed(3)}`, DAY,
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`));
       zip = rev.ok ? rev.data.postcode : null;
@@ -525,9 +561,14 @@ const routes = {
     // page has a sentence already and simply keeps it.
     if (!key) return { text: null, why: 'no key' };
 
-    const cacheKey = 'ew_' + Buffer.from(JSON.stringify(facts)).toString('base64url').slice(0, 90);
+    // A hash of ALL the facts. The key was the first 90 characters of their
+    // base64, which is about as far as "here", so every visitor in one city
+    // with the same sky got the same cached sentence, quoting another
+    // visitor's places and temperatures.
+    const cacheKey = 'ew_' + createHash('sha256').update(JSON.stringify(facts)).digest('base64url');
     const hit = memGet(cacheKey);
     if (hit) return hit;
+    if (!spendModelCall()) return { text: null, why: 'budget' };
 
     const system = [
       'You write one sentence for a weather console, answering "is it nicer somewhere else right now?"',

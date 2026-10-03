@@ -79,9 +79,9 @@ async function start() {
   if (!loc) {
     cfg = await api.config();
     loc = cfg.home;
-    boot(`no saved location — using ${loc.name}`);
+    boot(`no saved location — using ${escapeHtml(loc.name)}`);
   } else {
-    boot(`location: ${loc.name}`);
+    boot(`location: ${escapeHtml(loc.name)}`);
   }
 
   boot('<span class="mut">contacting feeds…</span>');

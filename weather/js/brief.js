@@ -166,7 +166,7 @@ export function showBriefing(store, openModal) {
   const lines = buildBriefing(store);
   openModal(`
     <div class="hd">BRIEFING<span class="rule"></span>
-      <span class="val">${store.loc.name.toUpperCase()} · ${store.fmt.hm(Date.now())}</span></div>
+      <span class="val">${escapeHtml(store.loc.name.toUpperCase())} · ${store.fmt.hm(Date.now())}</span></div>
     <div class="res-list" style="max-height:60vh">
       ${lines.map((l, i) => `
         <p style="

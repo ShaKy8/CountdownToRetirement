@@ -29,7 +29,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (460 tests)
+# Run client-side tests (465 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -112,7 +112,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (460 tests)
+├── tests.js                # Client-side unit tests (465 tests)
 ├── tests-server.js         # Server integration tests (61 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -1415,6 +1415,47 @@ Differences from the local server, all deliberate:
    console error. `server.js` handles this with `headersFor()`, and the
    CloudFront policy in `scripts/cloudfront-headers.py` mirrors it. A test keeps
    the two lists of tile hosts identical.
+
+## Abuse limits on the API
+
+A security audit on October 3, 2026 found no secrets anywhere and strong
+headers, and one real exposure: **the public API had no limit of any kind**
+— no API Gateway throttle, no Lambda concurrency cap, no WAF. CloudFront
+answers repeats, but every query it has not seen reaches the Lambda.
+`tests.js` "Abuse limits" runs the real handler with `fetch` stubbed and
+counts what it sends upstream; each test was shown to fail with its fix
+removed.
+
+- **`/api/elsewhere` spends at most `MODEL_CALLS_PER_HOUR` (20) model calls
+  an hour per running copy**, after the cache, so a cached sentence is free.
+  Past it the route answers `{ text: null, why: 'budget' }` and the page
+  keeps its rules sentence. Before, a script varying one degree per request
+  could make unlimited paid calls (~$290/hour at 50 requests a second). Normal
+  use is ~46 calls a day. **The hard backstop is a spend limit on the key's
+  workspace in the Anthropic Console**, which no code here can check.
+- **Its cache key hashes all the facts.** It was the first 90 characters of
+  their base64 — about as far as "here" — so every visitor in one city with the
+  same sky got the same cached sentence, quoting someone else's places and
+  temperatures, for up to 30 minutes per Lambda copy.
+- **`scripts/api-throttle.sh`** (dry run unless `--apply`; applied October 3,
+  2026): the `$default` stage at 20 requests/s with bursts of 50, Lambda
+  reserved concurrency 10 (so the model budget's worst case is 10 × 20 = 200
+  calls an hour), and the GitHub deploy role trusting `ref:refs/heads/main`
+  only, not any ref in the repo. Proven by a manual spend-check run, which
+  assumes the same role. The throttle also protects the free upstreams: a
+  flood that got the Lambda's addresses blocked by Open-Meteo would take the
+  console down for everyone.
+- **The memory cache has a hard cap** (`MEM_MAX`, 200 entries, oldest
+  evicted). It used to sweep only expired entries, so a few hundred requests
+  for distinct coordinates grew it until the 512 MB Lambda ran out of memory.
+  The raw climate archive (~400 KB a cell) is disk-only now
+  (`cachedJSON(..., { mem: false })`); memory holds the reduced form.
+- **`point(q)` validates every route that takes coordinates**: both present
+  (`Number(null)` is 0, so a missing `lat` read as the equator), finite, on
+  the globe. **`/api/pollen`'s `zip` must be five digits** — it went
+  straight into pollen.com's URL path.
+- All of this is in both `lambda/index.mjs` and `../Weather/server.mjs`, and
+  a test fails if the pieces drift.
 
 ## Security headers in production
 
