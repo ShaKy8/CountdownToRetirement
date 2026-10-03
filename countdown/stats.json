@@ -5,7 +5,11 @@
     { "place": "San Francisco, California", "when": "March 2026", "date": "2026-03", "lat": 37.7749, "lon": -122.4194,
       "note": "❤️ Visiting Family" },
     { "place": "Vancouver, Canada & Alaska", "when": "May 2026", "date": "2026-05", "lat": 49.2497, "lon": -123.1193,
-      "note": "🚢 Adventure Cruise" },
+      "note": "🚢 Adventure Cruise",
+      "stops": [
+        { "place": "Juneau, Alaska", "lat": 58.3019, "lon": -134.4197 },
+        { "place": "Glacier Bay, Alaska", "lat": 58.6658, "lon": -136.9002 }
+      ] },
     { "place": "Alameda, California", "when": "May–June 2026", "date": "2026-05", "end": "2026-06", "lat": 37.7710, "lon": -122.2609,
       "note": "❤️ Visiting Family" },
     { "place": "Johnson City, Texas", "when": "June 2026", "date": "2026-06", "lat": 30.2769, "lon": -98.4120,

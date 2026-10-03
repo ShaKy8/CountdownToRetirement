@@ -121,11 +121,24 @@
         return 2 * EARTH_MILES * Math.asin(Math.min(1, Math.sqrt(h)));
     }
 
-    /** Out and back from home, for every trip with a place on the map. */
+    /** A trip's stops after its main place (a cruise's ports), in order; only well-formed ones. */
+    function stopsOf(trip) {
+        return (trip && Array.isArray(trip.stops) ? trip.stops : []).filter((s) =>
+            s && typeof s.place === 'string' && s.place.trim() && typeof s.lat === 'number' && typeof s.lon === 'number');
+    }
+
+    /** One trip's miles: home, the place, each stop in turn, and home again. */
+    function routeMiles(home, trip) {
+        if (!home || typeof home.lat !== 'number' || typeof trip.lat !== 'number' || typeof trip.lon !== 'number') return 0;
+        const legs = [home, trip, ...stopsOf(trip), home];
+        let m = 0;
+        for (let i = 1; i < legs.length; i++) m += greatCircleMiles(legs[i - 1], legs[i]);
+        return m;
+    }
+
+    /** Every trip's route, summed. */
     function milesTraveled(home, trips) {
-        if (!home || typeof home.lat !== 'number') return 0;
-        return (trips || []).reduce((sum, t) =>
-            (typeof t.lat === 'number' && typeof t.lon === 'number' ? sum + 2 * greatCircleMiles(home, t) : sum), 0);
+        return (trips || []).reduce((sum, t) => sum + routeMiles(home, t), 0);
     }
 
     /** The places the map draws: visited, and still to come. Repeat visits share a pin. */
@@ -135,11 +148,18 @@
             if (!e || typeof e.place !== 'string' || typeof e.lat !== 'number' || typeof e.lon !== 'number') continue;
             const s = span(e);
             const future = !!s && s.start > startOfDay(today);
-            const k = e.place.trim();
-            const p = seen.get(k) || { place: k, lat: e.lat, lon: e.lon, visits: [], next: null };
-            if (future) { if (!p.next || s.start < p.next.start) p.next = { start: s.start, when: e.when, note: e.note || '' }; }
-            else p.visits.push({ when: e.when, note: e.note || '' });
-            seen.set(k, p);
+            // The trip's place, then its stops: each stop is a pin of its own,
+            // and its arc leaves from the stop before it, so a cruise draws
+            // the voyage rather than a fan of lines from home.
+            let from = null;
+            for (const pt of [{ place: e.place, lat: e.lat, lon: e.lon }, ...stopsOf(e)]) {
+                const k = pt.place.trim();
+                const p = seen.get(k) || { place: k, lat: pt.lat, lon: pt.lon, visits: [], next: null, from };
+                if (future) { if (!p.next || s.start < p.next.start) p.next = { start: s.start, when: e.when, note: e.note || '' }; }
+                else p.visits.push({ when: e.when, note: e.note || '' });
+                seen.set(k, p);
+                from = { lat: pt.lat, lon: pt.lon };
+            }
         }
         return [...seen.values()];
     }
@@ -168,8 +188,7 @@
         const projects = pick('projects', 'what'), books = pick('books', 'title');
 
         const home = stats && stats.home;
-        const tripMiles = trips.map((tr) => ({ place: tr.place, when: tr.when,
-            miles: home && typeof tr.lat === 'number' ? 2 * greatCircleMiles(home, tr) : 0 }));
+        const tripMiles = trips.map((tr) => ({ place: tr.place, when: tr.when, miles: routeMiles(home, tr) }));
         const acts = new Map();
         for (const c of concerts) acts.set(c.who, (acts.get(c.who) || 0) + 1);
         const mostSeen = [...acts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
@@ -208,7 +227,7 @@
 
     const Journal = {
         LISTS, parseDate, lastDayOf, span, hasStarted, countable, upcoming, milestonesDuring,
-        greatCircleMiles, milesTraveled, places, spineFor, yearStats, todayFrom, daysBetween,
+        greatCircleMiles, routeMiles, milesTraveled, places, stopsOf, spineFor, yearStats, todayFrom, daysBetween,
     };
     if (typeof module !== 'undefined' && module.exports) module.exports = Journal;
     if (root) root.Journal = Journal;

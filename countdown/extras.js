@@ -195,7 +195,7 @@ async function renderPlaces(stats) {
     let land;
     try { land = await (await fetch('land.json')).json(); } catch (e) { return; }
 
-    const miles = (p) => Math.round(J.greatCircleMiles(home, p) / 10) * 10;
+    const miles = (p) => Math.round(J.greatCircleMiles(home, p) / 10) * 10;   // as the crow flies, from home
     const describe = (p) => {
         const parts = [`${p.visits.length ? '📍' : '✈️'} ${p.place}`];
         if (p.visits.length) parts.push(p.visits.map((v) => v.when).join(', and '));

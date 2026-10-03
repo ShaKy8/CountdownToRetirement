@@ -29,7 +29,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (481 tests)
+# Run client-side tests (482 tests)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -118,7 +118,7 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (481 tests)
+├── tests.js                # Client-side unit tests (482 tests)
 ├── tests-server.js         # Server integration tests (65 tests)
 ├── countdown-retirement.service  # Systemd service file
 └── .github/workflows/      # GitHub Actions for CI/CD
@@ -622,6 +622,12 @@ Gay Men's Chorus Holiday Spectacular shows, and Panama & the San Blas Islands.
   before it draws** — a hidden container measures 0, which drew a phone's map
   with a desktop's six overlapping pins; journal-audit caught what a resized
   screenshot hid.
+- **A trip can have `stops`** — `[{ place, lat, lon }]`, in order, after its main
+  place. The Alaska cruise (UnCruise, "Wild, Woolly & Wow with Glacier Bay",
+  from Juneau, May 2026) is one: Vancouver, then Juneau, then Glacier Bay.
+  Each stop is its own pin, its arc leaves from the stop before, and
+  `routeMiles` follows the route home → place → stops → home. Still one trip
+  on every count. Added at Kyle's request, October 3, 2026.
 - **The bookshelf** is drawn from `spineFor(title)` (FNV hash → cloth colour,
   height, lean), so a book's spine never changes; every colour holds white
   type at 4.5:1 (tested). The book being read leans out with a ribbon. The

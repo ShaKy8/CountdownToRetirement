@@ -97,7 +97,8 @@ export function drawPlaces(root, { home, places, land, describe, onSelect, drawI
   const arcs = el('g', { class: 'places-arcs' }, true);
   let i = 0;
   for (const p of places) {
-    const d = arcPath(h, P(p));
+    // A cruise's ports fly from the port before; everything else from home.
+    const d = arcPath(p.from ? P(p.from) : h, P(p));
     if (p.visits.length) {
       arcs.append(el('path', { d, class: 'places-arc', pathLength: '1', style: `--i:${i++}` }, true));
     } else if (p.next) {

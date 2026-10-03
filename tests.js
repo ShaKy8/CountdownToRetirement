@@ -5561,6 +5561,27 @@ describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () =>
         assert.strictEqual(Math.round(J.milesTraveled(la, [sf, { place: 'no coords' }])), Math.round(2 * m), 'out and back; a place with no coordinates adds nothing');
     });
 
+    test('Should follow a cruise from port to port, as one trip', () => {
+        // The Alaska trip sailed from Juneau through Glacier Bay: its stops are
+        // pins of their own, flown to from the stop before, and its miles are
+        // the route (home, Vancouver, Juneau, Glacier Bay, home), not a line
+        // out and back to Vancouver. It is still one trip on every count.
+        const today = d('2026-10-03');
+        const p = J.places(stats, today);
+        const name = (x) => x.place.split(',')[0];
+        assert.deepStrictEqual(p.filter((x) => x.from).map(name), ['Juneau', 'Glacier Bay']);
+        const juneau = p.find((x) => name(x) === 'Juneau');
+        assert.strictEqual(juneau.from.lat, stats.trips.find((t) => t.stops).lat, 'Juneau is flown to from Vancouver');
+        assert.strictEqual(J.countable(stats, 'trips', 'place', today).length, 6, 'one trip, not three');
+        const cruise = stats.trips.find((t) => t.stops);
+        const legs = [stats.home, cruise, ...cruise.stops, stats.home];
+        const want = legs.slice(1).reduce((m, x, i) => m + J.greatCircleMiles(legs[i], x), 0);
+        assert.strictEqual(J.routeMiles(stats.home, cruise), want);
+        assert.ok(J.routeMiles(stats.home, cruise) > 2 * J.greatCircleMiles(stats.home, cruise) + 1000, 'the ports add the miles they are');
+        assert.deepStrictEqual(J.stopsOf({ stops: [{ place: 'X' }, null, { place: 'Y', lat: 1, lon: 2 }] }).map((x) => x.place), ['Y'], 'a malformed stop is skipped');
+        assert.strictEqual(J.yearStats(stats, 2026, today, C, RETIRED).longest.place, cruise.place, 'Alaska is the farthest trip');
+    });
+
     test('Should give each book the same spine every time, in a colour white type reads on', () => {
         assert.deepStrictEqual(J.spineFor('The Widow'), J.spineFor('The Widow'));
         const src = fs.readFileSync(path.join(__dirname, 'countdown', 'journal.js'), 'utf8');
@@ -5595,7 +5616,12 @@ describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () =>
                 }
             }
         }
-        for (const t of stats.trips) assert.ok(typeof t.lat === 'number' && typeof t.lon === 'number', `trip ${t.place} needs lat/lon for the map`);
+        for (const t of stats.trips) {
+            assert.ok(typeof t.lat === 'number' && typeof t.lon === 'number', `trip ${t.place} needs lat/lon for the map`);
+            for (const st of t.stops || []) {
+                assert.ok(typeof st.place === 'string' && Math.abs(st.lat) <= 90 && Math.abs(st.lon) <= 180, `${t.place}: stop ${st.place} needs a name and lat/lon`);
+            }
+        }
     });
 
     test('Should hand the bake and the clock the same "has it happened" rule', () => {
