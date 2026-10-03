@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, seven links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, eight links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
 
 ## Tech Stack
 
@@ -129,7 +129,7 @@ CountdownToRetirement/
 ## Key Features
 
 ### Landing Page (/)
-- **Content:** "Kyle Shaver", the tagline "Retired technologist. Since February: N trips, N concerts, N books, N things built with AI. Consulting by referral." — the numbers are counted from `countdown/stats.json` at build time (see below), so read them off the live page, not this file — and seven text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Since February: N trips, N concerts, N books, N things built with AI. Consulting by referral." — the numbers are counted from `countdown/stats.json` at build time (see below), so read them off the live page, not this file — and eight text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, the year in review, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, and exactly one script: `home.js`, the sky right now.
 - **The sky right now.** `home.js` makes the page's colours follow the
   visitor's local time of day — the favicon's navy at night, the clock's
@@ -242,14 +242,14 @@ CountdownToRetirement/
   widens from 34ch to 48ch, which keeps it to two lines on desktop — at
   34ch it was three, and 1280×640 and 1024×640 went 10px past one screen.
 - **The links are five titled cards** (chosen by Kyle, September 27, 2026):
-  Retirement · Weather · Play (ONE PUTT, SLINGSHOT) · Property (Fish
+  Retirement (the clock, the year in review) · Weather · Play (ONE PUTT, SLINGSHOT) · Property (Fish
   Hatchery) · Reach me (the address, GitHub), in that order — the clock
   first because it follows straight on from "retired technologist" and is
   the site's original feature, contact last where people expect it — each a
   `<section class="group">` with its own `<h2>` inside a
   `<nav aria-label="Around the site">` — the first real structure a screen
   reader gets on the page. `.links a` is still the link selector and there
-  are still exactly seven; a test pins the groups, their order and which
+  are exactly eight; a test pins the groups, their order and which
   link is in which. `node scripts/home-audit.mjs` is the gate. Load-bearing:
   - **A six-column grid, so both rows are full.** Three cards of two
     columns, then two of three (`nth-last-child(-n+2)`): five cards in a
@@ -298,9 +298,11 @@ CountdownToRetirement/
     Between groups in the rows form the gap is 13.8px for the same reason.
     No `@media (pointer: coarse)` block on this page; a test forbids one.
 - **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
-- **Seven homepage destinations are owner-approved as of September 25, 2026.**
-  The owner explicitly requested the Fish Hatchery link. The earlier six-link
-  ceiling is superseded by that instruction. Preserve all seven links and
+- **Eight homepage destinations are owner-approved as of October 3, 2026.**
+  The owner explicitly requested the Fish Hatchery link (September 25) and the
+  year in review link (October 3: he could not find it on the clock, and chose
+  the homepage's Retirement card for it). The earlier six- and seven-link
+  ceilings are superseded. Preserve all eight links and
   verify the homepage at 390x844, 375x667, 320x700 and 360x640 when changing
   it — `home-audit.mjs` does, and `site-audit.mjs` at each size for targets.
 
@@ -644,7 +646,8 @@ Ten full-screen, scroll-snapped slides, the sky moving from dawn to night;
 numbers count up as each slide arrives (static under reduced motion);
 "2026 so far" until Dec 31; `?year=`; prints one slide per page. Linked from
 the clock ("Your 2026 so far →") and the sitemap — not the homepage, whose
-seven links are owner-approved.
+links are owner-approved — until October 3, when Kyle asked for the year
+here too; it is the Retirement card's second link ("Look back on my year").
 
 - **Sources:** stats.json through `Journal.yearStats`; Mondays, alarms and
   meetings from `calc.computeWorkweekCounts` over the year's retired days;

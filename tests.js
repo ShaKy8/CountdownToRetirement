@@ -1497,7 +1497,7 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'The theme-color meta exists before the script that updates it');
     });
 
-    test('Should group the seven links into five titled cards, in order', () => {
+    test('Should group the eight links into five titled cards, in order', () => {
         // One <section class="group"> per category, each titled by its own
         // <h2>, inside a nav landmark. Every link lives in exactly one group
         // and the groups come in the order Kyle chose.
@@ -1506,13 +1506,13 @@ describe('BUSINESS SITE - HTML Structure', () => {
         const groups = [...nav.matchAll(/<section class="group" aria-labelledby="([\w-]+)">\s*<h2 class="group-title" id="\1">([^<]+)<\/h2>([\s\S]*?)<\/section>/g)]
             .map(m => [m[2], [...m[3].matchAll(/<a href="([^"]+)"/g)].map(x => x[1])]);
         assert.deepStrictEqual(groups, [
-            ['Retirement', ['/countdown/index.html']],
+            ['Retirement', ['/countdown/index.html', '/year/']],
             ['Weather', ['/weather/']],
             ['Play', ['/game/', '/slingshot/']],
             ['Property', ['/fish-hatchery/']],
             ['Reach me', ['mailto:shaky8@proton.me', 'https://github.com/ShaKy8']]
         ]);
-        assert.strictEqual((nav.match(/<a href=/g) || []).length, 7, 'Seven links, all of them in a group');
+        assert.strictEqual((nav.match(/<a href=/g) || []).length, 8, 'Eight links, all of them in a group (the year in review joined on Oct 3, 2026)');
         assert.strictEqual((nav.match(/<ul class="links" role="list">/g) || []).length, 5, 'Each group holds its links in a .links list');
         assert.ok(!indexHtml.includes('<a href=', indexHtml.indexOf('</nav>')), 'No link outside the groups');
     });

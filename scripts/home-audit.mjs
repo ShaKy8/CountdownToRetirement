@@ -161,7 +161,7 @@ for (const [w, h] of [[1280, 800], [390, 844]]) {
       worstText = Math.min(worstText, c);
       if (c < 4.5) bad.push(`${hour}:00 ${t.tag} ${c.toFixed(2)}`);
     }
-    if (onCard < 12) bad.push(`${hour}:00 only ${onCard} runs of text measured on a card (five titles and seven links expected)`);
+    if (onCard < 12) bad.push(`${hour}:00 only ${onCard} runs of text measured on a card (five titles and eight links expected)`);
     const lb = r.linkFill ? boundsOf(r, parse(r.linkFill)) : b;
     const u = worst(parse(r.underline), lb);
     worstUnderline = Math.min(worstUnderline, u);
@@ -224,7 +224,7 @@ await load(1280, 800, { contrast: true });
   gate((await E(READ)).inline === '', 'prefers-contrast: more — even when asked to paint, it declines');
 }
 
-// Scripts off: the cream page, as it always was, seven links and all.
+// Scripts off: the cream page, as it always was, eight links and all.
 await load(1280, 800, { noScript: true });
 {
   const r = await E(READ);
@@ -232,7 +232,7 @@ await load(1280, 800, { noScript: true });
   const hex = rgb => '#' + rgb.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
   gate(r.inline === '' && hex(r.top) === morning.top && hex(r.bottom) === morning.bottom,
     'scripts off — the mid-morning cream from :root', `${hex(r.top)} / ${hex(r.bottom)}`);
-  gate(r.links === 7, 'scripts off — all seven links', String(r.links));
+  gate(r.links === 8, 'scripts off — all eight links', String(r.links));
   gate(r.groups === 5 && r.titled === 5, 'scripts off — five titled groups', `${r.groups} groups, ${r.titled} titled`);
 }
 await S('Emulation.setScriptExecutionDisabled', { value: false });
@@ -342,8 +342,8 @@ for (const [w, h] of [[390, 844], [375, 667], [320, 700], [360, 640], [1280, 720
   gate(r.sh <= r.ih, `${tag}: one screen, no scrolling`, `${r.sh}px in ${r.ih}px`);
   gate(r.form === FORM[tag] && (r.form === 'cards' ? r.grid === 'grid' : r.hairline === '1px'),
     `${tag}: ${FORM[tag]}`, `${r.form}, grid ${r.grid}, hairline ${r.hairline}`);
-  gate(r.groups === 5 && r.titled === 5 && r.links === 7 && r.homed === 7,
-    `${tag}: five titled groups, seven links, each in a group`, `${r.groups}/${r.titled}/${r.links}/${r.homed}`);
+  gate(r.groups === 5 && r.titled === 5 && r.links === 8 && r.homed === 8,
+    `${tag}: five titled groups, eight links, each in a group`, `${r.groups}/${r.titled}/${r.links}/${r.homed}`);
 }
 
 gate(errors.length === 0, 'no console errors', errors.slice(0, 3).join(' | '));

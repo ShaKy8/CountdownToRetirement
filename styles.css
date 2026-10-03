@@ -447,3 +447,18 @@ html[data-wx="cloud"] body::before {
     flex: 1 1 10rem;
   }
 }
+
+/*
+ * The narrowest short phones (320x700): eight links in labelled rows ran
+ * 34px past one screen once the year in review joined the Retirement row
+ * (October 3, 2026). The links set a touch smaller here, and only here:
+ * 0.9rem on a 1.3 line is a 25px target, still over the 24px floor, and
+ * the 12.8px gaps between targets are untouched, so WCAG 2.5.8 holds.
+ * About 5px a row across eight rows is the room.
+ */
+@media (max-width: 340px) and (max-height: 719px) {
+  .links a {
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+}
