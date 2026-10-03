@@ -24,6 +24,7 @@
  *   node scripts/spend-check.mjs
  *   AWS_LIMIT=8 ANTHROPIC_LIMIT=5 node scripts/spend-check.mjs
  */
+import { projectAws } from './lib/spend.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -57,18 +58,23 @@ const usd = (n) => (n == null ? '—' : `$${n.toFixed(2)}`);
 const problems = [];
 
 // ---- AWS: one Cost Explorer call for last month and this one ---------------
-let awsPrev = null, awsMtd = null, awsTop = [];
+let awsPrev = null, awsMtd = null, awsTop = [], awsRows = [];
 try {
   const ce = aws(['ce', 'get-cost-and-usage',
     '--time-period', `Start=${iso(prevStart)},End=${iso(tomorrow)}`,
     '--granularity', 'MONTHLY', '--metrics', 'UnblendedCost',
-    '--group-by', 'Type=DIMENSION,Key=SERVICE']);
+    // Usage type as well as service, so a flat monthly charge can be told
+    // from spend that accrues by the day (lib/spend.mjs). Still one call.
+    '--group-by', 'Type=DIMENSION,Key=SERVICE', 'Type=DIMENSION,Key=USAGE_TYPE']);
   for (const r of ce.ResultsByTime || []) {
-    const rows = (r.Groups || []).map((g) => [g.Keys[0], Number(g.Metrics.UnblendedCost.Amount)]);
-    const total = rows.reduce((s, [, a]) => s + a, 0);
+    const rows = (r.Groups || []).map((g) => [g.Keys[0], g.Keys[1], Number(g.Metrics.UnblendedCost.Amount)]);
+    const total = rows.reduce((s, [, , a]) => s + a, 0);
     if (r.TimePeriod.Start === iso(monthStart)) {
       awsMtd = total;
-      awsTop = rows.filter(([, a]) => a >= 0.005).sort((a, b) => b[1] - a[1]).slice(0, 6);
+      awsRows = rows;
+      const bySvc = new Map();
+      for (const [svc, , a] of rows) bySvc.set(svc, (bySvc.get(svc) || 0) + a);
+      awsTop = [...bySvc].filter(([, a]) => a >= 0.005).sort((a, b) => b[1] - a[1]).slice(0, 6);
     } else if (r.TimePeriod.Start === iso(prevStart)) {
       awsPrev = total;
     }
@@ -140,7 +146,7 @@ if (adminKey) {
 
 // ---- verdict ----------------------------------------------------------------
 const anthropicMtd = reported ?? estimate;
-const awsProj = awsMtd == null ? null : project(awsMtd);
+const awsProj = awsMtd == null ? null : projectAws(awsRows, d, daysInMonth);
 const anthProj = anthropicMtd == null ? null : project(anthropicMtd);
 const over = [];
 if (awsProj != null && awsProj > AWS_LIMIT) over.push(`AWS is on course for ${usd(awsProj)} against a ${usd(AWS_LIMIT)} limit`);

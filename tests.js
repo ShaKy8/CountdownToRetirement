@@ -5357,6 +5357,25 @@ describe('SPEND CHECK - the weekly bill', () => {
         assert.ok(/"metric":"anthropic"/.test(script), 'and filter on the same marker');
     });
 
+    test('Should count a flat monthly charge once, not scale it by the day', () => {
+        // October 3, 2026: Route 53's $0.50 hosted zone is billed whole on the
+        // 1st, and scaling it by 31/3 projected $5.27 for a 60-cent month.
+        const libPath = path.join(__dirname, 'scripts', 'lib', 'spend.mjs');
+        const code = 'import(' + JSON.stringify(libPath) + ').then(m => console.log(JSON.stringify(['
+            + 'm.projectAws([["Amazon Route 53","HostedZone",0.5],["Amazon Simple Storage Service","Requests-Tier1",0.0012],'
+            + '["Amazon Simple Storage Service","USW1-TimedStorage-ByteHrs",0.0067]], 3, 31),'
+            + 'm.projectAws([["Amazon Route 53","HostedZone",0.5],["AWS Lambda","Request",1]], 3, 31),'
+            + 'm.projectAws([["Amazon Route 53","HostedZone",0.5],["Amazon Route 53","DNS-Queries",0.3]], 30, 30)])))';
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        const [quiet, spike, end] = JSON.parse(r.stdout);
+        assert.ok(Math.abs(quiet - 0.5816) < 0.001, `that day's bill projects to ~$0.58, not $5.27 (got ${quiet})`);
+        assert.ok(spike > 5, `a real dollar of Lambda in three days still trips the $5 limit (got ${spike})`);
+        assert.ok(Math.abs(end - 0.8) < 1e-9, 'on the last day the projection is the bill');
+        assert.ok(/projectAws\(awsRows, d, daysInMonth\)/.test(script), 'and spend-check.mjs uses it for AWS');
+        assert.ok(/Key=SERVICE', 'Type=DIMENSION,Key=USAGE_TYPE'/.test(script), 'grouping by usage type, in the same single call');
+    });
+
     test('Should fail rather than pass when a bill cannot be read', () => {
         assert.ok(/problems\.push\(/.test(script) && /if \(problems\.length \|\| over\.length\) process\.exit\(1\)/.test(script),
             'a source that returns nothing must fail the job, not report a quiet month');
