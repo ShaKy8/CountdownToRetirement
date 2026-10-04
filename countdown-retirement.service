@@ -5,8 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=kyle
-WorkingDirectory=/home/kyle/VibeCoding/claude/CountdownToRetirement
-ExecStart=/usr/bin/node /home/kyle/VibeCoding/claude/CountdownToRetirement/server.js
+WorkingDirectory=/home/kyle/Projects/branyontech
+ExecStart=/usr/bin/node /home/kyle/Projects/branyontech/server.js
 Restart=always
 RestartSec=10
 StandardOutput=journal

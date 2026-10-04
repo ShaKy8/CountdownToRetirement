@@ -199,19 +199,19 @@ Server tests use Node.js built-in `http` module to make actual HTTP requests and
 
 ## Files Generated
 
-1. **`/home/kyle/VibeCoding/claude/CountdownToRetirement/tests.js`**
+1. **`/home/kyle/Projects/branyontech/tests.js`**
    Unit and logic tests (66 tests)
 
-2. **`/home/kyle/VibeCoding/claude/CountdownToRetirement/tests-server.js`**
+2. **`/home/kyle/Projects/branyontech/tests-server.js`**
    Server integration tests (35 tests)
 
-3. **`/home/kyle/VibeCoding/claude/CountdownToRetirement/TEST_README.md`**
+3. **`/home/kyle/Projects/branyontech/TEST_README.md`**
    Comprehensive test documentation
 
-4. **`/home/kyle/VibeCoding/claude/CountdownToRetirement/package.json`**
+4. **`/home/kyle/Projects/branyontech/package.json`**
    NPM scripts for running tests
 
-5. **`/home/kyle/VibeCoding/claude/CountdownToRetirement/TEST_SUMMARY.md`**
+5. **`/home/kyle/Projects/branyontech/TEST_SUMMARY.md`**
    This file - Executive summary
 
 ---

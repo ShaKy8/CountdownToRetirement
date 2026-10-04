@@ -23,7 +23,7 @@ node scripts/dev-server.mjs        # http://localhost:8000
 
 # Re-copy the weather console after changing it in the Weather repo. Pass the
 # source: the script's default (../../Weather/public) does not exist on this
-# machine, and ~/VibeCoding/Weather is a stale checkout (see Weather console)
+# machine (see Weather console)
 ./scripts/sync-weather.sh ~/Projects/Weather/public
 
 # Original static server (site + countdown; sets the security headers)
@@ -1013,9 +1013,8 @@ Developed in the sibling repo `../Weather`; `scripts/sync-weather.sh` copies its
 the sync, commit the result. **The source is `~/Projects/Weather`**, and the
 sync's default path (`../../Weather/public` from `scripts/`) does not exist
 on this machine, so run it as
-`./scripts/sync-weather.sh ~/Projects/Weather/public`. `~/VibeCoding/Weather`
-is a stale checkout, eleven commits behind on 2026-09-27; syncing from it
-would silently ship old code.
+`./scripts/sync-weather.sh ~/Projects/Weather/public`. (A stale duplicate
+checkout at `~/VibeCoding/Weather` was deleted on 2026-10-03.)
 
 ### One transport: the radar and the scrubber
 
