@@ -538,9 +538,10 @@ function maybeGeolocate(cfg) {
 /* -------------------------------------------------------------- keyboard */
 
 function onKey(e) {
-  // Never hijack typing.
-  if (e.target.matches('input, textarea, [contenteditable]')) {
-    if (e.key === 'Escape') { closeModal(); e.target.blur(); }
+  // Leave native control activation, editing and nested control content alone.
+  if (e.defaultPrevented || e.isComposing) return;
+  if (e.target.closest?.('input, textarea, select, button, a[href], summary, [contenteditable], [role="button"], [role="link"], [role="slider"], [role="textbox"], [role="combobox"]')) {
+    if (e.key === 'Escape') { closeModal(); e.target.blur?.(); }
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;

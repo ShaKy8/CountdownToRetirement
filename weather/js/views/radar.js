@@ -72,6 +72,7 @@ export function createRadar(root) {
   let idx = 0;
   let acc = 0;
   let lastSideKey = '';
+  let lastSideData = null;
   let lastT = performance.now();
   let host = '';
 
@@ -256,8 +257,11 @@ export function createRadar(root) {
     // hour is work for nothing. Rebuild only when what they show changed.
     const f0 = store.frame();
     const key = [f0?.t, f0?.precip, f0?.cape, f0?.cloud, store.alerts.length, store.hours.length].join('|');
-    if (key === lastSideKey) return;
+    // Equal current conditions can hide a new city's alerts or changed future
+    // totals. A new committed bundle must invalidate the side panels too.
+    if (key === lastSideKey && store.raw === lastSideData) return;
     lastSideKey = key;
+    lastSideData = store.raw;
 
     /* alerts */
     const a = store.alerts;
