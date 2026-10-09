@@ -584,7 +584,7 @@ async function runErrorHandlingTests() {
                 'Should return 404 for missing files');
         });
 
-        await test('Should return 404 with plain text message', async () => {
+        await test('Should return a branded recovery page without changing the 404 status', async () => {
             const { res, data } = await makeRequest({
                 hostname: TEST_HOST,
                 port: TEST_PORT,
@@ -592,10 +592,25 @@ async function runErrorHandlingTests() {
                 method: 'GET'
             });
 
-            assert.strictEqual(res.headers['content-type'], 'text/plain',
-                '404 response should be plain text');
-            assert.strictEqual(data, '404 Not Found',
-                '404 message should be clear');
+            assert.strictEqual(res.statusCode, 404);
+            assert.strictEqual(res.headers['content-type'], 'text/html; charset=utf-8');
+            assert.ok(data.includes('<h1>Page not found</h1>'));
+            assert.ok(data.includes('href="/">Home</a>'), 'recovery links are root-relative');
+            assert.ok(data.includes('name="robots" content="noindex"'));
+            assert.ok(res.headers['content-security-policy'], 'error pages retain security headers');
+            assert.strictEqual(Number(res.headers['content-length']), Buffer.byteLength(data));
+        });
+
+        await test('Should keep nested and HEAD missing requests as 404', async () => {
+            for (const method of ['GET', 'HEAD']) {
+                const { res, data } = await makeRequest({
+                    hostname: TEST_HOST, port: TEST_PORT, path: '/missing/deep/page', method
+                });
+                assert.strictEqual(res.statusCode, 404);
+                assert.ok(res.headers['content-type'].startsWith('text/html'));
+                if (method === 'HEAD') assert.strictEqual(data, '', 'HEAD has no body');
+                else assert.ok(data.includes('href="/">Home</a>'));
+            }
         });
     });
 }

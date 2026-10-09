@@ -44,6 +44,7 @@
     let aim = { a: 0, v: 60 };
     let mode = 'preflight';       // preflight | aim | flying | done
     let scored = true;            // does this level count for the daily?
+    let roundId = 0, resultStored = null;
     let stars = [];
 
     /*
@@ -72,20 +73,32 @@
         try { window.localStorage.setItem(S.STORAGE_KEY, S.serializeState(saved)); } catch (e) { /* private mode */ }
     }
 
+    function refreshSavedRounds() {
+        // Another tab may have finished while this one was asleep. Prefer its
+        // newer record, but never erase an in-memory win when storage is denied
+        // or missing (readState then returns an empty store).
+        const latest = readState();
+        if (latest.lastDay !== null && latest.days[String(latest.lastDay)] &&
+            (saved.lastDay === null || latest.lastDay >= saved.lastDay)) saved = latest;
+    }
+
     // ------------------------------------------------------------------
     // View
     // ------------------------------------------------------------------
 
     function fit() {
         const r = stage.getBoundingClientRect();
-        if (!r.width || !r.height) return;
-        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        if (!Number.isFinite(r.width) || !Number.isFinite(r.height) || r.width <= 0 || r.height <= 0) return;
+        const ratio = window.devicePixelRatio;
+        dpr = Number.isFinite(ratio) && ratio > 0 ? Math.min(ratio, 2) : 1;
         W = r.width; H = r.height;
         const bw = Math.round(W * dpr), bh = Math.round(H * dpr);
         if (stage.width !== bw || stage.height !== bh) { stage.width = bw; stage.height = bh; }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        // Reserve room for the HUD above and the hint below.
-        const top = 200, bottom = 70;
+        // Keep the normal HUD margins, but give at least half a short canvas
+        // to the board. Fixed margins made k zero/negative below 270px, which
+        // breaks both Canvas radii and the inverse pointer transform.
+        const top = Math.min(200, H * 0.35), bottom = Math.min(70, H * 0.15);
         k = Math.min(W / (S.WORLD.w + 24), (H - top - bottom) / (S.WORLD.h + 24));
         ox = (W - S.WORLD.w * k) / 2;
         oy = top + ((H - top - bottom) - S.WORLD.h * k) / 2;
@@ -231,6 +244,8 @@
     // ------------------------------------------------------------------
 
     function loadLevel(seed, isScored) {
+        roundId++;
+        resultStored = null;
         level = S.makeLevel(seed);
         scored = isScored;
         shots = 0; best = Infinity; codes = []; ghosts = []; probe = null;
@@ -256,6 +271,7 @@
         const r = S.fly(level, Math.cos(aim.a), Math.sin(aim.a), aim.v, { path: true });
         shots++;
         mode = 'flying';
+        tickCountdown();
         probe = { path: r.path || [], i: 0, res: r };
         Audio.event('launch', aim.v / S.SIM.V_MAX);
         say('Away…', '');
@@ -272,7 +288,10 @@
             mode = 'done';
             Audio.event('arrive');
             bloom();
+            let alreadyRecorded = null;
             if (scored) {
+                refreshSavedRounds();
+                alreadyRecorded = saved.days[String(day)] || null;
                 saved = S.recordDaily(saved, day, {
                     shots: shots, par: level.par, bodies: level.planets.length,
                     outcomes: S.packShots(codes)
@@ -284,7 +303,11 @@
             // Hold the card back for a beat. The completed arc is the reward and
             // the card sits right on top of it; showing them together means you
             // never actually see the shot you just made.
-            window.setTimeout(showResult, reduceMotion ? 0 : 1100);
+            const completedRound = roundId;
+            window.setTimeout(function () {
+                if (completedRound === roundId && mode === 'done') showResult(alreadyRecorded);
+            }, reduceMotion ? 0 : 1100);
+            tickCountdown();
             return;
         }
 
@@ -312,6 +335,7 @@
                 r.near < S.NEAR_MISS ? 'good' : 'warn');
         }
         paintGauges();
+        tickCountdown();
     }
 
     /**
@@ -322,17 +346,17 @@
      * result was unrecoverable.
      */
     function showResult(stored) {
+        resultStored = stored || null;
         const n = stored ? stored.shots : shots;
         const par = stored ? stored.par : level.par;
         const bodies = stored ? stored.bodies : level.planets.length;
         const glyphs = stored ? S.cellsFromDay(stored) : codes.map(S.glyphForCode);
         byId('card-title').textContent = S.scoreEmoji(n, par) + ' ' + S.scoreLabel(n, par);
-        byId('card-line').textContent = n + (n === 1 ? ' shot' : ' shots') + ' · par ' + par +
-            (stored ? ' · already played today' : (scored ? '' : ' · not scored'));
+        paintResultLine();
         if (scored) {
             byId('card-share').textContent = S.buildShare({
                 day: day, shots: n, par: par, bodies: bodies,
-                cells: glyphs, streak: saved.streak
+                cells: glyphs, streak: saved.lastDay === day ? saved.streak : 0
             });
             byId('card-share').hidden = false;
             byId('share').hidden = false;
@@ -346,6 +370,15 @@
         paintGauges();
     }
 
+    function paintResultLine() {
+        const n = resultStored ? resultStored.shots : shots;
+        const par = resultStored ? resultStored.par : level.par;
+        const played = day === S.puzzleDay(new Date()) ? 'today' : 'on ' + window.Daily.puzzleDateKey(day);
+        byId('card-line').textContent = n + (n === 1 ? ' shot' : ' shots') + ' · par ' + par +
+            (resultStored ? ' · already played ' + played : !scored ? ' · not scored' :
+                !saved.days[String(day)] ? ' · not recorded: a later launch is already saved' : '');
+    }
+
     function showPreflight() {
         mode = 'preflight';
         const prev = scored ? saved.days[String(day)] : null;
@@ -353,6 +386,7 @@
             // Already played today. Show the whole result, share included, so
             // you can still copy it hours later.
             shots = prev.shots;
+            mode = 'done';
             showResult(prev);
             return;
         }
@@ -380,7 +414,8 @@
 
     function paintHud() {
         byId('puzzle-no').textContent = '#' + day;
-        byId('mode-label').textContent = scored ? "today's launch" : 'free play';
+        byId('mode-label').textContent = !scored ? 'free play' : day === S.puzzleDay(new Date())
+            ? "today's launch" : 'launch from ' + window.Daily.puzzleDateKey(day);
         byId('b-bodies').textContent = '🪐 ' + level.planets.length +
             (level.planets.length === 1 ? ' body' : ' bodies');
         byId('b-streak').textContent = '🔥 ' + saved.streak;
@@ -399,9 +434,41 @@
     }
 
     function tickCountdown() {
-        const ms = S.msUntilNextPuzzle(new Date());
+        const now = new Date();
+        const today = S.puzzleDay(now);
+        const available = today !== day;
+        byId('daily-update').hidden = !available;
+        const message = available
+            ? "Today's launch #" + today + ' is ready. Your current round stays open until you switch.' : '';
+        const announcement = byId('daily-message');
+        if (announcement.textContent !== message) announcement.textContent = message;
+        byId('today').disabled = mode === 'flying';
+        byId('next-label').textContent = available ? "Today's launch" : 'Next launch in';
+        paintHud();
+        if (mode === 'done' && !byId('card').hidden) paintResultLine();
+        if (available) {
+            byId('next-in').textContent = 'ready';
+            return;
+        }
+        const ms = S.msUntilNextPuzzle(now);
         const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60;
         byId('next-in').textContent = h + 'h ' + m + 'm';
+    }
+
+    function switchToToday() {
+        if (day === S.puzzleDay(new Date()) || mode === 'flying') return;
+        if (mode === 'aim' && shots > 0 && !window.confirm(
+            "Switch to today's launch? Your unfinished round will be discarded.")) return;
+        // A daily's identity changes only here, never underneath an active
+        // flight or its score. Invalidate any delayed result from the old one.
+        dragging = false;
+        day = S.puzzleDay(new Date());
+        refreshSavedRounds();
+        loadLevel(S.seedForDay(day), true);
+        paintSound();
+        showPreflight();
+        say('', '');
+        tickCountdown();
     }
 
     // ------------------------------------------------------------------
@@ -651,12 +718,14 @@
     });
 
     byId('launch').addEventListener('click', start);
+    byId('today').addEventListener('click', switchToToday);
     byId('free').addEventListener('click', function () {
         // Free play never records: a hand-picked level must not become the day's
         // score, the same rule ONE PUTT applies to ?seed=.
         loadLevel(S.seedForDay(day) ^ (Math.floor(Math.random() * 1e9) >>> 0), false);
         byId('card').hidden = true;
         start();
+        tickCountdown();
     });
     byId('share').addEventListener('click', function () {
         const text = byId('card-share').textContent;
@@ -693,6 +762,11 @@
     }
 
     window.addEventListener('resize', function () { fit(); });
+    window.addEventListener('focus', tickCountdown);
+    window.addEventListener('pageshow', tickCountdown);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) tickCountdown();
+    });
 
     // ------------------------------------------------------------------
     // Boot

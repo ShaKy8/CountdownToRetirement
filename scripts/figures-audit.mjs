@@ -23,7 +23,7 @@ import http from 'node:http';
 
 const Calc = createRequire(import.meta.url)('../countdown/calc.js');
 const ORIGIN = (process.argv[2] || 'http://localhost:8000').replace(/\/$/, '');
-const W = 1280, H = 800;
+const W = 1440, H = 800;
 const port = 9200 + (process.pid % 90);
 
 const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`,
@@ -213,11 +213,23 @@ for (const [mode, height] of [['countup', 800], ['countup', 640], ['countdown', 
   gate(near.length === 0, `${tag}: no overlap with the sun a day past any stop`, near.join(' | '));
 }
 
-// A phone or tablet has no margin for the trail either.
-await S('Emulation.setDeviceMetricsOverride', { width: 1024, height: 800, deviceScaleFactor: 1, mobile: false });
-{
-  const s = await E(TRAIL);
-  gate(s && s.display === 'none', 'trail: hidden at 1024 and below', s ? s.display : 'no figure');
+// A laptop can be too narrow even though it is wider than a tablet. Cover
+// the reported viewport, the exact breakpoint, narrow screens and heights.
+for (const [width, height] of [[500, 755], [1024, 800], [1180, 757], [1439, 800], [1440, 599]]) {
+  await S('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+  const t = await E(TRAIL), a = await E(STATE);
+  gate(t?.display === 'none' && a?.display === 'none',
+    `both margin figures hidden when they cannot fit: ${width}x${height}`);
+}
+for (const [width, height] of [[1440, 600], [1440, 800], [1920, 1080]]) {
+  await S('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+  const bounds = await E(`(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();
+    const main=r('.container'), trail=r('.trail-container'), arc=r('.sky-arc-container');
+    return {left:main.left-trail.right,right:arc.left-main.right,
+      trailVisible:trail.width>0,arcVisible:arc.width>0,
+      vertical:trail.top>=60&&trail.bottom<=innerHeight};})()`);
+  gate(bounds?.trailVisible && bounds?.arcVisible && bounds.left >= 16 && bounds.right >= 16 && bounds.vertical,
+    `both figures fit outside content at ${width}x${height}`, JSON.stringify(bounds));
 }
 await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
 

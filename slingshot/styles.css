@@ -171,6 +171,20 @@ html, body {
 .badge-btn { text-transform: none; cursor: pointer; }
 .badge-btn[aria-pressed="true"] { color: var(--lm); border-color: var(--lm); }
 
+.daily-update {
+    align-self: flex-start;
+    max-width: 470px;
+    padding: 8px 10px;
+    background: var(--panel);
+    border: 1px solid var(--am);
+    font-family: var(--mono);
+    font-size: .66rem;
+    line-height: 1.5;
+}
+.daily-update[hidden] { display: none; }
+.daily-update p { margin: 0 0 6px; }
+button:disabled { opacity: .6; cursor: wait; }
+
 .card[hidden] { display: none; }
 
 /*
@@ -286,4 +300,15 @@ button.primary:hover { background: #7fdfe5; }
     .g-v { font-size: .85rem; }
     .hud { padding: 10px; }
     .hint { font-size: .58rem; }
+}
+
+/* A shallow landscape window cannot contain the HUD and a playable board.
+   Keep the controls reachable by scrolling, and let the canvas scroll with
+   them. Dragging the board still aims; dragging a panel scrolls the page. */
+@media (max-height: 560px) {
+    html, body { height: auto; min-height: 100%; overflow-y: auto; }
+    body { position: relative; }
+    #stage { position: absolute; min-height: 640px; }
+    .hud { height: auto; min-height: 640px; }
+    .hud > * { pointer-events: auto; }
 }

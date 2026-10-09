@@ -270,14 +270,6 @@ body:not(.mode-countup) .sky-arc-sun {
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
-/* Hidden on a phone or tablet, as the trail is: it is a margin figure,
-   and there is no margin. */
-@media (max-width: 1024px) {
-    .sky-arc-container {
-        display: none;
-    }
-}
-
 /* ------------------------------------------------------------------
    The milestone trail
 
@@ -421,8 +413,12 @@ body:not(.mode-countup) .trail-sun {
     opacity: 0.8;
 }
 
-/* Hidden on a phone or tablet, like the arc: a margin figure with no margin. */
-@media (max-width: 1024px) {
+/* These are margin figures. The 1000px content column needs two 220px
+   gutters before the 176px trail and 160px arc (including hover scale) fit.
+   Below that width, keep the same milestones in the main page instead of
+   covering the clock/cards. Short windows also need their vertical space. */
+@media (max-width: 1439px), (max-height: 599px) {
+    .sky-arc-container,
     .trail-container {
         display: none;
     }

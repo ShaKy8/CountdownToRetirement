@@ -21,6 +21,7 @@ import { createData } from './views/data.js';
 import { createOverhead } from './views/overhead.js';
 import { initAudio, setAudioEnabled, updateAudio, isAudioOn } from './audio.js';
 import { showBriefing } from './brief.js';
+import { createModalController } from './lib/modal.js';
 
 const VIEWS = ['deck', 'radar', 'sky', 'air', 'data', 'overhead'];
 const REFRESH_MS = 5 * 60_000;
@@ -48,6 +49,7 @@ const el = {
 const sky = new Sky(el.sky);
 let timeline = null;
 const views = {};
+const modal = createModalController(el.modal, el.modalCard, document.getElementById('app'));
 
 /* ------------------------------------------------------------------ boot */
 
@@ -153,8 +155,6 @@ function mountUI() {
   el.cfgBtn.addEventListener('click', openSettings);
   el.soundBtn.addEventListener('click', toggleSound);
 
-  el.modal.addEventListener('click', (e) => { if (e.target === el.modal) closeModal(); });
-
   // A laptop lid re-opened after hours should show now, not then.
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) { nowAccum = 0; store.syncToNow(); }
@@ -258,14 +258,11 @@ function tickClock(now) {
 
 /* ----------------------------------------------------------------- modal */
 
-export function openModal(html, onMount) {
-  el.modalCard.innerHTML = html;
-  el.modal.hidden = false;
-  if (onMount) onMount(el.modalCard);
+export function openModal(html, onMount, trigger) {
+  modal.open(html, onMount, trigger);
 }
 export function closeModal() {
-  el.modal.hidden = true;
-  el.modalCard.innerHTML = '';
+  modal.close();
 }
 
 /* -------------------------------------------------------------- search UI */
@@ -421,7 +418,7 @@ function openAlerts() {
   `);
 }
 
-function openSettings() {
+function openSettings(event) {
   const q = perf.manual;
   openModal(`
     <div class="hd">SETTINGS<span class="rule"></span><span class="val">ATMOS//NET v1.0.0</span></div>
@@ -471,7 +468,7 @@ function openSettings() {
       e.target.textContent = store.settings.voice ? 'on' : 'off';
       e.target.classList.toggle('on', store.settings.voice);
     });
-  });
+  }, event?.currentTarget);
 }
 
 function toggleSound() {
@@ -541,10 +538,12 @@ function onKey(e) {
   // Leave native control activation, editing and nested control content alone.
   if (e.defaultPrevented || e.isComposing) return;
   if (e.target.closest?.('input, textarea, select, button, a[href], summary, [contenteditable], [role="button"], [role="link"], [role="slider"], [role="textbox"], [role="combobox"]')) {
-    if (e.key === 'Escape') { closeModal(); e.target.blur?.(); }
+    if (e.key === 'Escape') closeModal();
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // A non-interactive dialog (for example empty Alerts) owns focus too.
+  if (e.target.closest?.('[aria-modal="true"]')) return;
 
   const k = e.key;
   if (k === 'Escape') { closeModal(); return; }
