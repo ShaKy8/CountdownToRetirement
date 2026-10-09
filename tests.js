@@ -5746,6 +5746,16 @@ describe('RELIABILITY - Weather and Slingshot', () => {
     });
 });
 
+describe('QA REGRESSIONS - Responsive UI, daily rollover and error routing', () => {
+    test('Should pass the six UI fixes and conditional error-routing plan checks', () => {
+        const result = require('child_process').spawnSync(process.execPath, ['--test',
+            'tests/weather-qa-fixes.test.cjs', 'tests/game-qa-regressions.test.cjs',
+            'tests/site-qa-fixes.test.cjs'],
+        { cwd: __dirname, encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(result.status, 0, result.stdout + result.stderr);
+    });
+});
+
 // =============================================================================
 // TEST SUMMARY
 // =============================================================================

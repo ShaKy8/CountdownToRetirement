@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="SLINGSHOT - a daily orbital puzzle. Reach the beacon by letting gravity bend your shot.">
     <title>SLINGSHOT</title>
-    <link rel="stylesheet" href="styles.css?v=13d3669417">
+    <link rel="stylesheet" href="styles.css?v=1ca4d0a011">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
@@ -45,6 +45,11 @@
             <button type="button" class="badge badge-btn" id="sound" aria-pressed="false">🔇 SOUND</button>
         </div>
 
+        <div class="daily-update" id="daily-update" hidden>
+            <p id="daily-message" role="status" aria-live="polite"></p>
+            <button type="button" id="today">Play today's launch</button>
+        </div>
+
         <div class="card" id="card" hidden>
             <p class="card-title" id="card-title">Ready</p>
             <p class="card-line" id="card-line"></p>
@@ -54,7 +59,7 @@
                 <button type="button" id="share" hidden>Copy result</button>
                 <button type="button" id="free" hidden>Free play</button>
             </div>
-            <p class="card-next">Next launch in <span id="next-in">—</span></p>
+            <p class="card-next"><span id="next-label">Next launch in</span> <span id="next-in">—</span></p>
         </div>
 
         <p class="say" id="say" role="status" aria-live="polite"></p>
@@ -67,6 +72,6 @@
     <script src="/shared/daily.js?v=be6754e8a4"></script>
     <script src="orbit.js?v=d0b1f5bc57"></script>
     <script src="audio.js?v=c851379377"></script>
-    <script src="script.js?v=d34a2814ca"></script>
+    <script src="script.js?v=54c021d97c"></script>
 </body>
 </html>

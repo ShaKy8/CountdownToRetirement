@@ -118,7 +118,7 @@ function makeHarness(options = {}) {
         setTimeout(callback, delay) { timers.push({ callback, delay }); },
         setInterval() {}
     };
-    const document = { getElementById: byId };
+    const document = { getElementById: byId, addEventListener(type, handler) { handlers[type] = handler; } };
     const navigator = options.clipboard === undefined ? {} : { clipboard: options.clipboard };
     vm.runInNewContext(source, { window, document, navigator, URLSearchParams, Element }, { filename: 'slingshot/script.js' });
     function key(key, extra = {}) {

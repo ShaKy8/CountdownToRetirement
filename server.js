@@ -240,8 +240,18 @@ const server = http.createServer((req, res) => {
     // Check if file exists
     fs.access(fullPath, fs.constants.R_OK, (err) => {
         if (err) {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            res.end('404 Not Found');
+            // Match the production website error document, while keeping the
+            // original 404 status (never turn a missing URL into a soft 200).
+            fs.readFile(path.join(__dirname, '404.html'), (pageError, page) => {
+                const body = pageError ? Buffer.from('404 Not Found') : page;
+                res.writeHead(404, {
+                    ...headersFor(req),
+                    'Content-Type': pageError ? 'text/plain' : 'text/html; charset=utf-8',
+                    'Content-Length': body.length,
+                    'Cache-Control': 'no-cache, must-revalidate'
+                });
+                res.end(req.method === 'HEAD' ? undefined : body);
+            });
             return;
         }
 

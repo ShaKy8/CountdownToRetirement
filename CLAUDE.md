@@ -318,8 +318,9 @@ asserted. Credit, in this order, Keith, Diane, Jeremiah, and Harley. The showcas
 ### Retirement Clock (/countdown/)
 - **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
 - **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. The progress bar fills toward the next milestone.
-- **The sky arc** is the fixed figure on the right (desktop only, hidden at
-  1024px and below, like the trail on the left). In count-up mode the sun crosses a
+- **The sky arc** is the fixed figure on the right (desktop only, hidden
+  below 1440px wide or 600px tall, like the trail on the left, so neither
+  overlays the 1000px content column). In count-up mode the sun crosses a
   semicircle from "Retired" to the next milestone, `fraction` of the way
   along, with the milestone's emoji at the far horizon; in countdown mode the
   moon crosses the night from "Day One" (employment start, which is what

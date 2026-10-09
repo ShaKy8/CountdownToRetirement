@@ -132,16 +132,28 @@ function gameRecord(api, key, scoreField, oneWord) {
     try { state = api.parseState(localStorage.getItem(api.STORAGE_KEY)); } catch (e) { return null; }
     if (!state || !state.played) return null;
     const days = Object.entries(state.days || {})
-        .map(([d, r]) => ({ date: D.puzzleDateKey(+d), r }))
-        .filter((x) => x.date && x.date.startsWith(`${YEAR}-`));
+        .map(([d, r]) => ({ day: +d, date: D.puzzleDateKey(+d), r }))
+        .filter((x) => x.date && x.date.startsWith(`${YEAR}-`))
+        .sort((a, b) => a.day - b.day);
     // Before October 2026 the games kept only 30 days, so for their first
     // year the lifetime counters are the truer count of what was played.
     const counters = YEAR === FIRST && YEAR === LAST;
     const played = Math.max(days.length, counters ? state.played : 0);
+    if (!played) return null;
     const ones = Math.max(days.filter((x) => x.r[scoreField] === 1).length, counters ? state[key] || 0 : 0);
     const best = days.reduce((m, x) => (x.r[scoreField] && (!m || x.r[scoreField] < m.r[scoreField]) ? x : m), null);
     const windiest = days.reduce((m, x) => (typeof x.r.windMph === 'number' && (!m || x.r.windMph > m.r.windMph) ? x : m), null);
-    return { played, ones, oneWord, bestStreak: state.bestStreak || 0, best, windiest };
+    // Lifetime bestStreak may span New Year or belong to a different year.
+    // Count only adjacent retained days within this selection; missing history
+    // cannot be reconstructed from lifetime counters, so label that limit.
+    let streak = 0, bestStreak = 0, previous = null;
+    for (const x of days) {
+        streak = previous !== null && x.day === previous + 1 ? streak + 1 : 1;
+        bestStreak = Math.max(bestStreak, streak);
+        previous = x.day;
+    }
+    return { played, ones, oneWord, bestStreak, best, windiest,
+        legacyTotals: counters && state.played > days.length };
 }
 
 function games() {
@@ -160,19 +172,20 @@ function games() {
             const row = (k, v) => dl.append(h('dt', '', k), h('dd', '', v));
             row('Rounds played', num(g.played));
             row(g.oneWord, num(g.ones));
-            row('Best streak', plural(g.bestStreak, 'day', 'days'));
+            row('Best recorded streak', plural(g.bestStreak, 'day', 'days'));
             if (g.windiest && g.windiest.r.windMph >= 1) row('Windiest round', `${Math.round(g.windiest.r.windMph)} mph, ${fmt(isoDay(g.windiest.date), { month: 'short', day: 'numeric' })}`);
             card.append(dl);
         } else {
-            card.append(h('p', 'small', 'No rounds on this device yet.'));
+            card.append(h('p', 'small', `No saved rounds for ${YEAR} on this device.`));
         }
         const a = h('a', '', `Play today's ${name} →`); a.href = href;
         card.append(a);
         box.append(card);
     }
     $('g-note').textContent = any
-        ? 'From this browser: the games keep their records where you play them.'
-        : 'The games keep their records in the browser you play them in, and this one has none yet.';
+        ? `From this browser's saved history for ${YEAR}. Streaks count consecutive days within this year; older daily records may be missing.`
+            + (list.some(([, , g]) => g && g.legacyTotals) ? ' Round and one-shot totals include earlier 2026 plays whose daily records were not retained.' : '')
+        : `No saved rounds for ${YEAR} in this browser. Older daily records may no longer be available.`;
 }
 
 async function weather(stats) {

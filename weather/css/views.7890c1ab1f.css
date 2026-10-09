@@ -303,8 +303,12 @@
   --ac: var(--cy);
   width: min(620px, 100%); max-height: 76dvh;
   padding: 16px 18px;
+  overflow-y: auto;
   animation: rise .22s var(--ease);
 }
+/* Preserve each row's content height; focusing a control can then scroll it
+   into view even in a short window or with enlarged text. */
+.modal-card > * { flex-shrink: 0; }
 @keyframes rise { from { transform: translateY(10px); opacity: 0; } }
 
 .search-input {
@@ -486,6 +490,11 @@
 .skyview > .sun-panel  { grid-area: sun; }
 .skyview > .panel:nth-of-type(4) { grid-area: kp; }
 .skyview > .panel:nth-of-type(5) { grid-area: see; overflow-y: auto; }
+
+/* Short desktop cards must scroll rather than squeeze their text underneath
+   the next chart. Keep the existing grid and the phone's natural-height flow. */
+.skyview > .panel:not(.dome-panel) { overflow-y: auto; }
+.skyview > .panel > .body, .skyview .tn { flex-shrink: 0; }
 
 /* --- TONIGHT: the planning strip under the observing score --------------- */
 

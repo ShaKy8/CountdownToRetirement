@@ -30,6 +30,22 @@ cp -r "$SRC"/. "$DEST"/
 # Local-only tooling has no place on the public site.
 rm -f "$DEST/wallpaper.html"
 
+# The canonical console also has a local wallpaper-only refresh flag. Keep
+# the public API client unchanged when syncing unrelated console fixes: the
+# deployed Lambda does not provide the wallpaper server's fresh-feed route.
+sed -i \
+  -e '/^\/\/ `wallpaper.html?fresh` asks the server to refetch its live feeds first\.$/d' \
+  -e "/^const FRESH = new URLSearchParams(location.search).has('fresh');$/d" \
+  -e "/^  if (FRESH) u.searchParams.set('fresh', '1');$/d" \
+  "$DEST/js/api.js"
+# Removing the two-line flag declaration otherwise leaves a duplicate blank.
+python3 - "$DEST/js/api.js" <<'PY'
+from pathlib import Path
+import sys
+file = Path(sys.argv[1])
+file.write_text(file.read_text().replace("const API_BASE = new URL('./', location.href);\n\n\n", "const API_BASE = new URL('./', location.href);\n\n"))
+PY
+
 # --- absolute -> relative -------------------------------------------------
 # index.html sits at weather/, so its assets are one level down from it.
 sed -i \
