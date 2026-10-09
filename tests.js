@@ -5725,6 +5725,28 @@ describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () =>
 });
 
 // =============================================================================
+// RELIABILITY - execute the shipped store and game handlers with fixed feeds
+// =============================================================================
+
+describe('RELIABILITY - Weather and Slingshot', () => {
+    test('CI should check the production build in its disposable checkout', () => {
+        const workflow = require('fs').readFileSync(path.join(__dirname, '.github/workflows/test.yml'), 'utf8');
+        const bake = workflow.indexOf('node scripts/bake-home.mjs');
+        const stamp = workflow.indexOf('node scripts/stamp-assets.mjs');
+        const unit = workflow.indexOf('node tests.js');
+        const server = workflow.indexOf('node tests-server.js');
+        assert.ok(bake >= 0 && stamp > bake && unit > stamp && server > unit,
+            'CI must bake and stamp before running both test suites');
+    });
+    test('Should pass the asynchronous store, input and replay regressions', () => {
+        const result = require('child_process').spawnSync(process.execPath, ['--test',
+            'tests/weather-reliability.test.cjs', 'tests/slingshot-reliability.test.cjs'],
+        { cwd: __dirname, encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(result.status, 0, result.stdout + result.stderr);
+    });
+});
+
+// =============================================================================
 // TEST SUMMARY
 // =============================================================================
 

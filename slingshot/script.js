@@ -221,6 +221,11 @@
     const Y = function (y) { return oy + y * k; };
     function toWorld(sx, sy) { return [(sx - ox) / k, (sy - oy) / k]; }
 
+    // Replay progress stays fractional; only a path lookup rounds to an x/y pair.
+    function pathIndex(path, progress) {
+        return clamp(Math.floor(progress / 2) * 2, 0, Math.max(0, Math.floor(path.length / 2) * 2 - 2));
+    }
+
     // ------------------------------------------------------------------
     // Flow
     // ------------------------------------------------------------------
@@ -549,7 +554,7 @@
         if (probe && (mode === 'flying' || mode === 'done')) {
             const p = probe.path;
             if (p.length >= 2) {
-                const e = clamp(probe.i, 0, p.length - 2);
+                const e = pathIndex(p, probe.i);
                 ctx.strokeStyle = 'rgba(63,208,216,.9)'; ctx.lineWidth = 2;
                 ctx.beginPath();
                 for (let j = 0; j <= e; j += 2) {
@@ -575,9 +580,10 @@
         if (mode === 'flying' && probe) {
             // Replay the precomputed path. Reduced motion skips straight to the
             // end rather than removing the result.
-            probe.i += reduceMotion ? probe.path.length : Math.round(dtMs / 1000 * 44) * 2;
-            if (probe.i >= probe.path.length - 2) {
-                probe.i = Math.max(0, probe.path.length - 2);
+            probe.i += reduceMotion ? probe.path.length : dtMs / 1000 * 44 * 2;
+            const end = Math.max(0, Math.floor(probe.path.length / 2) * 2 - 2);
+            if (probe.i >= end) {
+                probe.i = end;
                 nearQ = 0;
                 land();
             } else {
@@ -586,7 +592,7 @@
                  * the closest approach, but only reported it afterwards as a
                  * number you had to interpret; this is the same fact, felt.
                  */
-                const pth = probe.path, e = clamp(probe.i, 0, pth.length - 2);
+                const pth = probe.path, e = pathIndex(pth, probe.i);
                 const tg = level.target;
                 const dx = pth[e] - tg.x, dy = pth[e + 1] - tg.y;
                 nearQ = clamp(1 - Math.sqrt(dx * dx + dy * dy) / (S.NEAR_MISS * 2.5), 0, 1);
@@ -632,7 +638,10 @@
     stage.addEventListener('pointercancel', function () { dragging = false; });
 
     window.addEventListener('keydown', function (e) {
-        if (mode !== 'aim') return;
+        if (mode !== 'aim' || e.defaultPrevented || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+        const target = e.target;
+        if (target && (target.isContentEditable || (target.closest &&
+            target.closest('button, a, input, select, textarea, summary, [contenteditable], [role="button"], [role="link"]')))) return;
         const step = (e.shiftKey ? 0.15 : 0.6) * Math.PI / 180;
         if (e.key === 'ArrowLeft') { aim.a -= step; paintGauges(); e.preventDefault(); }
         else if (e.key === 'ArrowRight') { aim.a += step; paintGauges(); e.preventDefault(); }
@@ -653,11 +662,18 @@
         const text = byId('card-share').textContent;
         const done = function () {
             byId('share').textContent = 'Copied';
+            say('Result copied.', 'good');
             window.setTimeout(function () { byId('share').textContent = 'Copy result'; }, 1600);
         };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(done, done);
-        } else { done(); }
+        const failed = function () {
+            byId('share').textContent = 'Copy result';
+            say('Could not copy. Select the result above and copy it manually.', 'warn');
+        };
+        try {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                navigator.clipboard.writeText(text).then(done, failed);
+            } else { failed(); }
+        } catch (e) { failed(); }
     });
 
     const soundBtn = byId('sound');

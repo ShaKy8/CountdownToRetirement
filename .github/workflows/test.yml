@@ -23,6 +23,14 @@ jobs:
         with:
           node-version: '22'
 
+      # Build only in the runner's disposable checkout, just as deploy.yml does.
+      # Date-dependent homepage counts and content stamps are generated output;
+      # tests must inspect the bytes that would ship without committing them.
+      - name: Prepare production build
+        run: |
+          node scripts/bake-home.mjs
+          node scripts/stamp-assets.mjs
+
       - name: Run client-side tests
         run: node tests.js
 
