@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#101d26">
+  <meta name="description" content="A tiny, luminous arcade game. Draw loops around drifting lights, keep the embers out, and see how much wonder you can catch in 75 seconds.">
+  <title>LIGHT LASSO — BranyonTech</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css?v=2fe63fe3f8">
+  <script src="engine.js?v=3b13701415" defer></script>
+  <script src="script.js?v=bd79f4a1b1" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#play">Skip to the game</a>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="home-link" href="/" aria-label="Back to BranyonTech home"><span aria-hidden="true">↖</span> BranyonTech</a>
+      <p class="edition"><span class="edition-dot" aria-hidden="true"></span> A LITTLE AFTER-DARK ARCADE</p>
+    </header>
+
+    <main class="game-layout" id="play">
+      <aside class="editorial" aria-labelledby="game-title">
+        <div class="title-block">
+          <p class="eyebrow">GATHER A LITTLE WONDER</p>
+          <h1 id="game-title"><span>LIGHT</span><span class="title-lasso">LASSO<svg class="title-loop" viewBox="0 0 340 145" fill="none" aria-hidden="true"><path d="M299 118C349 70 279 3 158 11 43 18-5 66 24 104 52 141 180 152 245 105"/><path d="m239 105 7-1-1 7"/></svg></span></h1>
+          <p class="tagline">A fleeting moment.<br>A field full of light.</p>
+        </div>
+
+        <div class="field-notes">
+          <div class="section-label"><span>FIELD NOTES</span><span aria-hidden="true">01 — 03</span></div>
+          <p class="instructions" id="instructions">Circle the lights. Release to catch.<br>Keep red embers out.</p>
+          <ol class="steps">
+            <li><span class="step-mark" aria-hidden="true"><svg viewBox="0 0 38 38" fill="none"><path d="M28 30C35 22 32 7 18 8 5 9 3 25 15 29"/><circle cx="20" cy="18" r="2"/><path d="m12 28 4 1-2 4"/></svg></span><span><strong>Draw a loop</strong><span>Drag around the glowing lights.</span></span></li>
+            <li><span class="step-mark" aria-hidden="true"><svg viewBox="0 0 38 38" fill="none"><path d="M7 19h6m12 0h6M19 7v6m0 12v6m-8-20 4 4m8 8 4 4m0-16-4 4m-8 8-4 4"/><circle cx="19" cy="19" r="3"/></svg></span><span><strong>Let them shine</strong><span>Release to close your lasso.</span></span></li>
+            <li><span class="step-mark ember-mark" aria-hidden="true"><svg viewBox="0 0 38 38" fill="none"><path d="m14 14 10 10m0-10L14 24"/><circle cx="19" cy="19" r="12" stroke-dasharray="2 5"/></svg></span><span><strong>Leave the embers</strong><span>A red × burns only that loop.</span></span></li>
+          </ol>
+          <p class="scoring-note">Bigger catches.<br><em>Bigger scores.</em></p>
+        </div>
+        <p class="sidebar-note"><span aria-hidden="true">✦</span> Just you, a little light, and 75 seconds.</p>
+      </aside>
+
+      <section class="play-area" aria-label="Light Lasso game">
+        <div class="meadow-label"><span id="daily-label">TODAY'S MEADOW</span><span class="live-label"><span aria-hidden="true">✦</span> LIGHT LASSO</span></div>
+        <header class="scoreboard" aria-label="Game statistics">
+          <div class="stat stat-score"><span class="stat-label">SCORE</span><span class="stat-value" id="score">0</span></div>
+          <div class="stat"><span class="stat-label">TIME</span><span class="stat-value"><span id="time">75</span><span class="stat-unit">s</span></span></div>
+          <div class="stat stat-chain"><span class="stat-label">CHAIN</span><span class="stat-value" id="combo">1×</span><span class="chain-track" aria-hidden="true"><span id="chain-fill"></span></span></div>
+          <div class="stat stat-best"><span class="stat-label">BEST</span><span class="stat-value" id="best">0</span></div>
+        </header>
+
+        <div class="board" id="board">
+          <canvas id="field" width="720" height="820" tabindex="0" aria-label="Light Lasso meadow. Draw loops to collect lights and avoid red X embers." aria-describedby="instructions keyboard-instructions">Your browser needs canvas support to play Light Lasso. The game uses a pointer or arrow keys and Space.</canvas>
+          <div class="board-corner corner-top" aria-hidden="true"></div>
+          <div class="board-corner corner-bottom" aria-hidden="true"></div>
+
+          <section class="overlay intro-overlay" id="intro" aria-labelledby="intro-title">
+            <div class="panel intro-panel">
+              <svg class="intro-art" viewBox="0 0 220 135" fill="none" aria-hidden="true">
+                <path class="art-orbit" d="M171 103c45-26 18-84-51-85C45 17 15 57 44 94c25 31 100 25 112-4"/>
+                <path class="art-tail" d="m148 93 9-4-1 10"/>
+                <circle class="art-halo" cx="92" cy="67" r="22"/><circle class="art-light" cx="92" cy="67" r="4"/>
+                <circle class="art-halo" cx="140" cy="48" r="15"/><circle class="art-light small-light" cx="140" cy="48" r="3"/>
+                <circle class="art-light small-light" cx="128" cy="88" r="2.5"/>
+                <path class="art-ember" d="m194 30 7 7m0-7-7 7"/>
+                <path class="art-twinkle" d="M33 22v10m-5-5h10M174 113v8m-4-4h8"/>
+              </svg>
+              <p class="panel-eyebrow">A SMALL ESCAPE · 75 SECONDS</p>
+              <h2 id="intro-title">Circle the lights.<br><em>Release to catch.</em></h2>
+              <p class="panel-copy">Keep the red <span class="ember-symbol" aria-label="X">×</span> embers outside your loop.</p>
+              <div class="panel-actions">
+                <button class="button primary-button" id="start" type="button">Play today <span aria-hidden="true">↗</span></button>
+                <button class="button secondary-button" id="shuffle" type="button">Shuffle a meadow <span aria-hidden="true">⤨</span></button>
+              </div>
+              <p class="panel-footnote">One daily meadow. As many tries as you like.</p>
+            </div>
+          </section>
+
+          <section class="overlay" id="result" aria-labelledby="result-title" hidden>
+            <div class="panel result-panel">
+              <span class="result-star" aria-hidden="true">✦</span>
+              <p class="panel-eyebrow">THE NIGHT'S COLLECTION</p>
+              <h2 id="result-title">A little light,<br><em>collected.</em></h2>
+              <p class="result-points"><span id="result-score">0</span><span>POINTS</span></p>
+              <p class="panel-copy" id="result-detail">Every little light adds up.</p>
+              <p class="result-best" id="result-best">Your best on this browser: 0</p>
+              <div class="panel-actions">
+                <button class="button primary-button" id="again" type="button">Play again <span aria-hidden="true">↗</span></button>
+                <button class="button secondary-button" id="result-shuffle" type="button">Shuffle a meadow <span aria-hidden="true">⤨</span></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="overlay" id="pause-panel" aria-labelledby="pause-title" hidden>
+            <div class="panel pause-panel">
+              <span class="pause-moon" aria-hidden="true">☾</span>
+              <p class="panel-eyebrow">TAKE YOUR TIME</p>
+              <h2 id="pause-title">The light<br><em>can wait.</em></h2>
+              <p class="panel-copy">Your meadow is paused.</p>
+              <div class="panel-actions">
+                <button class="button primary-button" id="resume" type="button">Keep catching <span aria-hidden="true">↗</span></button>
+                <button class="button secondary-button" id="quit" type="button">Back to the start</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="overlay help-overlay" id="help-panel" aria-labelledby="help-title" hidden>
+            <div class="panel help-panel">
+              <p class="panel-eyebrow">A FEW FIELD NOTES</p>
+              <h2 id="help-title">Follow<br><em>the light.</em></h2>
+              <dl class="help-notes">
+                <div><dt>Draw &amp; release</dt><dd>Drag a loop around the lights. Let go to close it and collect everything inside.</dd></div>
+                <div><dt><span class="ember-symbol" aria-hidden="true">×</span> Mind the embers</dt><dd>Enclosing a red X burns that loop. Your earlier points are safe.</dd></div>
+                <div><dt>Keep the glow going</dt><dd>Catch several lights at once for more points. Quick catches build a chain, up to a 3× multiplier.</dd></div>
+                <div><dt>Keyboard works, too</dt><dd>Choose Keyboard below. Arrows move your cursor; Space starts or releases a loop. Esc pauses.</dd></div>
+              </dl>
+              <button class="button primary-button" id="close-help" type="button">Got it <span aria-hidden="true">↗</span></button>
+            </div>
+          </section>
+        </div>
+
+        <div class="thread-meter"><div class="thread-track" aria-hidden="true"><span id="thread-fill"></span></div><span id="thread-label">Thread ready</span></div>
+        <div class="board-toolbar" aria-label="Game controls">
+          <button class="tool-button" id="pause" type="button" disabled>Pause</button>
+          <button class="tool-button" id="restart" type="button" disabled>Restart</button>
+          <button class="tool-button" id="sound" type="button" aria-pressed="false">Sound off</button>
+          <button class="tool-button" id="help" type="button">How to play</button>
+        </div>
+        <div class="status-row">
+          <p class="status" id="status" aria-live="polite" aria-atomic="true">A meadow full of possibility.</p>
+          <button class="keyboard-button" id="keyboard-mode" type="button" aria-pressed="false"><svg viewBox="0 0 22 16" fill="none" aria-hidden="true"><rect x="1" y="1" width="20" height="14" rx="2"/><path d="M5 5h1m4 0h1m4 0h1M5 8h1m4 0h1m4 0h1M6 11h10"/></svg><span>Keyboard</span></button>
+        </div>
+        <p class="keyboard-instructions" id="keyboard-instructions">Arrows to move · Space to draw/release · Esc to pause</p>
+      </section>
+    </main>
+
+    <footer class="site-footer"><span>MADE FOR A MOMENT OF PLAY.</span><span>No backend. No ads. <span class="storage-note" id="storage-note">Data saved on this browser.</span></span></footer>
+  </div>
+  <noscript><div class="no-script"><h2>Let there be light.</h2><p>Light Lasso needs JavaScript to run the game. Enable it in your browser, then reload this page.</p><a href="/">Back to BranyonTech</a></div></noscript>
+</body>
+</html>

@@ -910,7 +910,12 @@ async function runSlingshotTests() {
                 ['/slingshot/script.js', 'text/javascript'],
                 ['/slingshot/audio.js', 'text/javascript'],
                 ['/slingshot/styles.css', 'text/css'],
-                ['/slingshot/favicon.svg', 'image/svg+xml']
+                ['/slingshot/favicon.svg', 'image/svg+xml'],
+                ['/light-lasso/index.html', 'text/html'],
+                ['/light-lasso/engine.js', 'text/javascript'],
+                ['/light-lasso/script.js', 'text/javascript'],
+                ['/light-lasso/styles.css', 'text/css'],
+                ['/light-lasso/favicon.svg', 'image/svg+xml']
             ];
             for (const [p, type] of assets) {
                 const { res } = await makeRequest({

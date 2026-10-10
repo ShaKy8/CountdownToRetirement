@@ -27,6 +27,7 @@ on:
       - 'countdown/**'
       - 'game/**'
       - 'slingshot/**'
+      - 'light-lasso/**'
       - 'fish-hatchery/**'
       - 'year/**'
       - 'shared/**'
@@ -93,6 +94,7 @@ jobs:
             --include 'countdown/index.html' \
             --include 'game/index.html' \
             --include 'slingshot/index.html' \
+            --include 'light-lasso/index.html' \
             --include 'weather/index.html' \
             --include 'fish-hatchery/index.html' \
             --include 'year/index.html' \
@@ -117,6 +119,8 @@ jobs:
             --include 'slingshot/orbit.js' --include 'slingshot/script.js' \
             --include 'slingshot/audio.js' --include 'slingshot/styles.css' \
             --include 'slingshot/favicon.svg' \
+            --include 'light-lasso/engine.js' --include 'light-lasso/script.js' \
+            --include 'light-lasso/styles.css' --include 'light-lasso/favicon.svg' \
             --include 'fish-hatchery/app.js' --include 'fish-hatchery/styles.css' \
             --include 'fish-hatchery/favicon.svg' --include 'fish-hatchery/assets/*.webp' \
             --cache-control 'public, max-age=3600'
