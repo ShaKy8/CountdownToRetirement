@@ -6,37 +6,63 @@
   <title>Page Not Found | BranyonTech</title>
   <meta name="robots" content="noindex">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="stylesheet" href="/styles.css">
-  <style>
-    .notfound {
-      min-height: 70vh;
-      display: grid;
-      place-items: center;
-      text-align: center;
-      padding: 2rem;
-    }
-    .notfound-code { font-size: 5rem; font-weight: 700; line-height: 1; margin: 0; }
-    .notfound-text { margin: 1rem 0 2rem; max-width: 34rem; }
-    .notfound-links { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
-  </style>
+  <meta name="theme-color" content="#fbf6ef">
+  <!-- The homepage, as a 404: its stylesheet, its live sky (home.js) and its
+       cards, so a wrong turn still looks like the site. Every path is
+       root-absolute: S3 serves this page at whatever address was missing,
+       /countdown/nope/deeper included. scripts/check-404.mjs pins the bare
+       <h1>Page not found</h1> and the Home link. -->
+  <link rel="stylesheet" href="/styles.css?v=1ba317b1ff">
+  <script src="/home.js?v=24722414eb"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
-  <main id="main-content" class="notfound">
-    <div>
-      <p class="notfound-code" aria-hidden="true">404</p>
+
+  <main id="main-content" class="page">
+    <section class="intro" aria-label="Page not found">
+      <p class="brand">BranyonTech · 404</p>
       <h1>Page not found</h1>
-      <p class="notfound-text">
-        That page doesn't exist. It may have moved, or the link may be out of date.
-      </p>
-      <nav class="notfound-links" aria-label="Suggested pages">
-        <a class="footer-link" href="/">Home</a>
-        <a class="footer-link" href="/countdown/index.html">Retirement clock</a>
-        <a class="footer-link" href="/weather/">Weather console</a>
-        <a class="footer-link" href="/game/">One Putt</a>
-        <a class="footer-link" href="/slingshot/">Slingshot</a>
+      <p class="tagline">That page doesn't exist. It may have moved, or the link may be out of date. Here's everywhere that does:</p>
+
+      <nav class="groups" aria-label="Around the site">
+        <section class="group" aria-labelledby="g-home">
+          <h2 class="group-title" id="g-home">Start here</h2>
+          <ul class="links" role="list">
+            <li><a href="/">Home</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-retirement">
+          <h2 class="group-title" id="g-retirement">Retirement</h2>
+          <ul class="links" role="list">
+            <li><a href="/countdown/index.html">See how long I've been retired</a></li>
+            <li><a href="/year/">Look back on my year</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-weather">
+          <h2 class="group-title" id="g-weather">Weather</h2>
+          <ul class="links" role="list">
+            <li><a href="/weather/">Watch the weather</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-play">
+          <h2 class="group-title" id="g-play">Play</h2>
+          <ul class="links" role="list">
+            <li><a href="/game/">Play today's putt</a></li>
+            <li><a href="/slingshot/">Slingshot a probe past the planets</a></li>
+          </ul>
+        </section>
+        <section class="group" aria-labelledby="g-property">
+          <h2 class="group-title" id="g-property">Property</h2>
+          <ul class="links" role="list">
+            <li><a href="/fish-hatchery/">See Fish Hatchery’s transformation</a></li>
+          </ul>
+        </section>
       </nav>
-    </div>
+    </section>
   </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <p><span class="wx" id="wx" hidden></span><span class="wx-sep" aria-hidden="true">·</span><span>&copy; 2026 BranyonTech</span></p>
+  </footer>
 </body>
 </html>
