@@ -15,7 +15,7 @@
   --serif: Georgia, "Times New Roman", serif;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --board-height: max(365px, calc(100vh - 360px));
-  --board-height: max(365px, calc(100dvh - 360px));
+  --board-height: max(365px, calc(100svh - 360px));
 }
 * { box-sizing: border-box; }
 html { min-width: 280px; min-height: 100%; background: var(--ground); }
@@ -32,7 +32,7 @@ button, a { transition: background-color .16s ease, border-color .16s ease, colo
 a { color: inherit; }
 p, h1, h2 { margin: 0; }
 [hidden] { display: none !important; }
-.site-shell { width: min(1176px, 100%); min-height: 100vh; min-height: 100dvh; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) max(40px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(40px, env(safe-area-inset-left)); display: flex; flex-direction: column; }
+.site-shell { width: min(1176px, 100%); min-height: 100vh; min-height: 100svh; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) max(40px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(40px, env(safe-area-inset-left)); display: flex; flex-direction: column; }
 .site-header { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .home-link { display: inline-flex; align-items: center; gap: 10px; min-height: 36px; text-decoration: none; font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
 .home-link > span { color: var(--mint); font-size: 22px; font-weight: 400; }
@@ -80,7 +80,7 @@ h1 > span:first-child { color: var(--ink); }
 .stat-best .stat-value { color: var(--gold); }
 .stat-unit { font-size: 15px; color: var(--muted); margin-left: 3px; }
 .board { position: relative; isolation: isolate; aspect-ratio: 720 / 820; width: 100%; background: radial-gradient(ellipse at 50% 25%, #203d37 0, #172d30 45%, #122730 100%); border: 1px solid var(--line); border-radius: 0 0 3px 3px; overflow: hidden; box-shadow: 0 24px 60px #071b212b; }
-#field { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+#field { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; cursor: crosshair; }
 #field:focus-visible { outline-offset: -5px; }
 .board-corner { position: absolute; z-index: 2; width: 14px; height: 14px; pointer-events: none; opacity: .7; }
 .corner-top { left: 12px; top: 12px; border-left: 1px solid var(--mint); border-top: 1px solid var(--mint); }
@@ -148,7 +148,7 @@ h2 em { display: inline-block; color: var(--mint); font-family: var(--serif); fo
 .no-script a { color: var(--mint); padding: 12px; }
 
 @media (min-width: 801px) and (max-height: 860px) {
-  :root { --board-height: max(365px, calc(100vh - 345px)); --board-height: max(365px, calc(100dvh - 345px)); }
+  :root { --board-height: max(365px, calc(100vh - 345px)); --board-height: max(365px, calc(100svh - 345px)); }
   .site-shell { padding-top: 15px; padding-bottom: 12px; }
   .game-layout { gap: 44px; padding-top: 8px; padding-bottom: 10px; }
   .editorial { padding-block: 0; }
@@ -171,7 +171,7 @@ h2 em { display: inline-block; color: var(--mint); font-family: var(--serif); fo
 }
 
 @media (max-width: 800px) {
-  :root { --board-height: calc(100vh - 335px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); --board-height: calc(100dvh - 335px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  :root { --board-height: calc(100vh - 335px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); --board-height: calc(100svh - 335px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
   .site-shell { width: min(540px, 100%); padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
   .site-header { min-height: 32px; gap: 8px; }
   .home-link { min-height: 32px; font-size: 12px; gap: 6px; }
@@ -223,7 +223,7 @@ h2 em { display: inline-block; color: var(--mint); font-family: var(--serif); fo
 
 /* Compact phones: keep the complete field, controls and HUD in view. */
 @media (max-width: 800px) and (max-height: 760px) {
-  :root { --board-height: calc(100vh - 330px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); --board-height: calc(100dvh - 330px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  :root { --board-height: calc(100vh - 330px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); --board-height: calc(100svh - 330px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
   .game-layout { gap: 10px; padding-block: 5px 8px; }
   .site-header { min-height: 28px; }
   .edition { font-size: 12px; }

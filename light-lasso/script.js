@@ -14,7 +14,8 @@
   catch (_) { records = L.parseRecords(null); storageOK = false; }
   let mode = 'daily', day = L.localDay(new Date()), seed = L.dailySeed(day);
   let game = L.create(seed), phase = 'intro', previousPhase = null;
-  let stroke = [], pointer = null, preview = null, lastFrame = 0, lastHud = '';
+  let stroke = [], pointer = null, pointerKind = null, touchId = null, preview = null, lastFrame = 0, lastHud = '';
+  let strokeRect = null, resizePending = false;
   let particles = [], rings = [], labels = [], flash = null;
   let keyboard = false, cursor = { x: W / 2, y: H / 2 }, keys = new Set();
   let audio = null, helpReturn = null, activeReturn = null;
@@ -53,11 +54,21 @@
       });
     } catch (_) { /* Sound must never interrupt a catch. */ }
   }
+  function focusField() {
+    // Focusing a canvas during a finger gesture can summon browser UI on iOS.
+    // Keyboard users still receive focus, including an iPad with a keyboard.
+    if (keyboard || !window.matchMedia('(pointer: coarse)').matches) canvas.focus({ preventScroll: true });
+  }
   function cancelStroke() {
-    game.drawing = false; stroke = []; preview = null;
+    game.drawing = false; stroke = []; preview = null; touchId = null; pointerKind = null;
     const capturedPointer = pointer; pointer = null;
     if (capturedPointer !== null) { try { canvas.releasePointerCapture(capturedPointer); } catch (_) {} }
- $('thread-label').textContent = 'Thread ready'; $('thread-fill').style.width = '0%';
+    strokeRect = null;
+    $('board').style.width = ''; $('board').style.height = '';
+    $('thread-label').textContent = 'Thread ready'; $('thread-fill').style.width = '0%';
+    // ResizeObserver may have fired while Safari's browser bars were moving.
+    // Rebuild the backing surface only after this gesture has finished.
+    if (resizePending) { resizePending = false; resize(); }
   }
   function refreshMode() {
     $('daily-label').textContent = mode === 'daily' ? 'DAILY MEADOW · ' + day : 'SHUFFLE MEADOW';
@@ -78,7 +89,7 @@
     $('pause').textContent = 'Pause';
     refreshMode(); updateHud();
     say('Draw your first loop to start the 75-second clock. Release to catch.');
-    audioOn(); canvas.focus({ preventScroll: true });
+    audioOn(); focusField();
   }
   function showIntro() {
     cancelStroke(); keys.clear(); phase = 'intro'; mode = 'daily'; day = L.localDay(new Date()); seed = L.dailySeed(day); game = L.create(seed); refreshMode();
@@ -94,7 +105,7 @@
   }
   function resume() {
     if (phase !== 'paused') return;
-    phase = previousPhase || 'ready'; lastFrame = 0; setHidden('pause-panel', true); audioOn(); canvas.focus({ preventScroll: true });
+    phase = previousPhase || 'ready'; lastFrame = 0; setHidden('pause-panel', true); audioOn(); focusField();
     say(phase === 'ready' ? 'Draw your first loop to start the clock.' : 'Circle the lights. Keep red embers out.');
   }
   function openHelp() {
@@ -134,6 +145,9 @@
   function begin(p) {
     if (phase !== 'playing' && phase !== 'ready') return;
     if (phase === 'ready') phase = 'playing';
+    strokeRect = canvas.getBoundingClientRect();
+    const boardRect = $('board').getBoundingClientRect();
+    $('board').style.width = boardRect.width + 'px'; $('board').style.height = boardRect.height + 'px';
     stroke = [p]; game.drawing = true; preview = null;
   }
   function extend(p) {
@@ -163,20 +177,98 @@
     updateHud();
   }
   function position(e) {
-    const r = canvas.getBoundingClientRect();
-    return { x: Math.max(0, Math.min(W, (e.clientX - r.left) / r.width * W)), y: Math.max(0, Math.min(H, (e.clientY - r.top) / r.height * H)) };
+    const current = canvas.getBoundingClientRect();
+    const size = strokeRect || current;
+    // Keep the stroke's scale stable, but follow the field's current origin
+    // if browser chrome or surrounding layout moves it on screen.
+    return { x: Math.max(0, Math.min(W, (e.clientX - current.left) / size.width * W)), y: Math.max(0, Math.min(H, (e.clientY - current.top) / size.height * H)) };
   }
-  canvas.addEventListener('pointerdown', function (e) {
-    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || pointer !== null || (phase !== 'ready' && phase !== 'playing')) return;
-    e.preventDefault(); keyboard = false; $('keyboard-mode').setAttribute('aria-pressed', 'false');
-    canvas.focus({ preventScroll: true }); pointer = e.pointerId; try { canvas.setPointerCapture(pointer); } catch (_) {}
+  function preventGesture(e) { if (e.cancelable !== false) e.preventDefault(); }
+  function pointerDown(e) {
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || touchId !== null || (phase !== 'ready' && phase !== 'playing')) return;
+    // A fresh primary down is a new gesture, even if an earlier off-canvas up
+    // was lost. Never strand the game behind an obsolete pointer identifier.
+    if (pointer !== null || stroke.length) cancelStroke();
+    preventGesture(e); keyboard = false; $('keyboard-mode').setAttribute('aria-pressed', 'false');
+    if (e.pointerType !== 'touch') canvas.focus({ preventScroll: true });
+    pointer = e.pointerId; pointerKind = e.pointerType;
+    try { canvas.setPointerCapture(pointer); } catch (_) { /* Window listeners are the capture fallback. */ }
     begin(position(e));
-  });
-  canvas.addEventListener('pointermove', function (e) { if (e.pointerId === pointer) { e.preventDefault(); extend(position(e)); } });
-  canvas.addEventListener('pointerup', function (e) { if (e.pointerId === pointer) { extend(position(e)); release(); } });
-  canvas.addEventListener('pointercancel', function (e) { if (e.pointerId === pointer) { cancelStroke(); say('Loop cancelled. Keep going.'); } });
-  canvas.addEventListener('lostpointercapture', function (e) { if (e.pointerId === pointer) cancelStroke(); });
-  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+  function pointerMove(e) {
+    if (touchId !== null || e.pointerId !== pointer) return;
+    preventGesture(e); extend(position(e));
+  }
+  function pointerUp(e) {
+    if (touchId !== null || e.pointerId !== pointer) return;
+    preventGesture(e); extend(position(e)); release();
+  }
+  function pointerCancel(e) {
+    if (touchId !== null || e.pointerId !== pointer) return;
+    cancelStroke(); say('Loop cancelled. Keep going.');
+  }
+  canvas.addEventListener('pointerdown', pointerDown);
+  canvas.addEventListener('pointermove', pointerMove);
+  canvas.addEventListener('pointerup', pointerUp);
+  canvas.addEventListener('pointercancel', pointerCancel);
+  // Capture can disappear without the contact ending. Continuing on window
+  // preserves the stroke; only an actual up/cancel/visibility change ends it.
+  window.addEventListener('pointermove', pointerMove, { passive: false });
+  window.addEventListener('pointerup', pointerUp);
+  window.addEventListener('pointercancel', pointerCancel);
+
+  function findTouch(list, identifier) {
+    if (!list) return null;
+    for (let i = 0; i < list.length; i++) if (list[i].identifier === identifier) return list[i];
+    return null;
+  }
+  function touchStart(e) {
+    if (phase !== 'ready' && phase !== 'playing') return;
+    if (touchId !== null) {
+      if (findTouch(e.touches, touchId)) { preventGesture(e); return; }
+      // Recover if Safari swallowed the previous terminal event entirely.
+      cancelStroke();
+    }
+    const contact = e.changedTouches && e.changedTouches[0];
+    if (!contact || (pointer !== null && pointerKind !== 'touch')) return;
+    preventGesture(e); keyboard = false; $('keyboard-mode').setAttribute('aria-pressed', 'false');
+    if (pointer === null && stroke.length) cancelStroke(); // Switch cleanly from a keyboard loop.
+    touchId = contact.identifier; pointerKind = 'touch';
+    // Safari may emit pointerdown before touchstart. Adopt that same stroke,
+    // then let Touch Events own it; compatibility pointercancel/lostcapture
+    // events must not erase a finger that is still touching the canvas. Keep
+    // any existing capture until the real touch ends rather than disturbing it.
+    if (stroke.length) extend(position(contact)); else begin(position(contact));
+  }
+  function touchMove(e) {
+    if (touchId === null) return;
+    preventGesture(e);
+    const contact = findTouch(e.changedTouches, touchId);
+    if (contact) extend(position(contact));
+  }
+  function touchEnd(e) {
+    if (touchId === null) return;
+    const contact = findTouch(e.changedTouches, touchId);
+    if (!contact) return;
+    preventGesture(e); extend(position(contact)); release();
+  }
+  function touchCancel(e) {
+    if (touchId === null) return;
+    if (!findTouch(e.changedTouches, touchId) && findTouch(e.touches, touchId)) return;
+    cancelStroke(); say('Loop cancelled. Keep going.');
+  }
+  // Prevent native panning/loupe gestures at their Touch Event source, only
+  // for strokes that begin on the field. The rest of the page stays scrollable
+  // and zoomable. These listeners must be explicitly non-passive on iOS.
+  canvas.addEventListener('touchstart', touchStart, { passive: false });
+  canvas.addEventListener('touchmove', touchMove, { passive: false });
+  canvas.addEventListener('touchend', touchEnd, { passive: false });
+  canvas.addEventListener('touchcancel', touchCancel);
+  window.addEventListener('touchmove', touchMove, { passive: false });
+  window.addEventListener('touchend', touchEnd, { passive: false });
+  window.addEventListener('touchcancel', touchCancel);
+  canvas.addEventListener('contextmenu', preventGesture);
+  canvas.addEventListener('selectstart', preventGesture);
   canvas.addEventListener('keydown', function (e) {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter', 'Escape'].indexOf(e.code) < 0) return;
     e.preventDefault();
@@ -193,6 +285,7 @@
   document.addEventListener('visibilitychange', function () { if (document.hidden) { if (phase === 'help' && (helpReturn === 'playing' || helpReturn === 'ready')) { previousPhase = helpReturn; helpReturn = 'paused'; setHidden('pause-panel', false); } else pause(); } });
   window.addEventListener('pagehide', function () { pause(); });
   window.addEventListener('pageshow', function () { lastFrame = 0; });
+  window.addEventListener('orientationchange', function () { pause(); resize(); });
   document.addEventListener('keydown', function (e) { if (e.code !== 'Escape' || e.defaultPrevented) return; if (phase === 'help') closeHelp(); else if (phase === 'paused') resume(); });
   $('start').addEventListener('click', function () { start('daily'); });
   $('shuffle').addEventListener('click', function () { start('shuffle'); });
@@ -210,6 +303,7 @@
     if (particles.length > 180) particles.splice(0, particles.length - 180);
   }
   function resize() {
+    if (game.drawing) { resizePending = true; return; }
     const rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = Math.max(1, Math.round(rect.width * dpr)), height = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
