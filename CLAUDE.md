@@ -1593,3 +1593,29 @@ HTML/assets includes in deploy.yml and is in its path trigger. No Lambda,
 Weather source/generated output, permissions, services, APIs or analytics
 are added. Keyboard: arrows move, Space starts/closes, Enter closes, Escape
 cancels a loop or pauses. Hidden/background pages pause without consuming time.
+
+
+### Light Lasso touch input reliability
+
+A real iPhone report (October 10, 2026) found strokes stopping mid-draw.
+The exact device event was not observed, but regression tests proved two
+original weaknesses: losing pointer capture erased an active stroke, and a
+missed off-canvas pointerup could block later gestures behind a stale ID.
+
+Native Touch Events now own one canvas-started finger by identifier, with
+explicit non-passive touchstart/touchmove prevention. Compatibility Pointer
+Events cannot cancel that owned touch. True touchcancel, hiding the page and
+leaving the page still cancel safely. Pointer capture is an optimization,
+not a dependency: window move/up listeners cover capture loss, and a fresh
+primary down recovers a swallowed terminal event. Do not remove this path
+after testing only synthetic Pointer Events or a narrow desktop window.
+
+Only the canvas suppresses native gestures/callouts/selection; surrounding
+content remains scrollable and zoomable. Small-viewport units stabilize the
+field around iOS browser chrome; an active stroke keeps its scale fixed,
+follows the field’s current origin and defers backing-store resizing. tests/light-lasso-touch.test.cjs models
+Touch Events, mixed event ordering, interruption and phone-sized geometry;
+it is not a claim of physical iPhone or Safari validation.
+
+Apple canvas guidance: https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/HTML-canvas-guide/AddingMouseandTouchControlstoCanvas/AddingMouseandTouchControlstoCanvas.html
+Current Safari loupe report: https://bugs.webkit.org/show_bug.cgi?id=296492
