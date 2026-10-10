@@ -32,6 +32,7 @@
   function storageNote() { if ($('storage-note')) $('storage-note').textContent = storageOK ? 'Your best stays on this browser. No account needed.' : 'Storage is unavailable. Your best lasts for this visit.'; }
   function best() { return mode === 'daily' ? (records.days[day] || 0) : records.best; }
   function fmt(n) { return Math.round(n).toLocaleString(); }
+  function lightCount(n) { return n + (n === 1 ? ' light' : ' lights'); }
   function audioOn() {
     if (!sound) return;
     try { const A = window.AudioContext || window.webkitAudioContext; if (!A) return; audio = audio || new A(); if (audio.state === 'suspended') audio.resume().catch(function () {}); }
@@ -115,7 +116,7 @@
     records = L.record(records, mode === 'daily' ? day : null, game.score); persist();
     $('result-title').textContent = game.score > oldBest ? 'A new glow.' : game.score ? 'Beautifully caught.' : 'The night is young.';
     $('result-score').textContent = fmt(game.score);
-    $('result-detail').textContent = game.caught + ' lights caught · ' + game.loops + ' loops · best chain ×' + Math.max(1, game.bestCombo);
+    $('result-detail').textContent = lightCount(game.caught) + ' caught · ' + game.loops + (game.loops === 1 ? ' loop' : ' loops') + ' · best chain ×' + Math.max(1, game.bestCombo);
     $('result-best').textContent = game.score > oldBest ? (mode === 'daily' ? 'New daily best on this browser' : 'New all-time best on this browser') : (mode === 'daily' ? 'Daily best ' : 'All-time best ') + fmt(best());
     $('again').textContent = mode === 'daily' ? 'Play this meadow again' : 'Try this meadow again';
     setHidden('result', false); $('pause').disabled = true;
@@ -150,10 +151,10 @@
     if (!hit.valid) { say(hit.reason === 'too-long' ? 'A little smaller: keep your loop within the thread meter.' : hit.reason === 'crossed' ? 'One simple loop. Try without crossing your thread.' : 'Draw a loop around a light, then release.'); return; }
     if (hit.reason === 'catch') {
       flash = { line: hit.polygon, color: C.mint, age: 0 };
-      labels.push({ x: hit.x, y: hit.y, text: '+' + fmt(hit.points), sub: hit.lights.length + ' LIGHTS' + (hit.multiplier > 1 ? ' · ×' + hit.multiplier : ''), color: C.light, age: 0 });
+      labels.push({ x: hit.x, y: hit.y, text: '+' + fmt(hit.points), sub: lightCount(hit.lights.length).toUpperCase() + (hit.multiplier > 1 ? ' · ×' + hit.multiplier : ''), color: C.light, age: 0 });
       hit.lights.forEach(function (e) { burst(e.x, e.y, C.light, Math.min(10, 3 + hit.lights.length)); });
       rings.push({ x: hit.x, y: hit.y, r: 10, color: C.mint, age: 0 });
-      say(hit.lights.length + ' lights! +' + fmt(hit.points) + ' · Catch again quickly to build your chain.'); tone('catch', hit.lights.length);
+      say(lightCount(hit.lights.length) + '! +' + fmt(hit.points) + ' · Catch again quickly to build your chain.'); tone('catch', hit.lights.length);
     } else if (hit.reason === 'ember') {
       flash = { line: hit.polygon, color: C.ember, age: 0 }; hit.embers.forEach(function (e) { burst(e.x, e.y, C.ember, 7); });
       labels.push({ x: hit.x, y: hit.y, text: 'EMBER', sub: 'YOUR SCORE IS SAFE', color: C.ember, age: 0 });
@@ -249,7 +250,7 @@
     if (p.reason === 'too-long') return 'Thread is full. Draw a smaller loop.';
     if (p.reason === 'crossed') return 'Uncross your thread for one simple loop.';
     if (p.embers.length) return 'Ember inside! Keep the X outside your loop.';
-    if (p.lights.length && p.valid) return p.lights.length + ' lights inside · release for +' + fmt(p.points);
+    if (p.lights.length && p.valid) return lightCount(p.lights.length) + ' inside · release for +' + fmt(p.points);
     return 'Draw around the bright centers. Release to close.';
   }
   function render(dt) {
