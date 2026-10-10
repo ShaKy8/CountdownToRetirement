@@ -61,13 +61,14 @@ test('shell and script agree on every DOM id', () => {
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(x => x[1]);
   for (const [, id] of source.matchAll(/\$\('([^']+)'\)/g)) assert.ok(ids.includes(id), id);
   assert.equal(ids.length, new Set(ids).size);
+  assert.doesNotMatch(html, /[↖↗⤨]/, 'navigation/action arrows use font-independent SVG');
 });
 test('boot is silent and waits for intentional play', () => {
   const h = harness(); h.advance(4); assert.equal(h.states.at(-1).time, 0); assert.equal(h.audioCreations.length, 0); assert.equal(h.nodes.get('intro').hidden, false);
 });
 test('start waits for first gesture, then a mouse loop earns points', () => {
   const h = harness(); h.fire('start'); h.advance(2); assert.equal(h.states.at(-1).time, 0);
-  const state = h.cleanCatch(); assert.ok(state.score > 0); assert.equal(state.drawing, false); assert.equal(h.nodes.get('score').textContent, state.score.toLocaleString());
+  const state = h.cleanCatch(); assert.match(h.nodes.get('status').textContent, /^1 light!/); assert.ok(state.score > 0); assert.equal(state.drawing, false); assert.equal(h.nodes.get('score').textContent, state.score.toLocaleString());
   h.advance(1); assert.ok(state.time > 0.9); assert.equal(h.nodes.get('time').textContent, 74);
 });
 test('pause, help, resume and restart have no time leaks', () => {
