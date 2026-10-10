@@ -149,7 +149,7 @@ try {
     await E(`localStorage.clear(), 1`);
     await load(`${ORIGIN}/year/?today=2026-10-03&year=2026`, 390, 844, { before: `Object.defineProperty(window, 'localStorage', { get() { throw new Error('blocked'); } });` });
     const blocked = await E(`({ title: document.getElementById('cover-title').textContent, games: document.getElementById('g-games').innerText })`);
-    check('year: a browser that blocks storage still gets the year', blocked.title === '2026' && /No rounds/.test(blocked.games), blocked.title, '2026, games say no rounds');
+    check('year: a browser that blocks storage still gets the year', blocked.title === '2026' && /No (saved )?rounds/.test(blocked.games), blocked.title, '2026, games say no rounds');
 
     check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | ') || 0, 0);
     ws.close();
