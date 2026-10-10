@@ -1497,7 +1497,7 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'The theme-color meta exists before the script that updates it');
     });
 
-    test('Should group the eight links into five titled cards, in order', () => {
+    test('Should group the nine links into five titled cards, in order', () => {
         // One <section class="group"> per category, each titled by its own
         // <h2>, inside a nav landmark. Every link lives in exactly one group
         // and the groups come in the order Kyle chose.
@@ -1508,11 +1508,11 @@ describe('BUSINESS SITE - HTML Structure', () => {
         assert.deepStrictEqual(groups, [
             ['Retirement', ['/countdown/index.html', '/year/']],
             ['Weather', ['/weather/']],
-            ['Play', ['/game/', '/slingshot/']],
+            ['Play', ['/light-lasso/', '/game/', '/slingshot/']],
             ['Property', ['/fish-hatchery/']],
             ['Reach me', ['mailto:shaky8@proton.me', 'https://github.com/ShaKy8']]
         ]);
-        assert.strictEqual((nav.match(/<a href=/g) || []).length, 8, 'Eight links, all of them in a group (the year in review joined on Oct 3, 2026)');
+        assert.strictEqual((nav.match(/<a href=/g) || []).length, 9, 'Nine links, all of them in a group (Light Lasso joined on Oct 10, 2026)');
         assert.strictEqual((nav.match(/<ul class="links" role="list">/g) || []).length, 5, 'Each group holds its links in a .links list');
         assert.ok(!indexHtml.includes('<a href=', indexHtml.indexOf('</nav>')), 'No link outside the groups');
     });
@@ -1861,6 +1861,7 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             year: ['/countdown/calc.js', '/countdown/journal.css', '/countdown/journal.js', '/game/putt.js', '/shared/daily.js', '/slingshot/orbit.js', 'styles.css', 'year.js'],
             game: ['/shared/daily.js', 'audio.js', 'putt.js', 'script.js', 'styles.css'],
             slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],
+            'light-lasso': ['engine.js', 'script.js', 'styles.css'],
             'fish-hatchery': ['app.js', 'styles.css', ...photos].sort(),
             '.': ['home.js', 'styles.css']
         };

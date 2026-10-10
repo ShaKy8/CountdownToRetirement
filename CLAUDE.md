@@ -1571,3 +1571,25 @@ sends. Full runbook in `docs/aws-setup.md`.
 and would silently break the site in production. The console and ONE PUTT both call `getCurrentPosition`; an empty allowlist disables it with no
 error, and every visitor quietly gets Los Angeles weather. Production sends
 `geolocation=(self)`.
+
+
+## LIGHT LASSO (October 10, 2026)
+
+`/light-lasso/` is an entirely static 75-second loop-drawing score attack.
+Circle rounded fireflies, release to close the visible dashed segment, and
+keep X-shaped embers outside. A burn cancels that catch, never earned points.
+The thread meter bounds a loop; large catches and four-second chains reward
+precision. Today's meadow is seeded by local calendar date; Shuffle is fresh.
+
+- `light-lasso/engine.js`: pure fixed-step rules, geometry, seeding, safe records.
+- `light-lasso/script.js`: Canvas rendering, pointer/keyboard control, lifecycle,
+  guarded local storage, optional gesture-activated synthesized sound.
+- `light-lasso/index.html`, `styles.css`, `favicon.svg`: accessible shell and art.
+- `tests/light-lasso*.test.cjs`: Node engine and UI lifecycle coverage.
+
+Run `node --test tests/light-lasso*.test.cjs`, then the existing full suite.
+Run `node scripts/stamp-assets.mjs` after asset edits. The route has explicit
+HTML/assets includes in deploy.yml and is in its path trigger. No Lambda,
+Weather source/generated output, permissions, services, APIs or analytics
+are added. Keyboard: arrows move, Space starts/closes, Enter closes, Escape
+cancels a loop or pauses. Hidden/background pages pause without consuming time.
