@@ -7,7 +7,9 @@ Node server now does too, both retaining HTTP 404.
 
 ## Status and required approval
 
-This routing change is **prepared, not applied**. The live CloudFront origin
+**Applied October 9, 2026** at Kyle's request: the bucket's `ErrorDocument` is `404.html` (it was unset; `IndexDocument` untouched), and `check-404.mjs` passes against production. The pre-change backup is `~/Projects/site-404-before.json` (outside the repo), for the rollback below. What follows is the procedure as it was run.
+
+Originally this routing change was **prepared, not applied**. The live CloudFront origin
 and S3 website settings must be inspected first. Repository documentation says
 the deploy role lacks distribution-update permission; that is not a live IAM
 inspection. No credentials or permission changes are part of this fix.
