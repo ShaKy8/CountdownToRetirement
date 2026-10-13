@@ -83,6 +83,8 @@
       "note": "🗂️ FreeCommander for Omarchy: a dual-pane file manager in Rust and GTK4, with FreeCommander XE's shortcuts so nothing has to be relearned" },
     { "what": "Tab Overview for Edge", "when": "Sep 28, 2026", "date": "2026-09-28", "url": "https://github.com/ShaKy8/edge-tab-overview",
       "note": "🪟 Mission Control for browser tabs: every tab in every Edge window as a live thumbnail grid" },
+    { "what": "LIGHT LASSO", "when": "Oct 10, 2026", "date": "2026-10-10", "url": "/light-lasso/",
+      "note": "✨ A luminous loop-drawing arcade game: 75 seconds to lasso drifting lights, in a daily or a shuffled meadow" },
     { "what": "Postcards in Sound", "when": "Oct 13, 2026", "date": "2026-10-13", "url": "/postcards-in-sound/",
       "note": "🎸 An acoustic sketchbook: six imaginary journeys as guitar chord sketches, vibe-coded with OpenAI DOTS" }
   ],
