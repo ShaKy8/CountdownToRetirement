@@ -17,26 +17,7 @@ import { propagate, gstime } from './satellite/propagation.js';
 import { eciToGeodetic, radiansToDegrees } from './satellite/transforms.js';
 import { topocentric } from './astro.js';
 
-/**
- * The toggles. `groups` are CelesTrak GROUP names, one snapshot file each
- * (the snapshot job in the website repo fetches exactly these). A satellite
- * belongs to the first category whose group lists it.
- */
-export const CATEGORIES = [
-  { key: 'stations', label: 'Stations', groups: ['stations'], colour: '#8fdc6a', on: true },
-  { key: 'bright', label: 'Bright', groups: ['visual'], colour: '#f2b45a', on: false },
-  { key: 'science', label: 'Weather & science', groups: ['weather', 'science'], colour: '#7fb2f0', on: false },
-  { key: 'starlink', label: 'Starlink', groups: ['starlink'], colour: '#b39dfa', on: false },
-];
-
-/** What the object is, from its catalogue name alone. The name is all we have. */
-export function kindOf(name) {
-  const n = String(name || '').toUpperCase();
-  if (/\bR\/B\b/.test(n)) return 'rocket body';
-  if (/\bDEB\b/.test(n)) return 'debris';
-  if (/^(ISS|CSS)\b/.test(n)) return 'station module';
-  return 'satellite';
-}
+export { CATEGORIES, kindOf } from './satcats.js';
 
 /**
  * OMM records -> propagatable entries. A record that will not initialise is

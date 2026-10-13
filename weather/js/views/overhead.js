@@ -30,7 +30,11 @@ import { SlippyMap, drawMarker, drawScaleBar, ESRI_CANVAS, ESRI_BASE_FILTER, ESR
 import { FAINT, SERIES, alpha, mixHex, haloText } from '../charts.js';
 import { sunPosition, moonPosition, toCompass, toDeg, topocentric } from '../lib/astro.js';
 import { compass, clamp, escapeHtml as esc } from '../lib/util.js';
-import { CATEGORIES, prepare, positionAt, lookAt, groundTrack, kindOf, elementAgeHours } from '../lib/sats.js';
+import { CATEGORIES, kindOf } from '../lib/satcats.js';
+
+/* The SGP4 half is 17 files: fetched on first use, not with the page. */
+let S = null;
+const loadSats = () => (S ? Promise.resolve(S) : import('../lib/sats.js').then((m) => (S = m)));
 
 const NM = 1852;              // metres in a nautical mile
 const REFRESH = 10_000;
@@ -409,6 +413,7 @@ export function createOverhead(root) {
     if (d && (d.state === 'ok' || d.state === 'loading')) return;
     satData[c.key] = { state: 'loading', sats: [], fetched: null };
     try {
+      await loadSats();
       const byId = new Map();
       let fetched = Infinity;
       for (const g of c.groups) {
@@ -417,7 +422,7 @@ export function createOverhead(root) {
         const body = await res.json();
         const t = Date.parse(body.fetched);
         if (Number.isFinite(t)) fetched = Math.min(fetched, t);
-        for (const s of prepare(body.records, c.key)) byId.set(s.id, s);
+        for (const s of S.prepare(body.records, c.key)) byId.set(s.id, s);
       }
       if (!byId.size) throw new Error('empty');
       satData[c.key] = { state: 'ok', sats: [...byId.values()], fetched: Number.isFinite(fetched) ? fetched : null };
@@ -440,7 +445,7 @@ export function createOverhead(root) {
       if (!force && slow && prev && Math.abs(ms - prev.at) < SAT_SLOW) { out.push(...prev.list); continue; }
       const list = [];
       for (const sat of d.sats) {
-        const p = positionAt(sat, ms);
+        const p = S.positionAt(sat, ms);
         if (!p) continue;
         list.push({ sat, p, cat: c, look: topocentric(o.lat, o.lon, p.lat, p.lon, p.altKm) });
       }
@@ -449,7 +454,7 @@ export function createOverhead(root) {
     }
     satPos = out;
     const sel = satPos.find((q) => q.sat.id === satSel);
-    satTrack = sel ? groundTrack(sel.sat, ms, 90, 60) : [];
+    satTrack = sel ? S.groundTrack(sel.sat, ms, 90, 60) : [];
   }
 
   function drawSats(ctx, m) {
@@ -529,7 +534,7 @@ export function createOverhead(root) {
     rows.push(kv('From you', look.alt > 0
       ? `${look.alt.toFixed(0)}° up, ${compass(look.az)}`
       : `<span class="dim">below the horizon, ${look.range.toLocaleString()} km away</span>`));
-    const age = elementAgeHours(sat, store.cursor);
+    const age = S.elementAgeHours(sat, store.cursor);
     rows.push(kv('Elements', `${age < 0 ? 'newer than' : ''} ${fmtAge(Math.abs(age))} ${age < 0 ? 'ahead' : 'old'}`.trim()));
     const mates = members(q);
     const note = mates.length

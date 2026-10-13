@@ -4859,6 +4859,7 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
     const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
     const view = read('weather', 'js', 'views', 'overhead.js');
     const lib = read('weather', 'js', 'lib', 'sats.js');
+    const cats = read('weather', 'js', 'lib', 'satcats.js');
     const fetcher = read('scripts', 'fetch-sats.mjs');
     const workflow = read('.github', 'workflows', 'sats.yml');
     const deploy = read('.github', 'workflows', 'deploy.yml');
@@ -4922,6 +4923,17 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         assert.ok(!/new Date\(\s*\)/.test(code), 'the clock is an argument');
     });
 
+    test('Should not load SGP4 with the page', () => {
+        // Measured: eager imports added 17 files and ~46 KB (gzipped) to every
+        // visit, and about 0.8 s to a slow phone's load, for a feature that is
+        // off until someone taps it. The light half has no imports at all.
+        assert.ok(!/^import .*lib\/sats\.js/m.test(view), 'overhead.js must not import sats.js statically');
+        assert.ok(/import\('\.\.\/lib\/sats\.js'\)/.test(view), 'it is fetched on first use');
+        assert.ok(/import \{[^}]*\} from '\.\.\/lib\/satcats\.js'/.test(view));
+        assert.ok(!/^import /m.test(strip(cats)), 'satcats.js stays import-free');
+        assert.ok(/await loadSats\(\)/.test(view.slice(view.indexOf('async function loadCat'))), 'loaded before any use of S');
+    });
+
     test('Should vendor SGP4 with its licence and without the wasm build', () => {
         const dir = path.join(__dirname, 'weather', 'js', 'lib', 'satellite');
         assert.ok(/MIT/.test(fs.readFileSync(path.join(dir, 'LICENSE.md'), 'utf8')));
@@ -4959,7 +4971,7 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         assert.strictEqual(empty, false, 'an empty answer is not a snapshot');
         assert.strictEqual(ok, true);
         // The view's categories name the groups the job fetches, no more and no fewer.
-        const used = [...lib.matchAll(/groups: \[([^\]]*)\]/g)].flatMap((m) => m[1].match(/'([a-z-]+)'/g).map((x) => x.slice(1, -1)));
+        const used = [...cats.matchAll(/groups: \[([^\]]*)\]/g)].flatMap((m) => m[1].match(/'([a-z-]+)'/g).map((x) => x.slice(1, -1)));
         assert.deepStrictEqual([...used].sort(), [...groups].sort());
     });
 
