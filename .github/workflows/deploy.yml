@@ -145,6 +145,14 @@ jobs:
             --recursive --metadata-directive REPLACE \
             --cache-control 'public, max-age=31536000, immutable' \
             --content-type 'text/css'
+          # The bundle (and its lazy chunk) are content-hashed by
+          # scripts/sync-weather.sh, like the stylesheets: a change is a new
+          # URL, so they cache for a year. The sync above gave them the short
+          # TTL; this replaces it.
+          aws s3 cp "s3://${S3_BUCKET}/weather/dist/" "s3://${S3_BUCKET}/weather/dist/" \
+            --recursive --metadata-directive REPLACE \
+            --cache-control 'public, max-age=31536000, immutable' \
+            --content-type 'text/javascript'
           # Fonts are content-addressed by name and never change in place.
           aws s3 cp "s3://${S3_BUCKET}/weather/assets/" "s3://${S3_BUCKET}/weather/assets/" \
             --recursive --metadata-directive REPLACE \

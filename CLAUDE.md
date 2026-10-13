@@ -1291,6 +1291,23 @@ ISS came out 0.7 km off.
   has the shape). Do not run `fetch-sats.mjs` by hand more than once per two
   hours: that is the 403 it exists to avoid.
 
+### How the console ships: one hashed bundle (October 13, 2026)
+
+`index.html` loads `dist/main.<hash>.js` — the ~25 modules bundled and
+minified by `scripts/sync-weather.sh` (esbuild, pinned, fetched with `npx` on
+demand; nothing is added to the repo's dependencies and the output is
+committed, so CI and visitors never build). ~70 KB gzipped in one request,
+down from ~154 KB in 26 requests found one import level at a time; the name
+carries a content hash, so `deploy.yml` caches `weather/dist/` for a year
+like the stylesheets. SGP4 is a separate lazy chunk, fetched only when
+satellite mode is first used (the dynamic `import()` in `overhead.js`; keep
+`satcats.js` import-free). **The unbundled sources stay in `weather/js/`**:
+`/countdown/` and `/year/` import `/weather/js/lib/*` directly and the tests
+read them; the page just no longer loads them. An earlier attempt to start
+`/api/config` and `/api/bundle` before the modules loaded measured no gain
+on a 1.6 Mbps link (bytes, not round trips, were the limit) and was reverted;
+the 480 ms boot fade delay is gone too.
+
 ### TONIGHT — in the SKY view's observing panel
 
 `weather/js/lib/tonight.js` answers "is tonight worth going outside for, and if

@@ -4934,22 +4934,26 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         assert.ok(/await loadSats\(\)/.test(view.slice(view.indexOf('async function loadCat'))), 'loaded before any use of S');
     });
 
-    test('Should preload exactly the modules the page imports statically', () => {
-        // One round trip per import level is most of a slow phone's wait.
-        // The list must equal the static graph, and must leave out the lazy
-        // satellite code or the hints would undo the lazy load.
-        const out = spawnSync(process.execPath, ['--input-type=module', '-e',
-            `const m = await import(${JSON.stringify(path.join(__dirname, 'scripts', 'preload-hints.mjs'))}); console.log(JSON.stringify(m.staticGraph(${JSON.stringify(path.join(__dirname, 'weather'))})));`],
-        { encoding: 'utf8' });
-        assert.strictEqual(out.status, 0, out.stderr);
-        const graph = JSON.parse(out.stdout);
+    test('Should ship the console as one hashed, minified bundle with the satellites split out', () => {
+        // 26 modules were 154 KB gzipped in a one-round-trip-per-level waterfall.
+        // The page loads one content-hashed file; SGP4 stays a separate chunk.
         const html = read('weather', 'index.html');
-        const hinted = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)">/g)].map((m) => m[1]);
-        assert.deepStrictEqual([...hinted].sort(), [...graph].sort(), 'run scripts/sync-weather.sh');
-        assert.ok(graph.includes('js/lib/satcats.js'));
-        assert.ok(!hinted.some((h) => /lib\/sats\.js|lib\/satellite\//.test(h)), 'lazy code is not preloaded');
-        assert.ok(/preload-hints\.mjs/.test(read('scripts', 'sync-weather.sh')), 'the sync adds them');
-        assert.ok(/<link rel="modulepreload"[^>]*>\n<link rel="stylesheet"/.test(html), 'placed before the stylesheets');
+        const m = html.match(/<script type="module" src="dist\/(main\.[A-Z0-9]+\.js)"><\/script>/);
+        assert.ok(m, 'index.html loads dist/main.<hash>.js; run scripts/sync-weather.sh');
+        assert.ok(!/modulepreload/.test(html) && !/src="js\/main\.js"/.test(html));
+        const dir = path.join(__dirname, 'weather', 'dist');
+        const files = fs.readdirSync(dir);
+        assert.ok(files.includes(m[1]), 'the bundle exists');
+        const main = fs.readFileSync(path.join(dir, m[1]), 'utf8');
+        assert.ok(main.length / main.split('\n').length > 100, 'minified');
+        assert.ok(!/from"\.\/(lib|views)\//.test(main), 'no module left to fetch one at a time');
+        const lazy = files.filter((f) => f !== m[1]).map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+        assert.ok(/json2satrec|NORAD_CAT_ID/.test(lazy), 'SGP4 is in a lazy chunk');
+        assert.ok(!/NORAD_CAT_ID/.test(main), 'and not in the page load');
+        assert.ok(/import\("\.\/sats\.[A-Z0-9]+\.js"\)/.test(main), 'loaded by dynamic import');
+        const deploy = read('.github', 'workflows', 'deploy.yml');
+        assert.ok(/weather\/dist\/[\s\S]{0,300}immutable/.test(deploy), 'hashed files cache for a year');
+        assert.ok(/esbuild@\d+\.\d+\.\d+/.test(read('scripts', 'sync-weather.sh')), 'the build is pinned');
     });
 
     test('Should not hold the loading screen for a fixed delay', () => {

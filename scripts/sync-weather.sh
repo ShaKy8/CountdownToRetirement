@@ -84,10 +84,26 @@ done
 # --- a way back to the site ----------------------------------------------
 python3 "$(dirname "${BASH_SOURCE[0]}")/inject-backlink.py" "$DEST/index.html"
 
-# --- module preload hints -------------------------------------------------
-# The JS is ~25 modules importing each other, so a browser finds each level
-# only after fetching the one above: one round trip per level. List them all.
-node "$(dirname "${BASH_SOURCE[0]}")/preload-hints.mjs" "$DEST"
+# --- bundle and minify the scripts ----------------------------------------
+# ~25 ES modules were ~154 KB over the wire in 26 requests, found one import
+# level at a time. One minified bundle is ~70 KB in one request, and its name
+# carries a content hash so it is cached for a year like the stylesheets. The
+# lazy satellite code (a dynamic import) becomes its own hashed chunk, still
+# fetched only when satellite mode is first used.
+#
+# The unbundled sources stay in weather/js/: the countdown and year pages
+# import /weather/js/lib/* directly, and the tests read them. index.html just
+# stops loading them. esbuild is pinned and fetched on demand, so the repo
+# still has no dependencies; only this script needs it, and the output is
+# committed, so CI and visitors never do.
+rm -rf "$DEST/dist"
+npx --yes esbuild@0.25.10 "$DEST/js/main.js" --bundle --minify --splitting \
+  --format=esm --outdir="$DEST/dist" --entry-names='[name].[hash]' \
+  --chunk-names='[name].[hash]' --log-level=warning
+main="$(cd "$DEST/dist" && ls main.*.js)"
+sed -i "s|<script type=\"module\" src=\"js/main.js\"></script>|<script type=\"module\" src=\"dist/$main\"></script>|" "$DEST/index.html"
+grep -q "dist/$main" "$DEST/index.html" || { echo "  ERROR: bundle not wired into index.html" >&2; exit 1; }
+echo "  bundle: dist/$main + $(( $(ls "$DEST/dist" | wc -l) - 1 )) lazy chunk(s)"
 
 # --- verify no absolute ASSET references survive --------------------------
 # Only asset paths are a problem. The injected back-link is deliberately
