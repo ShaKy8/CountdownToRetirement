@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-03",
+  "updated": "2026-10-13",
   "home": { "place": "Mission Viejo, California", "lat": 33.60, "lon": -117.67 },
   "trips": [
     { "place": "San Francisco, California", "when": "March 2026", "date": "2026-03", "lat": 37.7749, "lon": -122.4194,
@@ -82,7 +82,9 @@
     { "what": "fcx", "when": "Sep 26, 2026", "date": "2026-09-26", "url": "https://github.com/ShaKy8/fcx",
       "note": "🗂️ FreeCommander for Omarchy: a dual-pane file manager in Rust and GTK4, with FreeCommander XE's shortcuts so nothing has to be relearned" },
     { "what": "Tab Overview for Edge", "when": "Sep 28, 2026", "date": "2026-09-28", "url": "https://github.com/ShaKy8/edge-tab-overview",
-      "note": "🪟 Mission Control for browser tabs: every tab in every Edge window as a live thumbnail grid" }
+      "note": "🪟 Mission Control for browser tabs: every tab in every Edge window as a live thumbnail grid" },
+    { "what": "Postcards in Sound", "when": "Oct 13, 2026", "date": "2026-10-13", "url": "/postcards-in-sound/",
+      "note": "🎸 An acoustic sketchbook: six imaginary journeys as guitar chord sketches, vibe-coded with OpenAI DOTS" }
   ],
   "books": [
     { "title": "The Widow", "when": "May 2026", "date": "2026-05", "note": "John Grisham" },
