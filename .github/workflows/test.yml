@@ -39,3 +39,6 @@ jobs:
 
       - name: Run Light Lasso engine and interaction tests
         run: node --test tests/light-lasso*.test.cjs
+
+      - name: Run Postcards integration checks
+        run: node --test tests/postcards-integration.test.cjs

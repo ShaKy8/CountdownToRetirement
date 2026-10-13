@@ -1,0 +1,631 @@
+{
+  "title": "POSTCARDS IN SOUND",
+  "subtitle": "Six imaginary journeys. A guitar, a camera, and a little room to wander.",
+  "disclosure": "Original place-inspired chord sketches, not traditional regional music. Playback is a synthesized pluck sketch.",
+  "tuning": {
+    "label": "Standard tuning: E A D G B e",
+    "midi": [
+      40,
+      45,
+      50,
+      55,
+      59,
+      64
+    ],
+    "stringOrder": "Low E → high e, left to right",
+    "fretMeaning": "null = muted; 0 = open; positive numbers = fret relative to the nut or capo."
+  },
+  "bars": "Each chord is one 4/4 bar; every postcard is an eight-bar loop.",
+  "chords": [
+    {
+      "name": "C",
+      "frets": [
+        null,
+        3,
+        2,
+        0,
+        1,
+        0
+      ],
+      "midi": [
+        null,
+        48,
+        52,
+        55,
+        60,
+        64
+      ],
+      "notes": [
+        "x",
+        "C3",
+        "E3",
+        "G3",
+        "C4",
+        "E4"
+      ]
+    },
+    {
+      "name": "Am",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        1,
+        0
+      ],
+      "midi": [
+        null,
+        45,
+        52,
+        57,
+        60,
+        64
+      ],
+      "notes": [
+        "x",
+        "A2",
+        "E3",
+        "A3",
+        "C4",
+        "E4"
+      ]
+    },
+    {
+      "name": "Fmaj7",
+      "frets": [
+        null,
+        null,
+        3,
+        2,
+        1,
+        0
+      ],
+      "midi": [
+        null,
+        null,
+        53,
+        57,
+        60,
+        64
+      ],
+      "notes": [
+        "x",
+        "x",
+        "F3",
+        "A3",
+        "C4",
+        "E4"
+      ]
+    },
+    {
+      "name": "G",
+      "frets": [
+        3,
+        2,
+        0,
+        0,
+        0,
+        3
+      ],
+      "midi": [
+        43,
+        47,
+        50,
+        55,
+        59,
+        67
+      ],
+      "notes": [
+        "G2",
+        "B2",
+        "D3",
+        "G3",
+        "B3",
+        "G4"
+      ]
+    },
+    {
+      "name": "Em",
+      "frets": [
+        0,
+        2,
+        2,
+        0,
+        0,
+        0
+      ],
+      "midi": [
+        40,
+        47,
+        52,
+        55,
+        59,
+        64
+      ],
+      "notes": [
+        "E2",
+        "B2",
+        "E3",
+        "G3",
+        "B3",
+        "E4"
+      ]
+    },
+    {
+      "name": "Cmaj7",
+      "frets": [
+        null,
+        3,
+        2,
+        0,
+        0,
+        0
+      ],
+      "midi": [
+        null,
+        48,
+        52,
+        55,
+        59,
+        64
+      ],
+      "notes": [
+        "x",
+        "C3",
+        "E3",
+        "G3",
+        "B3",
+        "E4"
+      ]
+    },
+    {
+      "name": "B7",
+      "frets": [
+        null,
+        2,
+        1,
+        2,
+        0,
+        2
+      ],
+      "midi": [
+        null,
+        47,
+        51,
+        57,
+        59,
+        66
+      ],
+      "notes": [
+        "x",
+        "B2",
+        "D#3",
+        "A3",
+        "B3",
+        "F#4"
+      ]
+    },
+    {
+      "name": "D",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        3,
+        2
+      ],
+      "midi": [
+        null,
+        null,
+        50,
+        57,
+        62,
+        66
+      ],
+      "notes": [
+        "x",
+        "x",
+        "D3",
+        "A3",
+        "D4",
+        "F#4"
+      ]
+    },
+    {
+      "name": "A",
+      "frets": [
+        null,
+        0,
+        2,
+        2,
+        2,
+        0
+      ],
+      "midi": [
+        null,
+        45,
+        52,
+        57,
+        61,
+        64
+      ],
+      "notes": [
+        "x",
+        "A2",
+        "E3",
+        "A3",
+        "C#4",
+        "E4"
+      ]
+    },
+    {
+      "name": "Dsus2",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        3,
+        0
+      ],
+      "midi": [
+        null,
+        null,
+        50,
+        57,
+        62,
+        64
+      ],
+      "notes": [
+        "x",
+        "x",
+        "D3",
+        "A3",
+        "D4",
+        "E4"
+      ]
+    },
+    {
+      "name": "Em7",
+      "frets": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "midi": [
+        40,
+        47,
+        50,
+        55,
+        59,
+        64
+      ],
+      "notes": [
+        "E2",
+        "B2",
+        "D3",
+        "G3",
+        "B3",
+        "E4"
+      ]
+    },
+    {
+      "name": "G6",
+      "frets": [
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "midi": [
+        43,
+        47,
+        50,
+        55,
+        59,
+        64
+      ],
+      "notes": [
+        "G2",
+        "B2",
+        "D3",
+        "G3",
+        "B3",
+        "E4"
+      ]
+    },
+    {
+      "name": "Am7",
+      "frets": [
+        null,
+        0,
+        2,
+        0,
+        1,
+        0
+      ],
+      "midi": [
+        null,
+        45,
+        52,
+        55,
+        60,
+        64
+      ],
+      "notes": [
+        "x",
+        "A2",
+        "E3",
+        "G3",
+        "C4",
+        "E4"
+      ]
+    },
+    {
+      "name": "Dm7",
+      "frets": [
+        null,
+        null,
+        0,
+        2,
+        1,
+        1
+      ],
+      "midi": [
+        null,
+        null,
+        50,
+        57,
+        60,
+        65
+      ],
+      "notes": [
+        "x",
+        "x",
+        "D3",
+        "A3",
+        "C4",
+        "F4"
+      ]
+    },
+    {
+      "name": "Cadd9",
+      "frets": [
+        null,
+        3,
+        2,
+        0,
+        3,
+        3
+      ],
+      "midi": [
+        null,
+        48,
+        52,
+        55,
+        62,
+        67
+      ],
+      "notes": [
+        "x",
+        "C3",
+        "E3",
+        "G3",
+        "D4",
+        "G4"
+      ]
+    }
+  ],
+  "patterns": {
+    "arpeggio": {
+      "label": "Ripple",
+      "instruction": "Count 1 & 2 & 3 & 4 &. Pick bass–G–B–e–B–G–bass–G, using the chord's lowest sounding string for bass.",
+      "events": "8 evenly spaced eighth notes at beat offsets 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5. String indexes [lowestActive,3,4,5,4,3,lowestActive,3]."
+    },
+    "strum": {
+      "label": "Brush",
+      "instruction": "Count 1 & 2 & 3 & 4 &. Down on 1 and 2; up on 2& and 3&; down on 4; up on 4&.",
+      "events": "Strum offsets (quarter-note beats): 0 down, 1 down, 1.5 up, 2.5 up, 3 down, 3.5 up. Downstroke low→high; upstroke high→low, ideally the highest 3–4 active strings."
+    },
+    "sparse": {
+      "label": "Breathe",
+      "instruction": "Bass on 1, a soft brush on 3. Let the notes ring.",
+      "events": "Single lowest active string at beat 0; all active strings low→high at beat 2."
+    }
+  },
+  "cards": [
+    {
+      "id": "san-miguel",
+      "place": "San Miguel de Allende",
+      "title": "Terracotta Hour",
+      "mood": "Warm · unhurried · sunlit",
+      "description": "Warm walls. Long shadows. One more chord before the light goes.",
+      "bpm": 82,
+      "timeSignature": "4/4",
+      "pattern": "strum",
+      "progression": [
+        "C",
+        "Am",
+        "Fmaj7",
+        "G",
+        "C",
+        "Am",
+        "Fmaj7",
+        "G"
+      ],
+      "playingNote": "Keep it light. Let the high E ring through C, Am and Fmaj7.",
+      "prompt": "Find three shades of warm light in a single frame. Write four lines without naming a color.",
+      "photoPrompt": "Find three shades of warm light in a single frame.",
+      "writingPrompt": "Write four lines without naming a color.",
+      "palette": {
+        "sky": "#F3C98C",
+        "ground": "#B9553B",
+        "accent": "#DB8B51",
+        "ink": "#442F2B"
+      },
+      "artDirection": "Abstract terracotta walls, a sunlit arch, long evening shadows; warm paper grain."
+    },
+    {
+      "id": "prague",
+      "place": "Prague",
+      "title": "Blue on the River",
+      "mood": "Reflective · nocturnal · a little unresolved",
+      "description": "A melody for the lights that stay in the water after everyone has gone.",
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "pattern": "arpeggio",
+      "progression": [
+        "Em",
+        "Cmaj7",
+        "Am",
+        "B7",
+        "Em",
+        "Cmaj7",
+        "Am",
+        "B7"
+      ],
+      "playingNote": "Pick gently. Let B7 feel like a question; the next Em is its answer.",
+      "prompt": "Frame a reflection instead of its source. Describe the scene using only what the water might notice.",
+      "photoPrompt": "Frame a reflection instead of its source.",
+      "writingPrompt": "Describe the scene using only what the water might notice.",
+      "palette": {
+        "sky": "#BACBDF",
+        "ground": "#354B63",
+        "accent": "#CC9B68",
+        "ink": "#263543"
+      },
+      "artDirection": "A pale river, distant roof silhouettes, repeating bridge arches, tiny warm lights; blue-hour paper cutout."
+    },
+    {
+      "id": "cotswolds",
+      "place": "Cotswolds",
+      "title": "Footpath, After Rain",
+      "mood": "Bright · wandering · easygoing",
+      "description": "A small tune with muddy shoes and nowhere urgent to be.",
+      "bpm": 94,
+      "timeSignature": "4/4",
+      "pattern": "arpeggio",
+      "progression": [
+        "D",
+        "G",
+        "D",
+        "A",
+        "Em",
+        "G",
+        "A",
+        "D"
+      ],
+      "playingNote": "Keep the pulse walking. Start D on its open D string and A on its open A.",
+      "prompt": "Leave the horizon low and make room for the weather. Begin a note with: “I took the long way because…”",
+      "photoPrompt": "Leave the horizon low and make room for the weather.",
+      "writingPrompt": "Begin a note with: “I took the long way because…”",
+      "palette": {
+        "sky": "#D3DDD0",
+        "ground": "#71845A",
+        "accent": "#D6BE88",
+        "ink": "#3F4938"
+      },
+      "artDirection": "Rolling green shapes, a winding path, honey-colored cottage forms, a cloud opening; soft ink and gouache."
+    },
+    {
+      "id": "alaska",
+      "place": "Alaska",
+      "title": "The Quiet Between",
+      "mood": "Spacious · suspended · still",
+      "description": "Leave enough room between notes for the horizon to get in.",
+      "bpm": 60,
+      "timeSignature": "4/4",
+      "pattern": "sparse",
+      "progression": [
+        "Dsus2",
+        "Em7",
+        "Cmaj7",
+        "G6",
+        "Dsus2",
+        "Em7",
+        "Cmaj7",
+        "Dsus2"
+      ],
+      "playingNote": "Play fewer notes and let them decay. Dsus2 keeps the ending open.",
+      "prompt": "Find the smallest detail inside the largest view. Write one sentence, then leave the next line empty.",
+      "photoPrompt": "Find the smallest detail inside the largest view.",
+      "writingPrompt": "Write one sentence, then leave the next line empty.",
+      "palette": {
+        "sky": "#D4E7E8",
+        "ground": "#597B86",
+        "accent": "#ABC5C5",
+        "ink": "#2F4D58"
+      },
+      "artDirection": "Very wide quiet water, layered blue-gray mountains, pale sky and generous negative space."
+    },
+    {
+      "id": "brazil-coast",
+      "place": "Brazilian coast",
+      "title": "Salt Air, Open Windows",
+      "mood": "Airy · gently offbeat · bright",
+      "description": "A breeze through an open window, with a few seventh chords along for the ride.",
+      "bpm": 104,
+      "timeSignature": "4/4",
+      "pattern": "strum",
+      "progression": [
+        "Cmaj7",
+        "Am7",
+        "Dm7",
+        "G6",
+        "Cmaj7",
+        "Am7",
+        "Dm7",
+        "G6"
+      ],
+      "playingNote": "Keep the upstrokes soft. For Dm7, lightly flatten your index finger across the top two strings at fret 1.",
+      "prompt": "Photograph something ordinary moving in the wind. Write about what just passed through the frame.",
+      "photoPrompt": "Photograph something ordinary moving in the wind.",
+      "writingPrompt": "Write about what just passed through the frame.",
+      "palette": {
+        "sky": "#ADE0D3",
+        "ground": "#2F918E",
+        "accent": "#EDC779",
+        "ink": "#245B60"
+      },
+      "artDirection": "Sea-glass water, sweeping coastline shapes, striped shade and a leaf silhouette; vivid but sun-faded."
+    },
+    {
+      "id": "home",
+      "place": "Home, at dusk",
+      "title": "A Window Still Lit",
+      "mood": "Familiar · tender · settled",
+      "description": "Somewhere to return to when the song has wandered far enough.",
+      "bpm": 76,
+      "timeSignature": "4/4",
+      "pattern": "sparse",
+      "progression": [
+        "G",
+        "D",
+        "Em",
+        "Cadd9",
+        "G",
+        "D",
+        "Cadd9",
+        "G"
+      ],
+      "playingNote": "Let the final G settle. Cadd9 adds a little light without asking for a barre chord.",
+      "prompt": "Make a portrait of home without showing a person. Name three small things you would miss.",
+      "photoPrompt": "Make a portrait of home without showing a person.",
+      "writingPrompt": "Name three small things you would miss.",
+      "palette": {
+        "sky": "#CABDCB",
+        "ground": "#695E78",
+        "accent": "#EDBD7C",
+        "ink": "#3F394C"
+      },
+      "artDirection": "One glowing window, a guitar-like silhouette, violet dusk, soft amber interior and worn paper."
+    }
+  ]
+}
