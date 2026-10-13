@@ -4957,20 +4957,6 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         assert.ok(/classList\.add\('done'\);[\s\S]{0,200}\}, 0\);/.test(main), 'ready means ready: no 480 ms wait');
     });
 
-    test('Should start the first requests before the modules load, and hand them to api.js', () => {
-        const early = read('weather', 'js', 'early.js');
-        const api = read('weather', 'js', 'api.js');
-        const html = read('weather', 'index.html');
-        assert.ok(/<script src="js\/early\.js"><\/script>/.test(html), 'a classic script in the head');
-        assert.ok(html.indexOf('js/early.js') < html.indexOf('rel="stylesheet"'), 'before the stylesheets');
-        assert.ok(!/\bimport\b|\bexport\b/.test(early.replace(/\/\*[\s\S]*?\*\//, '')), 'a classic script, not a module');
-        assert.ok(/api\/bundle/.test(early) && /api\/config/.test(early) && /atmos\.v1/.test(early));
-        assert.ok(/no-store/.test(early) && /no-store/.test(api), 'same cache policy as api.js');
-        assert.ok(/__early/.test(api) && /delete window\.__early/.test(api), 'taken once');
-        assert.ok(/res\.ok\) res = await fetch/.test(api), 'a failed early request is retried the ordinary way');
-        assert.ok(/fresh/.test(early), 'stands aside for ?fresh');
-    });
-
     test('Should vendor SGP4 with its licence and without the wasm build', () => {
         const dir = path.join(__dirname, 'weather', 'js', 'lib', 'satellite');
         assert.ok(/MIT/.test(fs.readFileSync(path.join(dir, 'LICENSE.md'), 'utf8')));

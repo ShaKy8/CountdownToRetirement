@@ -10,13 +10,7 @@ const API_BASE = new URL('./', location.href);
 async function get(path, params) {
   const u = new URL(path.replace(/^\//, ''), API_BASE);
   for (const [k, v] of Object.entries(params || {})) if (v != null) u.searchParams.set(k, v);
-  // js/early.js may already have this request in flight; take it once.
-  const key = u.pathname + u.search;
-  const early = window.__early && window.__early[key];
-  if (early) delete window.__early[key];
-  let res = null;
-  if (early) { try { res = await early; } catch { res = null; } }
-  if (!res || !res.ok) res = await fetch(u, { cache: 'no-store' });
+  const res = await fetch(u, { cache: 'no-store' });
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json();
 }
