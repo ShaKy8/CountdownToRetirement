@@ -109,7 +109,7 @@ async function start() {
     // Snap the sky to the current moment so it doesn't ease in from nothing.
     const p = store.skyParams();
     if (p) sky.snap(p);
-  }, 480);
+  }, 0);
 
   loop();
   setInterval(() => { if (!document.hidden) store.refresh(); }, REFRESH_MS);

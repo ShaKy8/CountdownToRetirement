@@ -4934,6 +4934,29 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         assert.ok(/await loadSats\(\)/.test(view.slice(view.indexOf('async function loadCat'))), 'loaded before any use of S');
     });
 
+    test('Should preload exactly the modules the page imports statically', () => {
+        // One round trip per import level is most of a slow phone's wait.
+        // The list must equal the static graph, and must leave out the lazy
+        // satellite code or the hints would undo the lazy load.
+        const out = spawnSync(process.execPath, ['--input-type=module', '-e',
+            `const m = await import(${JSON.stringify(path.join(__dirname, 'scripts', 'preload-hints.mjs'))}); console.log(JSON.stringify(m.staticGraph(${JSON.stringify(path.join(__dirname, 'weather'))})));`],
+        { encoding: 'utf8' });
+        assert.strictEqual(out.status, 0, out.stderr);
+        const graph = JSON.parse(out.stdout);
+        const html = read('weather', 'index.html');
+        const hinted = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)">/g)].map((m) => m[1]);
+        assert.deepStrictEqual([...hinted].sort(), [...graph].sort(), 'run scripts/sync-weather.sh');
+        assert.ok(graph.includes('js/lib/satcats.js'));
+        assert.ok(!hinted.some((h) => /lib\/sats\.js|lib\/satellite\//.test(h)), 'lazy code is not preloaded');
+        assert.ok(/preload-hints\.mjs/.test(read('scripts', 'sync-weather.sh')), 'the sync adds them');
+        assert.ok(/<link rel="modulepreload"[^>]*>\n<link rel="stylesheet"/.test(html), 'placed before the stylesheets');
+    });
+
+    test('Should not hold the loading screen for a fixed delay', () => {
+        const main = read('weather', 'js', 'main.js');
+        assert.ok(/classList\.add\('done'\);[\s\S]{0,200}\}, 0\);/.test(main), 'ready means ready: no 480 ms wait');
+    });
+
     test('Should vendor SGP4 with its licence and without the wasm build', () => {
         const dir = path.join(__dirname, 'weather', 'js', 'lib', 'satellite');
         assert.ok(/MIT/.test(fs.readFileSync(path.join(dir, 'LICENSE.md'), 'utf8')));

@@ -84,6 +84,11 @@ done
 # --- a way back to the site ----------------------------------------------
 python3 "$(dirname "${BASH_SOURCE[0]}")/inject-backlink.py" "$DEST/index.html"
 
+# --- module preload hints -------------------------------------------------
+# The JS is ~25 modules importing each other, so a browser finds each level
+# only after fetching the one above: one round trip per level. List them all.
+node "$(dirname "${BASH_SOURCE[0]}")/preload-hints.mjs" "$DEST"
+
 # --- verify no absolute ASSET references survive --------------------------
 # Only asset paths are a problem. The injected back-link is deliberately
 # href="/" — it points at the site root and must stay absolute.
