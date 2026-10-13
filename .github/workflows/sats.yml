@@ -1,0 +1,48 @@
+name: Satellite elements
+
+# Fetches CelesTrak's orbital elements for the weather console's SATELLITES
+# layer and publishes them to s3://branyontech.com/sats/. CelesTrak updates
+# every 2 hours and answers a repeat download with 403 (and firewalls an IP
+# that keeps asking), so this is the ONLY thing that talks to it: visitors read
+# the snapshot from our own origin. scripts/fetch-sats.mjs never retries and
+# stops at the first non-200. A failed run leaves the previous snapshot in
+# place; the console shows how old the elements are.
+
+on:
+  schedule:
+    - cron: '23 */2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sats
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: branyontech.com
+
+jobs:
+  sats:
+    name: CelesTrak -> S3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch elements
+        run: node scripts/fetch-sats.mjs "$RUNNER_TEMP/sats"
+
+      # Files are gzipped by the script, so say so; S3 does not compress.
+      - name: Publish
+        run: |
+          aws s3 cp "$RUNNER_TEMP/sats/" "s3://${S3_BUCKET}/sats/" --recursive \
+            --content-type 'application/json' --content-encoding gzip \
+            --cache-control 'public, max-age=600'

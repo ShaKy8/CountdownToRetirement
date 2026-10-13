@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Frontend:** Vanilla JavaScript, HTML5, CSS3
 - **Backend:** Node.js HTTP server (for local development)
 - **Hosting:** AWS S3 + CloudFront (production)
-- **Testing:** Custom test framework using Node.js built-in modules (no external dependencies)
+- **Testing:** Custom test framework using Node.js built-in modules (no external dependencies). The one vendored library is satellite.js's SGP4, under `weather/js/lib/satellite/`
 
 ## Development Commands
 
@@ -1244,6 +1244,52 @@ Three things that will silently break it:
 3. **The basemap constants are exported from `map.js`**, not redeclared per view.
    Two views drawing the same Esri tiles through different filters would be
    visibly wrong and nobody would know which was intended.
+
+### SATELLITES — a mode of OVERHEAD (October 13, 2026)
+
+Kyle asked for real satellites on the weather console. A SATELLITES panel in
+OVERHEAD switches the map to a world view (zoom 2) and draws every enabled
+group as dots, with the selected one's next 90 minutes of ground track and an
+ABOVE YOU list of what is over the visitor's horizon. Four toggles, one colour
+each, remembered in `localStorage['atmos.sats.v1']`: Stations (on),
+Bright (CelesTrak `visual`), Weather & science, Starlink. Pure rules are in
+`weather/js/lib/sats.js` (like `tonight.js`: no DOM, no network, the clock is an
+argument), so the time scrubber moves them. Checked against wheretheiss.at: the
+ISS came out 0.7 km off.
+
+- **Why a world map.** At OVERHEAD's aircraft zoom (9, ~240 km across) a low
+  orbit crosses the whole map in about thirty seconds, so it would be empty
+  almost always. Satellite mode lowers `map.minZoom` to 1 and stops the
+  aircraft poll.
+- **Elements come from our own origin, not CelesTrak.** CelesTrak allows one
+  download per 2-hour update, answers repeats with 403 and firewalls an IP at
+  50 errors in 2 hours. So `.github/workflows/sats.yml` runs
+  `scripts/fetch-sats.mjs` every 2 hours, fetches each group once, **never
+  retries, stops at the first non-200**, refuses a group that is too small
+  to believe, and only then uploads gzipped JSON to `s3://branyontech.com/sats/`.
+  A failed run leaves the last snapshot; the panel shows the elements' age.
+  `deploy.yml` never touches `/sats/` (its only `--delete` sync is `weather/`).
+- **OMM JSON, never TLE.** Catalogue numbers have passed 99999 (SOYUZ-MS 29 is
+  100057 in the stations group) and a two-line set cannot hold them.
+- **SGP4 is vendored satellite.js 7.1.0** (MIT, `weather/js/lib/satellite/`, with
+  its licence): the first third-party code in the repo. Only its pure-JS files;
+  the package's own `index.js` re-exports a WASM build the CSP would block
+  (no `wasm-unsafe-eval`), so `sats.js` imports the files directly and a test
+  fails if any vendored file mentions wasm.
+- **Starlink is 11,100 objects** (4.7 MB, ~690 KB gzipped on 2026-10-13), so it
+  loads only when switched on and its positions refresh every 5 s, not every
+  second (~20 ms to propagate all of them in Node).
+- **Docked craft share one position.** The ISS, Poisk, Nauka, Progress, Soyuz
+  and Dragon are propagated from the same elements, so they are one dot and
+  the panel says so rather than listing six ISSes.
+- **"Kind" is read from the catalogue name alone** (R/B = rocket body,
+  DEB = debris) and the panel says so.
+- **Production only.** The standalone `../Weather` server has no `/sats/`; the
+  panel then shows "not available here" and everything else works.
+- **Dev:** `/sats/` is git-ignored. To see it locally, put
+  `{ group, fetched, records }` JSON files there (`tests/fixtures/sats-stations.json`
+  has the shape). Do not run `fetch-sats.mjs` by hand more than once per two
+  hours: that is the 403 it exists to avoid.
 
 ### TONIGHT — in the SKY view's observing panel
 

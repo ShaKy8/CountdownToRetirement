@@ -4852,6 +4852,133 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
     });
 });
 
+describe('WEATHER CONSOLE - SATELLITES', () => {
+    const fs = require('fs');
+    const { spawnSync } = require('child_process');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const view = read('weather', 'js', 'views', 'overhead.js');
+    const lib = read('weather', 'js', 'lib', 'sats.js');
+    const fetcher = read('scripts', 'fetch-sats.mjs');
+    const workflow = read('.github', 'workflows', 'sats.yml');
+    const deploy = read('.github', 'workflows', 'deploy.yml');
+    const fixture = path.join(__dirname, 'tests', 'fixtures', 'sats-stations.json');
+    const run = (body) => {
+        const code = `import(${JSON.stringify(path.join(__dirname, 'weather', 'js', 'lib', 'sats.js'))}).then(async S => { const fs = await import('node:fs'); const f = JSON.parse(fs.readFileSync(${JSON.stringify(fixture)}, 'utf8')); ${body} })`;
+        const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        return JSON.parse(r.stdout);
+    };
+
+    test('Should put the ISS where an independent source saw it', () => {
+        // wheretheiss.at at 1791924998 (2026-10-13T20:56:38Z): lat -49.713645,
+        // lon 27.917688, 432.9 km, from elements CelesTrak published ten hours
+        // earlier. Measured 0.7 km off; 5 km is the tolerance, not the result.
+        const out = run(`const iss = S.prepare(f.records, 'stations').find(s => s.id === 25544);
+            console.log(JSON.stringify(S.positionAt(iss, 1791924998000)));`);
+        const km = Math.hypot((out.lat + 49.713645) * Math.PI / 180,
+            (out.lon - 27.917688) * Math.PI / 180 * Math.cos(out.lat * Math.PI / 180)) * 6371;
+        assert.ok(km < 5, `ISS is ${km.toFixed(1)} km from the reference`);
+        assert.ok(Math.abs(out.altKm - 432.9) < 5, `altitude ${out.altKm}`);
+    });
+
+    test('Should load catalogue numbers a TLE cannot hold', () => {
+        // SOYUZ-MS 29 is 100057 in CelesTrak's stations group today. OMM JSON
+        // carries it; a two-line element set cannot, which is why the feed is
+        // JSON and why nothing here parses TLE.
+        const out = run(`const all = S.prepare(f.records, 'stations');
+            console.log(JSON.stringify({ n: all.length, of: f.records.length,
+              big: all.filter(s => s.id > 99999).map(s => s.id) }));`);
+        assert.strictEqual(out.n, out.of, 'every real record should initialise');
+        assert.ok(out.big.includes(100057));
+        assert.ok(!/twoline2satrec|FORMAT=TLE/.test(strip(lib) + strip(fetcher)), 'no TLE anywhere');
+    });
+
+    test('Should drop a bad record without losing the rest', () => {
+        const out = run(`const bad = [null, {}, { NORAD_CAT_ID: 1, EPOCH: 5 }, ...f.records.slice(0, 2)];
+            console.log(JSON.stringify(S.prepare(bad, 'x').length));`);
+        assert.strictEqual(out, 2);
+    });
+
+    test('Should split a ground track at the antimeridian, not draw across it', () => {
+        const out = run(`const iss = S.prepare(f.records, 'stations').find(s => s.id === 25544);
+            const lines = S.groundTrack(iss, 1791924998000, 90, 60);
+            const jump = Math.max(0, ...lines.map(l => Math.max(0, ...l.slice(1).map((p, i) => Math.abs(p[1] - l[i][1])))));
+            console.log(JSON.stringify({ lines: lines.length, jump, pts: lines.reduce((a, l) => a + l.length, 0) }));`);
+        assert.ok(out.lines >= 1 && out.pts > 80, 'about 90 one-minute points');
+        assert.ok(out.jump < 180, `no segment may span the seam (largest step ${out.jump})`);
+    });
+
+    test('Should say what kind of thing it is only from its name', () => {
+        const out = run(`console.log(JSON.stringify(['SL-16 R/B', 'FREGAT DEB', 'CSS (TIANHE)', 'HST'].map(S.kindOf)));`);
+        assert.deepStrictEqual(out, ['rocket body', 'debris', 'station module', 'satellite']);
+    });
+
+    test('Should keep the rules pure', () => {
+        const code = strip(lib);
+        for (const banned of ['document.', 'localStorage', 'fetch(', 'window.']) {
+            assert.ok(!code.includes(banned), `sats.js must not reach for ${banned}`);
+        }
+        assert.ok(!/new Date\(\s*\)/.test(code), 'the clock is an argument');
+    });
+
+    test('Should vendor SGP4 with its licence and without the wasm build', () => {
+        const dir = path.join(__dirname, 'weather', 'js', 'lib', 'satellite');
+        assert.ok(/MIT/.test(fs.readFileSync(path.join(dir, 'LICENSE.md'), 'utf8')));
+        const files = [];
+        (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); e.isDirectory() ? walk(p) : files.push(p); } })(dir);
+        for (const f of files.filter((x) => x.endsWith('.js'))) {
+            assert.ok(!/wasm|#wasm/.test(fs.readFileSync(f, 'utf8')), `${path.basename(f)} must not need wasm (CSP has no wasm-unsafe-eval)`);
+        }
+    });
+
+    test('Should read elements from our own origin, never CelesTrak', () => {
+        assert.ok(/\/sats\/\$\{g\}\.json/.test(view), 'snapshot path');
+        assert.ok(/location\.origin/.test(view), 'absolute from the origin: /weather/ is a subpath');
+        assert.ok(!/celestrak\.org/.test(strip(view) + strip(lib)), 'connect-src is self; the browser must not call CelesTrak');
+    });
+
+    test('Should fetch CelesTrak once per cycle and stop at the first non-200', () => {
+        const code = strip(fetcher);
+        assert.ok(/status !== 200[\s\S]*process\.exit\(1\)/.test(code), 'any non-200 stops the run');
+        assert.ok(!/\bwhile\b|\battempt|\bretry\(/.test(code), 'no retry loop');
+        assert.ok(/FORMAT=json/.test(code));
+        assert.ok(/cron: '\d+ \*\/2 \* \* \*'/.test(workflow), 'every two hours, matching CelesTrak updates');
+        assert.ok(!/continue-on-error/.test(workflow), 'a failed fetch must skip the upload');
+    });
+
+    test('Should keep what json2satrec reads when trimming records', () => {
+        const need = ['NORAD_CAT_ID', 'EPOCH', 'MEAN_MOTION_DOT', 'MEAN_MOTION_DDOT', 'BSTAR', 'INCLINATION',
+            'RA_OF_ASC_NODE', 'ECCENTRICITY', 'ARG_OF_PERICENTER', 'MEAN_ANOMALY', 'MEAN_MOTION'];
+        const out = spawnSync(process.execPath, ['--input-type=module', '-e',
+            `const m = await import(${JSON.stringify(path.join(__dirname, 'scripts', 'fetch-sats.mjs'))}); console.log(JSON.stringify([m.KEEP, Object.keys(m.GROUPS), m.acceptable('stations', []), m.acceptable('stations', Array(6).fill({ NORAD_CAT_ID: 1, EPOCH: 'x' }))]));`],
+        { encoding: 'utf8' });
+        assert.strictEqual(out.status, 0, out.stderr);
+        const [keep, groups, empty, ok] = JSON.parse(out.stdout);
+        for (const k of need) assert.ok(keep.includes(k), `${k} is needed by SGP4`);
+        assert.strictEqual(empty, false, 'an empty answer is not a snapshot');
+        assert.strictEqual(ok, true);
+        // The view's categories name the groups the job fetches, no more and no fewer.
+        const used = [...lib.matchAll(/groups: \[([^\]]*)\]/g)].flatMap((m) => m[1].match(/'([a-z-]+)'/g).map((x) => x.slice(1, -1)));
+        assert.deepStrictEqual([...used].sort(), [...groups].sort());
+    });
+
+    test('Should not let the site deploy delete the snapshot or race the schedule', () => {
+        const sync = deploy.slice(deploy.indexOf('Sync weather console'));
+        assert.ok(/s3 sync weather\/ "s3:\/\/\$\{S3_BUCKET\}\/weather\/"/.test(sync), 'only weather/ is synced with --delete');
+        assert.ok(!/sats/.test(deploy), 'deploy.yml never touches /sats/');
+        assert.ok(/group: sats/.test(workflow) && /cancel-in-progress: false/.test(workflow));
+    });
+
+    test('Should only poll aircraft outside satellite mode, and survive blocked storage', () => {
+        const poll = view.slice(view.indexOf('async function poll()'), view.indexOf('async function pollISS()'));
+        assert.ok(/if \(satMode \|\|/.test(poll), 'no aircraft requests while the map shows satellites');
+        assert.ok(/try \{[\s\S]{0,200}localStorage\.getItem\(SAT_KEY\)[\s\S]*catch/.test(view), 'read is guarded');
+        assert.ok(/try \{ localStorage\.setItem\(SAT_KEY/.test(view), 'write is guarded');
+        assert.ok(/clearInterval\(satTimer\)/.test(view.slice(view.indexOf('onHide()'))), 'the satellite timer stops with the view');
+    });
+});
+
 describe('TONIGHT - the rules', () => {
     const fs = require('fs');
     const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');

@@ -473,6 +473,22 @@
 .oh-d { color: var(--dim); }
 .oh-a { color: var(--faint); }
 
+/* SATELLITES: a mode switch and one chip per group. The chip's own colour is
+   the dot colour on the map, so the legend is the button. */
+.oh-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.oh-chip {
+  font: inherit; font-size: max(.64rem, var(--fs-floor, 0px)); letter-spacing: .06em;
+  color: var(--dim); background: none; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--chip, var(--cy)) 45%, transparent);
+  border-radius: 999px; padding: 3px 10px; min-height: 24px;
+}
+.oh-chip[aria-pressed="true"] {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--chip, var(--cy)) 22%, transparent);
+  border-color: var(--chip, var(--cy));
+}
+.oh-mode { --chip: var(--vi); border-radius: 4px; width: 100%; text-align: center; }
+
 /* ============================================================== SKY */
 
 .skyview {
