@@ -111,8 +111,8 @@ test('every secondary feed and final data notification obeys request identity', 
   const second = h.store.setLocation(TOKYO); h.calls.bundle[1].resolve(bundle(80, TOKYO.timezone, false)); await flush();
   for (const field of ['radar', 'pollen', 'observed', 'climate', 'models']) assert.equal(h.store[field], null);
   assert.equal(h.store.air.length, 0); assert.equal(h.store.airNow, null);
-  h.settleSides(1, 80); await second; const count = events.length;
-  h.settleSides(0, 50); await first;
+  h.settleSides(1, 80); await second; await flush(); const count = events.length; // the final notify lands once the side feeds settle, no longer inside refresh()
+  h.settleSides(0, 50); await first; await flush();
   for (const field of ['radar', 'pollen', 'observed', 'climate']) assert.equal(h.store[field].label, 80);
   assert.equal(h.store.models.rows[0].mean, 80); assert.equal(events.length, count);
 });
@@ -299,3 +299,14 @@ for (const switchCity of [true, false]) {
     assert.equal(h.writes(), updatedWrites, 'the new bundle can be cached after rendering');
   });
 }
+
+test('setLocation resolves on the bundle alone; the five side feeds never hold the boot', async () => {
+  const h = harness(); let done = false;
+  const p = h.store.setLocation(PORTLAND).then(() => { done = true; });
+  h.calls.bundle[0].resolve(bundle(50, PORTLAND.timezone)); await flush(); await p;
+  assert.equal(done, true); assert.equal(h.store.hours[0].temp, 50);
+  for (const field of ['radar', 'pollen', 'observed', 'climate', 'models']) assert.equal(h.store[field], null, field);
+  const events = []; h.store.on('data', () => events.push(1));
+  h.settleSides(0, 50); await flush();
+  assert.equal(h.store.radar.label, 50); assert.equal(events.length, 1, 'one final data notification once they land');
+});

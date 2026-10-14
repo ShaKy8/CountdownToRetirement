@@ -103,6 +103,13 @@ npx --yes esbuild@0.25.10 "$DEST/js/main.js" --bundle --minify --splitting \
 main="$(cd "$DEST/dist" && ls main.*.js)"
 sed -i "s|<script type=\"module\" src=\"js/main.js\"></script>|<script type=\"module\" src=\"dist/$main\"></script>|" "$DEST/index.html"
 grep -q "dist/$main" "$DEST/index.html" || { echo "  ERROR: bundle not wired into index.html" >&2; exit 1; }
+# A chunk the bundle imports statically (code shared with the lazy satellite
+# chunk) is found only after the bundle arrives: one more round trip. Name it
+# in the HTML so it downloads alongside the bundle. Dynamic imports are left
+# alone - that is how the satellite code stays out of the page load.
+for chunk in $(grep -oE '(from|import) ?"\./chunk\.[A-Z0-9]+\.js"' "$DEST/dist/$main" | grep -oE 'chunk\.[A-Z0-9]+\.js' | sort -u); do
+  sed -i "0,/<link rel=\"stylesheet\"/s||<link rel=\"modulepreload\" href=\"dist/$chunk\">\n&|" "$DEST/index.html"
+done
 echo "  bundle: dist/$main + $(( $(ls "$DEST/dist" | wc -l) - 1 )) lazy chunk(s)"
 
 # --- verify no absolute ASSET references survive --------------------------

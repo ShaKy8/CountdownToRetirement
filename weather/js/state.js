@@ -326,8 +326,10 @@ class Store {
     if (full || !this.models) {
       side.push(api.models(lat, lon).then((m) => { if (current()) { this.models = this.reduceModels(m); this.emit('models', this.models); } }));
     }
-    await Promise.allSettled(side);
-    if (current()) this.emit('data', this);
+    // Not awaited: each feed re-renders its own panel when it lands, and
+    // callers (the boot above all) only need the bundle, which is in by now.
+    // Awaiting these held the boot screen for the slowest of five requests.
+    Promise.allSettled(side).then(() => { if (current()) this.emit('data', this); });
   }
 
   ingest(bundle) {

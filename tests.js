@@ -4940,7 +4940,12 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         const html = read('weather', 'index.html');
         const m = html.match(/<script type="module" src="dist\/(main\.[A-Z0-9]+\.js)"><\/script>/);
         assert.ok(m, 'index.html loads dist/main.<hash>.js; run scripts/sync-weather.sh');
-        assert.ok(!/modulepreload/.test(html) && !/src="js\/main\.js"/.test(html));
+        assert.ok(!/src="js\/main\.js"/.test(html));
+        // A chunk the bundle imports statically is hinted, or it costs a round trip after the bundle.
+        const statics = [...read('weather', 'dist', m[1]).matchAll(/(?:from|import) ?"\.\/(chunk\.[A-Z0-9]+\.js)"/g)].map((x) => x[1]);
+        const hinted = [...html.matchAll(/<link rel="modulepreload" href="dist\/([^"]+)">/g)].map((x) => x[1]);
+        assert.deepStrictEqual([...new Set(statics)].sort(), hinted.sort(), 'preload exactly the static chunks');
+        assert.ok(!hinted.some((h) => /^sats\./.test(h)), 'never the lazy satellite chunk');
         const dir = path.join(__dirname, 'weather', 'dist');
         const files = fs.readdirSync(dir);
         assert.ok(files.includes(m[1]), 'the bundle exists');
