@@ -1329,6 +1329,17 @@ Two boot fixes followed (slow link ≈2.82 s → ≈2.43 s ready, fast ≈0.7 s)
   link ≈2.41 s → ≈2.09 s). The filename stays `jetbrainsmono-400.woff2`
   because `/game/` and `/slingshot/` load it directly from
   `/weather/assets/fonts/`, so renaming it would break both.
+- **A ~233 ms stall in headless Chromium is software WebGL, not the page.**
+  A trace of the console build showed one task blocked in
+  `GLES2::ReadPixels` (~206 ms, then ~60 ms on every later frame):
+  headless renders WebGL with SwiftShader. To profile against the real GPU,
+  launch with `--use-angle=vulkan --enable-features=Vulkan --ignore-gpu-blocklist`
+  and check the renderer string (`WEBGL_debug_renderer_info`) says the
+  hardware, not SwiftShader. There the readback is gone and slow-link ready
+  is ≈1.9 s, not ≈2.1 s. `--disable-gpu` is still SwiftShader, and
+  `--use-gl=egl` gives no WebGL2 at all (sky off), so neither is evidence.
+  What the build really costs is ~100 ms of JS (`mountUI` ~50 ms, first deck
+  render ~40 ms).
 
 ### TONIGHT — in the SKY view's observing panel
 
