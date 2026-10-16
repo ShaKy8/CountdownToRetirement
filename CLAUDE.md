@@ -1323,6 +1323,12 @@ Two boot fixes followed (slow link ≈2.82 s → ≈2.43 s ready, fast ≈0.7 s)
   `main` imports statically. Without it the chunk costs one extra round trip
   after `main` arrives. The lazy satellite chunk is never hinted, and a test
   checks the hints equal the static chunks.
+- **JetBrains Mono is served as one variable font with a weight range**
+  (`font-weight: 400 700` in a single `@font-face`). The three weight files
+  were byte-identical and each was downloaded; one file saves ~63 KB (slow
+  link ≈2.41 s → ≈2.09 s). The filename stays `jetbrainsmono-400.woff2`
+  because `/game/` and `/slingshot/` load it directly from
+  `/weather/assets/fonts/`, so renaming it would break both.
 
 ### TONIGHT — in the SKY view's observing panel
 
