@@ -1308,6 +1308,22 @@ read them; the page just no longer loads them. An earlier attempt to start
 on a 1.6 Mbps link (bytes, not round trips, were the limit) and was reverted;
 the 480 ms boot fade delay is gone too.
 
+Two boot fixes followed (slow link ≈2.82 s → ≈2.43 s ready, fast ≈0.7 s):
+
+- **`store.refresh()` in `state.js` no longer awaits the five side feeds**
+  (radar, pollen, observations, climate, models). The boot waits for the
+  bundle alone; the side feeds settle afterwards via
+  `Promise.allSettled(side).then(...)`, which emits `'data'` again if the
+  location is still current. A test pins that `setLocation` resolves on the
+  bundle alone, and the request-identity test needs a `flush()` for the late
+  notification. `tests/weather-reliability.test.cjs` exists in both repos and
+  must stay identical.
+- **The shared chunk gets a `<link rel="modulepreload">`**, injected by
+  `sync-weather.sh` in the head before the first stylesheet, for every chunk
+  `main` imports statically. Without it the chunk costs one extra round trip
+  after `main` arrives. The lazy satellite chunk is never hinted, and a test
+  checks the hints equal the static chunks.
+
 ### TONIGHT — in the SKY view's observing panel
 
 `weather/js/lib/tonight.js` answers "is tonight worth going outside for, and if
