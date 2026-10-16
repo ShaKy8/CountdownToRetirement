@@ -4831,8 +4831,34 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
         assert.strictEqual(sections, n, `${sections} sections but ${n} entries in VIEWS`);
         assert.ok(new RegExp(`k <= '${n}'`).test(main),
             `the keyboard range should reach ${n}`);
-        assert.ok(/views\.overhead = createOverhead/.test(main),
+        assert.ok(/lazyView\('overhead', createOverhead/.test(main),
             'and the view has to actually be constructed');
+    });
+
+    test('Should build radar and overhead on first open, not at boot', () => {
+        /*
+         * Each owns a map; building both at boot fetched ~70 tiles that shared
+         * the link with the data feeds (the last feed landed ~0.9 s later on
+         * a 1.6 Mbps link). They are getters on `views` that build on first
+         * read, so setView() and window.ATMOS.views still see the same thing.
+         */
+        assert.ok(/lazyView\('radar', createRadar, 'view-radar'\)/.test(main));
+        assert.ok(/lazyView\('overhead', createOverhead, 'view-overhead'\)/.test(main));
+        assert.ok(!/views\.(radar|overhead) = create/.test(main),
+            'neither may be constructed eagerly in mountUI');
+    });
+
+    test('Should build a view before setView marks its tab active', () => {
+        /*
+         * A view's constructor sets its root's className, which wipes the
+         * 'active' class. Built after the toggle, a lazily built view opened
+         * to an empty page - pinch-audit caught it, six gates red.
+         */
+        const body = main.slice(main.indexOf('function setView('));
+        const built = body.indexOf('const view = views[v]');
+        const toggled = body.indexOf("classList.toggle('active'");
+        assert.ok(built > -1 && toggled > -1, 'setView should resolve the view and toggle the tabs');
+        assert.ok(built < toggled, 'the view has to exist before the tabs are toggled');
     });
 
     test('Should keep one topocentric and one basemap', () => {

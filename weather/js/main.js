@@ -119,15 +119,35 @@ async function start() {
 
 /* -------------------------------------------------------------- mount UI */
 
+/*
+ * A view nobody has opened is not built. RADAR and OVERHEAD each own a map,
+ * and building them at boot fetched ~70 tiles that shared the link with the
+ * data feeds: the last of those landed ~0.9 s later on a slow connection, and
+ * everyone who never opens either view paid for it. The property is a getter
+ * that builds on first read and then turns into the plain value, so
+ * views[name], setView() and window.ATMOS.views all read it the same way.
+ */
+function lazyView(name, make, id) {
+  Object.defineProperty(views, name, {
+    configurable: true,
+    enumerable: true,
+    get() {
+      const v = make(document.getElementById(id));
+      Object.defineProperty(views, name, { value: v, configurable: true, enumerable: true, writable: true });
+      return v;
+    },
+  });
+}
+
 function mountUI() {
   timeline = createTimeline(el.scrub);
 
   views.deck = createDeck(document.getElementById('view-deck'));
-  views.radar = createRadar(document.getElementById('view-radar'));
   views.sky = createSkyView(document.getElementById('view-sky'));
   views.air = createAir(document.getElementById('view-air'));
   views.data = createData(document.getElementById('view-data'));
-  views.overhead = createOverhead(document.getElementById('view-overhead'));
+  lazyView('radar', createRadar, 'view-radar');
+  lazyView('overhead', createOverhead, 'view-overhead');
 
   const rerender = () => {
     const v = views[store.view];
@@ -192,6 +212,9 @@ function setView(v, { push = true } = {}) {
   store.view = v;
   // A readout tapped onto a chart belongs to the view you were looking at.
   clearInspect();
+  // Built before the tabs are toggled: a view's constructor sets its root's
+  // className, which would wipe the 'active' this function is about to add.
+  const view = views[v];
   // Deep-linkable: reload or bookmark lands on the same view.
   if (push && location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v);
   for (const b of el.nav.querySelectorAll('button')) {
@@ -202,7 +225,6 @@ function setView(v, { push = true } = {}) {
   }
   // The deck lets the sky through; data-dense views dim it for legibility.
   document.documentElement.style.setProperty('--stage-dim', v === 'deck' ? '0.25' : '0.72');
-  const view = views[v];
   if (view?.update) view.update();
   if (view?.onShow) view.onShow();
 }
