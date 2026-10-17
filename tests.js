@@ -4875,6 +4875,26 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'the UV chart should pick its stride from the measured label width');
     });
 
+    test('Should move V.HIGH under its line when the UV chart title would run into it', () => {
+        // At 320px the title is longer than the room left of V.HIGH, which sits in the same corner row.
+        const code = `import(${JSON.stringify(path.join(__dirname, 'weather', 'js', 'charts.js'))}).then(m => {
+            const a = { l: 0, t: 0, r: 10, b: 10 };
+            console.log(JSON.stringify([m.boxesOverlap(a, { l: 5, t: 5, r: 20, b: 20 }), m.boxesOverlap(a, { l: 12, t: 0, r: 20, b: 10 }),
+                m.boxesOverlap(a, { l: 12, t: 0, r: 20, b: 10 }, 4), m.boxesOverlap(a, { l: 0, t: 30, r: 10, b: 40 }, 4)])); })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        assert.deepStrictEqual(JSON.parse(r.stdout), [true, false, true, false],
+            'boxes overlap, miss, are caught by a gap, and are far apart');
+        const air = read('weather', 'js', 'views', 'air.js');
+        const bands = air.slice(air.indexOf('const TITLE ='), air.indexOf('const n = rows.length;'));
+        assert.ok(/uv index today · dashed = clear sky/.test(bands) && /const above = !boxesOverlap\(\{ l: x - lw, t: yOf\(v\) - 13, r: x, b: yOf\(v\) - 1 \}, titleBox, 4\)/.test(bands),
+            'the band labels should be checked against the measured title');
+        assert.ok(/textBaseline = above \? 'bottom' : 'top'/.test(bands) && /yOf\(v\) \+ 2/.test(bands),
+            'a label that would collide is drawn under its line, not dropped');
+        assert.ok(/tag\(ctx, box\.x \+ 2, 1, 'uv index today · dashed = clear sky'\)/.test(air),
+            'the title is still drawn, at the position the check measured');
+    });
+
     test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));

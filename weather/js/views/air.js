@@ -10,7 +10,7 @@
 import { store } from '../state.js';
 import { haloText,
   SERIES, STATUS, INK, DIM, FAINT, mount, gauge, spark, capBar, alpha, tag, mixHex,
-  tooltip, fitLabel, fitHours,
+  tooltip, fitLabel, fitHours, boxesOverlap, UI_LBL,
 } from '../charts.js';
 import {
   fmt as F, clamp, aqiCategory, uvCategory, pollenCategory, dewpointComfort, burnTime,
@@ -99,14 +99,23 @@ export function createAir(root) {
     const yOf = (v) => box.y + box.h - (clamp(v, 0, 12) / 12) * box.h;
 
     // Reference bands, labelled so colour isn't the only cue.
+    // The title sits in the top-left corner and V.HIGH's label in the top-right: on a phone the
+    // title is longer than the room between them, so that one label goes under its line.
+    const TITLE = 'uv index today · dashed = clear sky';
+    ctx.save(); ctx.font = UI_LBL; ctx.letterSpacing = '1.4px';
+    const titleBox = { l: box.x + 2, t: 1, r: box.x + 2 + ctx.measureText(TITLE.toUpperCase()).width, b: 14 };
+    ctx.restore();
     for (const [v, c, l] of [[3, STATUS.good, 'LOW'], [6, STATUS.warn, 'MOD'], [8, STATUS.serious, 'HIGH'], [11, STATUS.crit, 'V.HIGH']]) {
       ctx.save();
       ctx.strokeStyle = alpha(c, .3); ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(box.x, yOf(v)); ctx.lineTo(box.x + box.w, yOf(v)); ctx.stroke();
       ctx.setLineDash([]);
       ctx.font = "500 11.5px 'JetBrains Mono', monospace";
-      ctx.fillStyle = alpha(c, .8); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-      haloText(ctx, l, box.x + box.w - 2, yOf(v) - 1);
+      ctx.fillStyle = alpha(c, .8); ctx.textAlign = 'right';
+      const lw = ctx.measureText(l).width, x = box.x + box.w - 2;
+      const above = !boxesOverlap({ l: x - lw, t: yOf(v) - 13, r: x, b: yOf(v) - 1 }, titleBox, 4);
+      ctx.textBaseline = above ? 'bottom' : 'top';
+      haloText(ctx, l, x, above ? yOf(v) - 1 : yOf(v) + 2);
       ctx.restore();
     }
 

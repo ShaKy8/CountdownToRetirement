@@ -487,6 +487,11 @@ export function fitHours(perRow, widest, { gap = 8, base = 4 } = {}) {
   return Math.max(base, Math.ceil((widest + gap) / Math.max(perRow, 0.5) / base) * base);
 }
 
+/** Do two label boxes ({l, t, r, b}) come within `gap` px of each other? */
+export function boxesOverlap(a, b, gap = 0) {
+  return a.l < b.r + gap && b.l < a.r + gap && a.t < b.b + gap && b.t < a.b + gap;
+}
+
 /**
  * A centre-aligned label kept inside [x0, x1]: nudged in when it would hang
  * over an edge, skipped when it cannot fit at all. Returns whether it drew.
