@@ -5842,7 +5842,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.strictEqual(out.fiHung.source, 'adsb.lol');
         assert.ok(out.fiHung.ms < 1000, 'and the other way round, took ' + out.fiHung.ms + ' ms');
         assert.strictEqual(out.bothHung.source, null, 'both hung is an empty answer');
-        assert.ok(out.bothHung.ms >= 1500 && out.bothHung.ms < 4000, 'bounded by the 2 s timeout, took ' + out.bothHung.ms + ' ms');
+        assert.ok(out.bothHung.ms >= 3500 && out.bothHung.ms < 6500, 'bounded by the 4 s timeout, took ' + out.bothHung.ms + ' ms');
     });
 
     test('Should send each aircraft miss to both feeds, once each', () => {

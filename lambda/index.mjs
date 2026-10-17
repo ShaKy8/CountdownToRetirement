@@ -128,7 +128,7 @@ async function diskSet(key, data) {
 }
 
 /** How long a live-aircraft feed gets before the next one is tried. */
-const FEED_TIMEOUT_MS = 2000;
+const FEED_TIMEOUT_MS = 4000;
 
 /**
  * Fetch JSON with layered caching. `disk: true` survives restarts, which is

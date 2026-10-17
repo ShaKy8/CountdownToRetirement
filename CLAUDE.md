@@ -1212,7 +1212,7 @@ moon, on the same slippy map the radar uses. Tap an aircraft and it says what it
 is and where it is going. No API key, no recurring cost.
 
 - **The feeds go through the Lambda, never the browser.** `/api/aircraft` proxies
-  adsb.lol and adsb.fi **at once** and takes the first good answer (2 s
+  adsb.lol and adsb.fi **at once** and takes the first good answer (4 s
   timeout each); `/api/flight` proxies adsbdb. That keeps two more hosts out
   of the CSP — and at a ten-second edge cache keyed to a tenth of a degree, it
   means **one pair of upstream requests per ten seconds per neighbourhood**
