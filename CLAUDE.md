@@ -1349,6 +1349,31 @@ Boot work followed (slow link ≈2.82 s → ≈2.1 s ready, fast ≈0.65 s):
   moment earlier, so RADAR opened to an empty page. A test pins that order.
   The cost is a slower first open on a slow link (RADAR's map fills in over a
   few seconds).
+- **Map tiles retry, and the RADAR loop only steps onto frames that are in**
+  (October 17, 2026). RainViewer's tile host rate-limits with HTTP 429 and
+  sends no CORS header, so the browser reports `net::ERR_FAILED`, not a 429.
+  - `loadTile()` in `map.js` retries a failed tile after 1.5 s and again after
+    4 s before caching the error; before, one failure blanked that tile for the
+    whole session. Each retry is another request to a host that may be
+    throttling.
+  - `map.tilesSettled(name, url?)` is true when every tile a layer wants has
+    loaded or finally failed. With `url` (a function) it asks about another
+    source for the same view and **starts those loads**: nothing draws an
+    upcoming radar frame, so asking is the only thing that ever requests it.
+  - `radar.js` holds on the first frame until its tiles are in (up to
+    `PRIME_MAX`, 5 s), then each step goes to the next frame that is settled,
+    skipping the rest, and waits in place if none is. Measured on production's
+    slow link over six runs: the displayed frame was fully drawn at 2, 3 and 6 s
+    (hold alone: 17-21% at 6 s, from stepping onto unloaded frames). At 1 s it
+    is ~58% either way. The frames are fetched as the loop reaches them, so
+    fewer requests (144-211, not 266-276).
+  - Tests pin all three (retry, settled, skip).
+- **Measuring the console's requests: the resource-timing buffer holds 250.**
+  It truncates silently, so request counts and "settled at" times read low
+  until `performance.setResourceTimingBufferSize(5000)`. And a measurement run
+  is itself load on RainViewer: a burst of runs from one IP got it 429s that
+  lasted minutes to an hour and invalidated the numbers. Probe first, space
+  runs several minutes apart, and treat one slow run as noise.
 
 ### TONIGHT — in the SKY view's observing panel
 
