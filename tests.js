@@ -4856,6 +4856,25 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'a cell wider than its column should wrap its time under the label');
     });
 
+    test('Should space the hour labels on the UV chart so they cannot overlap', () => {
+        // At 320px a day is ~10px an hour: "00:00" nudged in from the edge sat on "04:00".
+        const code = `import(${JSON.stringify(path.join(__dirname, 'weather', 'js', 'charts.js'))}).then(m => {
+            const out = { phone: m.fitHours(10.4, 34), mid: m.fitHours(13.3, 34), wide: m.fitHours(18, 34), tiny: m.fitHours(5, 34), clear: [] };
+            for (let per = 2; per <= 30; per += 0.5) { const e = m.fitHours(per, 34); if (e * per < 34 + 8 || e % 4) out.clear.push(per); }
+            console.log(JSON.stringify(out)); })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        const out = JSON.parse(r.stdout);
+        assert.strictEqual(out.phone, 8, 'a phone shows every 8 hours, not 4');
+        assert.strictEqual(out.mid, 4, '390px still shows every 4 hours');
+        assert.strictEqual(out.wide, 4, 'desktop is unchanged');
+        assert.strictEqual(out.tiny, 12, 'a tiny chart thins further');
+        assert.deepStrictEqual(out.clear, [], 'every spacing leaves the label its air, in whole 4-hour steps');
+        const air = read('weather', 'js', 'views', 'air.js');
+        assert.ok(/fitHours\(box\.w \/ n, ctx\.measureText\('00:00'\)\.width\)/.test(air) && /% every/.test(air),
+            'the UV chart should pick its stride from the measured label width');
+    });
+
     test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));

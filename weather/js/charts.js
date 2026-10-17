@@ -478,6 +478,16 @@ export function fitStride(count, span, widest, { gap = 8, least = 1 } = {}) {
 }
 
 /**
+ * Hours between labels on an hourly axis: `base` when labels `widest` px wide fit
+ * that often, otherwise the next multiple of it that leaves `gap` px of air.
+ * Spaced evenly rather than dropping one label, so "00:00 04:00" never collide
+ * while "08:00" and "16:00" survive. `perRow` is the px width of one hour.
+ */
+export function fitHours(perRow, widest, { gap = 8, base = 4 } = {}) {
+  return Math.max(base, Math.ceil((widest + gap) / Math.max(perRow, 0.5) / base) * base);
+}
+
+/**
  * A centre-aligned label kept inside [x0, x1]: nudged in when it would hang
  * over an edge, skipped when it cannot fit at all. Returns whether it drew.
  * The caller sets textAlign 'center' — this is the axis-label case, where a

@@ -10,7 +10,7 @@
 import { store } from '../state.js';
 import { haloText,
   SERIES, STATUS, INK, DIM, FAINT, mount, gauge, spark, capBar, alpha, tag, mixHex,
-  tooltip, fitLabel,
+  tooltip, fitLabel, fitHours,
 } from '../charts.js';
 import {
   fmt as F, clamp, aqiCategory, uvCategory, pollenCategory, dewpointComfort, burnTime,
@@ -130,9 +130,12 @@ export function createAir(root) {
     ctx.save();
     ctx.font = "500 11.5px 'JetBrains Mono', monospace";
     ctx.fillStyle = FAINT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    // Every 4 hours where that fits; every 8 (or 12) on a phone, where "00:00" nudged in
+    // from the edge sat on top of "04:00".
+    const every = fitHours(box.w / n, ctx.measureText('00:00').width);
     rows.forEach((d, i) => {
       const hod = store.fmt.hourOfDay(d.t);
-      if (Math.round(hod) % 4 || Math.abs(hod - Math.round(hod)) > 0.02) return;
+      if (Math.round(hod) % every || Math.abs(hod - Math.round(hod)) > 0.02) return;
       fitLabel(ctx, store.fmt.hm(d.t),
         box.x + (i * box.w) / n + bw / 2, h - pad.b + 3, 0, w);
     });
