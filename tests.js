@@ -5830,7 +5830,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             console.log(JSON.stringify({ ms: Date.now() - t, source: r.source, n: r.aircraft.length }));
         `);
         assert.strictEqual(out.source, 'adsb.fi', 'the fallback answered once the first was given up on');
-        assert.ok(out.ms >= 3500 && out.ms < 6000, 'a dead host costs about the 4 s timeout, took ' + out.ms + ' ms');
+        assert.ok(out.ms >= 1500 && out.ms < 4000, 'a dead host costs about the 2 s timeout, took ' + out.ms + ' ms');
     });
 
     test('Should keep the aircraft route identical in the local server', () => {
