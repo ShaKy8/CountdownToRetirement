@@ -381,6 +381,7 @@
   position: absolute; top: 10px; left: 12px; z-index: 3;
   pointer-events: none; display: flex; flex-direction: column; gap: 8px;
   align-items: flex-start;
+  max-width: calc(100% - 90px);   /* stop short of the map's own buttons; a long stamp wraps */
 }
 .radar-stamp {
   background: color-mix(in srgb, var(--panel-solid) 78%, transparent); backdrop-filter: blur(6px);

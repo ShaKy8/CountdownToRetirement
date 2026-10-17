@@ -4790,6 +4790,17 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'positions should carry a short edge cache, not none');
     });
 
+    test('Should say the feeds are not answering, not that the sky is empty', () => {
+        // The route answers 200 with source: null and no aircraft when both feeds
+        // fail. "0 AIRCRAFT" read as a quiet sky; only the null source tells them apart.
+        assert.ok(/feedsDown = r\.source == null/.test(view),
+            'the flag should come from the answer naming no source, not from an empty list');
+        assert.ok(/feedsDown \? 'AIRCRAFT FEEDS NOT ANSWERING' : `\$\{airborne\} AIRCRAFT`/.test(view),
+            'the count should say the feeds are not answering while they are down');
+        assert.ok(!/feedsDown = [^;]*(aircraft|planes)/.test(view),
+            'an empty list from a working feed is a quiet sky');
+    });
+
     test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));

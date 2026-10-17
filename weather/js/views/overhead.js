@@ -91,6 +91,7 @@ export function createOverhead(root) {
   let planes = [];          // trimmed aircraft records, nearest first
   let at = 0;               // when the feed sample was taken
   let source = null;
+  let feedsDown = false;   // the last answer named no source: both feeds failed, which is not an empty sky
   let sel = null;           // hex of the selected aircraft
   let selInfo = null;       // enrichment for `sel`, or null while it loads
   let iss = null;
@@ -319,7 +320,9 @@ export function createOverhead(root) {
     const list = planes.filter((a) => !a.gnd).slice(0, 8);
     $('o-src').textContent = source ? source.toUpperCase() : 'NO FEED';
     if (!list.length) {
-      $('o-near').innerHTML = '<p class="hint">Nothing in the air within range.</p>';
+      $('o-near').innerHTML = feedsDown
+        ? '<p class="hint">The aircraft feeds are not answering. Trying again shortly.</p>'
+        : '<p class="hint">Nothing in the air within range.</p>';
       return;
     }
     $('o-near').innerHTML = '<div class="oh-head"><span>callsign</span><span>type</span>'
@@ -368,7 +371,7 @@ export function createOverhead(root) {
   function renderStamp() {
     if (satMode) { renderSatStamp(); return; }
     const airborne = planes.filter((a) => !a.gnd).length;
-    $('o-count').textContent = `${airborne} AIRCRAFT`;
+    $('o-count').textContent = feedsDown ? 'AIRCRAFT FEEDS NOT ANSWERING' : `${airborne} AIRCRAFT`;
     const age = at ? Math.round((Date.now() - at) / 1000) : null;
     $('o-age').textContent = age == null ? '—'
       : age < 20 ? 'LIVE' : `${age}s AGO`;
@@ -383,6 +386,7 @@ export function createOverhead(root) {
       planes = r.aircraft || [];
       at = r.at || Date.now();
       source = r.source;
+      feedsDown = r.source == null;
       // The selection survives a refresh; the aircraft may not.
       if (sel && !planes.some((a) => a.hex === sel)) select(null);
       renderStamp(); renderNear(); renderSel();
