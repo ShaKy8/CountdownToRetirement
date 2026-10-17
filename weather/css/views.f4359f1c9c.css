@@ -600,8 +600,10 @@
 .aqi-cat { font-size: .92rem; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
 .aqi-note { font-size: max(.6rem, var(--fs-floor, 0px)); color: var(--dim); line-height: 1.45; margin-top: 3px; }
 
-.burngrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px 8px; }
-.burngrid div { display: flex; justify-content: space-between; gap: 5px; align-items: baseline; }
+.burngrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px 8px; }
+/* A cell that is wider than its third wraps its time under the label; 1fr alone
+   cannot shrink below its content, which pushed two cells off a 320px screen. */
+.burngrid div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 5px; align-items: baseline; min-width: 0; }
 .burngrid b { font-family: var(--mono); font-size: max(.68rem, var(--fs-floor, 0px)); }
 
 .dewstrip { display: flex; gap: 2px; height: 8px; margin-top: 3px; }

@@ -4841,6 +4841,21 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'the console-wide nowrap stays; only this panel is overridden');
     });
 
+    test('Should let the sunburn grid shrink and wrap its cells on a narrow screen', () => {
+        // 1fr cannot shrink below its content, so at 320px "III MEDIUM 39m" and "VI DARK 131m"
+        // pushed two cells 22px past the screen edge while the page still measured 320 wide.
+        const dir = path.join(__dirname, 'weather', 'css');
+        const views = fs.readFileSync(path.join(dir,
+            fs.readdirSync(dir).find(f => /^views\.[0-9a-f]+\.css$/.test(f))), 'utf8');
+        const grid = views.match(/\.burngrid\s*\{([^}]*)\}/);
+        assert.ok(grid && /repeat\(3,\s*minmax\(0,\s*1fr\)\)/.test(grid[1]),
+            'the columns should be minmax(0, 1fr), so they can be narrower than their content');
+        assert.ok(!/repeat\(3,\s*1fr\)/.test(grid[1]), 'a bare 1fr is the bug');
+        const cell = views.match(/\.burngrid div\s*\{([^}]*)\}/);
+        assert.ok(cell && /flex-wrap:\s*wrap/.test(cell[1]) && /min-width:\s*0/.test(cell[1]),
+            'a cell wider than its column should wrap its time under the label');
+    });
+
     test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));
