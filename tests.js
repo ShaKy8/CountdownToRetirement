@@ -4966,6 +4966,43 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
         assert.strictEqual(m.tilesSettled('radar'), true, 'a hidden layer is not waited on');
     });
 
+    test('Should ask about, and start loading, another source for a layer', () => {
+        // The radar loop asks whether frame N+1 is in; nothing draws that
+        // frame yet, so asking has to be what requests its tiles.
+        const vm = require('vm');
+        const src = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'map.js'), 'utf8')
+            .replace(/^export /gm, '');
+        const images = [];
+        const ctx = { Image: class { constructor() { images.push(this); } }, setTimeout: () => {} };
+        vm.createContext(ctx);
+        vm.runInContext(src + '\nthis.SlippyMap = SlippyMap;', ctx);
+        const m = Object.create(ctx.SlippyMap.prototype);
+        Object.assign(m, { w: 512, h: 512, lat: 34, lon: -118, zoom: 7, maxZoom: 11, invalidate() {} });
+        m.layers = [{ name: 'radar', url: () => 'https://t.example/current.png', maxTileZoom: 7 }];
+        const other = (z, x, y) => `https://t.example/other/${z}/${x}/${y}.png`;
+        assert.strictEqual(m.tilesSettled('radar', other), false, 'not requested is not settled');
+        assert.ok(images.length >= 4 && images.every((i) => /other/.test(i.src)), 'asking requested the other source\'s tiles');
+        const n = images.length;
+        m.tilesSettled('radar', other);
+        assert.strictEqual(images.length, n, 'asking again does not request them twice');
+        images.forEach((img) => img.onload());
+        assert.strictEqual(m.tilesSettled('radar', other), true, 'settled once they arrive');
+        assert.strictEqual(m.tilesSettled('radar'), false, 'the layer\'s own source is a separate question');
+    });
+
+    test('Should skip RADAR frames whose tiles are not in yet', () => {
+        const radar = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'views', 'radar.js'), 'utf8');
+        const tick = radar.slice(radar.indexOf('function tick('), radar.indexOf('requestAnimationFrame(function raf'));
+        assert.ok(/map\.tilesSettled\('radar', frameUrl\(frames\[c\]\)\)/.test(tick),
+            'each candidate frame is checked against its own tiles');
+        assert.ok(tick.indexOf('tilesSettled(\'radar\', frameUrl') < tick.indexOf('setCursor'),
+            'the check comes before the cursor moves');
+        assert.ok(/next < 0 \|\| next === idx\) \{ acc = hold - 0\.1; return; \}/.test(tick),
+            'with none ready the loop stays put and looks again soon');
+        assert.ok(/url: \(z, x, y\) => frameUrl\(frames\[idx\]\)\(z, x, y\)/.test(radar),
+            'the layer and the check build a frame\'s URL the same way');
+    });
+
     test('Should keep one topocentric and one basemap', () => {
         /*
          * topocentric was private to sky.js and read store.loc from its

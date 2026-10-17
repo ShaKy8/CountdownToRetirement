@@ -87,6 +87,9 @@ export function createRadar(root) {
     onMove: () => scheduleStrip(),
   });
 
+  const frameUrl = (f) => (z, x, y) =>
+    (!f || !host ? null : `${host}${f.path}/256/${z}/${x}/${y}/4/1_1.png`);
+
   map.layers = [
     {
       name: 'base',
@@ -95,11 +98,7 @@ export function createRadar(root) {
     },
     {
       name: 'radar',
-      url: (z, x, y) => {
-        const f = frames[idx];
-        if (!f || !host) return null;
-        return `${host}${f.path}/256/${z}/${x}/${y}/4/1_1.png`;
-      },
+      url: (z, x, y) => frameUrl(frames[idx])(z, x, y),
       opacity: 0.82, blend: 'screen',
       /*
        * Measured against the live tile cache: RainViewer's public radar
@@ -373,8 +372,19 @@ export function createRadar(root) {
       // Hold the final frame a beat longer so the loop reads clearly.
       const hold = idx === frames.length - 1 ? 1.1 : 0.42;
       if (acc >= hold) {
+        /*
+         * Step to the next frame whose tiles are in, skipping any that are
+         * not: stepping onto a half-drawn frame is the flicker. Asking also
+         * starts the loads, so the skipped frames fill in behind the loop.
+         * With none ready, stay put and look again shortly.
+         */
+        let next = -1;
+        for (let k = 1; k <= frames.length; k++) {
+          const c = (idx + k) % frames.length;
+          if (c === idx || map.tilesSettled('radar', frameUrl(frames[c]))) { next = c; break; }
+        }
+        if (next < 0 || next === idx) { acc = hold - 0.1; return; }
         acc = 0;
-        const next = (idx + 1) % frames.length;
         // Drive the cursor, not a private index: the footer's readout and
         // playhead move with the radar, and the cursor listener above picks
         // the frame. setCursor, not scrubTo - the loop is ambient, so

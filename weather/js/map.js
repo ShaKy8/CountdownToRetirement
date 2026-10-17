@@ -312,17 +312,26 @@ export class SlippyMap {
     return { size, tiles };
   }
 
-  /** True once every tile the named layer wants has loaded or finally failed. */
-  tilesSettled(name) {
+  /**
+   * True once every tile the named layer wants has loaded or finally failed.
+   * Pass `url` to ask about the same view through a different source (the
+   * radar's other frames): tiles not yet requested are requested here, since
+   * nothing else would ever draw them to do it.
+   */
+  tilesSettled(name, url) {
     const layer = this.layers.find((l) => l.name === name);
     if (!layer || layer.enabled === false || layer.opacity === 0 || !this.w || !this.h) return true;
     const zi = Math.max(0, Math.min(this.maxZoom, Math.round(this.zoom)));
     const originX = proj.lonToWorld(this.lon, this.zoom) - this.w / 2;
     const originY = proj.latToWorld(this.lat, this.zoom) - this.h / 2;
-    return this._layerTiles(layer, zi, originX, originY).tiles.every(({ url }) => {
-      const st = cache.get(url)?.state;
-      return st === 'ok' || st === 'err';
-    });
+    const { tiles } = this._layerTiles(url ? { ...layer, url } : layer, zi, originX, originY);
+    let settled = true;
+    for (const t of tiles) {
+      if (url) loadTile(t.url, () => this.invalidate());
+      const st = cache.get(t.url)?.state;
+      if (st !== 'ok' && st !== 'err') settled = false;
+    }
+    return settled;
   }
 
   render() {
