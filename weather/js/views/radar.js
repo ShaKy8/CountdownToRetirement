@@ -16,6 +16,9 @@ import {
 import { SERIES, STATUS, INK, DIM, FAINT, alpha, mount, capBar, tag } from '../charts.js';
 import { alertColor, clamp, escapeHtml as esc } from '../lib/util.js';
 
+// Longest the loop waits on the first frame's tiles before playing anyway (s).
+const PRIME_MAX = 5;
+
 export function createRadar(root) {
   root.className = 'view radar';
   root.innerHTML = `
@@ -71,6 +74,8 @@ export function createRadar(root) {
   let frames = [];        // {time, path, kind}
   let idx = 0;
   let acc = 0;
+  let primed = false;     // the first frame's tiles have arrived (or we gave up waiting)
+  let primeWait = 0;
   let lastSideKey = '';
   let lastSideData = null;
   let lastT = performance.now();
@@ -352,6 +357,18 @@ export function createRadar(root) {
     const dt = Math.min(0.2, (now - lastT) / 1000);
     lastT = now;
     if (store.playing && frames.length) {
+      /*
+       * Hold on the first frame until its tiles are in. The loop steps every
+       * 0.42 s and a frame's tiles take longer than that on a slow link, so
+       * playing from the start showed a different half-drawn frame every
+       * step for the first several seconds. Give up after PRIME_MAX so a
+       * tile host that is down cannot freeze the loop on one frame.
+       */
+      if (!primed) {
+        primeWait += dt;
+        if (!map.tilesSettled('radar') && primeWait < PRIME_MAX) return;
+        primed = true;
+      }
       acc += dt;
       // Hold the final frame a beat longer so the loop reads clearly.
       const hold = idx === frames.length - 1 ? 1.1 : 0.42;
@@ -382,6 +399,7 @@ export function createRadar(root) {
     map,                     // the pan/pinch surface, reachable from ATMOS.views
     update() { renderSide(); map.invalidate(); },
     onShow() {
+      primed = false; primeWait = 0; acc = 0;
       map.resize();
       strip.render();
       followCursor();

@@ -281,6 +281,50 @@ export class SlippyMap {
     c.style.touchAction = 'none';
   }
 
+  /*
+   * The tiles a layer wants for the current view, in draw order. Shared by
+   * render() and tilesSettled() so that "what is on screen" and "has it all
+   * arrived" cannot disagree about which tiles those are.
+   */
+  _layerTiles(layer, zi, originX, originY) {
+    const { w, h } = this;
+    /*
+     * A layer whose source runs out of zoom levels is drawn from its
+     * deepest tiles, scaled up, rather than not at all. RainViewer's public
+     * radar stops at z 7 and hands back a "Zoom Level Not Supported"
+     * placeholder above it — which used to tile itself across the map in
+     * letters a hundred pixels tall.
+     */
+    const lz = Math.min(zi, layer.maxTileZoom ?? zi);
+    const size = TILE * Math.pow(2, this.zoom - lz);
+    const n = Math.pow(2, lz);
+    const x0 = Math.floor(originX / size), x1 = Math.floor((originX + w) / size);
+    const y0 = Math.floor(originY / size), y1 = Math.floor((originY + h) / size);
+    const tiles = [];
+    for (let ty = y0; ty <= y1; ty++) {
+      if (ty < 0 || ty >= n) continue;
+      for (let tx = x0; tx <= x1; tx++) {
+        const wx = ((tx % n) + n) % n;   // wrap east-west
+        const url = layer.url(lz, wx, ty);
+        if (url) tiles.push({ tx, ty, url });
+      }
+    }
+    return { size, tiles };
+  }
+
+  /** True once every tile the named layer wants has loaded or finally failed. */
+  tilesSettled(name) {
+    const layer = this.layers.find((l) => l.name === name);
+    if (!layer || layer.enabled === false || layer.opacity === 0 || !this.w || !this.h) return true;
+    const zi = Math.max(0, Math.min(this.maxZoom, Math.round(this.zoom)));
+    const originX = proj.lonToWorld(this.lon, this.zoom) - this.w / 2;
+    const originY = proj.latToWorld(this.lat, this.zoom) - this.h / 2;
+    return this._layerTiles(layer, zi, originX, originY).tiles.every(({ url }) => {
+      const st = cache.get(url)?.state;
+      return st === 'ok' || st === 'err';
+    });
+  }
+
   render() {
     const { ctx, w, h } = this;
     if (!w || !h) return;
@@ -299,18 +343,7 @@ export class SlippyMap {
     for (const layer of this.layers) {
       if (layer.enabled === false || layer.opacity === 0) continue;
 
-      /*
-       * A layer whose source runs out of zoom levels is drawn from its
-       * deepest tiles, scaled up, rather than not at all. RainViewer's
-       * public radar stops at z 7 and hands back a "Zoom Level Not
-       * Supported" placeholder above it — which used to tile itself across
-       * the map in letters a hundred pixels tall.
-       */
-      const lz = Math.min(zi, layer.maxTileZoom ?? zi);
-      const size = TILE * Math.pow(2, this.zoom - lz);
-      const n = Math.pow(2, lz);
-      const x0 = Math.floor(originX / size), x1 = Math.floor((originX + w) / size);
-      const y0 = Math.floor(originY / size), y1 = Math.floor((originY + h) / size);
+      const { size, tiles } = this._layerTiles(layer, zi, originX, originY);
 
       ctx.save();
       ctx.globalAlpha = layer.opacity ?? 1;
@@ -318,22 +351,16 @@ export class SlippyMap {
       if (layer.blend) ctx.globalCompositeOperation = layer.blend;
       // Slight overdraw avoids hairline seams between tiles.
       const pad = 0.5;
-      for (let ty = y0; ty <= y1; ty++) {
-        if (ty < 0 || ty >= n) continue;
-        for (let tx = x0; tx <= x1; tx++) {
-          const wx = ((tx % n) + n) % n;   // wrap east-west
-          const url = layer.url(lz, wx, ty);
-          if (!url) continue;
-          const img = loadTile(url, again);
-          if (!img) continue;
-          ctx.drawImage(
-            img,
-            Math.round(tx * size - originX) - pad,
-            Math.round(ty * size - originY) - pad,
-            Math.ceil(size) + pad * 2,
-            Math.ceil(size) + pad * 2,
-          );
-        }
+      for (const { tx, ty, url } of tiles) {
+        const img = loadTile(url, again);
+        if (!img) continue;
+        ctx.drawImage(
+          img,
+          Math.round(tx * size - originX) - pad,
+          Math.round(ty * size - originY) - pad,
+          Math.ceil(size) + pad * 2,
+          Math.ceil(size) + pad * 2,
+        );
       }
       ctx.restore();
     }

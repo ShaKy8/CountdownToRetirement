@@ -4921,6 +4921,51 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
         assert.strictEqual(images.length, n1, 'an evicted tile is not retried');
     });
 
+    test('Should hold the RADAR loop on its first frame until the tiles are in', () => {
+        /*
+         * The loop steps every 0.42 s and a frame's tiles take longer than
+         * that on a slow link, so playing from the start showed a different
+         * half-drawn frame at every step for the first several seconds
+         * (measured: 21-88% of the frame's tiles drawn, jumping about).
+         */
+        const radar = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'views', 'radar.js'), 'utf8');
+        const tick = radar.slice(radar.indexOf('function tick('), radar.indexOf('requestAnimationFrame(function raf'));
+        const gate = tick.indexOf("map.tilesSettled('radar')");
+        assert.ok(gate > -1, 'tick should wait on the radar layer\'s tiles');
+        assert.ok(gate < tick.indexOf('acc += dt'), 'the wait has to come before the loop advances');
+        assert.ok(/primeWait < PRIME_MAX/.test(tick), 'and it has to give up, or a dead tile host freezes the loop');
+        const show = radar.slice(radar.indexOf('onShow()'));
+        assert.ok(/primed = false/.test(show.slice(0, 200)), 'each time the view opens the hold starts again');
+    });
+
+    test('Should report a layer settled only when every tile it wants has loaded or finally failed', () => {
+        // Runs the real SlippyMap methods on a bare instance (no DOM needed).
+        const vm = require('vm');
+        const src = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'map.js'), 'utf8')
+            .replace(/^export /gm, '');
+        const images = [];
+        const ctx = { Image: class { constructor() { images.push(this); } }, setTimeout: () => {} };
+        vm.createContext(ctx);
+        vm.runInContext(src + '\nthis.SlippyMap = SlippyMap; this.loadTile = loadTile; this.cache = cache; this.proj = proj;', ctx);
+        const m = Object.create(ctx.SlippyMap.prototype);
+        Object.assign(m, { w: 512, h: 512, lat: 34, lon: -118, zoom: 7, maxZoom: 11 });
+        m.layers = [{ name: 'radar', url: (z, x, y) => `https://t.example/${z}/${x}/${y}.png`, maxTileZoom: 7 }];
+
+        assert.strictEqual(m.tilesSettled('missing'), true, 'a layer that does not exist has nothing to wait for');
+        assert.strictEqual(m.tilesSettled('radar'), false, 'nothing requested yet is not settled');
+        const wanted = m._layerTiles(m.layers[0], 7,
+            ctx.proj.lonToWorld(m.lon, m.zoom) - 256, ctx.proj.latToWorld(m.lat, m.zoom) - 256).tiles;
+        assert.ok(wanted.length >= 4, 'a 512px view wants several tiles');
+        wanted.forEach(({ url }) => ctx.loadTile(url));
+        assert.strictEqual(m.tilesSettled('radar'), false, 'requested but not arrived is not settled');
+        images.slice(0, -1).forEach((img) => img.onload());
+        assert.strictEqual(m.tilesSettled('radar'), false, 'one tile still out');
+        images[images.length - 1].onload();
+        assert.strictEqual(m.tilesSettled('radar'), true, 'all arrived');
+        m.layers[0].enabled = false;
+        assert.strictEqual(m.tilesSettled('radar'), true, 'a hidden layer is not waited on');
+    });
+
     test('Should keep one topocentric and one basemap', () => {
         /*
          * topocentric was private to sky.js and read store.loc from its
