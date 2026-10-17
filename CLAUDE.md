@@ -1340,6 +1340,15 @@ Two boot fixes followed (slow link ≈2.82 s → ≈2.43 s ready, fast ≈0.7 s)
   `--use-gl=egl` gives no WebGL2 at all (sky off), so neither is evidence.
   What the build really costs is ~100 ms of JS (`mountUI` ~50 ms, first deck
   render ~40 ms).
+- **RADAR and OVERHEAD are built on first open, not at boot**, through
+  `lazyView(name, make, id)` in `main.js`: a getter on `views` that builds
+  the view on first read, then replaces itself with the plain value. Each owns
+  a map, and building both at boot fetched ~70 tiles against the data feeds.
+  `setView()` must read `views[v]` **before** it toggles the tabs: a view's
+  constructor sets `root.className`, which wipes the `active` class set a
+  moment earlier, so RADAR opened to an empty page. A test pins that order.
+  The cost is a slower first open on a slow link (RADAR's map fills in over a
+  few seconds).
 
 ### TONIGHT — in the SKY view's observing panel
 
