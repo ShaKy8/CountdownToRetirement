@@ -91,6 +91,7 @@ export function createOverhead(root) {
   let planes = [];          // trimmed aircraft records, nearest first
   let at = 0;               // when the feed sample was taken
   let source = null;
+  let answered = false;    // true once /api/aircraft has replied; until then there is no count to show
   let feedsDown = false;   // the last answer named no source: both feeds failed, which is not an empty sky
   let sel = null;           // hex of the selected aircraft
   let selInfo = null;       // enrichment for `sel`, or null while it loads
@@ -371,7 +372,8 @@ export function createOverhead(root) {
   function renderStamp() {
     if (satMode) { renderSatStamp(); return; }
     const airborne = planes.filter((a) => !a.gnd).length;
-    $('o-count').textContent = feedsDown ? 'AIRCRAFT FEEDS NOT ANSWERING' : `${airborne} AIRCRAFT`;
+    $('o-count').textContent = !answered ? '—'
+      : feedsDown ? 'AIRCRAFT FEEDS NOT ANSWERING' : `${airborne} AIRCRAFT`;
     const age = at ? Math.round((Date.now() - at) / 1000) : null;
     $('o-age').textContent = age == null ? '—'
       : age < 20 ? 'LIVE' : `${age}s AGO`;
@@ -387,6 +389,7 @@ export function createOverhead(root) {
       at = r.at || Date.now();
       source = r.source;
       feedsDown = r.source == null;
+      answered = true;
       // The selection survives a refresh; the aircraft may not.
       if (sel && !planes.some((a) => a.hex === sel)) select(null);
       renderStamp(); renderNear(); renderSel();

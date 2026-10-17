@@ -4801,6 +4801,17 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'an empty list from a working feed is a quiet sky');
     });
 
+    test('Should show a dash, not 0 AIRCRAFT, until the first aircraft answer arrives', () => {
+        // The ten-second timer redraws the stamp while a poll is still in flight, and
+        // with no answer yet the empty list read "0 AIRCRAFT": a count nobody had made.
+        assert.ok(/let answered = false/.test(view), 'the view should know whether it has an answer');
+        assert.ok(/!answered \? '—'/.test(view), 'the count should be a dash before the first answer');
+        const poll = view.slice(view.indexOf('async function poll()'), view.indexOf('async function pollISS()'));
+        assert.ok(/answered = true/.test(poll) && poll.indexOf('answered = true') < poll.indexOf('renderStamp()'),
+            'the flag is set from a reply, before the stamp is drawn from it');
+        assert.ok(!/catch[^}]*answered = true/.test(poll), 'a failed request is not an answer');
+    });
+
     test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));
