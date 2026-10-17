@@ -4790,13 +4790,13 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'positions should carry a short edge cache, not none');
     });
 
-    test('Should fall back to the second feed when the first is down', () => {
+    test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));
         assert.ok(/adsb\.lol[\s\S]*adsb\.fi/.test(route),
             'both feeds should be tried in order');
-        assert.ok(/for \(const \[host, url\] of feeds\)/.test(route),
-            'the second should be reached by iterating, not by a copy-paste branch');
+        assert.ok(/feeds\.map\(/.test(route) && /Promise\.any\(/.test(route),
+            'both are asked at once and the first good answer wins, not one after the other');
     });
 
     test('Should look a route up only for the aircraft you tapped', () => {
@@ -5803,7 +5803,11 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             }; };
             feed('down', { aircraft: [rec], resultCount: 1 });
             const viaFi = (await call('aircraft', 'lat=34.1&lon=-118.2&dist=60')).body;
-            feed({ ac: [rec] }, { aircraft: [] });
+            // both answer: the first to arrive wins, so make adsb.fi the slow one
+            globalThis.fetch = async (u) => {
+                if (String(u).includes('adsb.fi')) await new Promise((r) => setTimeout(r, 200));
+                return { ok: true, status: 200, json: async () => (String(u).includes('adsb.lol') ? { ac: [rec] } : { aircraft: [] }) };
+            };
             const viaLol = (await call('aircraft', 'lat=35.1&lon=-118.2&dist=60')).body;
             feed('down', 'down');
             const none = (await call('aircraft', 'lat=36.1&lon=-118.2&dist=60')).body;
@@ -5815,22 +5819,41 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.deepStrictEqual(out.none, [null, 0], 'both down is an empty answer, not an error');
     });
 
-    test('Should give a hung aircraft feed seconds, not the whole function timeout', () => {
+    test('Should not wait for a hung aircraft feed when the other has answered', () => {
         const out = run(`
             const keep = setInterval(() => {}, 100);   // AbortSignal.timeout's timer is unref'd; a real socket keeps Node alive, this stub does not
-            globalThis.fetch = async (u, init) => {
-                if (String(u).includes('adsb.lol')) {
-                    return new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
-                }
-                return { ok: true, status: 200, json: async () => ({ aircraft: [{ hex: 'a', lat: 1, lon: 2 }] }) };
+            const hang = (init) => new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+            const answer = { ok: true, status: 200, json: async () => ({ aircraft: [{ hex: 'a', lat: 1, lon: 2 }], ac: undefined }) };
+            const timed = async (lat, stub) => {
+                globalThis.fetch = stub;
+                const t = Date.now();
+                const r = (await call('aircraft', 'lat=' + lat + '&lon=-118.2&dist=60')).body;
+                return { ms: Date.now() - t, source: r.source, n: r.aircraft.length };
             };
-            const t = Date.now();
-            const r = (await call('aircraft', 'lat=37.1&lon=-118.2&dist=60')).body;
+            const lolHung = await timed(37.1, async (u, init) => String(u).includes('adsb.lol') ? hang(init) : answer);
+            const fiHung = await timed(38.1, async (u, init) => String(u).includes('adsb.fi')
+                ? hang(init) : { ok: true, status: 200, json: async () => ({ ac: [{ hex: 'a', lat: 1, lon: 2 }] }) });
+            const bothHung = await timed(39.1, async (u, init) => hang(init));
             clearInterval(keep);
-            console.log(JSON.stringify({ ms: Date.now() - t, source: r.source, n: r.aircraft.length }));
+            console.log(JSON.stringify({ lolHung, fiHung, bothHung }));
         `);
-        assert.strictEqual(out.source, 'adsb.fi', 'the fallback answered once the first was given up on');
-        assert.ok(out.ms >= 1500 && out.ms < 4000, 'a dead host costs about the 2 s timeout, took ' + out.ms + ' ms');
+        assert.strictEqual(out.lolHung.source, 'adsb.fi');
+        assert.ok(out.lolHung.ms < 1000, 'a hung adsb.lol costs nothing when adsb.fi answers, took ' + out.lolHung.ms + ' ms');
+        assert.strictEqual(out.fiHung.source, 'adsb.lol');
+        assert.ok(out.fiHung.ms < 1000, 'and the other way round, took ' + out.fiHung.ms + ' ms');
+        assert.strictEqual(out.bothHung.source, null, 'both hung is an empty answer');
+        assert.ok(out.bothHung.ms >= 1500 && out.bothHung.ms < 4000, 'bounded by the 2 s timeout, took ' + out.bothHung.ms + ' ms');
+    });
+
+    test('Should send each aircraft miss to both feeds, once each', () => {
+        const out = run(`
+            const urls = [];
+            globalThis.fetch = async (u) => { urls.push(String(u)); return { ok: true, status: 200, json: async () => ({ ac: [] }) }; };
+            await call('aircraft', 'lat=40.1&lon=-118.2&dist=60');
+            await call('aircraft', 'lat=40.1&lon=-118.2&dist=60');   // served from the memory cache
+            console.log(JSON.stringify({ urls: urls.map((u) => new URL(u).host).sort() }));
+        `);
+        assert.deepStrictEqual(out.urls, ['api.adsb.lol', 'opendata.adsb.fi'], 'one request to each, and the repeat costs none');
     });
 
     test('Should keep the aircraft route identical in the local server', () => {

@@ -1212,11 +1212,15 @@ moon, on the same slippy map the radar uses. Tap an aircraft and it says what it
 is and where it is going. No API key, no recurring cost.
 
 - **The feeds go through the Lambda, never the browser.** `/api/aircraft` proxies
-  adsb.lol and falls back to adsb.fi; `/api/flight` proxies adsbdb. That keeps
-  two more hosts out of the CSP — and at a ten-second edge cache keyed to a
-  tenth of a degree, it means **one upstream request per ten seconds per
-  neighbourhood** however many people are watching. These are hobbyists'
-  receivers and nobody is being paid for them.
+  adsb.lol and adsb.fi **at once** and takes the first good answer (2 s
+  timeout each); `/api/flight` proxies adsbdb. That keeps two more hosts out
+  of the CSP — and at a ten-second edge cache keyed to a tenth of a degree, it
+  means **one pair of upstream requests per ten seconds per neighbourhood**
+  however many people are watching. These are hobbyists' receivers and nobody
+  is being paid for them. Asking in turn made a dead adsb.lol cost its whole
+  timeout on every miss (11 s, then 4 s, then 2 s as it was shortened), and
+  adsb.fi names its list `aircraft` where adsb.lol says `ac`, so for a while
+  the fallback answered and was thrown away: OVERHEAD showed "0 AIRCRAFT".
 - **Enrichment is lazy.** Routes and airframes are fetched only for the aircraft
   you tap. Doing all hundred on every refresh would be a hundred requests every
   ten seconds against a free service, which is how you get blocked and deserve

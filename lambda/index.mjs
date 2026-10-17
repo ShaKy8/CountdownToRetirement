@@ -704,18 +704,22 @@ const routes = {
       ['adsb.fi', `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}`],
     ];
     /*
-     * adsb.lol names the list `ac`, adsb.fi `aircraft`; the records inside are
-     * the same. A dead host must cost seconds, not the Lambda's whole timeout:
-     * adsb.lol hung for minutes once, every edge miss took ~11 s, and the
-     * fallback answered but was thrown away for its key.
+     * Both feeds are asked at once and the first good answer wins. adsb.lol
+     * names the list `ac`, adsb.fi `aircraft`; the records inside are the same.
+     * Asking in turn made a dead host cost its whole timeout on every edge
+     * miss: adsb.lol hung once, and each miss took ~11 s, then 4 s, then 2 s
+     * with the timeout shortened. The price is two upstream requests per miss
+     * instead of one - still one pair per ten seconds per neighbourhood.
      */
-    let raw = null, list = null, source = null;
-    for (const [host, url] of feeds) {
+    const attempts = feeds.map(async ([host, url]) => {
       const r = await soft('feed', () => cachedJSON(`${key}_${host}`, 10_000, url, { timeout: FEED_TIMEOUT_MS }));
       const ac = r.ok ? (r.data?.ac ?? r.data?.aircraft) : null;
-      if (Array.isArray(ac)) { raw = r.data; list = ac; source = host; break; }
-    }
-    if (!raw) return { source: null, at: Date.now(), centre: [lat, lon], radiusNm: nm, aircraft: [] };
+      if (!Array.isArray(ac)) throw new Error(`${host}: no aircraft list`);
+      return { list: ac, source: host };
+    });
+    const won = await Promise.any(attempts).catch(() => null);
+    if (!won) return { source: null, at: Date.now(), centre: [lat, lon], radiusNm: nm, aircraft: [] };
+    const { list, source } = won;
 
     const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
     const aircraft = list
