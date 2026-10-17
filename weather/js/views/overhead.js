@@ -670,6 +670,7 @@ export function createOverhead(root) {
   renderSel();
   renderSky();
   renderSatUI();
+  renderNear();   // the panel says it is looking, rather than sitting empty, until the first answer
 
   store.on('cursor', () => {
     if (store.view !== 'overhead') return;

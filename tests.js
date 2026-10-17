@@ -4821,6 +4821,9 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'the loading state is decided before the empty-sky message');
         assert.ok(/o-src'\)\.textContent = !answered \? '—'/.test(near),
             'the source should not read NO FEED before there is an answer');
+        // Drawing only on a reply left the panel blank until the answer: nothing else calls it.
+        assert.ok(/renderSel\(\);\s*renderSky\(\);\s*renderSatUI\(\);\s*renderNear\(\);/.test(view),
+            'the view should draw NEAREST once when it is built, so the loading text is on screen');
     });
 
     test('Should ask both aircraft feeds at once', () => {
