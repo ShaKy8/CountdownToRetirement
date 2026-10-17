@@ -1308,7 +1308,7 @@ read them; the page just no longer loads them. An earlier attempt to start
 on a 1.6 Mbps link (bytes, not round trips, were the limit) and was reverted;
 the 480 ms boot fade delay is gone too.
 
-Two boot fixes followed (slow link ≈2.82 s → ≈2.43 s ready, fast ≈0.7 s):
+Boot work followed (slow link ≈2.82 s → ≈2.1 s ready, fast ≈0.65 s):
 
 - **`store.refresh()` in `state.js` no longer awaits the five side feeds**
   (radar, pollen, observations, climate, models). The boot waits for the
