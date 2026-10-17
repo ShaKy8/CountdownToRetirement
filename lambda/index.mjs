@@ -127,18 +127,24 @@ async function diskSet(key, data) {
   } catch { /* cache writes are best-effort */ }
 }
 
+/** How long a live-aircraft feed gets before the next one is tried. */
+const FEED_TIMEOUT_MS = 4000;
+
 /**
  * Fetch JSON with layered caching. `disk: true` survives restarts, which is
  * what we want for the 31-year climate archive (expensive, changes yearly).
  */
-async function cachedJSON(key, ttl, url, { disk = false, text = false, mem: keep = true } = {}) {
+async function cachedJSON(key, ttl, url, { disk = false, text = false, mem: keep = true, timeout = 0 } = {}) {
   const hit = memGet(key);
   if (hit) return hit;
   if (disk) {
     const d = await diskGet(key, ttl);
     if (d) { if (keep) memSet(key, d, Math.min(ttl, HOUR)); return d; }
   }
-  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: text ? 'text/plain' : 'application/json' } });
+  const res = await fetch(url, {
+    headers: { 'User-Agent': UA, Accept: text ? 'text/plain' : 'application/json' },
+    ...(timeout ? { signal: AbortSignal.timeout(timeout) } : {}),
+  });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} :: ${url.slice(0, 120)}`);
   const data = text ? await res.text() : await res.json();
   if (keep) memSet(key, data, ttl);
@@ -697,15 +703,22 @@ const routes = {
       ['adsb.lol', `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${nm}`],
       ['adsb.fi', `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}`],
     ];
-    let raw = null, source = null;
+    /*
+     * adsb.lol names the list `ac`, adsb.fi `aircraft`; the records inside are
+     * the same. A dead host must cost seconds, not the Lambda's whole timeout:
+     * adsb.lol hung for minutes once, every edge miss took ~11 s, and the
+     * fallback answered but was thrown away for its key.
+     */
+    let raw = null, list = null, source = null;
     for (const [host, url] of feeds) {
-      const r = await soft('feed', () => cachedJSON(`${key}_${host}`, 10_000, url));
-      if (r.ok && Array.isArray(r.data?.ac)) { raw = r.data; source = host; break; }
+      const r = await soft('feed', () => cachedJSON(`${key}_${host}`, 10_000, url, { timeout: FEED_TIMEOUT_MS }));
+      const ac = r.ok ? (r.data?.ac ?? r.data?.aircraft) : null;
+      if (Array.isArray(ac)) { raw = r.data; list = ac; source = host; break; }
     }
     if (!raw) return { source: null, at: Date.now(), centre: [lat, lon], radiusNm: nm, aircraft: [] };
 
     const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-    const aircraft = raw.ac
+    const aircraft = list
       .filter((a) => Number.isFinite(a.lat) && Number.isFinite(a.lon))
       .map((a) => ({
         hex: a.hex || null,

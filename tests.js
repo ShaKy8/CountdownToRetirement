@@ -5768,8 +5768,8 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             + 'const ev = (p, q) => ({ rawPath: "/weather/api/" + p, rawQueryString: q, requestContext: { http: { method: "GET" } } });'
             + 'const call = async (p, q) => { const r = await m.handler(ev(p, q)); return { status: r.statusCode, body: JSON.parse(r.body) }; };'
             + body + '})';
-        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
-        assert.strictEqual(r.status, 0, r.stderr);
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
         return JSON.parse(r.stdout.trim().split('\n').pop());
     };
 
@@ -5790,6 +5790,56 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             'past the budget the route answers text: null, so the page keeps its own sentence');
         assert.ok(out.first, 'the calls inside the budget still answer');
         assert.ok(out.again && out.after === out.paid, 'a cached sentence is served free and spends nothing');
+    });
+
+    test('Should use the second aircraft feed when the first is dead, whichever key it names its list', () => {
+        // adsb.fi calls the list `aircraft`; adsb.lol calls it `ac`. The records are the same.
+        const out = run(`
+            const rec = { hex: 'abc123', flight: 'TST1 ', lat: 34.1, lon: -118.2, alt_baro: 3000, gs: 200, track: 90, dst: 3 };
+            const feed = (lol, fi) => { globalThis.fetch = async (u) => {
+                const body = String(u).includes('adsb.lol') ? lol : fi;
+                if (body === 'down') throw new Error('connect failed');
+                return { ok: true, status: 200, json: async () => body };
+            }; };
+            feed('down', { aircraft: [rec], resultCount: 1 });
+            const viaFi = (await call('aircraft', 'lat=34.1&lon=-118.2&dist=60')).body;
+            feed({ ac: [rec] }, { aircraft: [] });
+            const viaLol = (await call('aircraft', 'lat=35.1&lon=-118.2&dist=60')).body;
+            feed('down', 'down');
+            const none = (await call('aircraft', 'lat=36.1&lon=-118.2&dist=60')).body;
+            console.log(JSON.stringify({ viaFi: [viaFi.source, viaFi.aircraft.length, viaFi.aircraft[0]?.cs],
+                viaLol: [viaLol.source, viaLol.aircraft.length], none: [none.source, none.aircraft.length] }));
+        `);
+        assert.deepStrictEqual(out.viaFi, ['adsb.fi', 1, 'TST1'], 'the fallback\'s `aircraft` list is used, not thrown away');
+        assert.deepStrictEqual(out.viaLol, ['adsb.lol', 1], 'the first feed\'s `ac` list still works');
+        assert.deepStrictEqual(out.none, [null, 0], 'both down is an empty answer, not an error');
+    });
+
+    test('Should give a hung aircraft feed seconds, not the whole function timeout', () => {
+        const out = run(`
+            const keep = setInterval(() => {}, 100);   // AbortSignal.timeout's timer is unref'd; a real socket keeps Node alive, this stub does not
+            globalThis.fetch = async (u, init) => {
+                if (String(u).includes('adsb.lol')) {
+                    return new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+                }
+                return { ok: true, status: 200, json: async () => ({ aircraft: [{ hex: 'a', lat: 1, lon: 2 }] }) };
+            };
+            const t = Date.now();
+            const r = (await call('aircraft', 'lat=37.1&lon=-118.2&dist=60')).body;
+            clearInterval(keep);
+            console.log(JSON.stringify({ ms: Date.now() - t, source: r.source, n: r.aircraft.length }));
+        `);
+        assert.strictEqual(out.source, 'adsb.fi', 'the fallback answered once the first was given up on');
+        assert.ok(out.ms >= 3500 && out.ms < 6000, 'a dead host costs about the 4 s timeout, took ' + out.ms + ' ms');
+    });
+
+    test('Should keep the aircraft route identical in the local server', () => {
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!require('fs').existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
+        const cut = (src) => src.slice(src.indexOf("async '/api/aircraft'"), src.indexOf("async '/api/flight'"));
+        const a = cut(require('fs').readFileSync(path.join(__dirname, 'lambda', 'index.mjs'), 'utf8'));
+        const b = cut(require('fs').readFileSync(sibling, 'utf8'));
+        assert.ok(a.length > 500 && a === b, '/api/aircraft should be the same code in both');
     });
 
     test('Should hold the memory cache to a fixed size, however many distinct points are asked for', () => {
