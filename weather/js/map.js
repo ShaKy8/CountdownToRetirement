@@ -37,6 +37,33 @@ export const proj = {
 const cache = new Map();
 let pending = 0;
 
+/*
+ * A tile that fails is tried again after a pause rather than remembered as
+ * failed for the rest of the session. RainViewer answers a burst of requests
+ * with a 429 that carries no CORS header, which the browser reports as a
+ * plain network error; with the failure cached, those tiles stayed blank
+ * until the page was reloaded. Two retries, backing off, then it is an error.
+ */
+const RETRY_MS = [1500, 4000];
+
+function fetchTile(url, entry, onReady) {
+  const img = new Image();
+  entry.img = img;
+  entry.state = 'loading';
+  pending++;
+  img.crossOrigin = 'anonymous';
+  img.onload = () => { entry.state = 'ok'; pending--; onReady?.(); };
+  img.onerror = () => {
+    pending--;
+    const wait = RETRY_MS[entry.tries++];
+    if (wait === undefined) { entry.state = 'err'; return; }
+    // The entry stays 'loading' while it waits, so a redraw cannot start a
+    // second request for the same tile. An evicted entry is not retried.
+    setTimeout(() => { if (cache.get(url) === entry) fetchTile(url, entry, onReady); }, wait);
+  };
+  img.src = url;
+}
+
 function loadTile(url, onReady) {
   const hit = cache.get(url);
   if (hit) {
@@ -46,14 +73,9 @@ function loadTile(url, onReady) {
   // Cap concurrency so a fast pan doesn't queue hundreds of requests.
   if (pending > 24) return null;
 
-  const img = new Image();
-  const entry = { img, state: 'loading' };
+  const entry = { img: null, state: 'loading', tries: 0 };
   cache.set(url, entry);
-  pending++;
-  img.crossOrigin = 'anonymous';
-  img.onload = () => { entry.state = 'ok'; pending--; onReady?.(); };
-  img.onerror = () => { entry.state = 'err'; pending--; };
-  img.src = url;
+  fetchTile(url, entry, onReady);
 
   if (cache.size > MAX_CACHE) {
     // Evict the oldest quarter; insertion order is good enough here.

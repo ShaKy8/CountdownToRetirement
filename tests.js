@@ -4861,6 +4861,66 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
         assert.ok(built < toggled, 'the view has to exist before the tabs are toggled');
     });
 
+    test('Should retry a failed map tile after a pause instead of caching the error', () => {
+        /*
+         * RainViewer answers a burst with a 429 that has no CORS header, which
+         * the browser reports as a plain network error. loadTile used to cache
+         * that as failed for the whole session, so those tiles stayed blank
+         * until a reload. Runs the real loadTile with a stub Image and timer.
+         */
+        const vm = require('vm');
+        const src = fs.readFileSync(path.join(__dirname, 'weather', 'js', 'map.js'), 'utf8');
+        const from = src.indexOf('const RETRY_MS');
+        const to = src.indexOf('/** How far a pointer may travel');
+        assert.ok(from > -1 && to > from, 'map.js should define RETRY_MS and loadTile');
+        const images = [], timers = [];
+        const ctx = {
+            cache: new Map(), pending: 0, MAX_CACHE: 600,
+            Image: class { constructor() { images.push(this); } },
+            setTimeout: (fn, ms) => timers.push({ fn, ms }),
+        };
+        vm.createContext(ctx);
+        vm.runInContext(src.slice(from, to) + '\nthis.loadTile = loadTile;', ctx);
+        let redraws = 0;
+        const draw = () => redraws++;
+        const u = 'https://tiles.example/1/2/3.png';
+
+        assert.strictEqual(ctx.loadTile(u, draw), null);
+        assert.strictEqual(images.length, 1, 'the first request goes out');
+        images[0].onerror();
+        assert.strictEqual(timers.length, 1, 'a failure schedules a retry');
+        assert.strictEqual(ctx.loadTile(u, draw), null);
+        assert.strictEqual(images.length, 1, 'a redraw while it waits must not start a second request');
+        timers[0].fn();
+        assert.strictEqual(images.length, 2, 'the retry makes a new request');
+        images[1].onload();
+        assert.strictEqual(redraws, 1, 'a tile that arrives on retry asks for a redraw');
+        assert.strictEqual(ctx.loadTile(u, draw), images[1], 'and is then served from the cache');
+        assert.strictEqual(ctx.pending, 0, 'nothing is left counted as in flight');
+
+        // It does not retry forever: two retries, then the failure is kept.
+        const v = 'https://tiles.example/4/5/6.png';
+        ctx.loadTile(v, draw);
+        const n0 = images.length;
+        images[n0 - 1].onerror(); timers.pop().fn();
+        images[n0].onerror(); timers.pop().fn();
+        images[n0 + 1].onerror();
+        assert.strictEqual(timers.length, 1, 'the third failure schedules nothing');
+        assert.strictEqual(ctx.cache.get(v).state, 'err');
+        assert.strictEqual(ctx.pending, 0);
+        assert.strictEqual(ctx.loadTile(v, draw), null);
+        assert.strictEqual(images.length, n0 + 2, 'and a redraw does not request it again');
+
+        // An entry that was evicted while waiting is not fetched behind the cache's back.
+        const w = 'https://tiles.example/7/8/9.png';
+        ctx.loadTile(w, draw);
+        const n1 = images.length;
+        images[n1 - 1].onerror();
+        ctx.cache.delete(w);
+        timers.pop().fn();
+        assert.strictEqual(images.length, n1, 'an evicted tile is not retried');
+    });
+
     test('Should keep one topocentric and one basemap', () => {
         /*
          * topocentric was private to sky.js and read store.loc from its
