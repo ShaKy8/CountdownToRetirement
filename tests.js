@@ -4812,6 +4812,17 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
         assert.ok(!/catch[^}]*answered = true/.test(poll), 'a failed request is not an answer');
     });
 
+    test('Should not say the sky is empty in NEAREST before the first aircraft answer', () => {
+        // With no answer yet the list is empty for want of asking, not for want of aircraft.
+        const near = view.slice(view.indexOf('function renderNear()'), view.indexOf('$(\'o-near\').innerHTML = \'<div class="oh-head">'));
+        assert.ok(/!answered\s*\?\s*'<p class="hint">Looking for aircraft…<\/p>'/.test(near),
+            'before an answer the panel should say it is looking');
+        assert.ok(near.indexOf('Looking for aircraft') < near.indexOf('Nothing in the air within range'),
+            'the loading state is decided before the empty-sky message');
+        assert.ok(/o-src'\)\.textContent = !answered \? '—'/.test(near),
+            'the source should not read NO FEED before there is an answer');
+    });
+
     test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));

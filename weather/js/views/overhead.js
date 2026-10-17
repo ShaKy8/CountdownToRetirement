@@ -319,11 +319,13 @@ export function createOverhead(root) {
     if (satMode) { renderSatList(); return; }
     $('o-neartitle').textContent = 'NEAREST';
     const list = planes.filter((a) => !a.gnd).slice(0, 8);
-    $('o-src').textContent = source ? source.toUpperCase() : 'NO FEED';
+    $('o-src').textContent = !answered ? '—' : source ? source.toUpperCase() : 'NO FEED';
     if (!list.length) {
-      $('o-near').innerHTML = feedsDown
-        ? '<p class="hint">The aircraft feeds are not answering. Trying again shortly.</p>'
-        : '<p class="hint">Nothing in the air within range.</p>';
+      $('o-near').innerHTML = !answered
+        ? '<p class="hint">Looking for aircraft…</p>'
+        : feedsDown
+          ? '<p class="hint">The aircraft feeds are not answering. Trying again shortly.</p>'
+          : '<p class="hint">Nothing in the air within range.</p>';
       return;
     }
     $('o-near').innerHTML = '<div class="oh-head"><span>callsign</span><span>type</span>'
