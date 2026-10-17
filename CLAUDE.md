@@ -1232,6 +1232,36 @@ is and where it is going. No API key, no recurring cost.
   pretending otherwise.
 - **adsb.lol is ODbL and the attribution is not optional.** It lives in the
   ALSO UP panel.
+- **The aircraft count has three states, and "0" is only one of them**
+  (October 17, 2026). When both feeds fail, `/api/aircraft` still answers 200,
+  with `source: null` and an empty list, so "no aircraft" and "nobody answered"
+  look alike unless the view reads `source`. `overhead.js` keeps `answered`
+  (a reply has arrived) and `feedsDown` (`r.source == null`):
+  - **Before the first answer** the count is `—`, the source label `—`, and
+    NEAREST says "Looking for aircraft…". The ten-second timer redraws the
+    stamp while a poll is still in flight, and with nothing yet it read
+    "0 AIRCRAFT". `renderNear()` is also called once when the view is built:
+    it otherwise runs only from a reply, so NEAREST sat blank. A request that
+    throws is not an answer, so a failed first poll stays on the dash.
+  - **A null source** reads `AIRCRAFT FEEDS NOT ANSWERING`, NEAREST says the
+    feeds are not answering, and the source label says `NO FEED`. An empty
+    list from a working feed is still "0 AIRCRAFT" and "Nothing in the air
+    within range". `feedsDown` comes from the source, never from the list.
+  - **The empty answer is edge-cached for 10 s** like any other
+    (`s-maxage=10`), so after both feeds recover a viewer can keep seeing "not
+    answering" for up to ten seconds more, on top of the page's own 10 s
+    refresh. Measured locally with the feeds hung then restored: 9.8 s to the
+    count, one refresh; the local server has no edge cache, so the extra
+    ten seconds is expected, not measured. A both-dead miss costs the 4 s
+    timeout.
+  - **`.radar-hud` has `max-width: calc(100% - 90px)`.** The stamp is
+    absolutely placed top left and the map's locate and zoom buttons are
+    top right; the longer text ran one line under them at 390px and lost the
+    last letter. Now it wraps. RADAR shares the HUD, and its short stamp is
+    far under the cap. `mobile-audit.mjs` never waits for the count, so it
+    cannot see this: hang the feeds on a dev server (a preload that makes
+    `fetch` to adsb.lol and adsb.fi never resolve) and measure `#o-count`
+    against the buttons at 390 and 320.
 
 Three things that will silently break it:
 
