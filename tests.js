@@ -4826,6 +4826,21 @@ describe('WEATHER CONSOLE - OVERHEAD', () => {
             'the view should draw NEAREST once when it is built, so the loading text is on screen');
     });
 
+    test('Should let the ISS line in ALSO UP wrap instead of running past the panel', () => {
+        // .kv dd is nowrap console-wide; "below the horizon, 7,601 km away" is longer than
+        // the row at 320px and ran 10px past the panel's padding.
+        const dir = path.join(__dirname, 'weather', 'css');
+        const views = fs.readFileSync(path.join(dir,
+            fs.readdirSync(dir).find(f => /^views\.[0-9a-f]+\.css$/.test(f))), 'utf8');
+        const rule = views.match(/#o-sky \.kv dd\s*\{([^}]*)\}/);
+        assert.ok(rule, 'ALSO UP should override the nowrap on its own values');
+        assert.ok(/white-space:\s*normal/.test(rule[1]) && /min-width:\s*0/.test(rule[1]),
+            'the value should be allowed to wrap and to shrink inside the flex row');
+        assert.ok(/#o-sky \.kv dd/.test(views) && /\.kv dd\s*\{[^}]*white-space:\s*nowrap/.test(
+            fs.readFileSync(path.join(dir, fs.readdirSync(dir).find(f => /^core\.[0-9a-f]+\.css$/.test(f))), 'utf8')),
+            'the console-wide nowrap stays; only this panel is overridden');
+    });
+
     test('Should ask both aircraft feeds at once', () => {
         const route = lambda.slice(lambda.indexOf("async '/api/aircraft'"),
             lambda.indexOf("async '/api/flight'"));

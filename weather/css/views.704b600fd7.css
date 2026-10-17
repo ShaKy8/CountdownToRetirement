@@ -476,6 +476,9 @@
 
 /* SATELLITES: a mode switch and one chip per group. The chip's own colour is
    the dot colour on the map, so the legend is the button. */
+/* ALSO UP's ISS line ("below the horizon, 7,601 km away") is longer than the panel
+   at 320px, and .kv dd never wraps: it ran 10px past the row's padding. Wrap it, right-aligned. */
+#o-sky .kv dd { white-space: normal; min-width: 0; text-align: right; }
 .oh-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .oh-chip {
   font: inherit; font-size: max(.64rem, var(--fs-floor, 0px)); letter-spacing: .06em;
