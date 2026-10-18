@@ -6290,6 +6290,42 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.ok(fn(lambdaPath).length > 100 && fn(lambdaPath) === fn(sibling), 'alertsAt is the same code in both');
     });
 
+    test('Should give air quality 4 s and remember its failure for a minute', () => {
+        const out = run(`
+            const warns = [];
+            console.warn = (...a) => warns.push(a.join(' '));
+            const air = []; let airFails = true;
+            globalThis.fetch = async (url, init) => {
+                if (String(url).includes('air-quality')) {
+                    air.push(!!(init && init.signal));
+                    if (airFails) { const e = new Error('The operation was aborted due to timeout'); e.name = 'TimeoutError'; throw e; }
+                }
+                const body = { hourly: { time: [] }, daily: { time: [] }, current: {} };
+                return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+            };
+            const first = (await call('bundle', 'lat=36.1&lon=-115.1')).body;
+            const second = (await call('bundle', 'lat=36.1&lon=-115.1&x=2')).body;
+            const other = (await call('bundle', 'lat=40.7&lon=-74.0')).body;
+            airFails = false;
+            const recovered = (await call('bundle', 'lat=41.9&lon=-87.6')).body;
+            console.log(JSON.stringify({ n: air.length, signals: air, first: first.air.ok, second: second.air.ok,
+                other: other.air.ok, recovered: recovered.air.ok, forecast: second.forecast.ok, warns: warns.filter((w) => w.includes('[soft] air')) }));
+        `);
+        assert.deepStrictEqual(out.signals, [true, true, true], 'one air request per place, each with a deadline; the repeat made none');
+        assert.strictEqual(out.first, false);
+        assert.strictEqual(out.second, false, 'the repeat within a minute fails at once, without going upstream');
+        assert.strictEqual(out.other, false, 'a different place still tries (and fails on its own)');
+        assert.strictEqual(out.recovered, true, 'and a place that was never failed works');
+        assert.strictEqual(out.forecast, true, 'the rest of the bundle is untouched');
+        assert.strictEqual(out.warns.length, 3, 'every failure is still named: ' + JSON.stringify(out.warns));
+        assert.ok(/air quality failed a moment ago: TimeoutError/.test(out.warns[1]), out.warns[1]);
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;
+        const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function airFor[\s\S]*?\n}\n/) || [''])[0];
+        assert.ok(fn(lambdaPath).length > 200 && fn(lambdaPath) === fn(sibling), 'airFor is the same code in both');
+        for (const f of [lambdaPath, sibling]) assert.ok(/const AIR_TIMEOUT_MS = 4000;\nconst AIR_FAILURE_MS = 60_000;/.test(fs.readFileSync(f, 'utf8')));
+    });
+
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI

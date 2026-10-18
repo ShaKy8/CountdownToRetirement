@@ -139,6 +139,8 @@ const FEED_TIMEOUT_MS = 4000;
 const UPSTREAM_TIMEOUT_MS = 8000;
 const ARCHIVE_TIMEOUT_MS = 20000;
 const SLOW_MS = 5000;
+const AIR_TIMEOUT_MS = 4000;
+const AIR_FAILURE_MS = 60_000;
 
 /**
  * Parse an upstream JSON body, and when it is not JSON say what it was. A
@@ -199,6 +201,24 @@ async function alertsAt(key, lat, lon) {
       `https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`);
   } catch (err) {
     if (/^400 /.test(err.message)) return { features: [] };
+    throw err;
+  }
+}
+
+/**
+ * Air quality for a bundle. It is the least important source and the bundle
+ * waits for its slowest, so it gets half the usual deadline, and a failure is
+ * remembered for a minute: during a slow spell at Open-Meteo (October 18,
+ * 2026, three bundles at 8 s each) every request paid the full wait again,
+ * because nothing caches an error.
+ */
+async function airFor(key, lat, lon) {
+  const failed = memGet(`aqfail_${key}`);
+  if (failed) throw new Error(`air quality failed a moment ago: ${failed.why}`);
+  try {
+    return await cachedJSON(`aq_${key}`, 20 * MIN, airURL(lat, lon), { timeout: AIR_TIMEOUT_MS });
+  } catch (err) {
+    memSet(`aqfail_${key}`, { why: String(err.name || 'Error') }, AIR_FAILURE_MS);
     throw err;
   }
 }
@@ -383,7 +403,7 @@ const routes = {
 
     const [forecast, air, alerts, space] = await Promise.all([
       soft('forecast', () => cachedJSON(`fc_${key}`, 5 * MIN, forecastURL(lat, lon))),
-      soft('air', () => cachedJSON(`aq_${key}`, 20 * MIN, airURL(lat, lon))),
+      soft('air', () => airFor(key, lat, lon)),
       soft('alerts', () => alertsAt(key, lat, lon)),
       soft('space', () => spaceWeather()),
     ]);
