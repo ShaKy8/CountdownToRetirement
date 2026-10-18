@@ -223,6 +223,22 @@ async function airFor(key, lat, lon) {
   }
 }
 
+/**
+ * One adsbdb lookup. It answers 404 for an aircraft or callsign it does not
+ * know, which is the ordinary case for a private plane, not a failed source:
+ * left to soft() it logged a [soft] line for every such tap. The empty
+ * result has the shape of a real answer with nothing in it, so the route
+ * reads it the way it reads a miss. Anything but 404 still fails.
+ */
+async function adsbdb(key, ttl, url) {
+  try {
+    return await cachedJSON(key, ttl, url);
+  } catch (err) {
+    if (/^404 /.test(err.message)) return { response: null };
+    throw err;
+  }
+}
+
 /* ---------------------------------------------------------------- upstream */
 
 const om = (host, params) => {
@@ -845,9 +861,9 @@ const routes = {
       const e = new Error('cs or hex is required'); e.status = 400; throw e;
     }
     const [route, frame] = await Promise.all([
-      okCs ? soft('route', () => cachedJSON(`fr_${cs}`, HOUR,
+      okCs ? soft('route', () => adsbdb(`fr_${cs}`, HOUR,
         `https://api.adsbdb.com/v0/callsign/${cs}`)) : { ok: false },
-      okHex ? soft('frame', () => cachedJSON(`af_${hex}`, DAY,
+      okHex ? soft('frame', () => adsbdb(`af_${hex}`, DAY,
         `https://api.adsbdb.com/v0/aircraft/${hex}`)) : { ok: false },
     ]);
     const fr = route.ok ? route.data?.response?.flightroute : null;

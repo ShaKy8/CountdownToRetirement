@@ -6326,6 +6326,45 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         for (const f of [lambdaPath, sibling]) assert.ok(/const AIR_TIMEOUT_MS = 4000;\nconst AIR_FAILURE_MS = 60_000;/.test(fs.readFileSync(f, 'utf8')));
     });
 
+    test('Should read adsbdb\'s 404 as an unknown aircraft, not a failed source, and still name any other failure', () => {
+        const out = run(`
+            const warns = [];
+            console.warn = (...a) => warns.push(a.join(' '));
+            let mode = 404;
+            globalThis.fetch = async (url) => {
+                if (String(url).includes('adsbdb')) {
+                    if (mode === 'ok') {
+                        const b = String(url).includes('callsign')
+                            ? { response: { flightroute: { callsign: 'UAL1', airline: { name: 'United' }, origin: { iata_code: 'SFO' }, destination: { iata_code: 'LAX' } } } }
+                            : { response: { aircraft: { type: 'A320', registered_owner: 'United' } } };
+                        return { ok: true, status: 200, json: async () => b, text: async () => JSON.stringify(b) };
+                    }
+                    return { ok: false, status: mode, statusText: mode === 404 ? 'Not Found' : 'Bad Gateway', text: async () => '', json: async () => ({}) };
+                }
+                return { ok: true, status: 200, json: async () => ({}), text: async () => '{}' };
+            };
+            const miss = (await call('flight', 'cs=N564AB&hex=a735c8')).body;
+            const w404 = warns.filter((w) => w.includes('[soft]')).length;
+            mode = 502;
+            const bad = (await call('flight', 'cs=N111AA&hex=a11111')).body;
+            const w502 = warns.filter((w) => w.includes('[soft] route') || w.includes('[soft] frame')).length;
+            mode = 'ok';
+            const good = (await call('flight', 'cs=UAL1&hex=a22222')).body;
+            console.log(JSON.stringify({ miss, w404, bad, w502, good }));
+        `);
+        const empty = { callsign: 'N564AB', airline: null, origin: null, destination: null, aircraft: null };
+        assert.deepStrictEqual(out.miss, empty, 'an unknown aircraft is an empty result');
+        assert.strictEqual(out.w404, 0, 'and logs nothing');
+        assert.deepStrictEqual(out.bad, { ...empty, callsign: 'N111AA' }, 'a 502 gives the same body');
+        assert.strictEqual(out.w502, 2, 'but both failed lookups are still named');
+        assert.strictEqual(out.good.airline, 'United');
+        assert.strictEqual(out.good.aircraft.type, 'A320', 'a real answer passes through');
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;
+        const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function adsbdb[\s\S]*?\n}\n/) || [''])[0];
+        assert.ok(fn(lambdaPath).length > 100 && fn(lambdaPath) === fn(sibling), 'adsbdb() is the same code in both');
+    });
+
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
