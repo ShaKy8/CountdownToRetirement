@@ -4764,6 +4764,34 @@ describe('WHOLE SITE - a finger, on every page', () => {
         assert.ok(!/@media \(pointer: coarse\)/.test(home),
             'the landing page passes on spacing and should be left alone');
     });
+
+    test('Should give every page its own tab and every call a deadline', () => {
+        /*
+         * The console's WebGL sky wedged headless Chromium's renderer when the
+         * tab navigated away from /weather/: the next page never committed and
+         * every call after it went unanswered, so the whole audit hung
+         * silently. A tab per page never navigates away from one, and a call
+         * with no answer must throw, naming the page.
+         */
+        const audit = read('scripts', 'site-audit.mjs');
+        const loop = audit.slice(audit.indexOf('for (const [label, path, settle] of PAGES)'));
+        assert.ok(/tab = await openTab\(\)/.test(loop),
+            'each page should open its own tab inside the page loop');
+        assert.strictEqual((audit.match(/'Target\.createTarget'/g) || []).length, 2,
+            'a tab is created in openTab only (once to run it, once to name it)');
+        assert.strictEqual((loop.match(/Page\.navigate/g) || []).length, 1,
+            'one navigation per tab');
+        assert.ok(/tab\.close\(\)/.test(loop), 'and the tab should be closed afterwards');
+        assert.ok(/const CALL_MS = /.test(audit) && /no answer in /.test(audit),
+            'a call with no answer should throw after a deadline');
+        const raw = audit.replace(/ws\.send\(/g, '').replace(/const send = /, '')
+            .replace(/timed\([^;]*?\bsend\(/g, 'timed(').match(/(^|[^.\w])send\(/gm) || [];
+        assert.deepStrictEqual(raw, [],
+            'every call after the browser starts should go through timed()');
+        assert.ok(/catch \(err\)[\s\S]*rows\.push\(\{ label, stalled/.test(loop)
+            && /if \(r\.stalled\) \{\s*fails\+\+/.test(audit),
+            'a page that cannot answer should fail the run by name, not hang it');
+    });
 });
 
 describe('WEATHER CONSOLE - OVERHEAD', () => {

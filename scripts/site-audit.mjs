@@ -47,19 +47,51 @@ ws.onmessage = e => { const m = JSON.parse(e.data);
 await new Promise(r => ws.onopen = r);
 const send = (me, pa = {}, s) => new Promise(r => { const i = ++id; P.set(i, r);
   ws.send(JSON.stringify({ id: i, method: me, params: pa, sessionId: s })); });
-const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
-const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
-const S = (m, p) => send(m, p, sessionId);
-await S('Runtime.enable'); await S('Page.enable'); await S('Log.enable');
-await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 2, mobile: true });
-// The console keys its render tier off a coarse pointer, and every one of
-// these pages is being judged as a phone.
-await S('Emulation.setEmulatedMedia', { features: [
-  { name: 'pointer', value: 'coarse' }, { name: 'any-pointer', value: 'coarse' },
-  { name: 'hover', value: 'none' }] });
-await S('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
-const E = async e => (await S('Runtime.evaluate',
-  { expression: e, returnByValue: true, awaitPromise: true })).result?.result?.value;
+
+/*
+ * One fresh tab per page, and every call has a deadline.
+ *
+ * The console draws a WebGL sky, and in headless Chromium's software GL the
+ * renderer that held /weather/ would not leave: the next Page.navigate never
+ * committed, and every call after it -- even Page.getFrameTree -- went
+ * unanswered for a minute or more. The page after /weather/ was never wrong;
+ * the audit was asking a frozen renderer. A new tab per page never navigates
+ * away from one, and a call with no answer in CALL_MS throws instead of
+ * waiting, so a wedged page fails by name rather than hanging the run.
+ */
+const CALL_MS = Number(process.env.CALL_MS || 20000);
+const lg = (...a) => console.error('  ...', ...a);
+const timed = (what, p) => {
+  let to;
+  return Promise.race([p.finally(() => clearTimeout(to)),
+    new Promise((_, no) => { to = setTimeout(
+      () => no(new Error(`no answer in ${CALL_MS / 1000}s: ${what}`)), CALL_MS); })]);
+};
+
+async function openTab() {
+  const { result: { targetId } } = await timed('Target.createTarget',
+    send('Target.createTarget', { url: 'about:blank' }));
+  const { result: { sessionId } } = await timed('Target.attachToTarget',
+    send('Target.attachToTarget', { targetId, flatten: true }));
+  const S = (m, p) => timed(m + (p && p.url ? ' ' + p.url : ''), send(m, p, sessionId));
+  await S('Runtime.enable'); await S('Page.enable'); await S('Log.enable');
+  await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 2, mobile: true });
+  // The console keys its render tier off a coarse pointer, and every one of
+  // these pages is being judged as a phone.
+  await S('Emulation.setEmulatedMedia', { features: [
+    { name: 'pointer', value: 'coarse' }, { name: 'any-pointer', value: 'coarse' },
+    { name: 'hover', value: 'none' }] });
+  await S('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  const E = async e => {
+    const r = await S('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true });
+    if (r.result?.exceptionDetails) throw new Error('page script threw: ' + e.slice(0, 40));
+    return r.result?.result?.value;
+  };
+  // A tab holding a WebGL context may not close either, so closing is
+  // best-effort: the browser is killed at the end regardless.
+  const close = () => timed('Target.closeTarget', send('Target.closeTarget', { targetId })).catch(() => {});
+  return { S, E, close, sessionId };
+}
 
 const NAME = "(el)=>{const c=(typeof el.className==='string'?el.className:'')||el.id||el.tagName;"
   + "return String(c).trim().split(/\\s+/).slice(0,2).join('.')||el.tagName;}";
@@ -77,8 +109,12 @@ const PAGES = [
 const rows = [];
 for (const [label, path, settle] of PAGES) {
   ev = [];
-  await S('Page.navigate', { url: ORIGIN + path });
-  await wait(settle);
+  let tab;
+  try {
+    tab = await openTab();
+    const { S, E } = tab;
+    await S('Page.navigate', { url: ORIGIN + path });
+    await wait(settle);
 
   const overflow = await E('document.documentElement.scrollWidth - window.innerWidth');
 
@@ -129,15 +165,27 @@ for (const [label, path, settle] of PAGES) {
       out.push(nm(el)+' '+el.clientWidth+'<'+el.scrollWidth+' "'+el.textContent.trim().replace(/\\s+/g,' ').slice(0,24)+'"');});
     return [...new Set(out)];})()`);
 
-  const errs = ev.filter(e => e.method === 'Log.entryAdded' && e.params.entry.level === 'error')
+  const errs = ev.filter(e => e.sessionId === tab.sessionId && e.method === 'Log.entryAdded' && e.params.entry.level === 'error')
     .map(e => e.params.entry.text).filter(t => !/favicon/.test(t));
 
   rows.push({ label, overflow, small, clipped, errs });
+  } catch (err) {
+    // A page that cannot answer is a failure with a name, not a hang.
+    lg('STALLED', label, err.message);
+    rows.push({ label, stalled: err.message });
+  }
+  if (tab) await tab.close();
 }
 
 console.log(`\n  ${ORIGIN}  at ${W}x${H}\n`);
 let fails = 0;
 for (const r of rows) {
+  if (r.stalled) {
+    fails++;
+    console.log('  FAIL', r.label);
+    console.log(`      did not answer       ${r.stalled}`);
+    continue;
+  }
   const bad = (r.overflow > 0 ? 1 : 0) + (r.small.length ? 1 : 0)
     + (r.clipped.length ? 1 : 0) + (r.errs.length ? 1 : 0);
   fails += bad;
