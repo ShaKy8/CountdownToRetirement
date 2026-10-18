@@ -286,7 +286,7 @@ CountdownToRetirement/
     inline-block's baseline is its *last* line, and a wrapped link put the
     label beside its second line. 375x812 gets rows, 390x844 cards — the
     gate covers one of each and asserts the form. A desktop window
-    641px+ wide and 481–719px tall gets rows too.
+    641px+ wide and 481–759px tall gets rows too.
   - **The budget was measured, not guessed.** Stacked cards at phone width
     are ~495px against the 226–274px the flat list was, so a phone gives up
     the 6vh header padding at any height (`(max-width: 480px)`), the groups'
@@ -301,11 +301,11 @@ CountdownToRetirement/
     air between them (that is WCAG 2.5.8): stacked cards on a
     tall phone lose half a rem of padding and gap; the rows form trims the
     header, tagline, h1 and footer; and **a short desktop window
-    (641px+ wide, 481–719px tall) gets the rows form**, one group to a line,
+    (641px+ wide, 481–759px tall) gets the rows form**, one group to a line,
     because Play's four links stacked in a 213px card made the first row of
     cards 234px. Slack now: 390x844 cards 15px, 320x700 rows 17px, 360x640
-    rows 15px, 1280x720 cards 3px (thin: an 1024-wide window under ~743px
-    tall would scroll as cards), 1280x640 rows 94px. The 404 page shares the
+    rows 15px, 1280x720 rows 134px, 1280x760 cards 21px (the rows form runs to 759px tall; a 1024-wide window needs ~743px
+    tall as cards, so it stops short of that), 1280x640 rows 94px. The 404 page shares the
     stylesheet and was 21px over at 1280x640; it fits too. An eleventh link
     needs a new budget — a test pins the count at ten.
   - **Touch targets:** links are 30px tall with 12.8px gaps — the WCAG 2.5.8

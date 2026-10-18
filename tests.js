@@ -1831,7 +1831,7 @@ describe('BUSINESS SITE - The sky right now', () => {
             return css.slice(i, css.indexOf('\n}\n', i));
         };
         const rows = block('@media (max-width: 640px) and (max-height: 819px),');
-        assert.ok(/\(min-width: 641px\) and \(min-height: 481px\) and \(max-height: 719px\)/.test(rows),
+        assert.ok(/\(min-width: 641px\) and \(min-height: 481px\) and \(max-height: 759px\)/.test(rows),
             'a short desktop window gets the rows form: 1280x640 was 64px over as cards');
         for (const rule of ['.intro { padding-block: 0.6rem; }', '.brand { margin-bottom: 0.4rem; }',
             'line-height: 1.45', 'h1 { font-size: 2.5rem; }', '.site-footer { padding-block: 0.5rem; }']) {
@@ -1843,11 +1843,11 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.ok(tall.includes('.group { padding: 0.5rem 1rem; }') && tall.includes('.groups { gap: 0.5rem; }'),
             'stacked cards on a tall phone are trimmed: 390x844 was 34px over');
         assert.ok(!/min-height: 82\d+px\) \{[^}]*\.links/.test(css), 'and the links themselves are not touched');
-        const short = block('@media (min-width: 641px) and (min-height: 481px) and (max-height: 719px) {');
+        const short = block('@media (min-width: 641px) and (min-height: 481px) and (max-height: 759px) {');
         assert.ok(/grid-template-columns: 1fr/.test(short) && /grid-column: auto/.test(short),
             'rows on a short desktop are one to a line, not a six-column grid');
         const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'home-audit.mjs'), 'utf8');
-        assert.ok(/'1280x640': 'rows'/.test(audit) && /'1280x720': 'cards'/.test(audit) && /'390x844': 'cards'/.test(audit),
+        assert.ok(/'1280x640': 'rows'/.test(audit) && /'1280x720': 'rows'/.test(audit) && /'1280x760': 'cards'/.test(audit) && /'390x844': 'cards'/.test(audit),
             'the gate expects the form each size now gets');
     });
 

@@ -424,7 +424,7 @@ html[data-wx="cloud"] body::before {
    gets this, 390x844 gets cards -- whichever fits.
    -------------------------------------------------------------------------- */
 @media (max-width: 640px) and (max-height: 819px),
-       (min-width: 641px) and (min-height: 481px) and (max-height: 719px),
+       (min-width: 641px) and (min-height: 481px) and (max-height: 759px),
        (max-height: 480px) {
   .groups {
     gap: 0.4rem 0;
@@ -471,7 +471,7 @@ html[data-wx="cloud"] body::before {
 }
 
 /* A short desktop window (1280x640): the rows form, one to a line. */
-@media (min-width: 641px) and (min-height: 481px) and (max-height: 719px) {
+@media (min-width: 641px) and (min-height: 481px) and (max-height: 759px) {
   .groups { grid-template-columns: 1fr; }
   .group,
   .group:nth-last-child(-n + 2) { grid-column: auto; }

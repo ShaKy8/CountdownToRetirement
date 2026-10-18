@@ -334,8 +334,8 @@ hereAnswer = { status: 200, body: { city: 'Los Angeles', code: 0, cloud: 0, prec
 
 // Still one screen: cards where they fit, labelled rows where stacked
 // cards would not. Every link has a group either way.
-const FORM = { '390x844': 'cards', '375x667': 'rows', '320x700': 'rows', '360x640': 'rows', '1280x720': 'cards', '1280x640': 'rows' };
-for (const [w, h] of [[390, 844], [375, 667], [320, 700], [360, 640], [1280, 720], [1280, 640]]) {
+const FORM = { '390x844': 'cards', '375x667': 'rows', '320x700': 'rows', '360x640': 'rows', '1280x720': 'rows', '1280x760': 'cards', '1280x640': 'rows' };
+for (const [w, h] of [[390, 844], [375, 667], [320, 700], [360, 640], [1280, 720], [1280, 760], [1280, 640]]) {
   await load(w, h);
   const r = await E(READ);
   const tag = `${w}x${h}`;
