@@ -838,13 +838,15 @@ const routes = {
     };
   },
 
+  /*
+   * The position only. A CelesTrak TLE used to ride along; nothing read it
+   * (both views use `pos`), and its timeouts held this route for the full
+   * 8 s deadline (October 18, 2026). The satellites panel gets its elements
+   * from our own /sats/ snapshot, which is how CelesTrak asks to be used.
+   */
   async '/api/iss'() {
-    const [pos, tle] = await Promise.all([
-      soft('pos', () => cachedJSON('iss_pos', 10_000, 'https://api.wheretheiss.at/v1/satellites/25544')),
-      soft('tle', () => cachedJSON('iss_tle', 6 * HOUR,
-        'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE', { text: true })),
-    ]);
-    return { pos, tle };
+    const pos = await soft('pos', () => cachedJSON('iss_pos', 10_000, 'https://api.wheretheiss.at/v1/satellites/25544'));
+    return { pos };
   },
 };
 

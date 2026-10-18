@@ -6232,6 +6232,31 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.ok(fn(lambdaPath).includes('[soft]') && fn(lambdaPath) === fn(sibling), 'soft is the same code in both');
     });
 
+    test('Should answer /api/iss from wheretheiss.at alone, never waiting on CelesTrak', () => {
+        const out = run(`
+            const urls = [];
+            globalThis.fetch = async (url) => {
+                urls.push(String(url));
+                if (String(url).includes('celestrak')) await new Promise((r) => setTimeout(r, 4000));
+                const body = { latitude: 10, longitude: 20, altitude: 420, visibility: 'daylight' };
+                return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+            };
+            const t0 = Date.now();
+            const r = await call('iss', '');
+            console.log(JSON.stringify({ status: r.status, keys: Object.keys(r.body), pos: r.body.pos && r.body.pos.ok, urls, ms: Date.now() - t0 }));
+        `);
+        assert.strictEqual(out.status, 200);
+        assert.deepStrictEqual(out.keys, ['pos']);
+        assert.ok(out.pos, 'the position is served');
+        assert.deepStrictEqual(out.urls.filter((u) => !u.includes('wheretheiss.at')), [], 'nothing else is asked');
+        assert.ok(out.ms < 1000, 'and it does not wait: ' + out.ms + ' ms');
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        for (const f of [lambdaPath, sibling]) {
+            if (fs.existsSync(f)) assert.ok(!/celestrak/i.test(fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')),
+                path.basename(f) + ' has no CelesTrak request left');
+        }
+    });
+
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
