@@ -285,14 +285,29 @@ CountdownToRetirement/
     `flex-start` with padding on the title, not `baseline`: an
     inline-block's baseline is its *last* line, and a wrapped link put the
     label beside its second line. 375x812 gets rows, 390x844 cards — the
-    gate covers one of each and asserts the form.
+    gate covers one of each and asserts the form. A desktop window
+    641px+ wide and 481–719px tall gets rows too.
   - **The budget was measured, not guessed.** Stacked cards at phone width
     are ~495px against the 226–274px the flat list was, so a phone gives up
     the 6vh header padding at any height (`(max-width: 480px)`), the groups'
     top margin and the brand and tagline margins shrink, and the footer
-    tightens. After that: 390x844 cards with 67px spare, 320x700 rows with
-    ~24px, 1280x640 cards with ~30px. **1280x600 does not fit** (613px) and
-    is not promised. Landscape phones scrolled before and still do.
+    tightens.
+  - **Ten links, not eight** (October 18, 2026). Light Lasso (`c48dc30`, 1px
+    over at 320x700, and the gate still expected eight links) and Postcards
+    in Sound (`73cc50b`) joined the Play card in October and nobody re-ran
+    `home-audit.mjs`: by the second, 390x844 ran 34px past one screen,
+    320x700 40, 360x640 41 and 1280x640 64 (found by running the gate at
+    each commit). The room came from the chrome, never from the links or the
+    air between them (that is WCAG 2.5.8): stacked cards on a
+    tall phone lose half a rem of padding and gap; the rows form trims the
+    header, tagline, h1 and footer; and **a short desktop window
+    (641px+ wide, 481–719px tall) gets the rows form**, one group to a line,
+    because Play's four links stacked in a 213px card made the first row of
+    cards 234px. Slack now: 390x844 cards 15px, 320x700 rows 17px, 360x640
+    rows 15px, 1280x720 cards 3px (thin: an 1024-wide window under ~743px
+    tall would scroll as cards), 1280x640 rows 94px. The 404 page shares the
+    stylesheet and was 21px over at 1280x640; it fits too. An eleventh link
+    needs a new budget — a test pins the count at ten.
   - **Touch targets:** links are 30px tall with 12.8px gaps — the WCAG 2.5.8
     case site-audit exists for (24px, or 44 with a neighbour under 12px).
     Between groups in the rows form the gap is 13.8px for the same reason.
@@ -302,7 +317,8 @@ CountdownToRetirement/
   The owner explicitly requested the Fish Hatchery link (September 25) and the
   year in review link (October 3: he could not find it on the clock, and chose
   the homepage's Retirement card for it). The earlier six- and seven-link
-  ceilings are superseded. Preserve all eight links and
+  ceilings are superseded (the page has ten now; see the budget above).
+  Preserve all the links and
   verify the homepage at 390x844, 375x667, 320x700 and 360x640 when changing
   it — `home-audit.mjs` does, and `site-audit.mjs` at each size for targets.
 

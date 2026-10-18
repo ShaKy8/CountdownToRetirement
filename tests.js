@@ -1812,6 +1812,45 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.strictEqual(out.c.caption, 'Light rain in Irvine', 'and replaces it on screen');
     });
 
+    test('The ten links should still fit one screen: the room is taken from the chrome, per form', () => {
+        /*
+         * Postcards in Sound and Light Lasso each added a link to the Play
+         * card, and the page ran past one screen at 390x844 (34px), 320x700
+         * (40), 360x640 (41) and 1280x640 (64) while home-audit.mjs said so
+         * and nobody ran it. Each form took its room from the chrome, not from
+         * the links: a link is 30px with 12.8px of air (WCAG 2.5.8) and that is
+         * not negotiable. The pieces below are what keeps each size on one
+         * screen; the gate measures it, this keeps the pieces from being
+         * tidied away.
+         */
+        const links = (html.match(/<li><a /g) || []).length;
+        assert.strictEqual(links, 10, 'the room was measured for ten links; an eleventh needs home-audit.mjs and a new budget');
+        const block = (query) => {
+            const i = css.indexOf(query);
+            assert.ok(i > -1, `styles.css should have ${query}`);
+            return css.slice(i, css.indexOf('\n}\n', i));
+        };
+        const rows = block('@media (max-width: 640px) and (max-height: 819px),');
+        assert.ok(/\(min-width: 641px\) and \(min-height: 481px\) and \(max-height: 719px\)/.test(rows),
+            'a short desktop window gets the rows form: 1280x640 was 64px over as cards');
+        for (const rule of ['.intro { padding-block: 0.6rem; }', '.brand { margin-bottom: 0.4rem; }',
+            'line-height: 1.45', 'h1 { font-size: 2.5rem; }', '.site-footer { padding-block: 0.5rem; }']) {
+            assert.ok(rows.includes(rule), `the rows form trims the chrome: ${rule}`);
+        }
+        assert.ok(/\.groups \{\s*gap: 0\.4rem 0;/.test(rows) && /\.group \+ \.group \{[^}]*padding-top: 0\.4rem/.test(rows),
+            'but never the air between groups: 0.4rem + 0.4rem + the hairline is the 12px WCAG 2.5.8 asks for');
+        const tall = block('@media (max-width: 640px) and (min-height: 820px)');
+        assert.ok(tall.includes('.group { padding: 0.5rem 1rem; }') && tall.includes('.groups { gap: 0.5rem; }'),
+            'stacked cards on a tall phone are trimmed: 390x844 was 34px over');
+        assert.ok(!/min-height: 82\d+px\) \{[^}]*\.links/.test(css), 'and the links themselves are not touched');
+        const short = block('@media (min-width: 641px) and (min-height: 481px) and (max-height: 719px) {');
+        assert.ok(/grid-template-columns: 1fr/.test(short) && /grid-column: auto/.test(short),
+            'rows on a short desktop are one to a line, not a six-column grid');
+        const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'home-audit.mjs'), 'utf8');
+        assert.ok(/'1280x640': 'rows'/.test(audit) && /'1280x720': 'cards'/.test(audit) && /'390x844': 'cards'/.test(audit),
+            'the gate expects the form each size now gets');
+    });
+
     test('The script should stand aside for a contrast preference', () => {
         // Inline custom properties on <html> beat the stylesheet's
         // @media (prefers-contrast: more) :root override, so the script

@@ -406,6 +406,16 @@ html[data-wx="cloud"] body::before {
   .site-footer { padding-block: 1rem; }
 }
 
+/* Cards on a tall phone (390x844): the Play card holds four links now, and
+   stacked cards ran 34px past one screen. Half a rem off each card's
+   padding and gap is the room; the links, and the 12.8px between them, are
+   untouched. */
+@media (max-width: 640px) and (min-height: 820px) {
+  .groups { gap: 0.5rem; }
+  .group { padding: 0.5rem 1rem; }
+  .group-title { margin-bottom: 0.3rem; }
+}
+
 /* --------------------------------------------------------------------------
    Rows: where stacked cards would not fit one screen
    No fill, no box. The title is the first flex item of its group, the
@@ -413,10 +423,22 @@ html[data-wx="cloud"] body::before {
    there) and wrap inside themselves; a hairline between groups. 375x812
    gets this, 390x844 gets cards -- whichever fits.
    -------------------------------------------------------------------------- */
-@media (max-width: 640px) and (max-height: 819px), (max-height: 480px) {
+@media (max-width: 640px) and (max-height: 819px),
+       (min-width: 641px) and (min-height: 481px) and (max-height: 719px),
+       (max-height: 480px) {
   .groups {
     gap: 0.4rem 0;
   }
+
+  /* The room the ten links need comes from the chrome, in this form only --
+     never from the air between links or between groups: that is the 12px
+     WCAG 2.5.8 asks for (0.4rem + 0.4rem + the hairline = 13.8px). */
+  .intro { padding-block: 0.6rem; }
+  .brand { margin-bottom: 0.4rem; }
+  .tagline { margin-top: 0.5rem; line-height: 1.45; }
+  h1 { font-size: 2.5rem; }
+  .groups { margin-top: 0.7rem; }
+  .site-footer { padding-block: 0.5rem; }
 
   /* flex-start, not baseline: an inline-block's baseline is its LAST line,
      so a wrapped link put the label beside its second line. The title's
@@ -446,6 +468,13 @@ html[data-wx="cloud"] body::before {
   .links {
     flex: 1 1 10rem;
   }
+}
+
+/* A short desktop window (1280x640): the rows form, one to a line. */
+@media (min-width: 641px) and (min-height: 481px) and (max-height: 719px) {
+  .groups { grid-template-columns: 1fr; }
+  .group,
+  .group:nth-last-child(-n + 2) { grid-column: auto; }
 }
 
 /*
