@@ -1768,6 +1768,50 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.strictEqual(Sky.STORE_KEY, 'branyon.sky.v1');
     });
 
+    test('The script should not keep or show a reading that has no weather in it', () => {
+        // /api/here answers a city with code null when its upstream sent junk.
+        // Saved, that overwrote a good reading for an hour; shown, Number(null)
+        // is 0 and the sky went clear over whatever was really there. The
+        // script runs in a child process because the answer arrives on a promise
+        // and this runner does not wait for one.
+        const child = `
+            const vm = require('vm'), fs = require('fs');
+            const src = fs.readFileSync(${JSON.stringify(path.join(__dirname, 'home.js'))}, 'utf8');
+            const run = (stored, answer) => {
+                const store = new Map(stored ? [['branyon.sky.v1', JSON.stringify(stored)]] : []);
+                const wx = { hidden: true, textContent: '' };
+                const ready = [];
+                const doc = { hidden: false, documentElement: { style: { setProperty() {}, removeProperty() {} }, setAttribute() {}, removeAttribute() {} },
+                    getElementById: (id) => id === 'wx' ? wx : null, querySelector: () => null,
+                    addEventListener: (type, f) => { if (type === 'DOMContentLoaded') ready.push(f); } };
+                const win = { document: doc, localStorage: { getItem: (k) => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, v) },
+                    fetch: async () => ({ ok: true, json: async () => answer }),
+                    AbortController, setTimeout: () => 0, clearTimeout() {}, setInterval() {}, addEventListener() {},
+                    matchMedia: () => ({ matches: false, addEventListener() {} }) };
+                vm.runInNewContext(src, { window: win, Date, Number, Math, JSON, String, Object, Array, Set, Map, console });
+                return new Promise((done) => setTimeout(() => {
+                    ready.forEach((f) => f());   // the page paints its caption once the document is ready
+                    done({ saved: store.get('branyon.sky.v1') ? JSON.parse(store.get('branyon.sky.v1')) : null,
+                        caption: wx.hidden ? '' : wx.textContent });
+                }, 20));
+            };
+            const good = { code: 63, cloud: 90, city: 'Irvine', at: Date.now() - 60000 };
+            const neutral = { city: 'Irvine', code: null, cloud: null, precip: null, isDay: 1 };
+            Promise.all([run(good, neutral), run(null, neutral),
+                run(good, { city: 'Irvine', code: 61, cloud: 80, precip: 0.1, isDay: 1 })])
+                .then(([a, b, c]) => console.log(JSON.stringify({ good, a, b, c })));
+        `;
+        const r = require('child_process').spawnSync(process.execPath, ['-e', child], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        const out = JSON.parse(r.stdout.trim().split('\n').pop());
+        assert.deepStrictEqual(out.a.saved, out.good, 'a neutral answer leaves the good reading as it was');
+        assert.strictEqual(out.a.caption, 'Rain in Irvine', 'and the one on screen stays');
+        assert.strictEqual(out.b.saved, null, 'with nothing stored it saves nothing');
+        assert.strictEqual(out.b.caption, '', 'and shows no caption');
+        assert.ok(out.c.saved && out.c.saved.code === 61 && out.c.saved.city === 'Irvine', 'a real answer is still kept');
+        assert.strictEqual(out.c.caption, 'Light rain in Irvine', 'and replaces it on screen');
+    });
+
     test('The script should stand aside for a contrast preference', () => {
         // Inline custom properties on <html> beat the stylesheet's
         // @media (prefers-contrast: more) :root override, so the script

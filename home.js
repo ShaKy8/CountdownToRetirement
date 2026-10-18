@@ -401,6 +401,11 @@
             .then(j => {
                 root.clearTimeout(timer);
                 if (!j || typeof j !== 'object') return;
+                // A neutral answer (the route's reply when its upstream sent junk)
+                // has a city and no code. It says nothing about the sky, so it
+                // must neither be kept for an hour over a real reading nor
+                // replace the one on screen: Number(null) is 0, a clear sky.
+                if (j.code == null || !Number.isFinite(Number(j.code))) return;
                 const r = { code: j.code, cloud: j.cloud, city: typeof j.city === 'string' ? j.city : null, at: Date.now() };
                 remember(r);
                 useReading(r);
