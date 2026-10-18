@@ -6036,10 +6036,39 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             'the Lambda reads the body through jsonBody');
     });
 
+    test('Should answer /api/here with the city and no weather, briefly cached, when Open-Meteo sends a body that is not JSON', () => {
+        // The homepage logged "502" in the console for a body that began "Unexpected".
+        const out = run(`
+            const h = { 'cloudfront-viewer-latitude': '33.68', 'cloudfront-viewer-longitude': '-117.82', 'cloudfront-viewer-city': 'Irvine' };
+            const ask = async () => { const r = await m.handler({ rawPath: '/weather/api/here', rawQueryString: '', headers: h,
+                requestContext: { http: { method: 'GET' } } }); return { status: r.statusCode, cc: r.headers['cache-control'], body: JSON.parse(r.body) }; };
+            globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('x'); }, text: async () => 'Unexpected error' });
+            const bad = await ask();
+            globalThis.fetch = async () => ({ ok: true, status: 200,
+                json: async () => ({ current: { weather_code: 3, cloud_cover: 90, precipitation: 0, is_day: 1 } }),
+                text: async () => JSON.stringify({ current: { weather_code: 3, cloud_cover: 90, precipitation: 0, is_day: 1 } }) });
+            const good = await ask();
+            globalThis.fetch = async () => ({ ok: false, status: 500, statusText: 'Server Error' });
+            h['cloudfront-viewer-latitude'] = '40.71'; h['cloudfront-viewer-longitude'] = '-74.01'; h['cloudfront-viewer-city'] = 'New York';
+            const down = await ask();
+            console.log(JSON.stringify({ bad, good, down: [down.status, down.cc] }));
+        `);
+        assert.strictEqual(out.bad.status, 200, 'not a 502');
+        assert.deepStrictEqual(out.bad.body, { city: 'Irvine', code: null, cloud: null, precip: null, isDay: 1 },
+            'the city, and nothing the page could mistake for weather');
+        assert.strictEqual(out.bad.cc, 'public, s-maxage=30',
+            'a failure must not sit at the edge for the ten minutes a real answer does');
+        assert.deepStrictEqual([out.good.status, out.good.body.code, out.good.cc],
+            [200, 3, 'public, s-maxage=600, stale-while-revalidate=600'],
+            'the next answer is real and cached as before: the failure was not remembered');
+        assert.deepStrictEqual(out.down, [502, 'no-store'],
+            'only a non-JSON body is softened: an upstream that is simply down is still a 502');
+    });
+
     test('Should keep the JSON body reader identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
-        const helper = (f) => (f.match(/async function jsonBody[\s\S]*?\n}\n/) || [''])[0];
+        const helper = (f) => (f.match(/class NotJSON[\s\S]*?async function jsonBody[\s\S]*?\n}\n/) || [''])[0];
         const a = helper(fs.readFileSync(lambdaPath, 'utf8'));
         assert.ok(a.length > 200 && a === helper(fs.readFileSync(sibling, 'utf8')),
             'jsonBody should be the same code in both');

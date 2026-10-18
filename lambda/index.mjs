@@ -135,10 +135,11 @@ const FEED_TIMEOUT_MS = 4000;
  * 200 whose body begins "Unexpected" once became "/api/here -> 502:
  * Unexpected token 'U'" with nothing to say who sent it or what it said.
  */
+class NotJSON extends Error {}
 async function jsonBody(res, url) {
   const body = await res.text();
   try { return JSON.parse(body); }
-  catch { throw new Error(`not JSON (${res.status}) :: ${url.slice(0, 120)} :: ${JSON.stringify(body.slice(0, 100))}`); }
+  catch { throw new NotJSON(`not JSON (${res.status}) :: ${url.slice(0, 120)} :: ${JSON.stringify(body.slice(0, 100))}`); }
 }
 
 /**
@@ -306,6 +307,11 @@ function spendModelCall() {
 
 /* ---------------------------------------------------------------- handlers */
 
+/** Answers that must not sit at the edge for the route's usual time. */
+const SHORT_EDGE = 'public, s-maxage=30';
+const brief = new WeakSet();
+const shortLived = (body) => { brief.add(body); return body; };
+
 const routes = {
 
   /** The homepage's weather: ~150 bytes for the visitor's city. */
@@ -317,7 +323,16 @@ const routes = {
       latitude: where.lat.toFixed(2), longitude: where.lon.toFixed(2),
       current: 'weather_code,cloud_cover,precipitation,is_day', timezone: 'auto',
     });
-    const fc = await cachedJSON(`here_${cell}`, 10 * MIN, url);
+    let fc;
+    try { fc = await cachedJSON(`here_${cell}`, 10 * MIN, url); }
+    catch (err) {
+      if (!(err instanceof NotJSON)) throw err;
+      // A 200 that is not JSON: the page needs no weather to be right (the
+      // clock's sky stands), so answer with the city and nothing else rather
+      // than a 502 in every visitor's console. Logged, so it can still be seen.
+      console.error(`[api] /api/here: ${err.message}`);
+      return shortLived(hereShape(where, null));
+    }
     return hereShape(where, fc?.current);
   },
 
@@ -974,7 +989,7 @@ export const handler = async (event) => {
   const params = new URLSearchParams(event.rawQueryString || '');
   try {
     const body = await routes[route](params, event);
-    return reply(200, body, EDGE_CACHE[route]);
+    return reply(200, body, brief.has(body) ? SHORT_EDGE : EDGE_CACHE[route]);
   } catch (err) {
     const status = err.status || 502;
     console.error(`[api] ${route} -> ${status}: ${err.message}`);
