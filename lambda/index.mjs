@@ -187,6 +187,22 @@ async function soft(label, fn) {
   }
 }
 
+/**
+ * NWS alerts for a point. api.weather.gov covers the US only and answers 400
+ * for anywhere else (Vancouver, say), which is "no alerts here", not a
+ * failure: left to soft() it logged a [soft] line on every such bundle.
+ * Only 400 is read that way; a 5xx or a timeout is still a failed source.
+ */
+async function alertsAt(key, lat, lon) {
+  try {
+    return await cachedJSON(`al_${key}`, 2 * MIN,
+      `https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`);
+  } catch (err) {
+    if (/^400 /.test(err.message)) return { features: [] };
+    throw err;
+  }
+}
+
 /* ---------------------------------------------------------------- upstream */
 
 const om = (host, params) => {
@@ -368,8 +384,7 @@ const routes = {
     const [forecast, air, alerts, space] = await Promise.all([
       soft('forecast', () => cachedJSON(`fc_${key}`, 5 * MIN, forecastURL(lat, lon))),
       soft('air', () => cachedJSON(`aq_${key}`, 20 * MIN, airURL(lat, lon))),
-      soft('alerts', () => cachedJSON(`al_${key}`, 2 * MIN,
-        `https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`)),
+      soft('alerts', () => alertsAt(key, lat, lon)),
       soft('space', () => spaceWeather()),
     ]);
 

@@ -6257,6 +6257,39 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         }
     });
 
+    test('Should read weather.gov\'s 400 for a non-US point as no alerts, and still log any other failure', () => {
+        const out = run(`
+            const warns = [];
+            console.warn = (...a) => warns.push(a.join(' '));
+            let mode = 400;
+            globalThis.fetch = async (url) => {
+                if (String(url).includes('weather.gov')) {
+                    if (mode === 'ok') { const b = { features: [{ id: 'a1' }] }; return { ok: true, status: 200, json: async () => b, text: async () => JSON.stringify(b) }; }
+                    return { ok: false, status: mode, statusText: mode === 400 ? 'Bad Request' : 'Service Unavailable', text: async () => '', json: async () => ({}) };
+                }
+                const body = { hourly: { time: [] }, daily: { time: [] }, current: {} };
+                return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+            };
+            const a = await call('bundle', 'lat=49.2497&lon=-123.1193');
+            const w400 = warns.filter((w) => w.includes('alerts')).length;
+            mode = 503;
+            const b = await call('bundle', 'lat=49.3&lon=-123.2');
+            const w503 = warns.filter((w) => w.includes('[soft] alerts')).length;
+            mode = 'ok';
+            const c = await call('bundle', 'lat=34.05&lon=-118.24');
+            console.log(JSON.stringify({ a: a.body.alerts, w400, b: b.body.alerts.ok, w503, c: c.body.alerts }));
+        `);
+        assert.deepStrictEqual(out.a, { ok: true, data: { features: [] } }, 'a 400 is an empty list');
+        assert.strictEqual(out.w400, 0, 'and logs nothing');
+        assert.strictEqual(out.b, false, 'a 503 is still a failed source');
+        assert.strictEqual(out.w503, 1, 'and is still named');
+        assert.deepStrictEqual(out.c, { ok: true, data: { features: [{ id: 'a1' }] } }, 'US alerts pass through');
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;
+        const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function alertsAt[\s\S]*?\n}\n/) || [''])[0];
+        assert.ok(fn(lambdaPath).length > 100 && fn(lambdaPath) === fn(sibling), 'alertsAt is the same code in both');
+    });
+
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
