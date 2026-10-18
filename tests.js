@@ -6211,6 +6211,27 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         }
     });
 
+    test('Should name a source that failed inside a route that still answers 200', () => {
+        const out = run(`
+            const warns = [];
+            console.warn = (...a) => warns.push(a.join(' '));
+            globalThis.fetch = async (url) => {
+                if (String(url).includes('air-quality')) { const e = new Error('The operation was aborted due to timeout'); e.name = 'TimeoutError'; throw e; }
+                const body = { hourly: { time: [] }, daily: { time: [] }, current: {} };
+                return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+            };
+            const r = await call('bundle', 'lat=35.05&lon=-117.24');
+            console.log(JSON.stringify({ status: r.status, warns }));
+        `);
+        assert.strictEqual(out.status, 200, 'the bundle still answers');
+        assert.strictEqual(out.warns.length, 1, JSON.stringify(out.warns));
+        assert.ok(/^\[soft\] air: TimeoutError /.test(out.warns[0]), out.warns[0]);
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;
+        const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function soft[\s\S]*?\n}\n/) || [''])[0];
+        assert.ok(fn(lambdaPath).includes('[soft]') && fn(lambdaPath) === fn(sibling), 'soft is the same code in both');
+    });
+
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI

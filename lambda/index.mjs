@@ -174,10 +174,17 @@ async function cachedJSON(key, ttl, url, { disk = false, text = false, mem: keep
   return data;
 }
 
-/** Wrap a fetch so one dead upstream degrades a panel instead of the page. */
+/**
+ * Wrap a fetch so one dead upstream degrades a panel instead of the page.
+ * The failure is logged by name: a bundle that lost its forecast to the
+ * deadline answered 200 and left no trace of which source it was.
+ */
 async function soft(label, fn) {
   try { return { ok: true, data: await fn() }; }
-  catch (err) { return { ok: false, error: String(err.message || err), label }; }
+  catch (err) {
+    console.warn(`[soft] ${label}: ${err.name || 'Error'}${err.message ? ` ${String(err.message).slice(0, 120)}` : ''}`);
+    return { ok: false, error: String(err.message || err), label };
+  }
 }
 
 /* ---------------------------------------------------------------- upstream */
