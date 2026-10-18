@@ -5895,9 +5895,10 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
     const run = (body) => {
         const code = 'import(' + JSON.stringify(lambdaPath) + ').then(async m => {'
             + 'const calls = [];'
+            + 'const resp = (o) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });'
             + 'globalThis.fetch = async (url) => { calls.push(String(url)); return { ok: true, status: 200,'
             + '  json: async () => ({ content: [{ type: "text", text: "San Diego is 4 degrees colder than Los Angeles." }], usage: {} }),'
-            + '  text: async () => "" }; };'
+            + '  text: async () => JSON.stringify({ content: [{ type: "text", text: "San Diego is 4 degrees colder than Los Angeles." }], usage: {} }) }; };'
             + 'const ev = (p, q) => ({ rawPath: "/weather/api/" + p, rawQueryString: q, requestContext: { http: { method: "GET" } } });'
             + 'const call = async (p, q) => { const r = await m.handler(ev(p, q)); return { status: r.statusCode, body: JSON.parse(r.body) }; };'
             + body + '})';
@@ -5932,14 +5933,14 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             const feed = (lol, fi) => { globalThis.fetch = async (u) => {
                 const body = String(u).includes('adsb.lol') ? lol : fi;
                 if (body === 'down') throw new Error('connect failed');
-                return { ok: true, status: 200, json: async () => body };
+                return resp(body);
             }; };
             feed('down', { aircraft: [rec], resultCount: 1 });
             const viaFi = (await call('aircraft', 'lat=34.1&lon=-118.2&dist=60')).body;
             // both answer: the first to arrive wins, so make adsb.fi the slow one
             globalThis.fetch = async (u) => {
                 if (String(u).includes('adsb.fi')) await new Promise((r) => setTimeout(r, 200));
-                return { ok: true, status: 200, json: async () => (String(u).includes('adsb.lol') ? { ac: [rec] } : { aircraft: [] }) };
+                return resp(String(u).includes('adsb.lol') ? { ac: [rec] } : { aircraft: [] });
             };
             const viaLol = (await call('aircraft', 'lat=35.1&lon=-118.2&dist=60')).body;
             feed('down', 'down');
@@ -5956,7 +5957,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         const out = run(`
             const keep = setInterval(() => {}, 100);   // AbortSignal.timeout's timer is unref'd; a real socket keeps Node alive, this stub does not
             const hang = (init) => new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
-            const answer = { ok: true, status: 200, json: async () => ({ aircraft: [{ hex: 'a', lat: 1, lon: 2 }], ac: undefined }) };
+            const answer = resp({ aircraft: [{ hex: 'a', lat: 1, lon: 2 }], ac: undefined });
             const timed = async (lat, stub) => {
                 globalThis.fetch = stub;
                 const t = Date.now();
@@ -5965,7 +5966,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             };
             const lolHung = await timed(37.1, async (u, init) => String(u).includes('adsb.lol') ? hang(init) : answer);
             const fiHung = await timed(38.1, async (u, init) => String(u).includes('adsb.fi')
-                ? hang(init) : { ok: true, status: 200, json: async () => ({ ac: [{ hex: 'a', lat: 1, lon: 2 }] }) });
+                ? hang(init) : resp({ ac: [{ hex: 'a', lat: 1, lon: 2 }] }));
             const bothHung = await timed(39.1, async (u, init) => hang(init));
             clearInterval(keep);
             console.log(JSON.stringify({ lolHung, fiHung, bothHung }));
@@ -5981,7 +5982,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
     test('Should send each aircraft miss to both feeds, once each', () => {
         const out = run(`
             const urls = [];
-            globalThis.fetch = async (u) => { urls.push(String(u)); return { ok: true, status: 200, json: async () => ({ ac: [] }) }; };
+            globalThis.fetch = async (u) => { urls.push(String(u)); return resp({ ac: [] }); };
             await call('aircraft', 'lat=40.1&lon=-118.2&dist=60');
             await call('aircraft', 'lat=40.1&lon=-118.2&dist=60');   // served from the memory cache
             console.log(JSON.stringify({ urls: urls.map((u) => new URL(u).host).sort() }));
@@ -6013,6 +6014,38 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         const src = fs.readFileSync(lambdaPath, 'utf8');
         assert.ok(/climateURL\(lat, lon\), \{ disk: true, mem: false \}/.test(src),
             'the ~400 KB climate archive is kept on disk only; memory holds the reduced form');
+    });
+
+    test('Should say what an upstream sent when it answers 200 with something that is not JSON', () => {
+        // /api/here once failed as "Unexpected token 'U'" with nothing to say who sent it or what it said.
+        const out = run(`
+            globalThis.fetch = async () => ({ ok: true, status: 200, statusText: 'OK',
+                json: async () => { throw new SyntaxError("Unexpected token 'U'"); },
+                text: async () => 'Unexpected error, please retry. ' + 'x'.repeat(300) });
+            const r = await call('models', 'lat=1&lon=2');
+            globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: 1 }), text: async () => '{"ok":1}' });
+            const good = await call('models', 'lat=3&lon=4');
+            console.log(JSON.stringify({ status: r.status, error: r.body.error, good: [good.status, good.body] }));
+        `);
+        assert.strictEqual(out.status, 502, 'still a 502 and still not cached');
+        assert.ok(/^not JSON \(200\) :: https:\/\/[^ ]+ :: "Unexpected error, please retry\. x+"$/.test(out.error),
+            'the message names the status, the URL and the start of the body: ' + out.error);
+        assert.ok(out.error.split(' :: ')[2].length <= 102, 'only the first 100 characters, quoted');
+        assert.deepStrictEqual(out.good, [200, { ok: 1 }], 'a JSON body is parsed exactly as before');
+        assert.ok(/async function jsonBody[\s\S]*?\n}\n/.test(fs.readFileSync(lambdaPath, 'utf8')),
+            'the Lambda reads the body through jsonBody');
+    });
+
+    test('Should keep the JSON body reader identical in the local server', () => {
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
+        const helper = (f) => (f.match(/async function jsonBody[\s\S]*?\n}\n/) || [''])[0];
+        const a = helper(fs.readFileSync(lambdaPath, 'utf8'));
+        assert.ok(a.length > 200 && a === helper(fs.readFileSync(sibling, 'utf8')),
+            'jsonBody should be the same code in both');
+        assert.ok(/jsonBody\(res, url\)/.test(fs.readFileSync(sibling, 'utf8')) && !/await res\.json\(\)/.test(
+            fs.readFileSync(sibling, 'utf8').slice(fs.readFileSync(sibling, 'utf8').indexOf('async function cachedJSON'))
+                .split('\n/*\n')[0]), 'and cachedJSON uses it');
     });
 
     test('Should refuse coordinates off the globe and a ZIP that is not five digits, before going upstream', () => {
@@ -6235,7 +6268,8 @@ describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () =>
 
     test('Should refuse a year it will not fetch, before going upstream', () => {
         const code = `import(${JSON.stringify(path.join(__dirname, 'lambda', 'index.mjs'))}).then(async m => {
-            const calls = []; globalThis.fetch = async (u) => { calls.push(String(u)); return { ok: true, status: 200, json: async () => ({ daily: { time: [] } }) }; };
+            const resp = (o) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+            const calls = []; globalThis.fetch = async (u) => { calls.push(String(u)); return resp({ daily: { time: [] } }); };
             const ev = (q) => ({ rawPath: '/weather/api/yearwx', rawQueryString: q, requestContext: { http: { method: 'GET' } } });
             const s = [];
             for (const q of ['lat=33.6&lon=-117.67&year=1999', 'lat=33.6&lon=-117.67&year=2999', 'lat=33.6&lon=-117.67', 'lon=1&year=2026'])

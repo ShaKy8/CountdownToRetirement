@@ -131,6 +131,17 @@ async function diskSet(key, data) {
 const FEED_TIMEOUT_MS = 4000;
 
 /**
+ * Parse an upstream JSON body, and when it is not JSON say what it was. A
+ * 200 whose body begins "Unexpected" once became "/api/here -> 502:
+ * Unexpected token 'U'" with nothing to say who sent it or what it said.
+ */
+async function jsonBody(res, url) {
+  const body = await res.text();
+  try { return JSON.parse(body); }
+  catch { throw new Error(`not JSON (${res.status}) :: ${url.slice(0, 120)} :: ${JSON.stringify(body.slice(0, 100))}`); }
+}
+
+/**
  * Fetch JSON with layered caching. `disk: true` survives restarts, which is
  * what we want for the 31-year climate archive (expensive, changes yearly).
  */
@@ -146,7 +157,7 @@ async function cachedJSON(key, ttl, url, { disk = false, text = false, mem: keep
     ...(timeout ? { signal: AbortSignal.timeout(timeout) } : {}),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} :: ${url.slice(0, 120)}`);
-  const data = text ? await res.text() : await res.json();
+  const data = text ? await res.text() : await jsonBody(res, url);
   if (keep) memSet(key, data, ttl);
   if (disk) await diskSet(key, data);
   return data;
