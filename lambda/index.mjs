@@ -131,6 +131,16 @@ async function diskSet(key, data) {
 const FEED_TIMEOUT_MS = 4000;
 
 /**
+ * What any other upstream gets. Without a limit one hung host held a
+ * Lambda copy for the whole 25 s (a timeout on October 18, 2026, route
+ * unknown because nothing logged it). The 31-year archive is a ~400 KB
+ * body and gets longer; a request past SLOW_MS is logged by route.
+ */
+const UPSTREAM_TIMEOUT_MS = 8000;
+const ARCHIVE_TIMEOUT_MS = 20000;
+const SLOW_MS = 5000;
+
+/**
  * Parse an upstream JSON body, and when it is not JSON say what it was. A
  * 200 whose body begins "Unexpected" once became "/api/here -> 502:
  * Unexpected token 'U'" with nothing to say who sent it or what it said.
@@ -146,7 +156,7 @@ async function jsonBody(res, url) {
  * Fetch JSON with layered caching. `disk: true` survives restarts, which is
  * what we want for the 31-year climate archive (expensive, changes yearly).
  */
-async function cachedJSON(key, ttl, url, { disk = false, text = false, mem: keep = true, timeout = 0 } = {}) {
+async function cachedJSON(key, ttl, url, { disk = false, text = false, mem: keep = true, timeout = UPSTREAM_TIMEOUT_MS } = {}) {
   const hit = memGet(key);
   if (hit) return hit;
   if (disk) {
@@ -373,7 +383,7 @@ const routes = {
     const key = `cl_${lat.toFixed(2)},${lon.toFixed(2)}`;
     const hit = memGet(key + '_reduced');
     if (hit) return hit;
-    const raw = await cachedJSON(key, 30 * DAY, climateURL(lat, lon), { disk: true, mem: false });
+    const raw = await cachedJSON(key, 30 * DAY, climateURL(lat, lon), { disk: true, mem: false, timeout: ARCHIVE_TIMEOUT_MS });
     const reduced = reduceClimate(raw);
     memSet(key + '_reduced', reduced, 12 * HOUR);
     return reduced;
@@ -398,7 +408,7 @@ const routes = {
     const raw = await cachedJSON(key + '_raw', 6 * HOUR, om('archive-api.open-meteo.com/v1/archive', {
       latitude: lat.toFixed(2), longitude: lon.toFixed(2), start_date: start, end_date: end,
       daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum', ...IMPERIAL,
-    }), { mem: false });
+    }), { mem: false, timeout: ARCHIVE_TIMEOUT_MS });
     const out = reduceYear(raw, year);
     memSet(key, out, 6 * HOUR);
     return out;
@@ -958,6 +968,12 @@ const EDGE_CACHE = {
   '/api/elsewhere': 'public, s-maxage=1800, stale-while-revalidate=1800',
 };
 
+/** Say which route a slow request was: the platform's own report never does. */
+function slowNote(route, t0) {
+  const ms = Date.now() - t0;
+  if (ms > SLOW_MS) console.warn(`[slow] ${route} ${ms} ms`);
+}
+
 /**
  * Lambda Function URL handler (payload format 2.0).
  *
@@ -987,12 +1003,15 @@ export const handler = async (event) => {
   if (!route) return reply(404, { error: `no such route: ${rawPath}` });
 
   const params = new URLSearchParams(event.rawQueryString || '');
+  const t0 = Date.now();
   try {
     const body = await routes[route](params, event);
+    slowNote(route, t0);
     return reply(200, body, brief.has(body) ? SHORT_EDGE : EDGE_CACHE[route]);
   } catch (err) {
     const status = err.status || 502;
     console.error(`[api] ${route} -> ${status}: ${err.message}`);
+    slowNote(route, t0);
     // Do not let a transient upstream failure be cached at the edge.
     return reply(status, { error: err.message });
   }

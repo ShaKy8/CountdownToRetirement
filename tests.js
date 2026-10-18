@@ -6095,7 +6095,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.strictEqual(out.recent, 0, 'recent entries are still served from memory');
         assert.strictEqual(out.oldest, 1, 'the oldest was evicted: the cache stopped growing');
         const src = fs.readFileSync(lambdaPath, 'utf8');
-        assert.ok(/climateURL\(lat, lon\), \{ disk: true, mem: false \}/.test(src),
+        assert.ok(/climateURL\(lat, lon\), \{ disk: true, mem: false, timeout: ARCHIVE_TIMEOUT_MS \}/.test(src),
             'the ~400 KB climate archive is kept on disk only; memory holds the reduced form');
     });
 
@@ -6158,6 +6158,40 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.ok(/jsonBody\(res, url\)/.test(fs.readFileSync(sibling, 'utf8')) && !/await res\.json\(\)/.test(
             fs.readFileSync(sibling, 'utf8').slice(fs.readFileSync(sibling, 'utf8').indexOf('async function cachedJSON'))
                 .split('\n/*\n')[0]), 'and cachedJSON uses it');
+    });
+
+    test('Should give every upstream fetch a deadline, and name a slow route in the log', () => {
+        const out = run(`
+            const seen = [];
+            const warns = [];
+            console.warn = (...a) => warns.push(a.join(' '));
+            globalThis.fetch = async (url, init) => {
+                seen.push({ url: String(url), signal: !!(init && init.signal) });
+                if (String(url).includes('geocoding')) await new Promise((r) => setTimeout(r, 5300));
+                return resp({ results: [{ name: 'X', latitude: 1, longitude: 2, country: 'Y', admin1: 'Z' }], daily: { time: [] }, hourly: { time: [] } });
+            };
+            await call('bundle', 'lat=34.05&lon=-118.24');
+            await call('climate', 'lat=34.06&lon=-118.25');
+            await call('geocode', 'q=Paris');
+            const noDeadline = seen.filter((s) => !s.signal).map((s) => s.url.slice(0, 60));
+            console.log(JSON.stringify({ n: seen.length, noDeadline, warns }));
+        `);
+        assert.ok(out.n >= 4, 'the routes went upstream: ' + out.n);
+        assert.deepStrictEqual(out.noDeadline, [], 'every cachedJSON fetch carries an abort signal');
+        assert.strictEqual(out.warns.length, 1, 'only the slow request is named: ' + JSON.stringify(out.warns));
+        assert.ok(/^\[slow\] \/api\/geocode 5\d\d\d ms$/.test(out.warns[0]), out.warns[0]);
+    });
+
+    test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
+        const pick = (f) => ['const UPSTREAM_TIMEOUT_MS = 8000;', 'const ARCHIVE_TIMEOUT_MS = 20000;', 'const SLOW_MS = 5000;',
+            'timeout = UPSTREAM_TIMEOUT_MS', 'function slowNote(route, t0) {'].map((x) => f.includes(x));
+        const a = fs.readFileSync(lambdaPath, 'utf8'), b = fs.readFileSync(sibling, 'utf8');
+        assert.deepStrictEqual(pick(a), [true, true, true, true, true]);
+        assert.deepStrictEqual(pick(b), [true, true, true, true, true], 'the local server has the same limits');
+        assert.strictEqual((a.match(/timeout: ARCHIVE_TIMEOUT_MS/g) || []).length >= 1, true);
+        assert.ok(/timeout: ARCHIVE_TIMEOUT_MS/.test(b), 'and the archive gets its longer one');
     });
 
     test('Should refuse coordinates off the globe and a ZIP that is not five digits, before going upstream', () => {
