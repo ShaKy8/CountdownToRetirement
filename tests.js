@@ -6182,6 +6182,35 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.ok(/^\[slow\] \/api\/geocode 5\d\d\d ms$/.test(out.warns[0]), out.warns[0]);
     });
 
+    test('Should give the two fetches that bypass cachedJSON a deadline of their own', () => {
+        const out = run(`
+            process.env.ANTHROPIC_API_KEY = 'test-key';
+            const seen = [];
+            globalThis.fetch = async (url, init) => {
+                seen.push({ url: String(url), signal: !!(init && init.signal) });
+                const body = String(url).includes('anthropic')
+                    ? { content: [{ type: 'text', text: 'San Diego is 4 degrees colder than Los Angeles.' }], usage: {} }
+                    : { Location: { periods: [] } };
+                return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+            };
+            const q = Buffer.from(JSON.stringify({ here: 'Los Angeles', hereSky: 'clear', hereScore: 76,
+                rows: [{ name: 'San Diego', delta: 4, sky: 'clear', better: true }] })).toString('base64url');
+            await call('pollen', 'zip=90012');
+            await call('elsewhere', 'q=' + q);
+            const pick = (h) => seen.filter((s) => s.url.includes(h));
+            console.log(JSON.stringify({ pollen: pick('pollen.com'), model: pick('anthropic') }));
+        `);
+        assert.ok(out.pollen.length === 2 && out.pollen.every((s) => s.signal), 'both pollen.com requests carry a deadline');
+        assert.ok(out.model.length === 1 && out.model[0].signal, 'and so does the model call');
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        for (const f of [lambdaPath, sibling]) {
+            if (!fs.existsSync(f)) continue;
+            const src = fs.readFileSync(f, 'utf8');
+            assert.ok(/signal: AbortSignal\.timeout\(UPSTREAM_TIMEOUT_MS\),\n\s*\}\);\n\s*if \(!res\.ok\) throw new Error\(`pollen\.com/.test(src),
+                path.basename(f) + ': the pollen fetch has its deadline');
+        }
+    });
+
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI

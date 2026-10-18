@@ -456,6 +456,9 @@ const routes = {
           Referer: `https://www.pollen.com/forecast/${kind}/pollen/${zip}`,
           'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)',
         },
+        // Not through cachedJSON, so it needs its own: a hung pollen.com
+        // would otherwise hold a Lambda copy until the platform's limit.
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`pollen.com ${res.status}`);
       return res.json();
