@@ -366,7 +366,7 @@ function point(q) {
  * reserved concurrency (scripts/api-throttle.sh) the worst case is copies x
  * this per hour. The Anthropic Console spend limit is the hard backstop.
  */
-const MODEL_CALLS_PER_HOUR = 20;
+const MODEL_CALLS_PER_HOUR = 10;
 let modelBudget = { hour: 0, used: 0 };
 function spendModelCall() {
   const h = Math.floor(Date.now() / HOUR);

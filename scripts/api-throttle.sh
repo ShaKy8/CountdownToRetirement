@@ -12,8 +12,8 @@
 #
 #   1. API Gateway $default stage: 20 requests/second, bursts of 50. Last
 #      month's real traffic was ~16,600 calls, about 0.006 a second.
-#   2. Lambda reserved concurrency: at most 10 copies at once. That also bounds
-#      /api/elsewhere's model calls: 10 copies x MODEL_CALLS_PER_HOUR (20).
+#   2. Lambda reserved concurrency: at most 20 copies at once. That also bounds
+#      /api/elsewhere's model calls: 20 copies x MODEL_CALLS_PER_HOUR (10).
 #   3. The GitHub deploy role trusts pushes to main only. It trusted any ref in
 #      the repo (repo:ShaKy8/CountdownToRetirement:*). Deploys, manual runs
 #      and the scheduled spend check all run on main.
@@ -32,7 +32,7 @@ set -euo pipefail
 API_NAME="${API_NAME:-atmos-weather-api}"
 FN="${LAMBDA_FUNCTION:-atmos-weather-api}"
 ROLE="${DEPLOY_ROLE:-branyontech-deploy}"
-RATE=20 BURST=50 CONCURRENCY=10
+RATE=20 BURST=50 CONCURRENCY=20
 SUB="repo:ShaKy8/CountdownToRetirement:ref:refs/heads/main"
 APPLY=0; [ "${1:-}" = "--apply" ] && APPLY=1
 

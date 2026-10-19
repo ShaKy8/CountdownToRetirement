@@ -1708,7 +1708,7 @@ answers repeats, but every query it has not seen reaches the Lambda.
 counts what it sends upstream; each test was shown to fail with its fix
 removed.
 
-- **`/api/elsewhere` spends at most `MODEL_CALLS_PER_HOUR` (20) model calls
+- **`/api/elsewhere` spends at most `MODEL_CALLS_PER_HOUR` (10) model calls
   an hour per running copy**, after the cache, so a cached sentence is free.
   Past it the route answers `{ text: null, why: 'budget' }` and the page
   keeps its rules sentence. Before, a script varying one degree per request
@@ -1721,7 +1721,7 @@ removed.
   temperatures, for up to 30 minutes per Lambda copy.
 - **`scripts/api-throttle.sh`** (dry run unless `--apply`; applied October 3,
   2026): the `$default` stage at 20 requests/s with bursts of 50, Lambda
-  reserved concurrency 10 (so the model budget's worst case is 10 × 20 = 200
+  reserved concurrency 20 (raised from 10 on October 18, 2026, with the budget halved from 20, so the model budget's worst case is 20 × 10 = 200
   calls an hour), and the GitHub deploy role trusting `ref:refs/heads/main`
   only, not any ref in the repo. Proven by a manual spend-check run, which
   assumes the same role. The throttle also protects the free upstreams: a

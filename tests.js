@@ -5996,17 +5996,25 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
             const q = (d) => Buffer.from(JSON.stringify({ here: 'Los Angeles', hereSky: 'clear', hereScore: 76,
                 rows: [{ name: 'San Diego', delta: d, sky: 'clear', better: true }] })).toString('base64url');
             const res = [];
-            for (let d = 0; d < 25; d++) res.push((await call('elsewhere', 'q=' + q(d))).body);
+            for (let d = 0; d < 15; d++) res.push((await call('elsewhere', 'q=' + q(d))).body);
             const paid = calls.filter((u) => u.includes('api.anthropic.com')).length;
             const again = (await call('elsewhere', 'q=' + q(0))).body;
             console.log(JSON.stringify({ paid, after: calls.filter((u) => u.includes('api.anthropic.com')).length,
-                whys: res.slice(20).map((r) => r.why), first: res[0].text, again: again.text }));
+                whys: res.slice(10).map((r) => r.why), first: res[0].text, again: again.text }));
         `);
-        assert.strictEqual(out.paid, 20, 'twenty distinct queries an hour reach the model, and no more');
+        assert.strictEqual(out.paid, 10, 'ten distinct queries an hour reach the model, and no more');
         assert.deepStrictEqual(out.whys, ['budget', 'budget', 'budget', 'budget', 'budget'],
             'past the budget the route answers text: null, so the page keeps its own sentence');
         assert.ok(out.first, 'the calls inside the budget still answer');
         assert.ok(out.again && out.after === out.paid, 'a cached sentence is served free and spends nothing');
+    });
+
+    test('Should keep reserved concurrency times the hourly model budget at 200 calls', () => {
+        const sh = fs.readFileSync(path.join(__dirname, 'scripts', 'api-throttle.sh'), 'utf8');
+        const lambda = fs.readFileSync(lambdaPath, 'utf8');
+        const conc = Number(sh.match(/CONCURRENCY=(\d+)/)[1]);
+        const budget = Number(lambda.match(/const MODEL_CALLS_PER_HOUR = (\d+);/)[1]);
+        assert.strictEqual(conc * budget, 200, 'copies x calls an hour is the spend worst case');
     });
 
     test('Should use the second aircraft feed when the first is dead, whichever key it names its list', () => {
