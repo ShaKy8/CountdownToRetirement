@@ -18,7 +18,7 @@ import path from 'node:path';
  * re-fetched on every request.
  */
 const CACHE_DIR = '/tmp/atmos-cache';
-const UA = 'ATMOS-NET/1.0 (personal weather portal)';
+const UA = 'ATMOS-NET/1.0 (personal weather portal; https://branyontech.com; shaky8@proton.me)';
 
 /*
  * A neutral starting point for the public site — NOT the operator's home.
@@ -558,8 +558,17 @@ const routes = {
     if (hit) return hit;
 
     // The station list for a point is stable; the observations are not.
-    const stations = await cachedJSON(`stn_${lat.toFixed(3)},${lon.toFixed(3)}`, 7 * DAY,
-      `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}/stations`, { disk: true });
+    // weather.gov answers 404 for a point outside the US and has answered 403 to
+    // a Lambda address now and then; neither is a fault of ours, so both read as
+    // "no station here" rather than a 502. Anything else still throws.
+    let stations;
+    try {
+      stations = await cachedJSON(`stn_${lat.toFixed(3)},${lon.toFixed(3)}`, 7 * DAY,
+        `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}/stations`, { disk: true });
+    } catch (err) {
+      if (/^40[34] /.test(err.message)) return { station: null, reason: 'weather.gov has no station list for this point' };
+      throw err;
+    }
 
     const near = (stations.features || [])
       .map((f) => ({

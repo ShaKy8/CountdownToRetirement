@@ -6373,6 +6373,43 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.ok(fn(lambdaPath).length > 100 && fn(lambdaPath) === fn(sibling), 'adsbdb() is the same code in both');
     });
 
+    test('Should read weather.gov\'s 403 or 404 for a stations lookup as no station, give weather.gov a contact in the User-Agent, and still fail on anything else', () => {
+        const out = run(`
+            let mode = 404, sent = [];
+            globalThis.fetch = async (url, opts) => {
+                if (String(url).includes('api.weather.gov')) {
+                    sent.push(opts && opts.headers && opts.headers['User-Agent']);
+                    if (mode === 'ok') {
+                        const b = { features: [] };
+                        return { ok: true, status: 200, json: async () => b, text: async () => JSON.stringify(b) };
+                    }
+                    return { ok: false, status: mode, statusText: ({ 403: 'Forbidden', 404: 'Not Found', 500: 'Server Error' })[mode], text: async () => '', json: async () => ({}) };
+                }
+                return { ok: true, status: 200, json: async () => ({}), text: async () => '{}' };
+            };
+            const r = {};
+            for (const [name, m, lat] of [['n404', 404, 35.6895], ['n403', 403, 46.7867], ['n500', 500, 33.6], ['ok', 'ok', 40.7]]) {
+                mode = m;
+                const res = await call('observations', 'lat=' + lat + '&lon=-100.123');
+                r[name] = { status: res.status, body: res.body };
+            }
+            console.log(JSON.stringify({ r, ua: sent[0] }));
+        `);
+        assert.strictEqual(out.r.n404.status, 200, 'a 404 is not a failure');
+        assert.strictEqual(out.r.n404.body.station, null);
+        assert.strictEqual(out.r.n403.status, 200, 'nor is a 403');
+        assert.strictEqual(out.r.n403.body.station, null);
+        assert.strictEqual(out.r.n500.status, 502, 'but a 500 still is one');
+        assert.strictEqual(out.r.ok.status, 200);
+        assert.ok(/ATMOS-NET\/1\.0/.test(out.ua) && /branyontech\.com/.test(out.ua) && /@/.test(out.ua),
+            'weather.gov is told who is asking and how to reach them: ' + out.ua);
+        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        if (!fs.existsSync(sibling)) return;
+        const pick = (f) => [/const UA = [^\n]*\n/, /let stations;[\s\S]*?\n    }\n/].map((re) => (fs.readFileSync(f, 'utf8').match(re) || [''])[0]);
+        const a = pick(lambdaPath), b = pick(sibling);
+        a.forEach((x, i) => { assert.ok(x, 'the Lambda has piece ' + i); assert.strictEqual(x, b[i], 'piece ' + i + ' has drifted'); });
+    });
+
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
