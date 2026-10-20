@@ -1,0 +1,55 @@
+# Does NHC list a live storm? Checked hourly, with no session open.
+#
+# scripts/check-storms.mjs reads production's /weather/api/storms. When the
+# count goes from zero to above zero it opens an issue (labelled storm-watch,
+# which GitHub emails to the repository owner) and fails the run (a failed
+# scheduled run is mailed too, as spend.yml already relies on). While a storm
+# stays listed it says nothing more: the open issue is the memory that Kyle has
+# been told. When NHC lists none again it closes the issue. If the site cannot
+# say whether anything is active, the run fails: "could not check" is not "no
+# storms".
+#
+# Run it by hand with `test` ticked to prove the email path: it opens a
+# [test] issue, and the next hourly run closes it.
+#
+# Third-party actions are pinned to commit SHAs, not tags, as in deploy.yml.
+# GitHub delays scheduled runs under load and pauses schedules in repositories
+# with no commits for 60 days.
+
+name: Storm watch
+
+on:
+  schedule:
+    - cron: '13 * * * *'
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Pretend one storm is listed, to prove the email path (the next hourly run closes the issue)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: storm-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    name: Does NHC list a live storm?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STORM_WATCH_TEST: ${{ inputs.test }}
+        run: node scripts/check-storms.mjs

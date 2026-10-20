@@ -1505,6 +1505,21 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   Verified on real Trudy against the real archive: Kiko 2007 first (October,
   off Mexico, weak, west). It is a lookup, not a model: do not add a probability
   or an "expected" line to it.
+- **The storm watch works without a session** (`.github/workflows/storms-watch.yml`,
+  `scripts/check-storms.mjs`). Hourly at :13 it reads production's
+  `/weather/api/storms` and acts on `activeCount`: **zero to above zero** opens
+  an issue labelled `storm-watch` (GitHub emails the owner) and fails the run
+  (a failed scheduled run is mailed too, the way `spend.yml` already is);
+  **while a storm stays listed it is quiet**, because the open issue is the
+  memory that Kyle has been told (an email an hour for a week gets filtered);
+  **back to zero** closes the issue; **a check that cannot say** (non-200, not
+  JSON, no count, network down) fails the run loudly and never closes an open
+  alert: the route's 502 for "could not read NHC" must not read as "no storms"
+  here either. Least permission (`contents: read`, `issues: write`), pinned
+  actions, no secret, one GET to production. **Prove the email path** with the
+  workflow's manual `test` input: it opens a `[test]` issue, and the next hourly
+  run closes it. The first real storm's issue carries the checklist of what to
+  look at (the `CurrentStorms.json` field names have never been seen live).
 - **Not yet built:** nothing in the hurricane plan. The season ring covers only
   storms in HURDAT2, which lags about six months, so this year's storms are
   absent until it is revised.

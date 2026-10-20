@@ -7473,6 +7473,158 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
     });
 });
 
+describe('STORM WATCH - an hourly check that emails when NHC lists a storm (October 20, 2026)', () => {
+    /*
+     * scripts/check-storms.mjs reads production's /weather/api/storms hourly and
+     * acts on activeCount: opens an issue and fails the run when it goes above
+     * zero (both are mailed), stays quiet while it stays up, closes the issue when
+     * it falls back, and fails loudly when the site cannot say. These run the real
+     * script with fetch stubbed and `gh` replaced by a script that logs its arguments.
+     */
+    const fs = require('fs');
+    const os = require('os');
+    const { spawnSync } = require('child_process');
+    const script = path.join(__dirname, 'scripts', 'check-storms.mjs');
+    const wf = fs.readFileSync(path.join(__dirname, '.github', 'workflows', 'storms-watch.yml'), 'utf8');
+    const src = fs.readFileSync(script, 'utf8');
+    const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const pure = (body) => {
+        const code = `import(${JSON.stringify(script)}).then(async (W) => { ${body} })`;
+        const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        return JSON.parse(r.stdout.trim().split('\n').pop());
+    };
+    /** Run the CLI once: `env` sets what the stubbed site answers and what the fake gh does. Returns exit code, output and gh's log. */
+    const cli = (env) => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storm-watch-'));
+        const log = path.join(dir, 'gh.log');
+        fs.writeFileSync(path.join(dir, 'gh'), `#!/bin/bash
+echo "GH $*" >> "$GH_LOG"
+case "$1 $2" in
+  "issue list") echo "$GH_OPEN"; exit \${GH_LIST_EXIT:-0};;
+  "issue create") prev=""; for a in "$@"; do if [ "$prev" = "--body-file" ]; then echo "BODY-BEGIN" >> "$GH_LOG"; cat "$a" >> "$GH_LOG"; echo "BODY-END" >> "$GH_LOG"; fi; prev="$a"; done; exit \${GH_CREATE_EXIT:-0};;
+esac
+exit 0
+`, { mode: 0o755 });
+        const stub = path.join(dir, 'stub.mjs');
+        fs.writeFileSync(stub, `globalThis.fetch = async () => { if (process.env.FAKE_THROW) throw new Error('network down'); return { status: Number(process.env.FAKE_STATUS), text: async () => process.env.FAKE_BODY }; };`);
+        const r = spawnSync(process.execPath, ['--import', 'file://' + stub, script], { encoding: 'utf8',
+            env: { ...process.env, PATH: dir + path.delimiter + process.env.PATH, GH_LOG: log, GITHUB_STEP_SUMMARY: '', ...env } });
+        const ghlog = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '';
+        fs.rmSync(dir, { recursive: true, force: true });
+        return { status: r.status, out: r.stdout, err: r.stderr, gh: ghlog };
+    };
+    const answer = (count, storms = []) => ({ FAKE_STATUS: '200', FAKE_BODY: JSON.stringify({ source: 'NHC', checked: '2026-10-20T20:00:00.000Z', activeCount: count, storms }) });
+    const trudy = { id: 'ep212026', name: 'Trudy', classification: 'TS', windKt: 40, updated: '2026-10-19T21:00:00.000Z', parts: { best: 'ok', forecast: 'ok', models: 'ok', cone: 'ok' } };
+    const writes = (gh) => gh.split('\n').filter((l) => /^GH (issue (create|close)|label create)/.test(l));
+
+    test('Should decide from the count and whether Kyle has already been told, and read the site\'s answer strictly', () => {
+        const out = pure(`const ok = (n, s = []) => W.summarize(200, JSON.stringify({ activeCount: n, storms: s, checked: 'x' }));
+            const d = (sum, open) => W.decide(sum, open).action;
+            console.log(JSON.stringify({ table: [d(ok(0), false), d(ok(0), true), d(ok(1), false), d(ok(1), true), d(ok(3), true), d(ok(2), false)],
+              bad: [W.summarize(502, '{}'), W.summarize(200, 'nope'), W.summarize(200, '{}'), W.summarize(200, JSON.stringify({ activeCount: '1', storms: [] })), W.summarize(200, JSON.stringify({ activeCount: 1, storms: 'x' })), W.summarize(200, 'null')],
+              failAction: [W.decide(W.summarize(502, ''), false).action, W.decide(W.summarize(502, ''), true).action], url: W.STORMS_URL, label: W.LABEL }));`);
+        assert.deepStrictEqual(out.table, ['none', 'close', 'open', 'none', 'none', 'open'], 'open at the transition, quiet while it stays, close when it falls');
+        for (const b of out.bad) assert.strictEqual(b.ok, false, JSON.stringify(b));
+        assert.deepStrictEqual(out.failAction, ['fail', 'fail'], 'could not check is a failure whether or not an issue is open');
+        assert.strictEqual(out.url, 'https://branyontech.com/weather/api/storms');
+        assert.strictEqual(out.label, 'storm-watch');
+    });
+
+    test('Should word the issue so it can be acted on, name the storm, point at NHC, and not claim to be official', () => {
+        const out = pure(`const sum = W.summarize(200, JSON.stringify({ activeCount: 2, checked: '2026-10-20T20:00:00.000Z', storms: [${JSON.stringify(trudy)}, { id: 'al092026', name: '', classification: 'HU', windKt: 85.4 }] }));
+            const i = W.issueFor(sum), t = W.issueFor(sum, true);
+            console.log(JSON.stringify({ i, t, one: W.issueFor(W.summarize(200, JSON.stringify({ activeCount: 1, storms: [] }))).title, long: W.issueFor({ ok: true, count: 5, checked: null, storms: Array.from({ length: 5 }, () => ({ id: 'x', name: 'N'.repeat(40) })) }).title.length }));`);
+        assert.strictEqual(out.i.title, 'NHC lists 2 live storms: Trudy (TS 40 kt), al092026 (HU 85 kt)');
+        for (const text of ['Trudy', 'ep212026', 'https://branyontech.com/weather/#radar', 'https://www.nhc.noaa.gov/', 'Not an official source', '## What to look at on the first live storm',
+            'field names the route reads', 'EMXI has never been seen', 'closes itself when NHC lists no storm']) assert.ok(out.i.text.includes(text), 'the issue says: ' + text);
+        assert.ok(/parts: best ok, forecast ok, models ok, cone ok/i.test(out.i.text), 'with the storm\'s parts, so a failed one is seen at once');
+        assert.ok(out.t.title.startsWith('[test] ') && out.t.text.startsWith('**This is a test**'), 'a test says so');
+        assert.ok(!out.i.title.startsWith('[test]'));
+        assert.strictEqual(out.one, 'NHC lists 1 live storm', 'singular, and fine with no storm detail');
+        assert.ok(out.long <= 120, 'a title GitHub will take');
+        assert.ok(!/\b(safe|no threat|will hit|expected to)\b/i.test(out.i.text), 'no verdict');
+    });
+
+    test('Should open an issue and fail the run when the first storm is listed, once', () => {
+        const a = cli({ ...answer(1, [trudy]), GH_OPEN: '' });
+        assert.strictEqual(a.status, 1, 'a failed scheduled run is mailed: ' + a.err);
+        assert.ok(/^storm-watch: open /.test(a.out), a.out);
+        const w = writes(a.gh);
+        assert.strictEqual(w.length, 2, w.join(' | '));
+        assert.ok(/^GH label create storm-watch /.test(w[0]));
+        assert.ok(/^GH issue create --title NHC lists 1 live storm: Trudy \(TS 40 kt\) --body-file \S+ --label storm-watch$/.test(w[1]), w[1]);
+        assert.ok(/BODY-BEGIN[\s\S]*Trudy[\s\S]*Not an official source[\s\S]*What to look at[\s\S]*BODY-END/.test(a.gh), 'the body file reached gh');
+        const b = cli({ ...answer(1, [trudy]), GH_OPEN: '7' });
+        assert.strictEqual(b.status, 0, 'a storm already reported is not reported again');
+        assert.deepStrictEqual(writes(b.gh), [], 'no issue, no label, no email an hour for a week');
+        assert.ok(/^storm-watch: none \(1 live, already reported\)/.test(b.out), b.out);
+    });
+
+    test('Should close the issue quietly when NHC lists none, and do nothing when there never was one', () => {
+        const a = cli({ ...answer(0), GH_OPEN: '7' });
+        assert.strictEqual(a.status, 0);
+        assert.deepStrictEqual(writes(a.gh), [expect(a.gh)], 'closes issue 7');
+        assert.ok(/GH issue close 7 --comment NHC lists no active storm now/.test(a.gh));
+        const b = cli({ ...answer(0), GH_OPEN: '' });
+        assert.strictEqual(b.status, 0);
+        assert.deepStrictEqual(writes(b.gh), []);
+        assert.ok(/^storm-watch: none \(no active storms\)/.test(b.out));
+        function expect(g) { return g.split('\n').find((l) => /^GH issue close/.test(l)); }
+    });
+
+    test('Should fail loudly, and never read as no storms, when the site cannot say', () => {
+        const cases = {
+            '502': { FAKE_STATUS: '502', FAKE_BODY: '{"error":"CurrentStorms.json ..."}' },
+            'not JSON': { FAKE_STATUS: '200', FAKE_BODY: '<html>' },
+            'no count': { FAKE_STATUS: '200', FAKE_BODY: '{"storms":[]}' },
+            'network down': { FAKE_THROW: '1', FAKE_STATUS: '0', FAKE_BODY: '' },
+        };
+        for (const [name, env] of Object.entries(cases)) {
+            const r = cli({ ...env, GH_OPEN: '7' });
+            assert.strictEqual(r.status, 1, name + ': ' + r.out + r.err);
+            assert.ok(/could not check NHC through the site/.test(r.err), name + ': ' + r.err);
+            assert.ok(!/no active storms/.test(r.out + r.err), name + ': could not check is not "no storms"');
+            assert.deepStrictEqual(writes(r.gh), [], name + ': and it must not close an open alert on a failed check');
+        }
+    });
+
+    test('Should still fail the run when the issue cannot be opened, and not be silenced when gh cannot say what is open', () => {
+        const a = cli({ ...answer(1, [trudy]), GH_OPEN: '', GH_CREATE_EXIT: '1' });
+        assert.strictEqual(a.status, 1, 'the failed run still reaches Kyle');
+        assert.ok(/could not open the issue/.test(a.err), a.err);
+        const b = cli({ ...answer(1, [trudy]), GH_OPEN: '7', GH_LIST_EXIT: '1' });
+        assert.strictEqual(b.status, 1, 'if gh cannot list issues it assumes none is open: better a second alert than none');
+        assert.ok(/^storm-watch: open/.test(b.out), b.out);
+    });
+
+    test('Should prove the email path on demand with a [test] storm that needs no live feed, and close it on the next run', () => {
+        const a = cli({ STORM_WATCH_TEST: 'true', FAKE_THROW: '1', FAKE_STATUS: '0', FAKE_BODY: '', GH_OPEN: '' });
+        assert.strictEqual(a.status, 1);
+        assert.ok(/GH issue create --title \[test\] NHC lists 1 live storm: TEST/.test(a.gh), a.gh);
+        assert.ok(/This is a test/.test(a.gh));
+        const next = cli({ ...answer(0), GH_OPEN: '9' });
+        assert.ok(/GH issue close 9/.test(next.gh), 'the next ordinary run closes the test issue');
+    });
+
+    test('Should run hourly with the least permission, pinned actions and no secret, and only ever read production', () => {
+        assert.ok(/^\s+- cron: '\d+ \* \* \* \*'/m.test(wf), 'hourly');
+        assert.ok(/workflow_dispatch:\s*\n\s+inputs:\s*\n\s+test:[\s\S]*?type: boolean[\s\S]*?default: false/.test(wf), 'a manual test input, off by default');
+        const perms = wf.match(/^permissions:\n((?:  .+\n)+)/m)[1].trim().split('\n').map((l) => l.trim()).sort();
+        assert.deepStrictEqual(perms, ['contents: read', 'issues: write'], 'it can read the repo and write issues, nothing else');
+        assert.ok(/concurrency:\s*\n\s+group: storm-watch\s*\n\s+cancel-in-progress: false/.test(wf));
+        assert.ok(/timeout-minutes: \d+/.test(wf));
+        for (const m of wf.matchAll(/uses: (\S+)/g)) assert.ok(/@[0-9a-f]{40}$/.test(m[1]), 'pinned to a commit: ' + m[1]);
+        assert.ok(/run: node scripts\/check-storms\.mjs/.test(wf));
+        assert.ok(/GH_TOKEN: \$\{\{ github\.token \}\}/.test(wf) && /STORM_WATCH_TEST: \$\{\{ inputs\.test \}\}/.test(wf));
+        assert.ok(!/secrets\./.test(wf) && !/id-token/.test(wf) && !/aws/i.test(strip(wf.replace(/#.*$/gm, ''))), 'no secret, no AWS');
+        const code = strip(src);
+        assert.ok(/fetch\(STORMS_URL, \{ signal: AbortSignal\.timeout\(25000\) \}\)/.test(code), 'one plain GET with a deadline');
+        assert.ok(!/method:|\bPOST\b|\bPUT\b|\bDELETE\b|body:/.test(code), 'it never writes to production');
+        assert.strictEqual((code.match(/fetch\(/g) || []).length, 1);
+    });
+});
+
 describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () => {
     /*
      * October 3, 2026. Every entry in countdown/stats.json has an ISO date;
