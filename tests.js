@@ -6792,6 +6792,139 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
         assert.ok(/\.st-alarm/.test(css) && /\.st-honest/.test(css));
     });
 
+    test('Should read the radius of maximum wind when a row has one, and not when it says -999', () => {
+        const out = run(`const row = (t, rmw) => '20240101, ' + t + ',  , HU, 20.0N,  60.0W,  80, 980,   50,   40,   30,   40,   25,   20,   15,   20,   10,    8,    6,    8, ' + rmw;
+            const text = 'AL012024,             TEST,      2,\\n' + row('0000', '  20') + '\\n' + row('0600', '-999') + '\\n';
+            const f = H.parseHurdat2(text).storms[0].fixes;
+            console.log(JSON.stringify({ rmw: f.map((x) => x.rmw), r: f[0].radii }));`);
+        assert.deepStrictEqual(out.rmw, [20, null], 'a 21st field is the radius of maximum wind; -999 is missing');
+        assert.deepStrictEqual(out.r, [50, 40, 30, 40, 25, 20, 15, 20, 10, 8, 6, 8]);
+    });
+
+    test('Should keep "measured none" and "not measured" apart in the radii file, and give back NHC\'s numbers', () => {
+        const out = run(`const storms = [...H.parseHurdat2(alTxt).storms];
+            const rad = P.decodeRadii(JSON.parse(JSON.stringify(P.encodeRadii(storms))));
+            const dec = P.decodeArchive(JSON.parse(JSON.stringify(P.encodeArchive(storms))));
+            const k = storms.find((x) => x.id === 'AL122005'), kd = dec.find((x) => x.id === 'AL122005');
+            const at = (id, i) => { const m = rad.get(id); return m && m.get(i); };
+            const peak = kd.t.findIndex((t) => new Date(t).toISOString().startsWith('2005-08-28T18'));
+            // every fix: what the parser read vs what comes back
+            let bad = 0, measured = 0, none = 0, absent = 0;
+            storms.forEach((s) => s.fixes.forEach((f, i) => {
+              const e = at(s.id, i);
+              if (!f.radii) { absent++; if (e) bad++; return; }
+              if (!e) { bad++; return; }
+              const all0 = !f.radii.some((r) => r != null && r > 0);
+              if (all0) { none++; if (e.r[34].some((v) => v !== 0)) bad++; return; }
+              measured++;
+              const want = { 34: f.radii.slice(0, 4), 50: f.radii.slice(4, 8), 64: f.radii.slice(8, 12) };
+              if (JSON.stringify(e.r) !== JSON.stringify(want)) bad++;
+            }));
+            console.log(JSON.stringify({ bad, measured, none, absent, peak: at('AL122005', peak), land: k.fixes.map((f, i) => (f.rec === 'L' ? [i, !!at('AL122005', i), f.radii] : null)).filter(Boolean),
+              y1851: rad.has('AL011851'), storms: [...rad.keys()].sort() }));`);
+        assert.strictEqual(out.bad, 0, 'every fix comes back as the parser read it');
+        assert.ok(out.measured > 20 && out.none > 10 && out.absent > 10, JSON.stringify([out.measured, out.none, out.absent]));
+        assert.deepStrictEqual(out.peak.r, { 34: [200, 180, 125, 180], 50: [120, 120, 75, 120], 64: [90, 90, 50, 90] }, 'Katrina at peak, as HURDAT2 has it');
+        assert.ok(out.land.length >= 2 && out.land.every(([, has, r]) => !has && r === null), 'Katrina\'s landfall records were not measured: absent, never zero');
+        assert.strictEqual(out.y1851, false, 'an 1851 storm has no radii at all');
+        assert.deepStrictEqual(out.storms, ['AL041992', 'AL042004', 'AL122005'].filter((id) => id !== 'AL041992' || out.storms.includes(id)).sort(), 'only storms with measured radii');
+    });
+
+    test('Should build the radii files with the archive, listed in the index and inside the size budget', () => {
+        const dir = path.join(os.tmpdir(), `storms-radii-${process.pid}`);
+        const r = spawnSync(process.execPath, [path.join(__dirname, 'scripts', 'fetch-storms.mjs'), dir, '--from-file', AL, EP, '--plain', '--fixture'], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+        assert.deepStrictEqual(Object.keys(index.files).sort(), ['al', 'alr', 'ep', 'epr']);
+        for (const k of ['alr', 'epr']) {
+            assert.ok(/^(al|ep)-radii\.[0-9a-f]{8}\.json$/.test(index.files[k]), index.files[k]);
+            const body = JSON.parse(fs.readFileSync(path.join(dir, index.files[k]), 'utf8'));
+            assert.strictEqual(body.v, 1);
+            assert.ok(Object.keys(body.radii).length >= 1, k + ' has storms with radii');
+        }
+        assert.ok(/radii/.test(r.stdout), 'the build says it wrote them');
+        assert.ok(/MAX_GZ_BYTES/.test(fs.readFileSync(path.join(__dirname, 'scripts', 'fetch-storms.mjs'), 'utf8')) && /gzTotal \+= gzipSync\(rBody/.test(fs.readFileSync(path.join(__dirname, 'scripts', 'fetch-storms.mjs'), 'utf8')), 'the radii count against the size cap');
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('Should interpolate wind radii between measured fixes, skipping a landfall record that has none', () => {
+        const out = run(`const HR = 3600000, T0 = Date.UTC(2005, 7, 29, 12);
+            const mk = (year, times) => ({ id: 'AL122005', name: 'T', basin: 'AL', year, n: times.length, t: Float64Array.from(times.map((h) => T0 + h * HR)), lat: new Float32Array(times.length).fill(28), lon: new Float32Array(times.length).fill(-90), wind: new Int16Array(times.length).fill(100), status: 'H'.repeat(times.length), land: [] });
+            const r = (n) => ({ rmw: null, r: { 34: [n, n, n, n], 50: [n / 2, n / 2, n / 2, n / 2], 64: [0, 0, 0, 0] } });
+            const zero = { rmw: null, r: { 34: [0, 0, 0, 0], 50: [0, 0, 0, 0], 64: [0, 0, 0, 0] } };
+            const katrina = mk(2005, [0, 2.75, 6]);                                 // 12:00, a 14:45 landfall record, 18:00
+            const by = new Map([[0, r(200)], [2, r(100)]]);                        // the landfall record (index 1) was not measured
+            const at = (st, m, h) => S.radiiAt(st, m, T0 + h * HR);
+            const g = (x) => x.known ? (x.r ? x.r[34][0] : 0) : 'unknown';
+            const one = mk(2005, [0, 6, 12]);
+            console.log(JSON.stringify({ mid: g(at(katrina, by, 2)), exact: g(at(katrina, by, 0)), skipsLand: g(at(katrina, by, 2.75)),
+              oneSideNear: g(at(one, new Map([[0, r(80)]]), 2)), oneSideFar: g(at(one, new Map([[0, r(80)]]), 4)),
+              none: at(one, new Map([[0, zero], [1, zero], [2, zero]]), 3), before2004: at(mk(1999, [0, 6]), by, 1), outside: [at(katrina, by, -1), at(katrina, by, 7)],
+              notLoaded: at(katrina, null, 3), bothSides34: at(katrina, by, 2).r[34].map((v) => Math.round(v)), mid50: at(katrina, by, 2).r[50].map((v) => Math.round(v)) }));`);
+        assert.ok(Math.abs(out.mid - 166.7) < 0.1, '14:00 is a third of the way from 12:00 (200) to 18:00 (100), the 14:45 record skipped, not read as 0: ' + out.mid);
+        assert.strictEqual(out.exact, 200);
+        assert.ok(out.skipsLand > 100, 'at the landfall record\'s own time the field is interpolated, not 0: ' + out.skipsLand);
+        assert.strictEqual(out.oneSideNear, 80, 'with one measured side, used within three hours');
+        assert.strictEqual(out.oneSideFar, 'unknown', 'and not beyond');
+        assert.deepStrictEqual(out.none, { known: true, r: null }, 'measured and none is known, with no wind field');
+        assert.deepStrictEqual(out.before2004, { known: false, r: null }, 'NHC did not measure radii before 2004');
+        assert.deepStrictEqual(out.outside, [{ known: false, r: null }, { known: false, r: null }]);
+        assert.deepStrictEqual(out.notLoaded, { known: false, r: null }, 'radii not loaded yet: unknown');
+        assert.deepStrictEqual(out.bothSides34, [167, 167, 167, 167]);
+        assert.deepStrictEqual(out.mid50, [83, 83, 83, 83]);
+    });
+
+    test('Should draw a threshold as four quarter circles in the right quadrants, at the right distance, with no wrapping', () => {
+        const out = run(`const ring = S.radiiRing(30, -90, [100, 0, 0, 0]);
+            const dist = (p) => S.gcKm(30, -90, p[0], p[1]) / 1.852;
+            const cos = Math.cos(30 * Math.PI / 180);
+            const all = S.radiiRing(30, -90, [100, 50, 80, 60]);
+            const seam = S.radiiRing(10, 179.5, [100, 100, 100, 100]);
+            console.log(JSON.stringify({ n: ring.length, north: ring[0], east: ring[15], d: [dist(ring[0]), dist(ring[7]), dist(ring[15])], nePoint: ring[7],
+              swPoint: S.radiiRing(30, -90, [0, 0, 100, 0])[39], empty: S.radiiRing(30, -90, [0, 0, 0, 0]), none: S.radiiRing(30, -90, null),
+              step: all.length, seamMax: Math.max(...seam.map((p) => p[1])), seamMin: Math.min(...seam.map((p) => p[1])), cos }));`);
+        assert.strictEqual(out.n, 64, 'four quarter circles of 16 points');
+        assert.ok(Math.abs(out.north[0] - (30 + 100 / 60)) < 1e-6 && Math.abs(out.north[1] + 90) < 1e-6, 'bearing 0 is due north by the radius');
+        assert.ok(Math.abs(out.east[0] - 30) < 0.05 && out.east[1] > -90, 'the NE quadrant ends due east');
+        assert.ok(out.d.every((d) => Math.abs(d - 100) < 1.5), 'every NE point is 100 nautical miles out: ' + out.d.join(', '));
+        assert.ok(out.nePoint[0] > 30 && out.nePoint[1] > -90, 'the middle of the NE quadrant is north and east');
+        assert.ok(out.swPoint[0] < 30 && out.swPoint[1] < -90, 'the SW quadrant is south and west');
+        assert.deepStrictEqual(out.empty, []);
+        assert.deepStrictEqual(out.none, []);
+        assert.ok(out.seamMax > 180, 'longitude continues past 180 instead of wrapping: ' + out.seamMax);
+    });
+
+    test('Should read wind radii in whatever shape they arrive, and give null when nothing is above zero', () => {
+        const out = run(`console.log(JSON.stringify([S.normRadii({ 34: [10, 20, 30, 40] }), S.normRadii({ '34': [0, 0, 0, 0], '50': [0, 0, 0, 0] }), S.normRadii(null), S.normRadii('x'),
+          S.normRadii({ 34: [10, -5, NaN, 'a'] }), S.normRadii({ 34: [1, 2, 3] }), S.radiiText({ 34: [10, 20, 30, 40], 64: [5, 0, 0, 0] }), S.radiiText(null)]));`);
+        assert.deepStrictEqual(out[0], { 34: [10, 20, 30, 40], 50: [0, 0, 0, 0], 64: [0, 0, 0, 0] });
+        assert.strictEqual(out[1], null);
+        assert.strictEqual(out[2], null); assert.strictEqual(out[3], null);
+        assert.deepStrictEqual(out[4][34], [10, 0, 0, 0], 'a negative or non-number quadrant is zero');
+        assert.strictEqual(out[5], null, 'three quadrants is not a wind field');
+        assert.deepStrictEqual(out[6], ['34 kt: NE 10, SE 20, SW 30, NW 40 nm', '64 kt: NE 5, SE 0, SW 0, NW 0 nm']);
+        assert.deepStrictEqual(out[7], []);
+    });
+
+    test('Should draw the wind field for a replay and a live storm, load the radii only when they can exist, and say why it draws none', () => {
+        const ui = strip(read('weather', 'js', 'views', 'storms.js'));
+        assert.ok(/function drawWind\(/.test(ui));
+        assert.ok(/if \(wr\.r\) drawWind\(ctx, m, p\.lat, p\.lon, wr\.r\)/.test(ui), 'the replayed storm\'s field is drawn at its centre');
+        assert.ok(/if \(lastFix\) drawWind\(ctx, m, st\._lat, st\._lon, lastFix\.r, \{ a: dim \}\)/.test(ui), 'a live storm\'s measured field is drawn at its centre, whenever it has a latest fix');
+        assert.ok(/drawWind\(ctx, m, p\.lat, p\.lon, p\.r, \{ a: dim, outline: true \}\)/.test(ui), 'with NHC\'s forecast 34 kt edge later on');
+        assert.ok(/if \(s\.year < S\.RADII_FROM_YEAR\) return;\s*\n\s*const key = radiiKey\(s\)/.test(ui), 'no fetch for a storm from before 2004');
+        assert.ok(/index\.files\[key\.toLowerCase\(\) \+ 'r'\]/.test(ui), 'the file named by the index, not a guessed path');
+        assert.ok(/'absent'/.test(ui) && /Wind radii are not available/.test(ui), 'a missing radii file says so');
+        for (const text of ['Wind radii were not measured before', 'NHC did not measure wind radii at this time', 'No winds of tropical-storm force at this time',
+            'Quarter circles, as measured', 'No winds of tropical-storm force reported at the latest position']) assert.ok(ui.includes(text), text);
+        assert.ok(!/\bmodel(l)?ed\b|parametric|Holland|simulated/i.test(ui.replace(/Nothing is modelled/g, '')), 'nothing is modelled: measured radii only');
+        assert.ok(/RADII_FROM_YEAR = 2004/.test(strip(read('weather', 'js', 'lib', 'storms.js'))));
+        const dist = path.join(__dirname, 'weather', 'dist');
+        const chunk = fs.readdirSync(dist).find((f) => /^storms\./.test(f));
+        assert.ok(/radiiRing|quarter/i.test(read('weather', 'dist', chunk)) || /drawWind|radii/i.test(read('weather', 'dist', chunk)), 'the wind field is in the atlas chunk');
+        for (const f of fs.readdirSync(dist).filter((x) => x.endsWith('.js') && x !== chunk)) assert.ok(!/radiiRing|decodeRadii/.test(read('weather', 'dist', f)), f + ' carries none of it');
+    });
+
     test('Should keep the pure libs pure, and the archive off the deploy', () => {
         for (const f of ['storms.js', 'stormpack.js']) {
             const src = strip(read('weather', 'js', 'lib', f));

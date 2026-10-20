@@ -1441,11 +1441,31 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   shifted to now (a `node --import` preload that wraps `fetch` for the NHC
   hosts; the route is unchanged) and run the dev server on it. Verified that
   way on 2026-10-20: fresh, 14 h old, NHC down, empty, no cone.
-- **Not yet built (phases 3-4):** model spaghetti (the parser reads any a-deck
-  technique; the route asks for OFCL only), the wind swirl from measured radii
-  (HURDAT2 has them from 2004; the archive build does not store them yet), and
-  analog storms. The season ring covers only storms in HURDAT2, which lags
-  about six months, so this year's storms are absent until it is revised.
+- **Wind radii are the wind field (phase 3).** NHC measures, per fix, how far
+  34, 50 and 64 kt winds reach in each quadrant (NE SE SW NW, nm); HURDAT2 has
+  them from 2004 (and the radius of maximum wind from 2021). The archive build
+  stores them in **separate lazy files per basin** (`al-radii.<hash>.json`,
+  `ep-radii.<hash>.json`, listed in the index as `alr` and `epr`; ~90 KB gz
+  together, inside the same 600 KB cap), fetched only when a storm from 2004 or
+  later is replayed. **Three states, kept apart on purpose:** a full row is
+  measured; a bare `[fix]` is measured and none; a fix with no row was not
+  measured (HURDAT2's -999). The first version read "not measured" as zero and
+  Katrina's wind field shrank to almost nothing at landfall, because its two
+  landfall records (off-synoptic times, `L`) have no radii. `radiiAt()` skips
+  unmeasured fixes and interpolates by time between the nearest measured ones
+  (one side only: within 3 h), and returns `{ known, r }` so the panel can say
+  "not measured at this time" apart from "no winds of tropical-storm force".
+  **It draws what NHC measured and nothing else:** four quarter circles per
+  threshold (the outline steps at quadrant edges, as NHC draws it), a replay's
+  field at its eye, a live storm's at its latest best-track fix with NHC's
+  forecast 34 kt edge dashed at +24 h and later, and the numbers in words in
+  the panel. Before 2004 it draws none and says so. **Not built (needs a
+  decision):** an animated swirl, which would need a wind speed between the
+  radii that the data does not give; any modelled profile would be invented.
+- **Not yet built (phase 4):** model spaghetti (the parser reads any a-deck
+  technique; the route asks for OFCL only) and analog storms. The season ring
+  covers only storms in HURDAT2, which lags about six months, so this year's
+  storms are absent until it is revised.
 
 ### How the console ships: one hashed bundle (October 13, 2026)
 

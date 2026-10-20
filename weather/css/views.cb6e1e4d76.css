@@ -467,6 +467,10 @@
 .st-live-row .st-age { grid-column: 1 / -1; font-size: max(.56rem, var(--fs-floor, 0px)); letter-spacing: .08em; color: var(--dim); }
 .st-live-row .st-age.bad { color: var(--rd); font-weight: 600; }
 .st-you { margin-top: 6px; }
+.st-legend { display: flex; gap: 12px; margin: 6px 0 2px; }
+.st-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: max(.56rem, var(--fs-floor, 0px)); letter-spacing: .1em; color: var(--dim); }
+.st-legend i { width: 14px; height: 7px; display: inline-block; border-radius: 1px; }
+.st-wind[hidden] { display: none; }
 .st-youhead { font-family: var(--mono); font-size: max(.74rem, var(--fs-floor, 0px)); color: var(--ink); line-height: 1.4; margin-top: 4px; }
 .st-transport { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .st-transport input[type=range] { flex: 1; min-width: 0; accent-color: var(--cy); }

@@ -318,3 +318,99 @@ export function youText(card, fmt) {
     note: 'The cone shows where the centre is expected to stay about two-thirds of the time. It is not the size of the storm or its impacts.',
   };
 }
+
+/* ============================================================ WIND RADII
+ *
+ * NHC measures, for each storm and time, how far winds of 34, 50 and 64 knots
+ * reach in each quadrant (NE SE SW NW, nautical miles). That is the wind
+ * field here: a quarter circle per quadrant at each threshold, exactly what
+ * the numbers say and no smoother. Nothing is modelled. HURDAT2 only has
+ * them from 2004, so an older storm has no wind field at all and says so
+ * rather than being given an invented one.
+ */
+
+export const THRESHOLDS = [34, 50, 64];
+export const RADII_FROM_YEAR = 2004;
+const NM_PER_DEG = 60;
+const QUAD0 = [0, 0, 0, 0];
+
+/** Radii in any of the shapes they arrive in -> { 34: [4], 50: [4], 64: [4] } or null when none is above zero. */
+export function normRadii(r) {
+  if (!r || typeof r !== 'object') return null;
+  const out = {};
+  let any = false;
+  for (const k of THRESHOLDS) {
+    const q = r[k] || r[String(k)];
+    out[k] = Array.isArray(q) && q.length === 4 ? q.map((v) => (Number.isFinite(v) && v > 0 ? v : 0)) : QUAD0;
+    if (out[k].some((v) => v > 0)) any = true;
+  }
+  return any ? out : null;
+}
+
+/**
+ * The wind radii of a replayed storm at time t, from its decoded radii
+ * (stormpack's decodeRadii: Map of fix index to { r }). Returns
+ * { known, r }: known false when NHC did not measure them (before 2004, or
+ * the fixes either side have no radii); known true with r null when they were
+ * measured and there is no wind that strong; otherwise r is
+ * { 34: [NE SE SW NW], 50: [...], 64: [...] }.
+ *
+ * Fixes that were not measured are skipped, not read as zero: the landfall
+ * records HURDAT2 puts between the six-hourly fixes often have no radii, and
+ * counting them as zero shrank Katrina's field to nothing during landfall.
+ * Between the nearest measured fix on each side each quadrant is interpolated
+ * by time; with only one side measured it is used within three hours of it.
+ */
+export function radiiAt(storm, byFix, t) {
+  const unknown = { known: false, r: null };
+  if (!storm || !byFix || storm.year < RADII_FROM_YEAR) return unknown;
+  const n = storm.n;
+  if (t < storm.t[0] || t > storm.t[n - 1]) return unknown;
+  let hi = 0;
+  while (hi < n - 1 && storm.t[hi] < t) hi++;
+  // before: the nearest measured fix at or before t; after: at or after t
+  let before = storm.t[hi] === t || hi === 0 ? hi : hi - 1, after = hi;
+  while (before >= 0 && !byFix.has(before)) before--;
+  while (after < n && !byFix.has(after)) after++;
+  const a = before >= 0 ? normRadii(byFix.get(before).r) || { 34: QUAD0, 50: QUAD0, 64: QUAD0 } : null;
+  const b = after < n ? normRadii(byFix.get(after).r) || { 34: QUAD0, 50: QUAD0, 64: QUAD0 } : null;
+  const ta = before >= 0 ? storm.t[before] : null, tb = after < n ? storm.t[after] : null;
+  let out;
+  if (a && b) {
+    const u = tb === ta ? 0 : (t - ta) / (tb - ta);
+    out = {};
+    for (const k of THRESHOLDS) out[k] = a[k].map((v, q) => v + u * (b[k][q] - v));
+  } else if (a && t - ta <= 3 * 3600000) out = a;
+  else if (b && tb - t <= 3 * 3600000) out = b;
+  else return unknown;
+  return { known: true, r: normRadii(out) };
+}
+
+/**
+ * The outline of one threshold as [lat, lon] points around a centre: four
+ * quarter circles, NE (bearing 0-90) clockwise to NW, each at its own radius,
+ * so where two quadrants differ the outline steps along the radial line, as
+ * NHC draws it. Longitudes continue from the centre's (nothing is wrapped).
+ * Empty when every quadrant is zero.
+ */
+export function radiiRing(lat, lon, quad, stepDeg = 6) {
+  if (!quad || !quad.some((v) => v > 0)) return [];
+  const cos = Math.max(0.05, Math.cos(lat * RAD));
+  const ring = [];
+  for (let q = 0; q < 4; q++) {
+    const r = quad[q] > 0 ? quad[q] : 0;
+    for (let d = q * 90; d <= (q + 1) * 90; d += stepDeg) {
+      const th = d * RAD;
+      ring.push([lat + (r * Math.cos(th)) / NM_PER_DEG, lon + (r * Math.sin(th)) / (NM_PER_DEG * cos)]);
+    }
+  }
+  return ring;
+}
+
+/** "34 kt: NE 120 SE 60 SW 60 NW 100 nm" for each threshold that has a wind. */
+export function radiiText(r) {
+  const n = normRadii(r);
+  if (!n) return [];
+  return THRESHOLDS.filter((k) => n[k].some((v) => v > 0))
+    .map((k) => `${k} kt: NE ${Math.round(n[k][0])}, SE ${Math.round(n[k][1])}, SW ${Math.round(n[k][2])}, NW ${Math.round(n[k][3])} nm`);
+}

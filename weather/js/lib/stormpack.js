@@ -103,3 +103,63 @@ export function decodeArchive(archive) {
   }
   return out;
 }
+
+/*
+ * WIND RADII — a second, lazy file per basin (stormradii).
+ *
+ * HURDAT2 carries the 34, 50 and 64 knot wind radii for each fix from 2004 on
+ * (nautical miles, per quadrant NE SE SW NW, 0 = no wind that strong), and
+ * the radius of maximum wind from 2021. Most of the archive has neither, so
+ * they are not in the track file: the console fetches this one only when it is
+ * asked to draw the wind of a storm from 2004 or later.
+ *
+ *   { v: 1, basin, radii: { AL122005: [[fix, rmw, r34 x4, r50 x4, r64 x4], [fix], ...] } }
+ *
+ * `fix` indexes the storm's fixes in the track file. Three states, because
+ * "none" and "not measured" must never blur: a full row is a measured field; a
+ * bare `[fix]` is measured and NONE (every radius zero); a fix with no row was
+ * not measured (HURDAT2's -999: Katrina's two landfall records have no radii,
+ * and treating them as zero would shrink its wind field to nothing mid-landfall).
+ * -1 inside a row stands for a single quadrant that was not given.
+ */
+
+const NONE = -1;
+
+/** Storms as the parser makes them -> the radii object. */
+export function encodeRadii(storms, meta = {}) {
+  const radii = {};
+  for (const s of storms) {
+    const rows = [];
+    s.fixes.forEach((f, i) => {
+      if (!f.radii) return;                                            // not measured
+      if (!f.radii.some((r) => r != null && r > 0)) { rows.push([i]); return; }   // measured: none
+      rows.push([i, f.rmw == null ? NONE : Math.round(f.rmw), ...f.radii.map((r) => (r == null ? NONE : Math.round(r)))]);
+    });
+    if (rows.length) radii[s.id] = rows;
+  }
+  return { v: 1, ...meta, radii };
+}
+
+/**
+ * The radii object -> Map(storm id -> Map(fix index -> { rmw, r })). r is
+ * { 34: [NE, SE, SW, NW], 50: [...], 64: [...] } in nautical miles, a quadrant
+ * that was not given is null, and a fix measured as "none" has r all zeros. A
+ * fix that was not measured is simply absent from the Map.
+ */
+export function decodeRadii(obj) {
+  const out = new Map();
+  const src = obj && obj.radii && typeof obj.radii === 'object' ? obj.radii : {};
+  for (const [id, rows] of Object.entries(src)) {
+    if (!Array.isArray(rows)) continue;
+    const byFix = new Map();
+    for (const row of rows) {
+      if (!Array.isArray(row) || !row.every(Number.isFinite)) continue;
+      if (row.length === 1) { byFix.set(row[0], { rmw: null, r: { 34: [0, 0, 0, 0], 50: [0, 0, 0, 0], 64: [0, 0, 0, 0] } }); continue; }
+      if (row.length !== 14) continue;
+      const v = row.slice(2).map((x) => (x === NONE ? null : x));
+      byFix.set(row[0], { rmw: row[1] === NONE ? null : row[1], r: { 34: v.slice(0, 4), 50: v.slice(4, 8), 64: v.slice(8, 12) } });
+    }
+    if (byFix.size) out.set(id, byFix);
+  }
+  return out;
+}

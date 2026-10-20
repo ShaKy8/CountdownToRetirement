@@ -28,7 +28,7 @@ import { basename, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { parseHurdat2 } from './lib/hurdat.mjs';
-import { encodeArchive } from '../weather/js/lib/stormpack.js';
+import { encodeArchive, encodeRadii } from '../weather/js/lib/stormpack.js';
 
 const HURDAT = 'https://www.nhc.noaa.gov/data/hurdat/';
 const PUBLISHED_INDEX = 'https://branyontech.com/storms/index.json';
@@ -39,7 +39,7 @@ export const BASINS = {
   al: { prefix: 'AL', name: /^hurdat2-1851-(\d{4})-(\d{6})\.txt$/, minStorms: 1800, minFixes: 50000, first: 1851 },
   ep: { prefix: 'EP', name: /^hurdat2-nepac-1949-(\d{4})-(\d{6})\.txt$/, minStorms: 1100, minFixes: 30000, first: 1949 },
 };
-/** Both files together, gzipped. The real pair was 237 KB when this was written. */
+/** All four files together, gzipped. The two track files were 237 KB when this was written. */
 export const MAX_GZ_BYTES = 600 * 1024;
 
 /**
@@ -138,6 +138,13 @@ async function main(argv) {
     gzTotal += gzipSync(body, { level: 9 }).length;
     const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 8);
     index.files[b] = `${b}.${hash}.json`;
+    // The wind radii (2004 on) are their own file, fetched only when a modern storm's wind is drawn.
+    const rBody = JSON.stringify(encodeRadii(storms, { basin: b, src: names[b] }));
+    const rBytes = plain ? Buffer.from(rBody) : gzipSync(rBody, { level: 9 });
+    gzTotal += gzipSync(rBody, { level: 9 }).length;
+    index.files[`${b}r`] = `${b}-radii.${createHash('sha256').update(rBytes).digest('hex').slice(0, 8)}.json`;
+    out[index.files[`${b}r`]] = rBytes;
+    console.log(`${b} radii: ${rBytes.length} bytes`);
     index.through[b] = Math.max(...storms.map((s) => s.year));
     index.counts[b] = { storms: storms.length, fixes: storms.reduce((a, s) => a + s.fixes.length, 0) };
     out[index.files[b]] = bytes;

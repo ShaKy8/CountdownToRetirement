@@ -10,7 +10,8 @@
  * Header: id, name, number of rows that follow. Row: date, time (HHMM UTC),
  * record id ('L' = landfall, often at an off-synoptic time), status, lat,
  * lon, max wind (kt), min pressure (mb), then the 34/50/64 kt wind radii in
- * NE SE SW NW order (2004 onward). -999 is missing.
+ * NE SE SW NW order (2004 onward), then the radius of maximum wind (2021 on).
+ * -999 is missing.
  *
  * A storm that does not add up (row count, range, time order) is rejected by
  * name and reported, never repaired: a track with a guessed point in it is
@@ -72,6 +73,8 @@ export function parseHurdat2(text) {
         pres: num(f[7]),
         // 34/50/64 kt x NE SE SW NW, nm. null when nothing was measured.
         radii: radii.length === 12 && radii.some((r) => r != null) ? radii : null,
+        // Radius of maximum wind, nm: a 21st field, present from the 2021 revision on.
+        rmw: num(f[20]) > 0 ? num(f[20]) : null,
       });
     }
     if (why) { rejected.push({ id, why }); continue; }

@@ -22,7 +22,7 @@ import { store } from '../state.js';
 import { api } from '../api.js';
 import { alpha, haloText, DIM, FAINT, INK, SERIES } from '../charts.js';
 import { escapeHtml as esc } from '../lib/util.js';
-import { decodeArchive, STATUS_NAME, unwrapLon } from '../lib/stormpack.js';
+import { decodeArchive, decodeRadii, STATUS_NAME, unwrapLon } from '../lib/stormpack.js';
 import * as S from '../lib/storms.js';
 
 const NEAR_MI = 500;
@@ -73,6 +73,8 @@ export function createStorms({ map, panel, hud, root }) {
   let liveStorms = [];                // data.storms, each with unwrapped longitudes ready to draw
   let liveSel = null;                 // id of the live storm the YOU card is about
   let liveTimer = 0;
+  // Wind radii, by basin file ('AL' | 'EP'): 'idle' | 'loading' | Map | 'fail' | 'absent'.
+  const radiiFiles = { AL: 'idle', EP: 'idle' };
 
   const $ = (sel) => panel.querySelector(sel);
   const place = () => store.loc;
@@ -189,6 +191,63 @@ export function createStorms({ map, panel, hud, root }) {
     liveTimer = 0;
   }
 
+  /* --------------------------------------------------------- wind radii */
+
+  const radiiKey = (s) => (s.basin === 'AL' ? 'AL' : 'EP');   // Central Pacific storms are in the East Pacific file
+
+  /** The radii map for a storm's basin once loaded, else null. */
+  function radiiMapFor(s) {
+    const m = radiiFiles[radiiKey(s)];
+    return m instanceof Map ? m.get(s.id) || new Map() : null;
+  }
+
+  /** The measured wind radii of the replayed storm at time t, or null. */
+  function windOf(s, t) {
+    return S.radiiAt(s, radiiMapFor(s), t);          // { known, r }
+  }
+
+  /** Fetch the basin's radii file when a storm that can have radii is chosen. */
+  async function ensureRadii(s) {
+    if (s.year < S.RADII_FROM_YEAR) return;
+    const key = radiiKey(s);
+    if (radiiFiles[key] !== 'idle') return;
+    const name = index && index.files && index.files[key.toLowerCase() + 'r'];
+    if (!name) { radiiFiles[key] = 'absent'; return; }
+    radiiFiles[key] = 'loading';
+    try {
+      radiiFiles[key] = decodeRadii(await getJSON(new URL(name, new URL('/storms/', location.origin))));
+    } catch (e) {
+      radiiFiles[key] = e.absent ? 'absent' : 'fail';
+      if (!e.absent) console.error('[storms] radii', e);
+    }
+    paintWind(); map.invalidate();
+  }
+
+  /** The wind line for the replayed storm: what is measured, or why nothing is drawn. */
+  function windLines() {
+    const s = selected;
+    if (!s) return [];
+    if (s.year < S.RADII_FROM_YEAR) return [`Wind radii were not measured before ${S.RADII_FROM_YEAR}, so no wind field is drawn for ${s.year}.`];
+    const st = radiiFiles[radiiKey(s)];
+    if (st === 'idle' || st === 'loading') return ['Loading wind radii…'];
+    if (st === 'absent' || st === 'fail') return ['Wind radii are not available.'];
+    const w = windOf(s, replay.t);
+    if (!w.known) return ['NHC did not measure wind radii at this time, so no wind field is drawn.'];
+    return w.r ? S.radiiText(w.r) : ['No winds of tropical-storm force at this time.'];
+  }
+
+  function paintWind() {
+    const el = $('#st-wind');
+    if (!el) return;
+    el.hidden = !selected;
+    if (!selected) return;
+    const lines = windLines();
+    const html = `<div class="st-legend" aria-hidden="true">${S.THRESHOLDS.map((k) => `<span><i style="background:${WIND[k]}"></i>${k} KT</span>`).join('')}</div>`
+      + lines.map((l) => `<div class="st-note">${esc(l)}</div>`).join('');
+    // The replay repaints this every frame; rewrite the DOM only when the words change.
+    if (html !== el._html) { el._html = html; el.innerHTML = html; }
+  }
+
   /* ----------------------------------------------------------- drawing */
 
   const colourOf = (w) => (S.category(w) || { color: DIM }).color;
@@ -255,6 +314,36 @@ export function createStorms({ map, panel, hud, root }) {
     }
   }
 
+  /** The colours of the three wind thresholds, outermost first. */
+  const WIND = { 34: '#3fd0d8', 50: '#f2b45a', 64: '#f47171' };
+
+  /**
+   * One storm's measured wind field around a centre: a quarter circle per
+   * quadrant at each of 34, 50 and 64 knots, outermost drawn first so each
+   * threshold sits inside the last. `outline` draws the 34 kt edge alone.
+   */
+  function drawWind(ctx, m, lat, lon, radii, { a = 1, outline = false } = {}) {
+    const r = S.normRadii(radii);
+    if (!r) return;
+    const W = 256 * 2 ** m.zoom;
+    ctx.save();
+    ctx.lineJoin = 'round';
+    for (const k of outline ? [34] : S.THRESHOLDS) {
+      const ring = S.radiiRing(lat, lon, r[k]);
+      if (!ring.length) continue;
+      const pts = ring.map(([la, lo]) => m.project(la, lo));
+      for (const off of [-W, 0, W]) {
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => { if (i) ctx.lineTo(x + off, y); else ctx.moveTo(x + off, y); });
+        ctx.closePath();
+        if (outline) { ctx.setLineDash([4, 4]); ctx.strokeStyle = alpha(WIND[k], 0.55 * a); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]); continue; }
+        ctx.fillStyle = alpha(WIND[k], (k === 34 ? 0.12 : k === 50 ? 0.17 : 0.24) * a); ctx.fill();
+        ctx.strokeStyle = alpha(WIND[k], 0.85 * a); ctx.lineWidth = 1.2; ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   /** The forecast cone, the official forecast track, the best track and the storm's centre. */
   function drawLive(ctx, m, now) {
     const W = 256 * 2 ** m.zoom;
@@ -295,6 +384,10 @@ export function createStorms({ map, panel, hud, root }) {
         }
       }
       ctx.restore();
+      // The measured wind field now, from the latest best-track fix; the 34 kt edge NHC forecasts for later.
+      const lastFix = st.best && st.best.length ? st.best[st.best.length - 1] : null;
+      if (lastFix) drawWind(ctx, m, st._lat, st._lon, lastFix.r, { a: dim });
+      for (const p of st._fc) if (p.tau >= 24 && p.tau % 24 === 0) drawWind(ctx, m, p.lat, p.lon, p.r, { a: dim, outline: true });
       drawTrack(ctx, m, st._track, { a: dim, scale: 1.5 });
       drawEye(ctx, m, st._lat, st._lon, st._track.n ? (st._track.wind[st._track.n - 1] === -99 ? st.windKt : st._track.wind[st._track.n - 1]) : st.windKt, now / 300);
       ctx.save();
@@ -365,6 +458,8 @@ export function createStorms({ map, panel, hud, root }) {
       drawTrack(ctx, m, selected, { a: 0.35, scale: 1.2, dots: true });
       drawTrack(ctx, m, selected, { a: 1, scale: 1.3, cut: replay.t });
       const p = S.positionAt(selected, replay.t);
+      const wr = windOf(selected, replay.t);
+      if (wr.r) drawWind(ctx, m, p.lat, p.lon, wr.r);
       drawEye(ctx, m, p.lat, p.lon, p.wind, now / 300);
     }
   }
@@ -387,6 +482,7 @@ export function createStorms({ map, panel, hud, root }) {
             <input type="range" id="st-scrub" min="0" max="1000" value="0" aria-label="Replay position">
           </div>
           <div id="st-era" class="st-note"></div>
+          <div id="st-wind" class="st-wind" hidden></div>
         </div>
         <div class="st-h">NEAREST TRACKS</div>
         <div id="st-list"></div>
@@ -502,6 +598,17 @@ export function createStorms({ map, panel, hud, root }) {
     el.innerHTML = html;
   }
 
+  /** The measured wind radii at a live storm's centre, in words, as of its latest best-track fix. */
+  function windHtml(st) {
+    const last = st.best && st.best.length ? st.best[st.best.length - 1] : null;
+    const lines = last ? S.radiiText(last.r) : [];
+    return `<div class="st-h">WIND RADII NOW (NHC)</div>`
+      + `<div class="st-legend" aria-hidden="true">${S.THRESHOLDS.map((k) => `<span><i style="background:${WIND[k]}"></i>${k} KT</span>`).join('')}</div>`
+      + (lines.length ? lines.map((l) => `<div class="st-note">${esc(l)}</div>`).join('')
+        : '<div class="st-note">No winds of tropical-storm force reported at the latest position.</div>')
+      + '<div class="st-note">Quarter circles, as measured: how far each wind speed reaches in each quadrant. The dashed outlines are NHC\'s forecast 34 kt reach at +24 h and later.</div>';
+  }
+
   function youHtml(st, now) {
     const here = place();
     const notes = [];
@@ -517,6 +624,7 @@ export function createStorms({ map, panel, hud, root }) {
       ${text ? `<div class="st-youhead">${esc(text.headline)}</div>${text.lines.map((l) => `<div class="st-note">${esc(l)}</div>`).join('')}
         <div class="st-note">${esc(text.cone)}</div><div class="st-note">${esc(text.note)}</div>`
         : '<div class="st-note">No official forecast track to measure against.</div>'}
+      ${windHtml(st)}
       ${notes.map((n) => `<div class="st-note">${esc(n)}</div>`).join('')}
     </div>`;
   }
@@ -590,6 +698,7 @@ export function createStorms({ map, panel, hud, root }) {
     const span = selected.t[selected.n - 1] - selected.t[0];
     $('#st-scrub').value = String(Math.round(((replay.t - selected.t[0]) / span) * 1000));
     $('#st-era').textContent = S.eraNote(selected.year) || '';
+    paintWind();
   }
 
   function paintSweep() {
@@ -673,6 +782,7 @@ export function createStorms({ map, panel, hud, root }) {
     selected = s;
     sweep.on = false; paintSweep();
     replay = { t: s.t[0], playing: !reduceMotion };
+    ensureRadii(s);
     fit(s);
     render(); paintTransport(); frame(); kick();
   }
