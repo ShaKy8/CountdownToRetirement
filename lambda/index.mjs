@@ -10,6 +10,8 @@
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { parseBtk, parseADeck, STORM_ID, stormNumber } from './atcf.mjs';
 
 /*
  * Lambda gives each execution environment a writable /tmp that survives warm
@@ -381,6 +383,152 @@ const SHORT_EDGE = 'public, s-maxage=30';
 const brief = new WeakSet();
 const shortLived = (body) => { brief.add(body); return body; };
 
+/* ============================================================== STORMS
+ *
+ * Live tropical cyclones, from NHC. The browser cannot ask NHC itself
+ * (connect-src 'self'), and four feeds have to be read and combined:
+ *
+ *   CurrentStorms.json   which storms are active right now (often none)
+ *   b-deck               each one's best track so far, with wind radii
+ *   a-deck               NHC's official forecast (OFCL), parsed here: the file
+ *                        is ~800 KB gzipped and holds every model's every run
+ *   ArcGIS cone          the forecast cone, as GeoJSON polygons
+ *
+ * This is life-safety data, so the failure modes are chosen on purpose:
+ *   - The route takes NO input. Nothing a caller sends reaches an upstream
+ *     URL, and every id that does is checked against a pattern first, so a
+ *     public route cannot be steered at NHC or made to fetch anything else.
+ *   - Whether anything is active is the one fact that must never be guessed.
+ *     If CurrentStorms.json cannot be read the route THROWS (502, never
+ *     cached), so "could not check" can never look like "no storms".
+ *   - One missing part (no forecast yet, no cone) does not drop the storm:
+ *     it is answered with that part marked in `parts` as 'none' (not there)
+ *     or 'fail' (could not be read), and a response with a failed part is
+ *     cached for seconds, not minutes.
+ */
+const NHC_CURRENT = 'https://www.nhc.noaa.gov/CurrentStorms.json';
+const NHC_BTK = 'https://ftp.nhc.noaa.gov/atcf/btk/';
+const NHC_ADECK = 'https://ftp.nhc.noaa.gov/atcf/aid_public/';
+const NHC_ARCGIS = 'https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather/MapServer';
+const STORMS_MAX = 5;
+const BEST_FIXES_MAX = 120;
+const ADECK_GZ_MAX = 3 * 1024 * 1024;
+const ADECK_RAW_MAX = 25 * 1024 * 1024;
+const CONE_MAX_BYTES = 200 * 1024;
+
+/** The scalars of one CurrentStorms.json entry that pass their checks, or null for a non-cyclone. */
+function shapeStorm(e) {
+  const id = String((e && e.id) ?? '').toLowerCase();
+  if (!STORM_ID.test(id) || stormNumber(id) >= 90) return null;
+  const n = (v, lo, hi) => { const x = Number(v); return v != null && v !== '' && Number.isFinite(x) && x >= lo && x <= hi ? x : null; };
+  const adv = (e && e.publicAdvisory) || {};
+  const updated = Date.parse(e.lastUpdate);
+  return {
+    id,
+    bin: /^(AT|EP|CP)\d$/.test(String(e.binNumber ?? '')) ? e.binNumber : null,
+    name: /^[A-Za-z0-9 .'-]{1,40}$/.test(String(e.name ?? '')) ? String(e.name) : '',
+    classification: /^[A-Z]{2,4}$/.test(String(e.classification ?? '')) ? e.classification : null,
+    windKt: n(e.intensity, 0, 250),
+    presMb: n(e.pressure, 800, 1100),
+    lat: n(e.latitudeNumeric, -90, 90),
+    lon: n(e.longitudeNumeric, -180, 180),
+    moveDir: n(e.movementDir, 0, 360),
+    moveKt: n(e.movementSpeed, 0, 100),
+    updated: Number.isFinite(updated) ? new Date(updated).toISOString() : null,
+    advisory: {
+      num: /^[0-9A-Za-z]{1,6}$/.test(String(adv.advNum ?? '')) ? adv.advNum : null,
+      // Only NHC's own pages: this is rendered as a link.
+      url: typeof adv.url === 'string' && adv.url.length < 200 && adv.url.startsWith('https://www.nhc.noaa.gov/') ? adv.url : null,
+    },
+  };
+}
+
+async function stormBest(id) {
+  const text = await cachedJSON(`st_btk_${id}`, 10 * MIN, `${NHC_BTK}b${id}.dat`, { text: true });
+  return parseBtk(text).fixes.slice(-BEST_FIXES_MAX).map((f) => ({
+    t: f.t, lat: f.lat, lon: f.lon, wind: f.wind, pres: f.pres, status: f.status, r: f.r || null,
+  }));
+}
+
+/** NHC's official forecast for a storm: { cycle, points } or null when it has none yet. */
+async function stormForecast(id) {
+  const key = `st_fc_${id}`;
+  const hit = memGet(key);
+  if (hit) return hit.v;
+  const res = await fetch(`${NHC_ADECK}a${id}.dat.gz`, {
+    headers: { 'User-Agent': UA },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} :: a-deck ${id}`);
+  if (Number(res.headers.get('content-length')) > ADECK_GZ_MAX) throw new Error(`a-deck ${id} is too large`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > ADECK_GZ_MAX) throw new Error(`a-deck ${id} is too large`);
+  // Served as a file, so the bytes are gzip; if a proxy already inflated them, they are text.
+  const raw = buf[0] === 0x1f && buf[1] === 0x8b ? zlib.gunzipSync(buf, { maxOutputLength: ADECK_RAW_MAX }) : buf;
+  const { OFCL } = parseADeck(raw.toString('latin1'), ['OFCL']);
+  const v = OFCL ? {
+    cycle: new Date(OFCL.cycle).toISOString(),
+    points: OFCL.points.map((p) => ({ tau: p.tau, t: p.t, lat: p.lat, lon: p.lon, wind: p.wind, pres: p.pres, status: p.status, r: p.r || null })),
+  } : null;
+  memSet(key, { v }, 10 * MIN);
+  return v;
+}
+
+/** The forecast cone for a bin number ('AT1', 'EP2'...), as GeoJSON, or null when there is none. */
+async function stormCone(bin) {
+  let layers = memGet('st_layers');
+  if (!layers) {
+    const svc = await cachedJSON('st_svc', 6 * HOUR, `${NHC_ARCGIS}?f=json`, { mem: false });
+    layers = Object.fromEntries((Array.isArray(svc && svc.layers) ? svc.layers : [])
+      .filter((l) => Number.isInteger(l.id) && typeof l.name === 'string').map((l) => [l.name, l.id]));
+    memSet('st_layers', layers, 6 * HOUR);
+  }
+  const id = layers[`${bin} Forecast Cone`];
+  if (!Number.isInteger(id)) throw new Error(`no cone layer for ${bin}`);
+  const gj = await cachedJSON(`st_cone_${bin}`, 5 * MIN,
+    `${NHC_ARCGIS}/${id}/query?where=1%3D1&outFields=*&geometryPrecision=2&f=geojson`);
+  const features = (Array.isArray(gj && gj.features) ? gj.features : [])
+    .filter((f) => f && f.geometry && /^(Multi)?Polygon$/.test(f.geometry.type) && Array.isArray(f.geometry.coordinates))
+    .slice(0, 4)
+    .map((f) => ({ type: 'Feature', properties: {}, geometry: { type: f.geometry.type, coordinates: f.geometry.coordinates } }));
+  if (!features.length) return null;
+  const out = { type: 'FeatureCollection', features };
+  if (JSON.stringify(out).length > CONE_MAX_BYTES) throw new Error(`cone for ${bin} is too large`);
+  return out;
+}
+
+/** { body, partial }: partial when any part of any storm could not be read. */
+async function stormsPayload() {
+  const hit = memGet('storms_payload');
+  if (hit) return hit;
+  const cur = await cachedJSON('st_cur', 3 * MIN, NHC_CURRENT);
+  if (!cur || !Array.isArray(cur.activeStorms)) throw new Error('CurrentStorms.json has no activeStorms list');
+  const active = cur.activeStorms.map(shapeStorm).filter(Boolean);
+  const storms = await Promise.all(active.slice(0, STORMS_MAX).map(async (s) => {
+    const [best, fcst, cone] = await Promise.all([
+      soft(`storm best ${s.id}`, () => stormBest(s.id)),
+      soft(`storm fcst ${s.id}`, () => stormForecast(s.id)),
+      s.bin ? soft(`storm cone ${s.id}`, () => stormCone(s.bin)) : { ok: true, data: null },
+    ]);
+    const part = (r) => (!r.ok ? 'fail' : r.data == null || (Array.isArray(r.data) && !r.data.length) ? 'none' : 'ok');
+    return {
+      ...s,
+      best: best.ok ? best.data : [],
+      forecast: fcst.ok ? fcst.data : null,
+      cone: cone.ok ? cone.data : null,
+      parts: { best: part(best), forecast: part(fcst), cone: part(cone) },
+    };
+  }));
+  const out = {
+    body: { source: 'NHC', checked: new Date().toISOString(), activeCount: active.length, storms },
+    partial: storms.some((s) => Object.values(s.parts).includes('fail')),
+  };
+  memSet('storms_payload', out, out.partial ? 30_000 : 3 * MIN);
+  return out;
+}
+
+/* ============================================================ /STORMS */
+
 const routes = {
 
   /** The homepage's weather: ~150 bytes for the visitor's city. */
@@ -634,6 +782,17 @@ const routes = {
     }
     memSet(key, out, 10 * MIN);
     return out;
+  },
+
+  /*
+   * Live tropical cyclones (see STORMS above): none, most of the year. No
+   * input; a failure to ask NHC at all is a 502 so it can never read as
+   * "no storms". The edge keeps it three minutes and never serves it stale:
+   * this is the one answer here where an hour-old copy could mislead.
+   */
+  async '/api/storms'() {
+    const r = await stormsPayload();
+    return r.partial ? shortLived(r.body) : r.body;
   },
 
   /*
@@ -1029,6 +1188,8 @@ const EDGE_CACHE = {
   '/api/radar': 'public, s-maxage=120',
   '/api/space': 'public, s-maxage=300',
   '/api/aurora': 'public, s-maxage=600',
+  // Three minutes, and never served stale: if a storm appears or goes, a stale copy misleads.
+  '/api/storms': 'public, s-maxage=180',
   '/api/iss': 'public, s-maxage=10',
   // Ten seconds is about 2.5km for a jet -- a pixel or two at the zoom this
   // is watched at, and a hundredfold cut in load on somebody's hobby server.

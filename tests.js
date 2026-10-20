@@ -6713,6 +6713,246 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
     });
 });
 
+describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () => {
+    /*
+     * /api/storms reads four NHC feeds and answers what is active, where it has
+     * been, NHC's official forecast, and the cone. These run the real handler
+     * with fetch stubbed and count what it sends. The ATCF fixtures are real
+     * rows: tests/fixtures/atcf-btk-ep212026.dat is Trudy's best track as NHC
+     * published it, and atcf-adeck-ep212026.dat is its OFCL, AVNO and HFSA rows
+     * plus an interpolated OFCI row. CurrentStorms.json was EMPTY the day this
+     * was written, so its field names come from NHC's documented schema and
+     * are an assumption to check against the first live storm.
+     */
+    const fs = require('fs');
+    const { spawnSync } = require('child_process');
+    const lambdaPath = path.join(__dirname, 'lambda', 'index.mjs');
+    const atcfPath = path.join(__dirname, 'lambda', 'atcf.mjs');
+    const fx = (n) => path.join(__dirname, 'tests', 'fixtures', n);
+    const run = (body) => {
+        const code = `Promise.all([import(${JSON.stringify(lambdaPath)}), import(${JSON.stringify(atcfPath)}), import('node:fs'), import('node:zlib')]).then(async ([m, A, fs, zlib]) => {
+            const btk = fs.readFileSync(${JSON.stringify(fx('atcf-btk-ep212026.dat'))}, 'utf8');
+            const adeck = fs.readFileSync(${JSON.stringify(fx('atcf-adeck-ep212026.dat'))}, 'utf8');
+            const calls = [];
+            const mk = (status, o = {}) => ({ ok: status >= 200 && status < 300, status, statusText: status === 200 ? 'OK' : 'ERR',
+              headers: { get: (k) => (o.headers || {})[String(k).toLowerCase()] ?? null },
+              text: async () => (o.text !== undefined ? o.text : JSON.stringify(o.json ?? {})),
+              json: async () => o.json ?? {},
+              arrayBuffer: async () => { const b = o.buf || Buffer.from(o.text || ''); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); } });
+            const ENTRY = { id: 'ep212026', binNumber: 'EP1', name: 'Trudy', classification: 'TS', intensity: '40', pressure: '1004',
+              latitudeNumeric: 19.5, longitudeNumeric: -107.9, movementDir: 135, movementSpeed: 1, lastUpdate: '2026-10-19T21:00:00.000Z',
+              publicAdvisory: { advNum: '7', url: 'https://www.nhc.noaa.gov/text/MIATCPEP1.shtml' } };
+            const CONE = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { SECRET: 'x' }, geometry: { type: 'Polygon', coordinates: [[[-108, 19], [-107, 19], [-107, 20], [-108, 19]]] } }] };
+            // Each case sets 'live' (what CurrentStorms says), and may break a part.
+            let live = { activeStorms: [ENTRY] }, current = null, brk = {};
+            globalThis.fetch = async (url) => {
+              const u = String(url); calls.push(u);
+              if (u.includes('CurrentStorms.json')) return current ? current() : mk(200, { json: live });
+              if (/\\/btk\\/b/.test(u)) return brk.btk ? brk.btk() : mk(200, { text: btk });
+              if (/aid_public\\/a/.test(u)) return brk.adeck ? brk.adeck() : mk(200, { buf: zlib.gzipSync(adeck) });
+              if (/MapServer\\?f=json/.test(u)) return brk.svc ? brk.svc() : mk(200, { json: { layers: [{ id: 0, name: 'Graphical Tropical Weather Outlook' }, { id: 8, name: 'AT1 Forecast Cone' }, { id: 48, name: 'EP1 Forecast Cone' }] } });
+              if (/MapServer\\/\\d+\\/query/.test(u)) return brk.cone ? brk.cone() : mk(200, { json: CONE });
+              return mk(404);
+            };
+            const call = async (q = '') => { const r = await m.handler({ rawPath: '/weather/api/storms', rawQueryString: q, requestContext: { http: { method: 'GET' } } });
+              return { status: r.statusCode, cache: r.headers['cache-control'], body: JSON.parse(r.body) }; };
+            ${body} })`;
+        const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        return JSON.parse(r.stdout.trim().split('\n').pop());
+    };
+
+    test('Should read a best-track file: merge the radii rows, name the storm, skip the genesis label', () => {
+        const out = run(`const b = A.parseBtk(btk);
+            const last = b.fixes[b.fixes.length - 1];
+            const times = new Set(btk.trim().split('\\n').map((l) => l.split(',')[2].trim()));
+            console.log(JSON.stringify({ name: b.name, n: b.fixes.length, rows: times.size, last,
+              sorted: b.fixes.every((f, i) => !i || f.t > b.fixes[i - 1].t), first: b.fixes[0],
+              withR: b.fixes.filter((f) => f.r && f.r[34]).length }));`);
+        assert.strictEqual(out.name, 'TRUDY', 'the real name, never GENESIS031');
+        assert.strictEqual(out.n, out.rows, 'one fix per time, however many radii rows it had');
+        assert.ok(out.n < 73, 'the file has 73 rows: the radii rows of one time are merged, not counted as fixes');
+        assert.ok(out.sorted);
+        assert.strictEqual(out.first.lat, 7.6); assert.strictEqual(out.first.lon, -88);
+        assert.strictEqual(out.first.wind, 15);
+        assert.strictEqual(out.last.lat, 19.4); assert.strictEqual(out.last.lon, -108, 'W is negative');
+        assert.strictEqual(out.last.status, 'TD');
+        assert.ok(out.withR > 0, 'wind radii are carried where NHC gave them');
+    });
+
+    test('Should read an a-deck at each technique\'s own latest cycle, merge radii by hour, and ignore what was not asked for', () => {
+        const out = run(`const junk = adeck + '\\n\\nEP, 21, garbage\\nEP, 21, 2026102000, 03, OFCL, 999, 195N, 1079W, 40, 0, TS\\nEP, 21, 2026102000, 03, OFCL, 60, 19X, 1079W, 40, 0, TS, 34, NEQ, 1, 2, 3, 4\\n';
+            const a = A.parseADeck(junk, ['OFCL', 'AVNO']);
+            const o = a.OFCL;
+            console.log(JSON.stringify({ techs: Object.keys(a).sort(), ofcl: { cycle: new Date(o.cycle).toISOString(), taus: o.points.map((p) => p.tau), p0: o.points[0], t12: o.points[2].t - o.cycle },
+              avno: new Date(a.AVNO.cycle).toISOString(), onlyOfcl: Object.keys(A.parseADeck(adeck)), none: Object.keys(A.parseADeck(adeck, ['TVCN'])) }));`);
+        assert.deepStrictEqual(out.techs, ['AVNO', 'OFCL']);
+        assert.strictEqual(out.ofcl.cycle, '2026-10-20T00:00:00.000Z', 'the newest official forecast');
+        assert.deepStrictEqual(out.ofcl.taus, [0, 3, 12, 24, 36], 'garbage rows, tau 999 and a bad latitude are skipped');
+        assert.deepStrictEqual(out.ofcl.p0.r, { 34: [0, 0, 0, 0] }, 'the radii row of an hour is merged into it');
+        assert.strictEqual(out.ofcl.t12, 12 * 3600000, 'a forecast point is cycle + hours ahead');
+        assert.strictEqual(out.avno, '2026-10-19T18:00:00.000Z', 'a model keeps its own latest cycle, even older than OFCL\'s');
+        assert.deepStrictEqual(out.onlyOfcl, ['OFCL'], 'the default asks for OFCL alone; the interpolated OFCI is never read');
+        assert.deepStrictEqual(out.none, [], 'a technique with no rows is absent');
+    });
+
+    test('Should know a live storm\'s id, and refuse invests and anything else', () => {
+        const out = run(`const ids = ['al092026', 'ep212026', 'cp012026', 'al902026', 'al92026', 'xx012026', '../etc', 'al012026/x', '', 'AL092026'];
+            console.log(JSON.stringify(ids.map((i) => [A.STORM_ID.test(i), A.stormNumber(i)])));`);
+        assert.deepStrictEqual(out, [[true, 9], [true, 21], [true, 1], [true, 90], [false, null], [false, null], [false, null], [false, null], [false, null], [false, null]]);
+    });
+
+    test('Should answer "no active storms" with one upstream call, cached three minutes, never stale', () => {
+        const out = run(`live = { activeStorms: [] };
+            const r = await call(); const again = await call();
+            console.log(JSON.stringify({ r, calls, again: again.body.activeCount }));`);
+        assert.strictEqual(out.r.status, 200);
+        assert.strictEqual(out.r.body.activeCount, 0);
+        assert.deepStrictEqual(out.r.body.storms, []);
+        assert.strictEqual(out.r.body.source, 'NHC');
+        assert.strictEqual(out.r.cache, 'public, s-maxage=180', 'three minutes at the edge, and no stale-while-revalidate');
+        assert.strictEqual(out.calls.length, 1, 'only CurrentStorms.json is asked, once');
+        assert.ok(/nhc\.noaa\.gov\/CurrentStorms\.json$/.test(out.calls[0]));
+    });
+
+    test('Should fail loudly, never cached, when it cannot tell whether anything is active', () => {
+        const out = run(`const res = {};
+            current = () => mk(503); res.down = await call();
+            current = () => mk(200, { text: 'not json at all' }); res.junk = await call();
+            current = () => mk(200, { json: { something: 'else' } }); res.shape = await call();
+            current = () => { throw new Error('network down'); }; res.thrown = await call();
+            console.log(JSON.stringify(Object.fromEntries(Object.entries(res).map(([k, v]) => [k, [v.status, v.cache, !!v.body.error, 'activeCount' in v.body]]))));`);
+        for (const k of ['down', 'junk', 'shape', 'thrown']) {
+            assert.strictEqual(out[k][0], 502, k + ': could not check is an error, not "no storms"');
+            assert.strictEqual(out[k][1], 'no-store', k + ': and it is not cached');
+            assert.strictEqual(out[k][2], true);
+            assert.strictEqual(out[k][3], false, k + ': there is no activeCount to misread');
+        }
+    });
+
+    test('Should combine best track, official forecast and cone for an active storm, from NHC alone', () => {
+        const out = run(`const r = await call();
+            console.log(JSON.stringify({ r, calls }));`);
+        const s = out.r.body.storms[0];
+        assert.strictEqual(out.r.status, 200);
+        assert.strictEqual(out.r.cache, 'public, s-maxage=180');
+        assert.strictEqual(out.r.body.activeCount, 1);
+        assert.strictEqual(s.id, 'ep212026');
+        assert.strictEqual(s.name, 'Trudy');
+        assert.strictEqual(s.windKt, 40);
+        assert.strictEqual(s.lat, 19.5);
+        assert.strictEqual(s.lon, -107.9);
+        assert.strictEqual(s.advisory.url, 'https://www.nhc.noaa.gov/text/MIATCPEP1.shtml');
+        assert.strictEqual(s.best.length, 36, 'the 73 rows of the file are 36 six-hourly fixes');
+        assert.strictEqual(s.best[s.best.length - 1].lat, 19.4);
+        assert.strictEqual(s.forecast.cycle, '2026-10-20T00:00:00.000Z');
+        assert.deepStrictEqual(s.forecast.points.map((p) => p.tau), [0, 3, 12, 24, 36]);
+        assert.strictEqual(s.cone.type, 'FeatureCollection');
+        assert.strictEqual(s.cone.features.length, 1);
+        assert.deepStrictEqual(s.cone.features[0].properties, {}, 'only the polygon is passed on');
+        assert.deepStrictEqual(s.parts, { best: 'ok', forecast: 'ok', cone: 'ok' });
+        const hosts = new Set(out.calls.map((u) => new URL(u).host));
+        assert.deepStrictEqual([...hosts].sort(), ['ftp.nhc.noaa.gov', 'mapservices.weather.noaa.gov', 'www.nhc.noaa.gov']);
+        assert.ok(out.calls.includes('https://ftp.nhc.noaa.gov/atcf/btk/bep212026.dat'));
+        assert.ok(out.calls.includes('https://ftp.nhc.noaa.gov/atcf/aid_public/aep212026.dat.gz'));
+        assert.ok(out.calls.some((u) => /MapServer\/48\/query\?/.test(u)), 'the EP1 cone layer, found by name, not assumed');
+    });
+
+    test('Should keep a storm when one part fails, say which, and cache it for seconds only', () => {
+        const out = run(`const res = {};
+            brk.cone = () => mk(500); res.cone = await call();
+            console.log(JSON.stringify({ cone: { cache: res.cone.cache, parts: res.cone.body.storms[0].parts, hasCone: res.cone.body.storms[0].cone, name: res.cone.body.storms[0].name, best: res.cone.body.storms[0].best.length } }));`);
+        assert.deepStrictEqual(out.cone.parts, { best: 'ok', forecast: 'ok', cone: 'fail' });
+        assert.strictEqual(out.cone.hasCone, null, 'a failed cone is null, never invented');
+        assert.strictEqual(out.cone.name, 'Trudy');
+        assert.strictEqual(out.cone.best, 36);
+        assert.strictEqual(out.cone.cache, 'public, s-maxage=30', 'a response with a failed part is not kept for three minutes');
+    });
+
+    test('Should tell "not there" from "could not read": no forecast yet and no cone are not failures', () => {
+        const out = run(`const nofc = adeck.split('\\n').filter((l) => !l.includes(', OFCL,')).join('\\n');
+            brk.adeck = () => mk(200, { buf: zlib.gzipSync(nofc) });
+            brk.svc = () => mk(200, { json: { layers: [{ id: 48, name: 'EP1 Forecast Cone' }] } });
+            brk.cone = () => mk(200, { json: { type: 'FeatureCollection', features: [] } });
+            const r = await call();
+            console.log(JSON.stringify({ parts: r.body.storms[0].parts, cache: r.cache, fc: r.body.storms[0].forecast }));`);
+        assert.deepStrictEqual(out.parts, { best: 'ok', forecast: 'none', cone: 'none' });
+        assert.strictEqual(out.fc, null);
+        assert.strictEqual(out.cache, 'public, s-maxage=180', 'nothing failed, so it keeps the normal time');
+    });
+
+    test('Should take no input, and fetch nothing it has not checked', () => {
+        const out = run(`live = { activeStorms: [
+              ENTRY,
+              { ...ENTRY, id: '../../etc/passwd' }, { ...ENTRY, id: 'al902026' }, { ...ENTRY, id: 'al01202699' }, { ...ENTRY, id: 'EP21' },
+              { ...ENTRY, id: 'al092026', binNumber: 'AT4', name: '<script>alert(1)</script>', classification: 'hu; drop', intensity: 'lots',
+                latitudeNumeric: 400, publicAdvisory: { advNum: '<b>', url: 'https://evil.example/phish' } },
+              { ...ENTRY, id: 'ep222026' }, { ...ENTRY, id: 'ep232026' }, { ...ENTRY, id: 'cp012026' }, { ...ENTRY, id: 'ep242026' }] };
+            const r = await call('id=al012026&url=http://evil.example/&bin=../../x&lat=1');
+            const s = r.body.storms.find((x) => x.id === 'al092026');
+            console.log(JSON.stringify({ n: r.body.storms.length, active: r.body.activeCount, ids: r.body.storms.map((x) => x.id), calls,
+              s: s && { name: s.name, cls: s.classification, wind: s.windKt, lat: s.lat, adv: s.advisory } }));`);
+        assert.strictEqual(out.active, 6, 'six valid cyclones are counted: the four bad ids and the invest are not');
+        assert.strictEqual(out.n, 5, 'and at most five are fetched');
+        assert.ok(!out.ids.includes('al902026') && !out.ids.some((i) => /\.|\//.test(i)));
+        assert.ok(!out.calls.some((u) => /evil|passwd|\.\.|%2e/i.test(u)), 'no caller text and no bad id reaches an upstream: ' + out.calls.filter((u) => /evil|passwd|\.\./i.test(u)).join(' '));
+        assert.strictEqual(out.s.name, '', 'a name with markup is dropped');
+        assert.strictEqual(out.s.cls, null);
+        assert.strictEqual(out.s.wind, null);
+        assert.strictEqual(out.s.lat, null, 'out of range is null, not clamped');
+        assert.deepStrictEqual(out.s.adv, { num: null, url: null }, 'only NHC\'s own links are passed on');
+    });
+
+    // One process per case. The route remembers its answer, so a second call in the
+    // same process is served from memory and never reaches the a-deck code at all:
+    // the three cases once shared a process, and the bomb case never ran.
+    test('Should refuse an a-deck whose declared size is over the cap, before reading it', () => {
+        const out = run(`brk.adeck = () => mk(200, { buf: zlib.gzipSync(adeck), headers: { 'content-length': String(4 * 1024 * 1024) } });
+            const r = await call();
+            console.log(JSON.stringify({ parts: r.body.storms[0].parts, forecast: r.body.storms[0].forecast, name: r.body.storms[0].name }));`);
+        assert.strictEqual(out.parts.forecast, 'fail', 'a declared size over the cap is refused');
+        assert.strictEqual(out.parts.best, 'ok', 'and the rest of the storm still answers');
+        assert.strictEqual(out.forecast, null);
+        assert.strictEqual(out.name, 'Trudy');
+    });
+
+    test('Should read an a-deck a proxy already inflated, as the text it is', () => {
+        const out = run(`brk.adeck = () => mk(200, { text: adeck });
+            const r = await call();
+            console.log(JSON.stringify({ parts: r.body.storms[0].parts, cycle: r.body.storms[0].forecast && r.body.storms[0].forecast.cycle }));`);
+        assert.deepStrictEqual(out.parts, { best: 'ok', forecast: 'ok', cone: 'ok' });
+        assert.strictEqual(out.cycle, '2026-10-20T00:00:00.000Z', 'the same forecast as from the gzip');
+    });
+
+    test('Should refuse a gzip that inflates past 25 MB, and still answer the storm', () => {
+        const out = run(`brk.adeck = () => mk(200, { buf: zlib.gzipSync(Buffer.alloc(30 * 1024 * 1024)) });
+            const r = await call();
+            console.log(JSON.stringify({ parts: r.body.storms[0].parts, name: r.body.storms[0].name, cache: r.cache }));`);
+        assert.strictEqual(out.parts.forecast, 'fail', 'a decompression bomb is a failed part, not an empty forecast');
+        assert.strictEqual(out.parts.best, 'ok');
+        assert.strictEqual(out.name, 'Trudy');
+        assert.strictEqual(out.cache, 'public, s-maxage=30', 'and it is not kept for three minutes');
+    });
+
+    test('Should keep the storms code and the ATCF parser identical in the local server and the Lambda', () => {
+        const sibling = path.join(__dirname, '..', 'Weather');
+        if (!fs.existsSync(path.join(sibling, 'server.mjs'))) return;   // a sibling repo; CI may not have it
+        assert.strictEqual(fs.readFileSync(path.join(sibling, 'atcf.mjs'), 'utf8'), fs.readFileSync(atcfPath, 'utf8'), 'atcf.mjs has drifted');
+        const block = (f) => (fs.readFileSync(f, 'utf8').match(/\/\* =+ STORMS[\s\S]*?\/\* =+ \/STORMS \*\//) || [''])[0];
+        const a = block(lambdaPath), b = block(path.join(sibling, 'server.mjs'));
+        assert.ok(a.length > 3000, 'the Lambda has the block');
+        assert.strictEqual(a, b, 'the STORMS block has drifted');
+        for (const f of [lambdaPath, path.join(sibling, 'server.mjs')]) {
+            const src = fs.readFileSync(f, 'utf8');
+            assert.ok(/import \{ parseBtk, parseADeck, STORM_ID, stormNumber \} from '\.\/atcf\.mjs';/.test(src), f);
+            assert.ok(/async '\/api\/storms'\(\) \{/.test(src), 'no argument: the route takes no input');
+        }
+        const edge = fs.readFileSync(lambdaPath, 'utf8').match(/'\/api\/storms': '([^']*)'/);
+        assert.strictEqual(edge[1], 'public, s-maxage=180', 'never stale-while-revalidate');
+        assert.ok(/^import /m.test(fs.readFileSync(atcfPath, 'utf8')) === false, 'atcf.mjs imports nothing: it ships alone in the Lambda zip');
+    });
+});
+
 describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () => {
     /*
      * October 3, 2026. Every entry in countdown/stats.json has an ISO date;

@@ -1397,12 +1397,35 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   because `store.span` is tied to the forecast window, which a 1992 storm can
   never be inside. Under `prefers-reduced-motion` a replay starts paused and
   the sweep button is hidden.
-- **Not yet built (phases 2-4):** the live route `/api/storms` (CurrentStorms,
-  b-deck best track, a-deck OFCL forecast and ensemble members, NHC ArcGIS
-  cone), the wind swirl from measured radii (HURDAT2 has them from 2004; the
-  build does not store them yet), and analog storms. The season ring covers
-  only storms in HURDAT2, which lags about six months, so this year's storms
-  are absent until it is revised.
+- **`/api/storms` is built (phase 2, route only); the client does not read it
+  yet.** It lives in `lambda/index.mjs` and `../Weather/server.mjs` as one
+  identical `STORMS` block (a test compares them), with `atcf.mjs` beside each
+  (byte-identical: the Lambda zip holds only `lambda/`). It takes **no input**
+  and checks every id against `/^(al|ep|cp)\d{2}\d{4}$/` (invests, number 90
+  and up, are refused) before any URL is built. It reads `CurrentStorms.json`
+  (3 min), each storm's b-deck best track, the a-deck's `OFCL` official forecast
+  (gunzipped server-side, capped at 3 MB compressed and 25 MB inflated; it is
+  ~800 KB gz for one finished storm) and the cone from NHC's ArcGIS service,
+  whose layer ids are found by name (`EP1 Forecast Cone`), never assumed. **Two
+  rules are the point:** if `CurrentStorms.json` cannot be read the route
+  THROWS (502, never cached), so "could not check" can never read as "no
+  storms"; and one failed part (cone, forecast, best track) does not drop the
+  storm: `parts` says `ok`, `none` (not there) or `fail`, and a response with
+  a `fail` is edge-cached 30 s, not 180. `EDGE_CACHE` is `s-maxage=180` with no
+  stale-while-revalidate. **`CurrentStorms.json` was empty on 2026-10-20, so its
+  field names (`latitudeNumeric`, `binNumber`, `publicAdvisory`...) are NHC's
+  documented schema, not seen: check them against the first live storm.** The
+  ATCF parsers are tested on real rows (`tests/fixtures/atcf-*.dat`, Trudy
+  2026). A route that answered from memory once hid a hostile-a-deck test for
+  two of its three cases: the route remembers its answer, so each such case
+  needs its own process.
+- **Not yet built (phases 2b-4):** the live layer in the console (cone,
+  forecast track, a YOU card, honesty strip), model spaghetti (the parser
+  already reads any a-deck technique; the route asks for OFCL only), the wind
+  swirl from measured radii (HURDAT2 has them from 2004; the archive build does
+  not store them yet), and analog storms. The season ring covers only storms in
+  HURDAT2, which lags about six months, so this year's storms are absent until
+  it is revised.
 
 ### How the console ships: one hashed bundle (October 13, 2026)
 
