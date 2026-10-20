@@ -129,9 +129,12 @@ const toRGB = (s) => {
   return n.slice(0, 3);
 };
 
-for (const v of [...new Set(views)]) {
-  await E(`window.ATMOS.setView('${v}')`);
+// 'radar+storms' is RADAR with the hurricane atlas open: a mode, not a tab, so
+// the tab list never names it.
+for (const v of [...new Set(views), 'radar+storms']) {
+  await E(`window.ATMOS.setView('${v.split('+')[0]}')`);
   await wait(3500);
+  if (v === 'radar+storms') { await E("document.querySelector('#r-storms')?.click(); 1"); await wait(3500); }
   // Measure a still screen: the radar loop moves the cursor, so NOW lights and
   // unlights as it passes the latest frame, and a screenshot mid-switch
   // measures a lit button's dark text on an unlit ground.

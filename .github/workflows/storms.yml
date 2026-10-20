@@ -1,0 +1,55 @@
+name: Hurricane archive
+
+# Builds the weather console's hurricane archive from NHC's HURDAT2 best
+# tracks and publishes it to s3://branyontech.com/storms/. HURDAT2 is revised
+# about once a year, so most runs find the published index already names the
+# newest files and upload nothing. scripts/fetch-storms.mjs never retries,
+# stops at the first non-200 and writes nothing it does not believe. A failed
+# run leaves the previous archive in place.
+
+on:
+  schedule:
+    - cron: '41 7 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: storms
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: branyontech.com
+
+jobs:
+  storms:
+    name: HURDAT2 -> S3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build archive
+        run: node scripts/fetch-storms.mjs "$RUNNER_TEMP/storms"
+
+      # Nothing is built when the published index is already current. Data
+      # files are named by content hash, so they are immutable; the index is
+      # uploaded last, with a short cache, so it never names a missing file.
+      # Files are gzipped by the script, so say so; S3 does not compress.
+      - name: Publish
+        run: |
+          [ -d "$RUNNER_TEMP/storms" ] || { echo 'archive unchanged, nothing to publish'; exit 0; }
+          aws s3 cp "$RUNNER_TEMP/storms/" "s3://${S3_BUCKET}/storms/" --recursive \
+            --exclude 'index.json' \
+            --content-type 'application/json' --content-encoding gzip \
+            --cache-control 'public, max-age=31536000, immutable'
+          aws s3 cp "$RUNNER_TEMP/storms/index.json" "s3://${S3_BUCKET}/storms/index.json" \
+            --content-type 'application/json' --content-encoding gzip \
+            --cache-control 'public, max-age=300'

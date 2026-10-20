@@ -428,6 +428,42 @@
 .radar-side > .panel { flex: 0 0 auto; }
 .radar-side > .panel.grow { flex: 1 1 auto; min-height: 0; }
 
+/* ---------------------------------------------------------- STORMS
+   The hurricane atlas is a mode of RADAR: while it is on, the radar's own
+   legend, frame strip and panels step aside for the atlas panel. */
+.radar.storms-mode .radar-legend, .radar.storms-mode .radar-frames { display: none; }
+.radar.storms-mode .radar-stamp:not(#r-storm-hud) { display: none; }
+/* A fact's value can be a storm, a distance and a date: let it wrap, right-aligned. */
+.radar-side > .panel.storms .kv dd { white-space: normal; min-width: 0; text-align: right; }
+.radar.storms-mode .radar-side > .panel:not(.storms) { display: none; }
+.radar-side > .panel.storms[hidden] { display: none; }
+.radar-side > .panel.storms { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.radar-stamp[hidden] { display: none; }
+.st-status { font-size: max(.62rem, var(--fs-floor, 0px)); color: var(--dim); margin-bottom: 8px; line-height: 1.5; }
+.st-h { font-size: max(.54rem, var(--fs-floor, 0px)); letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  border-bottom: 1px solid rgba(255,255,255,.08); padding: 10px 0 4px; margin-top: 6px; }
+.st-note { font-size: max(.58rem, var(--fs-floor, 0px)); color: var(--dim); line-height: 1.5; margin-top: 6px; }
+.st-note a { color: var(--cy); }
+.st-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 2.2em; gap: 8px; align-items: center;
+  width: 100%; padding: 5px 8px; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid rgba(255,255,255,.05); color: var(--ink); font: inherit; cursor: pointer;
+}
+.st-row:hover { background: color-mix(in srgb, var(--cy) 6%, transparent); }
+.st-row[aria-pressed="true"] { background: color-mix(in srgb, var(--cy) 13%, transparent); }
+.st-n { font-family: var(--mono); font-weight: 600; font-size: max(.72rem, var(--fs-floor, 0px)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-d { font-family: var(--mono); font-size: max(.64rem, var(--fs-floor, 0px)); color: var(--dim); text-align: right; }
+.st-c { font-family: var(--mono); font-size: max(.64rem, var(--fs-floor, 0px)); text-align: right; }
+.st-transport { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.st-transport input[type=range] { flex: 1; min-width: 0; accent-color: var(--cy); }
+.st-season { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.st-ring {
+  --p: 0; flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--cy) calc(var(--p) * 1%), color-mix(in srgb, var(--ink) 14%, transparent) 0);
+  -webkit-mask: radial-gradient(circle, transparent 0 17px, #000 18px); mask: radial-gradient(circle, transparent 0 17px, #000 18px);
+}
+.st-ring b { visibility: hidden; }
+
 /* ========================================================= OVERHEAD */
 
 /* Same shape as the radar: a map that takes what it can, a rail of readouts. */

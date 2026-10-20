@@ -27,6 +27,7 @@ export function createRadar(root) {
         <canvas class="fill" id="r-map"></canvas>
         <div class="radar-hud">
           <div class="radar-stamp"><b id="r-time">—</b><span id="r-age">—</span></div>
+          <div class="radar-stamp" id="r-storm-hud" hidden><b>HURRICANE ATLAS</b><span></span></div>
           <div class="radar-legend" id="r-legend"></div>
         </div>
         <div class="radar-tools">
@@ -35,6 +36,7 @@ export function createRadar(root) {
           <button class="tl-btn sm" id="r-zout" title="Zoom out">−</button>
           <button class="tl-btn sm on" id="r-labels" title="Place labels">A</button>
           <button class="tl-btn sm on" id="r-alerts" title="Alert polygons">⚠</button>
+          <button class="tl-btn sm" id="r-storms" title="Hurricane atlas: every NHC best-track storm near you" aria-pressed="false">🌀</button>
         </div>
         <div class="radar-frames">
           <button class="tl-btn" id="r-play">❚❚</button>
@@ -43,6 +45,7 @@ export function createRadar(root) {
       </div>
 
       <div class="radar-side">
+        <div class="panel storms" id="r-stormpanel" role="region" aria-label="Hurricane atlas" hidden></div>
         <div class="panel">
           <div class="hd">COVERAGE<span class="rule"></span><span class="val" id="r-src">RAINVIEWER</span></div>
           <div class="body" id="r-cover"></div>
@@ -149,6 +152,45 @@ export function createRadar(root) {
   });
 
   let showAlerts = true;
+
+  /*
+   * STORMS: the hurricane atlas, a mode of this view. Its code is a separate
+   * chunk, fetched the first time the button is pressed, so RADAR's own
+   * bundle does not carry it. While it is on, the radar layer and the loop
+   * stand down (the atlas has its own clock) and the footer is left alone.
+   */
+  let storms = null, stormsOn = false;
+  $('r-storms').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    stormsOn = !stormsOn;
+    btn.classList.toggle('on', stormsOn);
+    btn.setAttribute('aria-pressed', String(stormsOn));
+    root.classList.toggle('storms-mode', stormsOn);
+    if (stormsOn) {
+      store.playing = false;
+      store.emit('play', false);
+      layer('radar').enabled = false;
+      try {
+        storms ||= (await import('./storms.js')).createStorms({
+          map, panel: $('r-stormpanel'), hud: $('r-storm-hud'), root,
+        });
+      } catch (err) {
+        console.error('[radar] storms', err);
+        stormsOn = false; btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false');
+        root.classList.remove('storms-mode'); layer('radar').enabled = true;
+        return;
+      }
+      if (stormsOn) storms.enter();
+    } else {
+      storms?.exit();
+      layer('radar').enabled = true;
+      if (store.loc) map.setView(store.loc.lat, store.loc.lon, 7);
+      store.playing = true;
+      store.emit('play', true);
+      paintPlay();
+      map.invalidate();
+    }
+  });
 
   /* -------------------------------------------------------- frame strip */
 
@@ -352,7 +394,7 @@ export function createRadar(root) {
 
   /* The radar loop runs only while this view is on screen. */
   function tick(now) {
-    if (store.view !== 'radar') { lastT = now; return; }
+    if (store.view !== 'radar' || stormsOn) { lastT = now; return; }
     const dt = Math.min(0.2, (now - lastT) / 1000);
     lastT = now;
     if (store.playing && frames.length) {
@@ -413,12 +455,17 @@ export function createRadar(root) {
       map.resize();
       strip.render();
       followCursor();
+      storms?.setVisible(true);
       // The loop is ambient: it runs while the view is up, as it always did.
-      store.playing = true;
-      store.emit('play', true);
+      // The atlas has its own clock, so it leaves the radar's loop stopped.
+      if (!stormsOn) {
+        store.playing = true;
+        store.emit('play', true);
+      }
       paintPlay();
     },
     onHide() {
+      storms?.setVisible(false);
       store.playing = false;
       store.emit('play', false);
       // The loop parked the cursor in the last two hours. If the user never

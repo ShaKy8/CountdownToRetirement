@@ -92,6 +92,29 @@ for (const v of views) {
 }
 push('elements past the right edge', per.join(' '), () => worst === 0, 'all views 0');
 
+// RADAR's STORMS mode (the hurricane atlas) is a mode, not a view, so the loop
+// above never opens it. Open it here and hold it to the same gates.
+await E("(()=>{try{window.ATMOS.setView('radar')}catch(e){}})()"); await wait(1500);
+await E("document.querySelector('#r-storms')?.click(); 1"); await wait(4000);
+push('storms: panel opened', await E("(()=>{const p=document.querySelector('#r-stormpanel'); return !!p && !p.hidden && !!p.querySelector('.st-row');})()"),
+  v => v === true, 'true (archive served)');
+push('storms: elements past the right edge', await E(`(()=>{let n=0;document.querySelectorAll('#view-radar *').forEach(el=>{
+    const r=el.getBoundingClientRect();
+    if(r.width<=2||r.height<=2||r.right<=${W}+2) return;
+    let p=el.parentElement;
+    while(p&&p!==document.body){const st=getComputedStyle(p);
+      if(st.overflowX==='auto'||st.overflowX==='scroll') return; p=p.parentElement;}
+    n++;}); return n;})()`), v => v === 0, '= 0');
+push('storms: touch targets under 44px', await E(`(()=>{let n=0;document.querySelectorAll('#view-radar button,#view-radar input').forEach(el=>{
+    const r=el.getBoundingClientRect(); if(r.width>0&&r.height>0&&(r.width<43.5||r.height<43.5)) n++;}); return n;})()`),
+  v => v === 0, '= 0');
+push('storms: smallest rendered font', await E(`(()=>{let m=99;document.querySelectorAll('#view-radar *').forEach(el=>{
+    if(!el.firstChild||el.firstChild.nodeType!==3||!el.textContent.trim())return;
+    const r=el.getBoundingClientRect(); if(r.width<1||r.height<1)return;
+    const f=parseFloat(getComputedStyle(el).fontSize); if(f<m)m=f;}); return m;})()`) + 'px',
+  v => parseFloat(v) >= 12, '>= 12px');
+await E("document.querySelector('#r-storms')?.click(); 1"); await wait(800);
+
 await E("(()=>{try{window.ATMOS.setView('deck')}catch(e){}})()"); await wait(1500);
 
 push('controls outside the viewport',

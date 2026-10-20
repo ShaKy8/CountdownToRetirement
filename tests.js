@@ -6455,6 +6455,264 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
     });
 });
 
+describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
+    /*
+     * The ATLAS: every Atlantic and East/Central Pacific track in NHC's
+     * best-track archive, from a snapshot built by scripts/fetch-storms.mjs and
+     * read in the browser. The fixtures are real HURDAT2 rows (Katrina, Andrew,
+     * Danielle 2004 with wind radii, the 1851 storm, and four Pacific storms
+     * including two that cross the dateline), not invented ones.
+     */
+    const fs = require('fs');
+    const os = require('os');
+    const { spawnSync } = require('child_process');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const AL = path.join(__dirname, 'tests', 'fixtures', 'hurdat-al-sample.txt');
+    const EP = path.join(__dirname, 'tests', 'fixtures', 'hurdat-ep-sample.txt');
+    const lib = (n) => JSON.stringify(path.join(__dirname, 'weather', 'js', 'lib', n));
+    const hurdat = JSON.stringify(path.join(__dirname, 'scripts', 'lib', 'hurdat.mjs'));
+    const fetcherPath = JSON.stringify(path.join(__dirname, 'scripts', 'fetch-storms.mjs'));
+    const run = (body) => {
+        const code = `Promise.all([import(${lib('storms.js')}), import(${lib('stormpack.js')}), import(${hurdat}), import(${fetcherPath}), import('node:fs')])
+            .then(async ([S, P, H, F, fs]) => {
+              const alTxt = fs.readFileSync(${JSON.stringify(AL)}, 'utf8'), epTxt = fs.readFileSync(${JSON.stringify(EP)}, 'utf8');
+              ${body} })`;
+        const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        return JSON.parse(r.stdout);
+    };
+
+    test('Should classify wind by the Saffir-Simpson thresholds, and say nothing when the archive has none', () => {
+        const out = run(`console.log(JSON.stringify([0, 33, 34, 63, 64, 82, 83, 95, 96, 112, 113, 136, 137, 160, null].map((k) => { const c = S.category(k); return c && c.key; })));`);
+        assert.deepStrictEqual(out, ['TD', 'TD', 'TS', 'TS', 'C1', 'C1', 'C2', 'C2', 'C3', 'C3', 'C4', 'C4', 'C5', 'C5', null]);
+    });
+
+    test('Should parse HURDAT2 rows, keep wind radii only where they were measured, and mark landfalls', () => {
+        const out = run(`const a = H.parseHurdat2(alTxt).storms;
+            const by = (id) => a.find((s) => s.id === id);
+            console.log(JSON.stringify({ ids: a.map((s) => s.id), rejected: H.parseHurdat2(alTxt).rejected.length,
+              y1851: { n: by('AL011851').fixes.length, radii: by('AL011851').fixes.filter((f) => f.radii).length, w: by('AL011851').fixes[0].wind, p: by('AL011851').fixes[0].pres },
+              danielle: by('AL042004').fixes.filter((f) => f.radii).length,
+              katrina: { name: by('AL122005').name, peak: Math.max(...by('AL122005').fixes.map((f) => f.wind)), land: by('AL122005').fixes.filter((f) => f.rec === 'L').length },
+              unnamed: by('AL011851').name }));`);
+        assert.deepStrictEqual(out.ids, ['AL011851', 'AL041992', 'AL042004', 'AL122005']);
+        assert.strictEqual(out.rejected, 0);
+        assert.strictEqual(out.y1851.n, 14);
+        assert.strictEqual(out.y1851.radii, 0, 'nothing was measured in 1851');
+        assert.strictEqual(out.y1851.w, 80);
+        assert.strictEqual(out.y1851.p, null, '-999 is missing, not a pressure');
+        assert.ok(out.danielle > 40, 'a 2004 storm carries radii');
+        assert.strictEqual(out.katrina.name, 'KATRINA');
+        assert.ok(out.katrina.peak >= 150);
+        assert.ok(out.katrina.land >= 2, 'Katrina made landfall at least twice');
+        assert.strictEqual(out.unnamed, '', 'UNNAMED is no name at all');
+    });
+
+    test('Should reject a storm that does not add up, by name, and keep the rest', () => {
+        const out = run(`const lines = alTxt.split('\\n');
+            const short = alTxt.replace('AL011851,            UNNAMED,     14,', 'AL011851,            UNNAMED,     13,');
+            const bad = lines.slice(); bad[2] = bad[2].replace('95.4W', '195.4W');
+            const reordered = lines.slice(); [reordered[1], reordered[2]] = [reordered[2], reordered[1]];
+            const R = (t) => { const r = H.parseHurdat2(t); return { ok: r.storms.map((s) => s.id).filter((id) => id !== 'AL011851').length, rej: r.rejected.map((x) => x.id + ':' + x.why) }; };
+            console.log(JSON.stringify({ short: R(short), range: R(bad.join('\\n')), order: R(reordered.join('\\n')) }));`);
+        for (const k of ['range', 'order']) {
+            assert.strictEqual(out[k].rej.length, 1, k + ' should reject exactly the storm that is wrong');
+            assert.ok(out[k].rej[0].startsWith('AL011851:'), k);
+        }
+        assert.ok(out.short.rej.length >= 1, 'a header count that disagrees with the rows rejects');
+        assert.strictEqual(out.range.ok, 3, 'and the other storms survive');
+    });
+
+    test('Should store a track losslessly, and carry a dateline crossing on past 180 instead of jumping', () => {
+        const out = run(`const storms = [...H.parseHurdat2(alTxt).storms, ...H.parseHurdat2(epTxt).storms];
+            const dec = P.decodeArchive(JSON.parse(JSON.stringify(P.encodeArchive(storms))));
+            let bad = 0, maxStep = 0;
+            storms.forEach((s, i) => { const d = dec[i]; s.fixes.forEach((x, j) => {
+              const lonW = ((d.lon[j] + 540) % 360) - 180;
+              if (Math.abs(d.lat[j] - x.lat) > 0.051 || Math.abs(lonW - x.lon) > 0.051 || d.t[j] !== x.t || (x.wind ?? -99) !== d.wind[j]) bad++;
+              if (j) maxStep = Math.max(maxStep, Math.abs(d.lon[j] - d.lon[j - 1])); }); });
+            console.log(JSON.stringify({ n: dec.length, of: storms.length, bad, maxStep,
+              past180: dec.filter((s) => Array.from(s.lon).some((v) => v > 180)).map((s) => s.id).sort(),
+              land: dec.find((s) => s.id === 'AL122005').land.length, status: dec[0].status.slice(0, 3) }));`);
+        assert.strictEqual(out.n, out.of);
+        assert.strictEqual(out.bad, 0, 'every fix comes back exactly (to the archive\'s 0.1 degree and 1 knot)');
+        assert.ok(out.maxStep < 8, `no step may jump the seam (largest ${out.maxStep} degrees)`);
+        assert.deepStrictEqual(out.past180, ['CP012010', 'CP092015']);
+        assert.ok(out.land >= 2);
+        assert.strictEqual(out.status, 'HHH', '1851 storm was a hurricane throughout');
+    });
+
+    test('Should find the newest HURDAT2 file by year and then by date, per basin', () => {
+        const out = run(`// The older revision of a year is listed AFTER the newer one, and the newer comes first
+            // for one basin and last for the other, so neither "first seen" nor "last seen" can pass.
+            const L = '<a href="hurdat2-1851-2025-040425.txt">x</a><a href="hurdat2-1851-2025-092326.txt">x</a><a href="hurdat2-1851-2024-040425.txt">x</a><a href="hurdat2-nepac-1949-2025-092926.txt">x</a><a href="hurdat2-nepac-1949-2024-031725.txt">x</a><a href="hurdat2-nepac-1949-2025-02272026.txt">x</a>';
+            console.log(JSON.stringify({ al: F.discover(L, 'al'), ep: F.discover(L, 'ep'),
+              rolled: F.discover(L + 'hurdat2-1851-2026-031527.txt', 'al'), none: F.discover('<html></html>', 'al') }));`);
+        assert.strictEqual(out.al, 'hurdat2-1851-2025-092326.txt', 'September 2025 revision beats April 2025');
+        assert.strictEqual(out.ep, 'hurdat2-nepac-1949-2025-092926.txt', 'a name that does not fit the pattern is not a candidate');
+        assert.strictEqual(out.rolled, 'hurdat2-1851-2026-031527.txt', 'a new year wins');
+        assert.strictEqual(out.none, null, 'no match is null, never a guess');
+    });
+
+    test('Should refuse an archive that is too small, regressed, or missing Katrina', () => {
+        const out = run(`const a = H.parseHurdat2(alTxt).storms;
+            // Big enough to clear the floors, so each refusal below is for the reason named and no other.
+            const clones = Array.from({ length: 2000 }, (_, i) => ({ ...a[3], id: 'AL99' + String(i).padStart(4, '0'), year: 1990 }));
+            const big = [...a.filter((s) => s.id === 'AL011851' || s.id === 'AL122005'), ...clones];
+            console.log(JSON.stringify({ small: F.acceptable('al', a, []), good: F.acceptable('al', big, []),
+              regress: F.acceptable('al', big, [], { through: 2030 }),
+              noKatrina: F.acceptable('al', big.filter((s) => s.id !== 'AL122005'), []),
+              no1851: F.acceptable('al', big.filter((s) => s.id !== 'AL011851'), []),
+              manyBad: F.acceptable('al', big, Array.from({ length: 50 }, (_, i) => ({ id: 'x' + i, why: 'bad' }))) }));`);
+        assert.ok(/fewer than/.test(out.small), out.small);
+        assert.strictEqual(out.good, null, 'the control passes: ' + out.good);
+        assert.ok(/before the published/.test(out.regress), 'an archive that ends earlier than the published one is refused: ' + out.regress);
+        assert.ok(/Katrina/.test(out.noKatrina), 'a real Atlantic archive has Katrina: ' + out.noKatrina);
+        assert.ok(/nothing from 1851/.test(out.no1851), out.no1851);
+        assert.ok(/rejected as malformed/.test(out.manyBad), out.manyBad);
+        // and the real archive passes, when it has been built
+        const index = path.join(__dirname, 'storms', 'index.json');
+        if (!fs.existsSync(index)) return;
+        const idx = JSON.parse(fs.readFileSync(index, 'utf8'));
+        if (idx.counts.al.storms < 100) return;   // a fixture build
+        assert.ok(idx.counts.al.storms >= 1800 && idx.counts.ep.storms >= 1100);
+    });
+
+    test('Should never retry, and stop at the first non-200', () => {
+        const stub = path.join(os.tmpdir(), `storms-stub-${process.pid}.mjs`);
+        fs.writeFileSync(stub, `const seen = []; globalThis.fetch = async (u) => { seen.push(String(u)); process.stderr.write('FETCH ' + u + '\\n'); return { status: 503, ok: false, text: async () => '', json: async () => ({}) }; };`);
+        const r = spawnSync(process.execPath, ['--import', 'file://' + stub, path.join(__dirname, 'scripts', 'fetch-storms.mjs'), path.join(os.tmpdir(), `storms-out-${process.pid}`)], { encoding: 'utf8' });
+        fs.unlinkSync(stub);
+        const urls = r.stderr.split('\n').filter((l) => l.startsWith('FETCH ')).map((l) => l.slice(6));
+        assert.strictEqual(r.status, 1, 'a 503 from NHC fails the run');
+        assert.ok(/not retrying/.test(r.stderr));
+        assert.strictEqual(new Set(urls).size, urls.length, 'no URL is asked for twice: ' + urls.join(' '));
+        assert.ok(!urls.some((u) => /hurdat2-[a-z0-9-]+\.txt$/.test(u)), 'and no data file is fetched once the listing failed');
+    });
+
+    test('Should measure the distance to the track between fixes, not only to the fixes', () => {
+        const out = run(`const t0 = Date.UTC(2000, 8, 1);
+            const storm = { id: 'AL012000', name: 'TEST', basin: 'AL', year: 2000, n: 2,
+              t: Float64Array.of(t0, t0 + 6 * 3600000), lat: Float32Array.of(10, 10), lon: Float32Array.of(-100, -98), wind: Int16Array.of(50, 70), status: 'SS', land: [] };
+            const c = S.closestApproach(storm, 11, -99);
+            const nearestFix = S.gcKm(11, -99, 10, -100);
+            console.log(JSON.stringify({ km: c.km, u: c.u, wind: c.wind, hours: (c.t - t0) / 3600000, nearestFix }));`);
+        assert.ok(Math.abs(out.km - 111) < 3, `passes about 111 km away (${out.km})`);
+        assert.ok(out.nearestFix > 150, 'the nearest fix alone would say ' + out.nearestFix);
+        assert.ok(Math.abs(out.u - 0.5) < 0.02 && Math.abs(out.hours - 3) < 0.1, 'halfway along, three hours in');
+        assert.ok(Math.abs(out.wind - 60) < 1, 'wind is interpolated to that point');
+    });
+
+    test('Should know great-circle distance, and reach across the dateline', () => {
+        const out = run(`const ep = P.decodeArchive(P.encodeArchive(H.parseHurdat2(epTxt).storms));
+            const om = ep.find((s) => s.id === 'CP012010'); const i = Array.from(om.lon).findIndex((v) => v > 180);
+            const wrapped = om.lon[i] - 360;
+            console.log(JSON.stringify({ la: S.gcKm(34.05, -118.24, 40.71, -74.0), seam: S.closestApproach(om, om.lat[i], wrapped).km,
+              near: S.nearbyStorms(ep, om.lat[i], wrapped, 50).map((x) => x.storm.id) }));`);
+        assert.ok(Math.abs(out.la - 3936) < 15, 'Los Angeles to New York is about 3,936 km');
+        assert.ok(out.seam < 1, 'a point on the far side of the seam is on the track');
+        assert.ok(out.near.includes('CP012010'));
+    });
+
+    test('Should report a place\'s facts in the archive\'s own terms: passed within, wind when nearest', () => {
+        const out = run(`const ep = P.decodeArchive(P.encodeArchive(H.parseHurdat2(epTxt).storms));
+            const near = S.nearbyStorms(ep, 33.60, -117.67, 600 * 1.609344);
+            const f = S.facts(near);
+            console.log(JSON.stringify({ order: near.map((x) => x.storm.id), mi: near.map((x) => x.km / 1.609344),
+              closest: f.closest.storm.id, within100: f.within100, within150: f.within150, titles: near.map((x) => S.titleOf(x.storm)) }));`);
+        // Mission Viejo, 33.60 N 117.67 W. Measured to the line between fixes:
+        // Norman 1978 29 mi, Kathleen 1976 93 mi. (To the fixes alone they were 31 and 123.)
+        assert.deepStrictEqual(out.order.slice(0, 2), ['EP141978', 'EP111976']);
+        assert.ok(Math.abs(out.mi[0] - 29.3) < 1.5 && Math.abs(out.mi[1] - 93.4) < 2, out.mi.join(', '));
+        assert.strictEqual(out.closest, 'EP141978');
+        assert.strictEqual(out.within100, 2);
+        assert.deepStrictEqual(out.titles.slice(0, 2), ['Norman 1978', 'Kathleen 1976']);
+    });
+
+    test('Should place today in a basin\'s season by an injected clock, and list storms on this date', () => {
+        const out = run(`const mk = (id, y, m, d, basin) => { const t = Date.UTC(y, m - 1, d); return { id, name: id, basin, year: y, n: 2, t: Float64Array.of(t, t + 6 * 3600000), lat: Float32Array.of(20, 21), lon: Float32Array.of(-60, -61), wind: Int16Array.of(50, 70), status: 'SH', land: [] }; };
+            const storms = [mk('AL011990', 1990, 9, 10, 'AL'), mk('AL021991', 1991, 9, 12, 'AL'), mk('AL031992', 1992, 8, 1, 'AL'), mk('AL041993', 1993, 10, 20, 'AL'), mk('EP011990', 1990, 6, 1, 'EP')];
+            const at = (y, m, d) => S.seasonProgress(storms, 'AL', Date.UTC(y, m - 1, d));
+            const jan = at(2026, 1, 1), sep = at(2026, 9, 11), dec = at(2026, 12, 31);
+            console.log(JSON.stringify({ jan: jan.behind, sep: sep.behind, dec: dec.behind, peak: S.dayOfYear(Date.UTC(2026, 8, 10)), peakDoy: sep.peakDoy, days: dec.days,
+              on: S.onThisDate(storms, Date.UTC(2026, 8, 11), 3).map((x) => x.storm.id).sort(), none: S.onThisDate(storms, Date.UTC(2026, 11, 25), 3).length }));`);
+        assert.strictEqual(out.jan, 0);
+        assert.strictEqual(out.dec, 1);
+        assert.ok(out.sep > 0.4 && out.sep < 0.8, 'mid-September is part way through: ' + out.sep);
+        assert.strictEqual(out.days, 4, 'only this basin\'s storm-days count, once per storm per day');
+        assert.deepStrictEqual(out.on, ['AL011990', 'AL021991'], 'the storms alive within three days of September 11, in any year');
+        assert.strictEqual(out.none, 0);
+    });
+
+    test('Should interpolate a storm\'s position along time, clamped to its life', () => {
+        const out = run(`const ep = P.decodeArchive(P.encodeArchive(H.parseHurdat2(epTxt).storms));
+            const s = ep[0]; const mid = (s.t[0] + s.t[1]) / 2;
+            const a = S.positionAt(s, s.t[0] - 1e9), b = S.positionAt(s, mid), c = S.positionAt(s, s.t[s.n - 1] + 1e9);
+            console.log(JSON.stringify({ a, b, c, s0: [s.lat[0], s.lon[0]], s1: [s.lat[1], s.lon[1]], last: [s.lat[s.n - 1], s.lon[s.n - 1]] }));`);
+        assert.deepStrictEqual([out.a.lat, out.a.lon], out.s0, 'before it formed it sits at its first fix');
+        assert.ok(Math.abs(out.b.lat - (out.s0[0] + out.s1[0]) / 2) < 1e-4, 'halfway between the first two fixes');
+        assert.deepStrictEqual([out.c.lat, out.c.lon], out.last, 'after it ended it sits at its last');
+    });
+
+    test('Should caveat the early record, and say nothing about the modern one', () => {
+        const out = run(`console.log(JSON.stringify([1851, 1899, 1900, 1965, 1966, 2005].map((y) => S.eraNote(y))));`);
+        assert.ok(/ship reports/.test(out[0]) && /ship reports/.test(out[1]));
+        assert.ok(/satellites/.test(out[2]) && /satellites/.test(out[3]));
+        assert.strictEqual(out[4], null);
+        assert.strictEqual(out[5], null);
+    });
+
+    test('Should keep the atlas out of RADAR\'s own bundle: one dynamic import, nothing eager', () => {
+        const radar = strip(read('weather', 'js', 'views', 'radar.js'));
+        assert.ok(/import\('\.\/storms\.js'\)/.test(radar), 'RADAR fetches the atlas when the button is pressed');
+        assert.ok(!/^\s*import[^(]*from '\.\/storms\.js'/m.test(radar), 'and never imports it statically');
+        const dist = path.join(__dirname, 'weather', 'dist');
+        const files = fs.readdirSync(dist).filter((f) => f.endsWith('.js'));
+        const lazy = files.filter((f) => /^storms\./.test(f));
+        assert.strictEqual(lazy.length, 1, 'the atlas is one chunk of its own');
+        const html = read('weather', 'index.html');
+        assert.ok(!/dist\/storms\./.test(html), 'and the page does not preload it');
+        for (const f of files.filter((x) => x !== lazy[0])) {
+            const src = read('weather', 'dist', f);
+            assert.ok(!/st-sweep|HURDAT2|nearbyStorms/.test(src), f + ' carries none of the atlas');
+        }
+        assert.ok(/st-sweep/.test(read('weather', 'dist', lazy[0])), 'the atlas chunk has the atlas');
+    });
+
+    test('Should stand the radar loop down while the atlas is on, and bring it back after', () => {
+        const radar = strip(read('weather', 'js', 'views', 'radar.js'));
+        assert.ok(/store\.view !== 'radar' \|\| stormsOn/.test(radar), 'the loop does not advance the cursor under the atlas');
+        assert.ok(/if \(!stormsOn\) \{\s*store\.playing = true;/.test(radar), 'showing RADAR does not restart the loop under the atlas');
+        assert.ok(/layer\('radar'\)\.enabled = false/.test(radar) && /layer\('radar'\)\.enabled = true/.test(radar), 'the radar layer is hidden and restored');
+        assert.ok(/storms\?\.exit\(\)/.test(radar), 'leaving the atlas releases the map');
+    });
+
+    test('Should say what the archive is and is not, and never claim more than a track shows', () => {
+        const ui = strip(read('weather', 'js', 'views', 'storms.js')) + strip(read('weather', 'js', 'lib', 'storms.js'));
+        assert.ok(/This is history, not a warning source/.test(ui) && /nhc\.noaa\.gov/.test(ui), 'it points to NHC for current storms');
+        assert.ok(/not available here/.test(ui), 'a missing archive says so');
+        assert.ok(/says nothing about other ocean basins/.test(ui), 'an empty result is not "no storms here"');
+        assert.ok(/wind when nearest, not what a place felt/.test(ui));
+        // A track is where a centre was. These words claim more.
+        assert.ok(!/\b(hit by|struck|was hit|felt by|you were)\b/i.test(ui), 'no claim of impact');
+        assert.ok(/Centre within 100 mi/.test(ui), 'the fact is worded as a pass, not a hit');
+    });
+
+    test('Should keep the pure libs pure, and the archive off the deploy', () => {
+        for (const f of ['storms.js', 'stormpack.js']) {
+            const src = strip(read('weather', 'js', 'lib', f));
+            assert.ok(!/new Date\(\s*\)|Date\.now|document\.|window\.|fetch\(|localStorage/.test(src), f + ' has no DOM, network, storage or hidden clock');
+            assert.ok(!/wasm/i.test(src), f);
+        }
+        assert.ok(!/storms/.test(read('.github', 'workflows', 'deploy.yml')), 'deploy.yml never touches /storms/');
+        const wf = read('.github', 'workflows', 'storms.yml');
+        assert.ok(/group: storms/.test(wf) && /cancel-in-progress: false/.test(wf));
+        assert.ok(!/--fixture|--from-file/.test(wf), 'the workflow never builds from a fixture or skips the believability floors');
+        assert.ok(/^\/storms\/$/m.test(read('.gitignore')), 'the local archive is not committed');
+    });
+});
+
 describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () => {
     /*
      * October 3, 2026. Every entry in countdown/stats.json has an ISO date;

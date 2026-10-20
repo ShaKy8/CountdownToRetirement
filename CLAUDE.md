@@ -1341,6 +1341,69 @@ ISS came out 0.7 km off.
   has the shape). Do not run `fetch-sats.mjs` by hand more than once per two
   hours: that is the 403 it exists to avoid.
 
+### HURRICANES — the STORMS atlas, a mode of RADAR (October 20, 2026)
+
+Kyle asked for something cool about hurricanes. NHC's live feed lists no
+active storms for most of the year (`CurrentStorms.json` was
+`{"activeStorms": []}` the day this was built), so the first layer is history,
+which works every day: a **STORMS** button in RADAR (🌀) turns the map into an
+atlas of every Atlantic (1851-) and East/Central Pacific (1949-) tropical
+cyclone in NHC's HURDAT2 best-track archive that came within 500 miles of the
+visitor. Tracks are faint, coloured by Saffir-Simpson category; a tap on one
+replays it (an eye moves along it on its own playhead); SWEEP THE YEARS grows
+each season's storms in turn; the panel gives the facts for the place, the
+nearest tracks, "on this date", and where today falls in the season. The live
+layer (forecast cone, model spaghetti, wind swirl, analogs) is later phases;
+the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
+`node scripts/mobile-audit.mjs` and `read-audit.mjs` open STORMS themselves.
+
+- **The archive is a snapshot, built by CI, read from our own origin.**
+  `.github/workflows/storms.yml` runs `scripts/fetch-storms.mjs` daily; HURDAT2
+  is revised about once a year, so most runs find the published
+  `storms/index.json` already names the newest files and upload nothing. The
+  newest file names are read from NHC's directory listing (they carry the year
+  and a date). Files are content-hashed (`al.<hash>.json`, immutable) and
+  `index.json` is uploaded last with a short cache, so it never names a missing
+  file. Like `fetch-sats.mjs` it never retries, stops at the first non-200 and
+  refuses what it does not believe (fewest storms and fixes, `through` may not
+  regress, Katrina and 1851 present, 600 KB gz cap). `deploy.yml` never
+  touches `storms/`; `/storms/` is git-ignored. **Dev:** build the real one
+  with `node scripts/fetch-storms.mjs storms --from-file al.txt ep.txt --plain`
+  (HURDAT2 files from nhc.noaa.gov/data/hurdat/), or the small real-row
+  fixtures in `tests/fixtures/` with `--fixture`. The standalone Weather server
+  has no `/storms/`; the panel then says "not available here".
+- **The format is `lib/stormpack.js`**, shared by the build and the console so
+  they cannot disagree: columnar, delta-quantised, lossless (HURDAT2 is 0.1 deg
+  and 1 kt already). **Longitude is unwrapped, east-positive** (a Central
+  Pacific storm carries on 181, 182...), so a track is one polyline and no
+  step jumps the seam; drawing wraps with modulo and draws three world copies.
+  Measured on 2026-10-20: 3,250 storms, 87,584 fixes, 237 KB gzipped.
+- **The rules are `lib/storms.js`**, pure like `sats.js`. **Distance is to the
+  straight line between fixes, not to the fixes**: a six-hour step is 100 km or
+  more. Measured for Mission Viejo, Norman 1978 is 29 mi by segments and 31 by
+  fixes, Kathleen 1976 93 and 123. HURDAT2 does **not** carry Hilary 2023
+  across Southern California, so nothing may claim it.
+- **Wording is part of the rules.** A track is where a storm's centre was every
+  six hours, not what a place felt: facts say "centre within 100 mi" and "wind
+  when nearest", never "hit" or "felt", an empty result says it covers only
+  the Atlantic and the East and Central Pacific, and the panel says it is
+  history, not a warning source, with a link to NHC. Tracks before 1900 and
+  before 1966 carry a caveat (`eraNote`). A test greps for the words.
+- **STORMS is a lazy chunk and RADAR's loop stands down under it.**
+  `radar.js` does `import('./storms.js')` on first press (a test pins one
+  dynamic import and that no eager bundle file carries atlas code); while it is
+  on the radar layer is hidden, `store.playing` is false, `tick` returns, and
+  showing RADAR does not restart the loop. The atlas has its own playhead
+  because `store.span` is tied to the forecast window, which a 1992 storm can
+  never be inside. Under `prefers-reduced-motion` a replay starts paused and
+  the sweep button is hidden.
+- **Not yet built (phases 2-4):** the live route `/api/storms` (CurrentStorms,
+  b-deck best track, a-deck OFCL forecast and ensemble members, NHC ArcGIS
+  cone), the wind swirl from measured radii (HURDAT2 has them from 2004; the
+  build does not store them yet), and analog storms. The season ring covers
+  only storms in HURDAT2, which lags about six months, so this year's storms
+  are absent until it is revised.
+
 ### How the console ships: one hashed bundle (October 13, 2026)
 
 `index.html` loads `dist/main.<hash>.js` — the ~25 modules bundled and
