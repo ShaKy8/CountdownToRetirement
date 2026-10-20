@@ -1366,7 +1366,11 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   `index.json` is uploaded last with a short cache, so it never names a missing
   file. Like `fetch-sats.mjs` it never retries, stops at the first non-200 and
   refuses what it does not believe (fewest storms and fixes, `through` may not
-  regress, Katrina and 1851 present, 600 KB gz cap). `deploy.yml` never
+  regress, Katrina and 1851 present, 600 KB gz cap). **`FORMAT` in the script,
+  copied into `index.json`, is what makes it republish when the archive's shape
+  changes:** the skip compared only NHC's file names, so when the wind radii files
+  were added (NHC's files unchanged) the daily run said "unchanged" and
+  published nothing. Raise it whenever the files or the index change shape. `deploy.yml` never
   touches `storms/`; `/storms/` is git-ignored. **Dev:** build the real one
   with `node scripts/fetch-storms.mjs storms --from-file al.txt ep.txt --plain`
   (HURDAT2 files from nhc.noaa.gov/data/hurdat/), or the small real-row

@@ -6591,6 +6591,42 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
         assert.ok(!urls.some((u) => /hurdat2-[a-z0-9-]+\.txt$/.test(u)), 'and no data file is fetched once the listing failed');
     });
 
+    test('Should republish when the archive\'s format is newer than the published one, and say unchanged only when it matches', () => {
+        // NHC's file names had not changed when the wind radii files were added, and the daily run
+        // reported "unchanged" and published nothing. The format number is what notices.
+        const src = fs.readFileSync(path.join(__dirname, 'scripts', 'fetch-storms.mjs'), 'utf8');
+        const FORMAT = Number(src.match(/export const FORMAT = (\d+);/)[1]);
+        assert.ok(FORMAT >= 2, 'the radii files made it 2');
+        const run = (published) => {
+            const stub = path.join(os.tmpdir(), `storms-fmt-${process.pid}-${Math.random().toString(36).slice(2)}.mjs`);
+            fs.writeFileSync(stub, `const listing = '<a href="hurdat2-1851-2025-092326.txt">x</a><a href="hurdat2-nepac-1949-2025-092926.txt">x</a>';
+                globalThis.fetch = async (u) => { u = String(u); process.stderr.write('FETCH ' + u + '\\n');
+                  const ok = (body) => ({ status: 200, ok: true, text: async () => body, json: async () => JSON.parse(body) });
+                  if (u.endsWith('/storms/index.json')) return ${published === null ? "({ status: 404, ok: false, json: async () => ({}) })" : `ok(JSON.stringify(${JSON.stringify(published)}))`};
+                  if (u.endsWith('/data/hurdat/')) return ok(listing);
+                  return { status: 503, ok: false, text: async () => '', json: async () => ({}) }; };`);
+            const r = spawnSync(process.execPath, ['--import', 'file://' + stub, path.join(__dirname, 'scripts', 'fetch-storms.mjs'), path.join(os.tmpdir(), `storms-fmt-out-${process.pid}`)], { encoding: 'utf8' });
+            fs.unlinkSync(stub);
+            const urls = r.stderr.split('\n').filter((l) => l.startsWith('FETCH ')).map((l) => l.slice(6));
+            return { status: r.status, out: r.stdout, err: r.stderr, data: urls.filter((u) => /hurdat2-[a-z0-9-]+\.txt$/.test(u)) };
+        };
+        const same = { src: { al: 'hurdat2-1851-2025-092326.txt', ep: 'hurdat2-nepac-1949-2025-092926.txt' }, through: { al: 2025, ep: 2025 }, counts: {} };
+        const older = run({ v: 1, ...same });
+        assert.ok(older.data.length >= 1, 'an index with no format is rebuilt even though NHC\'s files are the same');
+        assert.ok(!/unchanged/.test(older.out));
+        const behind = run({ v: 1, format: FORMAT - 1, ...same });
+        assert.ok(behind.data.length >= 1, 'so is one from an older format');
+        const current = run({ v: 1, format: FORMAT, ...same });
+        assert.strictEqual(current.status, 0, current.err);
+        assert.ok(/^unchanged: /.test(current.out), 'a current index on current files is left alone: ' + current.out);
+        assert.deepStrictEqual(current.data, [], 'and no data file is downloaded');
+        const newFiles = run({ v: 1, format: FORMAT, ...same, src: { al: 'hurdat2-1851-2024-040425.txt', ep: same.src.ep } });
+        assert.ok(newFiles.data.length >= 1, 'new HURDAT2 files still republish, as before');
+        const first = run(null);
+        assert.ok(first.data.length >= 1, 'with nothing published it builds');
+        assert.ok(/format: FORMAT/.test(src), 'and the index carries the number');
+    });
+
     test('Should measure the distance to the track between fixes, not only to the fixes', () => {
         const out = run(`const t0 = Date.UTC(2000, 8, 1);
             const storm = { id: 'AL012000', name: 'TEST', basin: 'AL', year: 2000, n: 2,
@@ -6836,6 +6872,7 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
         assert.strictEqual(r.status, 0, r.stderr);
         const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
         assert.deepStrictEqual(Object.keys(index.files).sort(), ['al', 'alr', 'ep', 'epr']);
+        assert.strictEqual(index.format, Number(fs.readFileSync(path.join(__dirname, 'scripts', 'fetch-storms.mjs'), 'utf8').match(/export const FORMAT = (\d+);/)[1]), 'the built index carries the format number');
         for (const k of ['alr', 'epr']) {
             assert.ok(/^(al|ep)-radii\.[0-9a-f]{8}\.json$/.test(index.files[k]), index.files[k]);
             const body = JSON.parse(fs.readFileSync(path.join(dir, index.files[k]), 'utf8'));

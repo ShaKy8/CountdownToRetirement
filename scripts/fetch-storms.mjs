@@ -41,6 +41,15 @@ export const BASINS = {
 };
 /** All four files together, gzipped. The two track files were 237 KB when this was written. */
 export const MAX_GZ_BYTES = 600 * 1024;
+/**
+ * The shape of what this script publishes. The skip below compares HURDAT2's
+ * file names, which only change once a year, so on its own it cannot notice
+ * that the archive itself changed: the wind radii files were added while NHC's
+ * files stood still, and the daily run reported "unchanged" and published
+ * nothing. Raise this whenever the files or the index change shape, and an
+ * index built by an older script is rebuilt. 2: added the wind radii files.
+ */
+export const FORMAT = 2;
 
 /**
  * Newest HURDAT2 file name for a basin in NHC's directory listing, or null.
@@ -114,7 +123,7 @@ async function main(argv) {
       names[b] = discover(listing, b);
       if (!names[b]) { console.error(`${b}: no HURDAT2 file found in the listing -- stopping`); process.exit(1); }
     }
-    if (prevIndex && prevIndex.src && prevIndex.src.al === names.al && prevIndex.src.ep === names.ep) {
+    if (prevIndex && prevIndex.format === FORMAT && prevIndex.src && prevIndex.src.al === names.al && prevIndex.src.ep === names.ep) {
       console.log(`unchanged: ${names.al}, ${names.ep}`);
       return;
     }
@@ -126,7 +135,7 @@ async function main(argv) {
 
   await mkdir(outDir, { recursive: true });
   const built = new Date().toISOString();
-  const index = { v: 1, built, files: {}, through: {}, counts: {}, src: names };
+  const index = { v: 1, format: FORMAT, built, files: {}, through: {}, counts: {}, src: names };
   const out = {};
   let gzTotal = 0;
   for (const b of Object.keys(BASINS)) {
