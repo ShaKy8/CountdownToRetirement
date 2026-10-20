@@ -465,7 +465,8 @@
 .st-honest a { color: var(--ink); }
 .st-live-row { grid-template-columns: minmax(0, 1fr) auto 2.2em; }
 .st-live-row .st-age { grid-column: 1 / -1; font-size: max(.56rem, var(--fs-floor, 0px)); letter-spacing: .08em; color: var(--dim); }
-.st-live-row .st-age.bad { color: var(--rd); font-weight: 600; }
+/* The red lifted toward the ink, like the console's other alert titles: plain --rd read 4.25:1 on the panel. */
+.st-live-row .st-age.bad { color: color-mix(in srgb, var(--rd) 62%, var(--ink)); font-weight: 600; }
 .st-you { margin-top: 6px; }
 .st-legend { display: flex; gap: 12px; margin: 6px 0 2px; }
 .st-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: max(.56rem, var(--fs-floor, 0px)); letter-spacing: .1em; color: var(--dim); }

@@ -11,7 +11,7 @@ import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { parseBtk, parseADeck, STORM_ID, stormNumber } from './atcf.mjs';
+import { parseBtk, parseADeck, thinPoints, STORM_ID, stormNumber } from './atcf.mjs';
 
 /*
  * Lambda gives each execution environment a writable /tmp that survives warm
@@ -390,8 +390,9 @@ const shortLived = (body) => { brief.add(body); return body; };
  *
  *   CurrentStorms.json   which storms are active right now (often none)
  *   b-deck               each one's best track so far, with wind radii
- *   a-deck               NHC's official forecast (OFCL), parsed here: the file
- *                        is ~800 KB gzipped and holds every model's every run
+ *   a-deck               NHC's official forecast (OFCL) and five models' runs
+ *                        (AVNO EMXI HFSA HFSB CTCX), parsed here: the file is
+ *                        ~800 KB gzipped and holds every model's every run
  *   ArcGIS cone          the forecast cone, as GeoJSON polygons
  *
  * This is life-safety data, so the failure modes are chosen on purpose:
@@ -450,7 +451,21 @@ async function stormBest(id) {
   }));
 }
 
-/** NHC's official forecast for a storm: { cycle, points } or null when it has none yet. */
+/**
+ * The model guidance drawn beside the official forecast, in the order shown.
+ * Each is one model's own run: AVNO is the GFS, EMXI the ECMWF, HFSA and HFSB
+ * the two HAFS runs, CTCX the Navy's COAMPS-TC.
+ */
+const STORM_MODELS = ['AVNO', 'EMXI', 'HFSA', 'HFSB', 'CTCX'];
+
+/**
+ * NHC's official forecast and the model guidance for a storm, from one read of
+ * the a-deck: { forecast, models }. `forecast` is { cycle, points } or null
+ * when NHC has none yet; `models` maps a model name to { cycle, points } for
+ * each of STORM_MODELS that has a run (each at its own latest cycle, which can
+ * be older than the official forecast's), thinned to every 12 h out to 120 h
+ * and cut to what a line needs: no pressure, status or radii.
+ */
 async function stormForecast(id) {
   const key = `st_fc_${id}`;
   const hit = memGet(key);
@@ -465,11 +480,22 @@ async function stormForecast(id) {
   if (buf.length > ADECK_GZ_MAX) throw new Error(`a-deck ${id} is too large`);
   // Served as a file, so the bytes are gzip; if a proxy already inflated them, they are text.
   const raw = buf[0] === 0x1f && buf[1] === 0x8b ? zlib.gunzipSync(buf, { maxOutputLength: ADECK_RAW_MAX }) : buf;
-  const { OFCL } = parseADeck(raw.toString('latin1'), ['OFCL']);
-  const v = OFCL ? {
-    cycle: new Date(OFCL.cycle).toISOString(),
-    points: OFCL.points.map((p) => ({ tau: p.tau, t: p.t, lat: p.lat, lon: p.lon, wind: p.wind, pres: p.pres, status: p.status, r: p.r || null })),
-  } : null;
+  const found = parseADeck(raw.toString('latin1'), ['OFCL', ...STORM_MODELS]);
+  const { OFCL } = found;
+  const models = {};
+  for (const name of STORM_MODELS) {
+    const run = found[name];
+    if (!run) continue;
+    const points = thinPoints(run.points).map((p) => ({ tau: p.tau, t: p.t, lat: p.lat, lon: p.lon, wind: p.wind }));
+    if (points.length > 1) models[name] = { cycle: new Date(run.cycle).toISOString(), points };
+  }
+  const v = {
+    forecast: OFCL ? {
+      cycle: new Date(OFCL.cycle).toISOString(),
+      points: OFCL.points.map((p) => ({ tau: p.tau, t: p.t, lat: p.lat, lon: p.lon, wind: p.wind, pres: p.pres, status: p.status, r: p.r || null })),
+    } : null,
+    models,
+  };
   memSet(key, { v }, 10 * MIN);
   return v;
 }
@@ -511,12 +537,16 @@ async function stormsPayload() {
       s.bin ? soft(`storm cone ${s.id}`, () => stormCone(s.bin)) : { ok: true, data: null },
     ]);
     const part = (r) => (!r.ok ? 'fail' : r.data == null || (Array.isArray(r.data) && !r.data.length) ? 'none' : 'ok');
+    const fc = fcst.ok ? fcst.data : null;
+    const models = fc ? fc.models : {};
     return {
       ...s,
       best: best.ok ? best.data : [],
-      forecast: fcst.ok ? fcst.data : null,
+      forecast: fc ? fc.forecast : null,
+      models,
       cone: cone.ok ? cone.data : null,
-      parts: { best: part(best), forecast: part(fcst), cone: part(cone) },
+      // One read of the a-deck gives both: if it failed, both did.
+      parts: { best: part(best), forecast: !fcst.ok ? 'fail' : fc.forecast ? 'ok' : 'none', models: !fcst.ok ? 'fail' : Object.keys(models).length ? 'ok' : 'none', cone: part(cone) },
     };
   }));
   const out = {

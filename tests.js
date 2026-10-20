@@ -6826,6 +6826,7 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
         assert.ok(/st\._stale === 'old' \? 0\.35 : 1/.test(ui), 'an out-of-date forecast is drawn faint');
         const css = read('weather', 'css', fs.readdirSync(path.join(__dirname, 'weather', 'css')).find((f) => /^views\./.test(f)));
         assert.ok(/\.st-alarm/.test(css) && /\.st-honest/.test(css));
+        assert.ok(/\.st-live-row \.st-age\.bad \{ color: color-mix\(in srgb, var\(--rd\) \d+%, var\(--ink\)\)/.test(css), 'a stale age is the red lifted toward the ink: plain --rd read 4.25:1 and failed the read audit');
     });
 
     test('Should read the radius of maximum wind when a row has one, and not when it says -999', () => {
@@ -6960,6 +6961,39 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
         const chunk = fs.readdirSync(dist).find((f) => /^storms\./.test(f));
         assert.ok(/radiiRing|quarter/i.test(read('weather', 'dist', chunk)) || /drawWind|radii/i.test(read('weather', 'dist', chunk)), 'the wind field is in the atlas chunk');
         for (const f of fs.readdirSync(dist).filter((x) => x.endsWith('.js') && x !== chunk)) assert.ok(!/radiiRing|decodeRadii/.test(read('weather', 'dist', f)), f + ' carries none of it');
+    });
+
+    test('Should name the five models in the order shown, label a run by its UTC hour, and call a run 12 hours behind NHC old', () => {
+        const out = run(`const HR = 3600000, T = Date.UTC(2026, 9, 20, 12);
+            console.log(JSON.stringify({ keys: S.MODELS.map((m) => m.key), names: S.MODELS.map((m) => m.name), labels: [S.runLabel('2026-10-20T06:00:00.000Z'), S.runLabel('2026-10-20T18:00:00Z'), S.runLabel('x'), S.runLabel(null)],
+              lag: [S.runLag(new Date(T - 6 * HR).toISOString(), new Date(T).toISOString()), S.runLag(new Date(T + 6 * HR).toISOString(), new Date(T).toISOString()), S.runLag('x', new Date(T).toISOString()), S.runLag(new Date(T).toISOString(), null)],
+              old: [0, 6, 11.9, 12, 30, null].map((h) => S.isOldRun(h)), K: S.OLD_RUN_HOURS }));`);
+        assert.deepStrictEqual(out.keys, ['AVNO', 'EMXI', 'HFSA', 'HFSB', 'CTCX'], 'the same five, in the same order, as the route');
+        assert.deepStrictEqual(out.names, ['GFS', 'ECMWF', 'HAFS-A', 'HAFS-B', 'COAMPS-TC']);
+        assert.deepStrictEqual(out.labels, ['06Z', '18Z', '', '']);
+        assert.deepStrictEqual(out.lag, [6, 0, null, null], 'a newer run is zero hours behind, an unreadable one is unknown');
+        assert.deepStrictEqual(out.old, [false, false, false, true, true, false]);
+        assert.strictEqual(out.K, 12);
+    });
+
+    test('Should draw model guidance as thin lines under NHC\'s official one, one colour each, with a switch per model and the words that keep it honest', () => {
+        const ui = strip(read('weather', 'js', 'views', 'storms.js'));
+        const draw = ui.slice(ui.indexOf('function drawLive('), ui.indexOf('function drawRings('));
+        const models = draw.indexOf('for (const run of st._runs)'), official = draw.indexOf('if (st._fc.length) {');
+        assert.ok(models > -1 && official > models, 'the models are drawn first, so NHC\'s line is over them');
+        assert.ok(/modelsOff\.has\(run\.key\)\) continue/.test(draw), 'a switched-off model is not drawn');
+        assert.ok(/run\.old \? 0\.3 : 0\.75/.test(draw), 'an old run is drawn faint');
+        const colours = Object.fromEntries([...ui.matchAll(/(AVNO|EMXI|HFSA|HFSB|CTCX): '(#[0-9a-f]{6})'/gi)].map((m) => [m[1], m[2].toLowerCase()]));
+        assert.deepStrictEqual(Object.keys(colours).sort(), ['AVNO', 'CTCX', 'EMXI', 'HFSA', 'HFSB'], 'a colour per model');
+        assert.strictEqual(new Set(Object.values(colours)).size, 5, 'all different');
+        for (const k of ['#3fd0d8', '#f47171', '#dde2e8']) assert.ok(!Object.values(colours).includes(k), 'not a wind threshold\'s or the official line\'s colour: ' + k);
+        assert.ok(/data-model="\$\{esc\(r\.key\)\}" aria-pressed="\$\{!modelsOff\.has\(r\.key\)\}"/.test(ui), 'a chip per model, pressed when drawn');
+        assert.ok(/e\.target\.closest\('\[data-model\]'\)/.test(ui));
+        assert.ok(!/localStorage/.test(ui), 'the switches last the session and touch no storage');
+        for (const text of ['Each thin line is one computer model', 'that spread is not a probability', 'follow it, not any one model',
+            'No model guidance is published for this storm yet', 'Model guidance could not be read', ' · OLD']) assert.ok(ui.includes(text), text);
+        assert.ok(/for \(const run of st\._runs\) for \(const p of run\.pts\)/.test(ui), 'the view frames the models too');
+        assert.ok(/st\.parts\.models === 'fail'/.test(ui));
     });
 
     test('Should keep the pure libs pure, and the archive off the deploy', () => {
@@ -7113,7 +7147,7 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
         assert.strictEqual(s.cone.type, 'FeatureCollection');
         assert.strictEqual(s.cone.features.length, 1);
         assert.deepStrictEqual(s.cone.features[0].properties, {}, 'only the polygon is passed on');
-        assert.deepStrictEqual(s.parts, { best: 'ok', forecast: 'ok', cone: 'ok' });
+        assert.deepStrictEqual(s.parts, { best: 'ok', forecast: 'ok', models: 'ok', cone: 'ok' });
         const hosts = new Set(out.calls.map((u) => new URL(u).host));
         assert.deepStrictEqual([...hosts].sort(), ['ftp.nhc.noaa.gov', 'mapservices.weather.noaa.gov', 'www.nhc.noaa.gov']);
         assert.ok(out.calls.includes('https://ftp.nhc.noaa.gov/atcf/btk/bep212026.dat'));
@@ -7125,7 +7159,7 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
         const out = run(`const res = {};
             brk.cone = () => mk(500); res.cone = await call();
             console.log(JSON.stringify({ cone: { cache: res.cone.cache, parts: res.cone.body.storms[0].parts, hasCone: res.cone.body.storms[0].cone, name: res.cone.body.storms[0].name, best: res.cone.body.storms[0].best.length } }));`);
-        assert.deepStrictEqual(out.cone.parts, { best: 'ok', forecast: 'ok', cone: 'fail' });
+        assert.deepStrictEqual(out.cone.parts, { best: 'ok', forecast: 'ok', models: 'ok', cone: 'fail' });
         assert.strictEqual(out.cone.hasCone, null, 'a failed cone is null, never invented');
         assert.strictEqual(out.cone.name, 'Trudy');
         assert.strictEqual(out.cone.best, 36);
@@ -7139,7 +7173,7 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
             brk.cone = () => mk(200, { json: { type: 'FeatureCollection', features: [] } });
             const r = await call();
             console.log(JSON.stringify({ parts: r.body.storms[0].parts, cache: r.cache, fc: r.body.storms[0].forecast }));`);
-        assert.deepStrictEqual(out.parts, { best: 'ok', forecast: 'none', cone: 'none' });
+        assert.deepStrictEqual(out.parts, { best: 'ok', forecast: 'none', models: 'ok', cone: 'none' });
         assert.strictEqual(out.fc, null);
         assert.strictEqual(out.cache, 'public, s-maxage=180', 'nothing failed, so it keeps the normal time');
     });
@@ -7174,6 +7208,7 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
             const r = await call();
             console.log(JSON.stringify({ parts: r.body.storms[0].parts, forecast: r.body.storms[0].forecast, name: r.body.storms[0].name }));`);
         assert.strictEqual(out.parts.forecast, 'fail', 'a declared size over the cap is refused');
+        assert.strictEqual(out.parts.models, 'fail', 'and the models, read from the same file, fail with it');
         assert.strictEqual(out.parts.best, 'ok', 'and the rest of the storm still answers');
         assert.strictEqual(out.forecast, null);
         assert.strictEqual(out.name, 'Trudy');
@@ -7183,7 +7218,7 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
         const out = run(`brk.adeck = () => mk(200, { text: adeck });
             const r = await call();
             console.log(JSON.stringify({ parts: r.body.storms[0].parts, cycle: r.body.storms[0].forecast && r.body.storms[0].forecast.cycle }));`);
-        assert.deepStrictEqual(out.parts, { best: 'ok', forecast: 'ok', cone: 'ok' });
+        assert.deepStrictEqual(out.parts, { best: 'ok', forecast: 'ok', models: 'ok', cone: 'ok' });
         assert.strictEqual(out.cycle, '2026-10-20T00:00:00.000Z', 'the same forecast as from the gzip');
     });
 
@@ -7197,6 +7232,62 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
         assert.strictEqual(out.cache, 'public, s-maxage=30', 'and it is not kept for three minutes');
     });
 
+    test('Should thin a model run to every 12 hours out to 120, and hand back copies', () => {
+        const out = run(`const pts = [0, 3, 6, 12, 18, 24, 36, 48, 60, 72, 96, 120, 126, 132, 240, -6, 1.5].map((tau) => ({ tau, lat: 1, lon: 2 }));
+            const shuffled = [...pts].reverse();
+            const thin = A.thinPoints(shuffled);
+            console.log(JSON.stringify({ taus: thin.map((p) => p.tau), own: thin[0] !== pts[0] && !('x' in pts[0]), wide: A.thinPoints(pts, { step: 24, maxTau: 72 }).map((p) => p.tau),
+              bad: [A.thinPoints(null), A.thinPoints([null, {}, { tau: 'x' }])] }));`);
+        assert.deepStrictEqual(out.taus, [0, 12, 24, 36, 48, 60, 72, 96, 120], 'hour zero and every 12 h to 120, in order, nothing else');
+        assert.strictEqual(out.own, true);
+        assert.deepStrictEqual(out.wide, [0, 24, 48, 72]);
+        assert.deepStrictEqual(out.bad, [[], []]);
+    });
+
+    test('Should return the models\' runs beside the official forecast, each at its own cycle, thinned, and only what a line needs', () => {
+        const out = run(`const r = await call();
+            const s = r.body.storms[0];
+            console.log(JSON.stringify({ models: Object.keys(s.models), m: s.models, parts: s.parts, bytes: JSON.stringify(s.models).length,
+              ofcl: s.forecast.cycle, cache: r.cache }));`);
+        assert.deepStrictEqual(out.models, ['AVNO', 'HFSA', 'HFSB', 'CTCX'], 'the four with a run, in the order shown; HMON (not asked for) and EMXI (no run) are absent');
+        for (const [name, m] of Object.entries(out.m)) {
+            assert.strictEqual(m.cycle, '2026-10-19T18:00:00.000Z', name + ' keeps its own latest cycle, older than the official forecast\'s ' + out.ofcl);
+            assert.deepStrictEqual(m.points.map((p) => p.tau), [0, 12, 24, 36, 48, 60, 72], name + ' is thinned to 12 hours');
+            assert.deepStrictEqual(Object.keys(m.points[0]).sort(), ['lat', 'lon', 'tau', 't', 'wind'].sort(), 'only what a line needs');
+            assert.strictEqual(m.points[1].t - m.points[0].t, 12 * 3600000, 'a point\'s time is cycle + hours ahead');
+            assert.ok(m.points[0].lat > 18 && m.points[0].lat < 21 && m.points[0].lon < -107 && m.points[0].lon > -109, name + ' starts near the storm: ' + JSON.stringify(m.points[0]));
+        }
+        assert.deepStrictEqual(out.parts, { best: 'ok', forecast: 'ok', models: 'ok', cone: 'ok' });
+        assert.ok(out.bytes < 12000, 'four models cost ' + out.bytes + ' bytes');
+        assert.strictEqual(out.cache, 'public, s-maxage=180');
+    });
+
+    test('Should show an EMXI run when the a-deck has one, in the fixed order, and never invent one when it does not', () => {
+        const out = run(`// The fixture storm has no ECMWF run, so one is made here by renaming a real HFSA run's rows: synthetic, and only for the plumbing.
+            const emxi = adeck.split('\\n').filter((l) => l.includes(', HFSA,')).map((l) => l.replace(', HFSA,', ', EMXI,')).join('\\n');
+            brk.adeck = () => mk(200, { buf: zlib.gzipSync(adeck + '\\n' + emxi) });
+            const withIt = (await call()).body.storms[0];
+            console.log(JSON.stringify({ keys: Object.keys(withIt.models), n: withIt.models.EMXI.points.length }));`);
+        assert.deepStrictEqual(out.keys, ['AVNO', 'EMXI', 'HFSA', 'HFSB', 'CTCX'], 'the order is the one shown, not the file\'s');
+        assert.strictEqual(out.n, 7);
+    });
+
+    test('Should call "no model guidance" none, not a failure, and drop a model with a single point', () => {
+        const out = run(`const ofclOnly = adeck.split('\\n').filter((l) => l.includes(', OFCL,')).join('\\n');
+            brk.adeck = () => mk(200, { buf: zlib.gzipSync(ofclOnly) });
+            const a = await call();
+            console.log(JSON.stringify({ a: [a.body.storms[0].parts, a.body.storms[0].models, a.cache] }));`);
+        assert.deepStrictEqual(out.a[0], { best: 'ok', forecast: 'ok', models: 'none', cone: 'ok' });
+        assert.deepStrictEqual(out.a[1], {});
+        assert.strictEqual(out.a[2], 'public, s-maxage=180', 'no models yet is not a failure, so it keeps the normal time');
+        const lone = run(`const one = adeck.split('\\n').filter((l) => l.includes(', OFCL,') || (l.includes(', CTCX,') && /,\\s*0,\\s*19/.test(l))).join('\\n');
+            brk.adeck = () => mk(200, { buf: zlib.gzipSync(one) });
+            const r = (await call()).body.storms[0];
+            console.log(JSON.stringify({ models: r.models, parts: r.parts }));`);
+        assert.deepStrictEqual(lone.models, {}, 'a run of one point is not a line');
+        assert.strictEqual(lone.parts.models, 'none');
+    });
+
     test('Should keep the storms code and the ATCF parser identical in the local server and the Lambda', () => {
         const sibling = path.join(__dirname, '..', 'Weather');
         if (!fs.existsSync(path.join(sibling, 'server.mjs'))) return;   // a sibling repo; CI may not have it
@@ -7207,7 +7298,7 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
         assert.strictEqual(a, b, 'the STORMS block has drifted');
         for (const f of [lambdaPath, path.join(sibling, 'server.mjs')]) {
             const src = fs.readFileSync(f, 'utf8');
-            assert.ok(/import \{ parseBtk, parseADeck, STORM_ID, stormNumber \} from '\.\/atcf\.mjs';/.test(src), f);
+            assert.ok(/import \{ parseBtk, parseADeck, thinPoints, STORM_ID, stormNumber \} from '\.\/atcf\.mjs';/.test(src), f);
             assert.ok(/async '\/api\/storms'\(\) \{/.test(src), 'no argument: the route takes no input');
         }
         const edge = fs.readFileSync(lambdaPath, 'utf8').match(/'\/api\/storms': '([^']*)'/);

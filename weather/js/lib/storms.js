@@ -414,3 +414,36 @@ export function radiiText(r) {
   return THRESHOLDS.filter((k) => n[k].some((v) => v > 0))
     .map((k) => `${k} kt: NE ${Math.round(n[k][0])}, SE ${Math.round(n[k][1])}, SW ${Math.round(n[k][2])}, NW ${Math.round(n[k][3])} nm`);
 }
+
+/* ===================================================================== MODELS
+ *
+ * Model guidance: each line on the map is one computer model's own forecast of
+ * where the storm goes. They disagree, and the spread is the point, but it is
+ * a spread of models, not a probability, and it is not NHC's forecast: NHC's
+ * (the official line) weighs these and more. The words say so.
+ */
+
+/** In the order shown. `name` is what the model is; `group` is where it comes from. */
+export const MODELS = [
+  { key: 'AVNO', name: 'GFS', note: 'NOAA global model' },
+  { key: 'EMXI', name: 'ECMWF', note: 'European global model' },
+  { key: 'HFSA', name: 'HAFS-A', note: 'NOAA hurricane model' },
+  { key: 'HFSB', name: 'HAFS-B', note: 'NOAA hurricane model' },
+  { key: 'CTCX', name: 'COAMPS-TC', note: 'US Navy hurricane model' },
+];
+
+/** The run's own time, in UTC, as "18Z". */
+export function runLabel(cycle) {
+  const t = Date.parse(cycle);              // null and undefined are NaN here; new Date(null) would be 1970
+  return Number.isFinite(t) ? `${String(new Date(t).getUTCHours()).padStart(2, '0')}Z` : '';
+}
+
+/** Hours by which a model's run is older than the official forecast's (0 when it is as new or newer, null when either is unreadable). */
+export function runLag(modelCycle, officialCycle) {
+  const m = Date.parse(modelCycle), o = Date.parse(officialCycle);
+  return Number.isFinite(m) && Number.isFinite(o) ? Math.max(0, (o - m) / HOUR) : null;
+}
+
+/** A model whose run is 12 or more hours older than NHC's latest forecast is old guidance. */
+export const OLD_RUN_HOURS = 12;
+export const isOldRun = (lag) => lag != null && lag >= OLD_RUN_HOURS;

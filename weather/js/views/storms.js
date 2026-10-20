@@ -73,6 +73,7 @@ export function createStorms({ map, panel, hud, root }) {
   let liveStorms = [];                // data.storms, each with unwrapped longitudes ready to draw
   let liveSel = null;                 // id of the live storm the YOU card is about
   let liveTimer = 0;
+  const modelsOff = new Set();        // model keys the visitor has switched off (session only)
   // Wind radii, by basin file ('AL' | 'EP'): 'idle' | 'loading' | Map | 'fail' | 'absent'.
   const radiiFiles = { AL: 'idle', EP: 'idle' };
 
@@ -145,9 +146,17 @@ export function createStorms({ map, panel, hud, root }) {
         const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
         for (const rings of polys) cone.push(rings.map((r) => nearRing(r, ref)));
       }
+      // Each model's run, unwrapped from the storm's side of the dateline, with its age against NHC's forecast.
+      const runs = S.MODELS.filter((md) => st.models && st.models[md.key]).map((md) => {
+        const run = st.models[md.key];
+        let mq = ref;
+        const pts = run.points.map((p) => { mq = unwrapLon(mq, p.lon); return { ...p, lon: mq }; });
+        const lag = S.runLag(run.cycle, st.forecast && st.forecast.cycle);
+        return { ...md, cycle: run.cycle, pts, lag, old: S.isOldRun(lag) };
+      });
       const age = advisoryHours(st, now);
       return {
-        ...st, _track: track, _fc: fc, _cone: cone, _ref: ref,
+        ...st, _track: track, _fc: fc, _cone: cone, _ref: ref, _runs: runs,
         _lat: f.length ? track.lat[f.length - 1] : st.lat, _lon: ref, _age: age, _stale: S.staleness(age),
       };
     });
@@ -314,6 +323,9 @@ export function createStorms({ map, panel, hud, root }) {
     }
   }
 
+  /** One colour per model, none of them a wind threshold's or the official line's white. */
+  const MODEL_COLOUR = { AVNO: '#b39dfa', EMXI: '#7fb2f0', HFSA: '#8fdc6a', HFSB: '#f2b45a', CTCX: '#f07aa6' };
+
   /** The colours of the three wind thresholds, outermost first. */
   const WIND = { 34: '#3fd0d8', 50: '#f2b45a', 64: '#f47171' };
 
@@ -359,6 +371,20 @@ export function createStorms({ map, panel, hud, root }) {
           }
           ctx.fillStyle = alpha(INK, 0.13 * dim); ctx.fill('evenodd');
           ctx.strokeStyle = alpha(INK, 0.55 * dim); ctx.lineWidth = 1.2; ctx.stroke();
+        }
+      }
+      // Model guidance, thin and underneath: each line is one model's own run. NHC's official line is drawn over them.
+      for (const run of st._runs) {
+        if (modelsOff.has(run.key)) continue;
+        const a = dim * (run.old ? 0.3 : 0.75);
+        ctx.lineWidth = 1.4; ctx.strokeStyle = alpha(MODEL_COLOUR[run.key], a); ctx.fillStyle = alpha(MODEL_COLOUR[run.key], a);
+        for (const off of [-W, 0, W]) {
+          ctx.beginPath();
+          run.pts.forEach((p, i) => { const [x, y] = m.project(p.lat, p.lon); if (i) ctx.lineTo(x + off, y); else ctx.moveTo(x + off, y); });
+          ctx.stroke();
+          const end = run.pts[run.pts.length - 1];
+          const [ex, ey] = m.project(end.lat, end.lon);
+          ctx.beginPath(); ctx.arc(ex + off, ey, 2.6, 0, Math.PI * 2); ctx.fill();
         }
       }
       // The official forecast track, dashed, from where the storm is now.
@@ -436,7 +462,7 @@ export function createStorms({ map, panel, hud, root }) {
         }
       }
     } else {
-      for (const { storm: s } of near) if (s !== selected) drawTrack(ctx, m, s, { a: selected ? 0.18 : liveStorms.length ? 0.12 : 0.5 });
+      for (const { storm: s } of near) if (s !== selected) drawTrack(ctx, m, s, { a: selected ? 0.18 : liveStorms.length ? 0.07 : 0.5 });
       // Name the closest three where they came nearest, so the map reads without the list.
       if (!selected) {
         ctx.save();
@@ -501,6 +527,13 @@ export function createStorms({ map, panel, hud, root }) {
     });
     if (reduceMotion) $('#st-sweep').hidden = true;
     panel.addEventListener('click', (e) => {
+      const md = e.target.closest('[data-model]');
+      if (md) {
+        const k = md.dataset.model;
+        if (modelsOff.has(k)) modelsOff.delete(k); else modelsOff.add(k);
+        renderLive(); map.invalidate();
+        return;
+      }
       const lv = e.target.closest('[data-live]');
       if (lv) {
         liveSel = lv.dataset.live;
@@ -598,6 +631,18 @@ export function createStorms({ map, panel, hud, root }) {
     el.innerHTML = html;
   }
 
+  /** Model guidance: one chip per model that has a run, which is also the legend. */
+  function modelsHtml(st) {
+    if (!st._runs.length) {
+      return st.parts.models === 'none' ? '<div class="st-h">MODEL GUIDANCE</div><div class="st-note">No model guidance is published for this storm yet.</div>' : '';
+    }
+    const chips = st._runs.map((r) => `<button class="oh-chip" data-model="${esc(r.key)}" aria-pressed="${!modelsOff.has(r.key)}" style="--chip:${MODEL_COLOUR[r.key]}"
+      title="${esc(r.name)}: ${esc(r.note)}, run at ${esc(S.runLabel(r.cycle))} UTC${r.old ? ' (an old run)' : ''}">${esc(r.name)} ${esc(S.runLabel(r.cycle))}${r.old ? ' · OLD' : ''}</button>`).join('');
+    return `<div class="st-h">MODEL GUIDANCE</div><div class="oh-chips">${chips}</div>`
+      + '<div class="st-note">Each thin line is one computer model\'s own forecast, run at the time shown (UTC). They disagree, and that spread is not a probability. '
+      + 'NHC\'s official forecast, the dashed white line, weighs these and more: follow it, not any one model.</div>';
+  }
+
   /** The measured wind radii at a live storm's centre, in words, as of its latest best-track fix. */
   function windHtml(st) {
     const last = st.best && st.best.length ? st.best[st.best.length - 1] : null;
@@ -616,6 +661,7 @@ export function createStorms({ map, panel, hud, root }) {
     if (st.parts.forecast === 'fail') notes.push('NHC\'s forecast could not be read.');
     else if (st.parts.forecast === 'none') notes.push('NHC has not published a forecast for this storm yet.');
     if (st.parts.cone === 'fail') notes.push('The forecast cone could not be read.');
+    if (st.parts.models === 'fail') notes.push('Model guidance could not be read.');
     const card = here ? S.youCard(st.forecast, here, st.cone, now) : null;
     const text = S.youText(card, store.fmt);
     const old = st._stale === 'old' ? '<div class="st-alarm">THIS FORECAST IS OUT OF DATE. Do not rely on it: check NHC.</div>' : '';
@@ -624,6 +670,7 @@ export function createStorms({ map, panel, hud, root }) {
       ${text ? `<div class="st-youhead">${esc(text.headline)}</div>${text.lines.map((l) => `<div class="st-note">${esc(l)}</div>`).join('')}
         <div class="st-note">${esc(text.cone)}</div><div class="st-note">${esc(text.note)}</div>`
         : '<div class="st-note">No official forecast track to measure against.</div>'}
+      ${modelsHtml(st)}
       ${windHtml(st)}
       ${notes.map((n) => `<div class="st-note">${esc(n)}</div>`).join('')}
     </div>`;
@@ -766,8 +813,11 @@ export function createStorms({ map, panel, hud, root }) {
   function fitLive(only) {
     const lats = [], lons = [];
     for (const st of only ? [only] : liveStorms) {
-      for (let i = 0; i < st._track.n; i++) { lats.push(st._track.lat[i]); lons.push(st._track.lon[i]); }
+      // The last two days of track, not all of it: a storm that formed 2,000 km away would otherwise
+      // shrink the forecast, and the model lines beside it, to a smudge.
+      for (let i = Math.max(0, st._track.n - 8); i < st._track.n; i++) { lats.push(st._track.lat[i]); lons.push(st._track.lon[i]); }
       for (const p of st._fc) { lats.push(p.lat); lons.push(p.lon); }
+      for (const run of st._runs) for (const p of run.pts) { lats.push(p.lat); lons.push(p.lon); }
     }
     const here = place();
     if (here && lons.length) {

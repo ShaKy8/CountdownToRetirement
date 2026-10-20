@@ -140,3 +140,15 @@ export function parseADeck(text, techs = ['OFCL']) {
   }
   return out;
 }
+
+/**
+ * Keep a forecast's points at hour zero and at every `step` hours up to
+ * `maxTau`, in order, as new objects: a model's run is six-hourly out to ten
+ * days, and a map line needs far fewer points than that.
+ */
+export function thinPoints(points, { step = 12, maxTau = 120 } = {}) {
+  return (Array.isArray(points) ? points : [])
+    .filter((p) => p && Number.isInteger(p.tau) && p.tau >= 0 && p.tau <= maxTau && p.tau % step === 0)
+    .sort((a, b) => a.tau - b.tau)
+    .map((p) => ({ ...p }));
+}

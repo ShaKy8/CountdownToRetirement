@@ -1466,10 +1466,25 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   the panel. Before 2004 it draws none and says so. **Not built (needs a
   decision):** an animated swirl, which would need a wind speed between the
   radii that the data does not give; any modelled profile would be invented.
-- **Not yet built (phase 4):** model spaghetti (the parser reads any a-deck
-  technique; the route asks for OFCL only) and analog storms. The season ring
-  covers only storms in HURDAT2, which lags about six months, so this year's
-  storms are absent until it is revised.
+- **Model spaghetti is built** (phase 4, first half). `/api/storms` returns
+  each storm's `models`: the a-deck runs of AVNO (GFS), EMXI (ECMWF), HFSA and
+  HFSB (HAFS) and CTCX (COAMPS-TC), each at **its own latest cycle** (older than
+  NHC's forecast is normal), thinned to every 12 h out to 120 h and cut to
+  `{ tau, t, lat, lon, wind }` (~2.8 KB for five); a model with a single point
+  is not a line and is dropped, one with no run is absent, never invented.
+  `parts.models` is `ok`, `none` or `fail`, and fails with `parts.forecast`
+  because both come from one read of the a-deck. The console draws each as a
+  thin line in its own colour **under** NHC's official dashed line, with a chip
+  per model (legend and switch, session only: no storage); a run 12 h or more
+  older than NHC's forecast is labelled OLD and drawn faint. **The words:**
+  each line is one model's own forecast, the spread is not a probability, and
+  NHC's official line weighs them: follow it, not any one model. The map frames
+  the last two days of track plus the forecast and the models; framing the
+  whole track shrank the fan to a smudge. The real fixture storm had no ECMWF
+  run, so EMXI is tested on a renamed HFSA run, labelled synthetic.
+- **Not yet built:** analog storms (match a live track to similar past ones).
+  The season ring covers only storms in HURDAT2, which lags about six months,
+  so this year's storms are absent until it is revised.
 
 ### How the console ships: one hashed bundle (October 13, 2026)
 
