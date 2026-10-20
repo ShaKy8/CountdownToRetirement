@@ -454,6 +454,20 @@
 .st-n { font-family: var(--mono); font-weight: 600; font-size: max(.72rem, var(--fs-floor, 0px)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-d { font-family: var(--mono); font-size: max(.64rem, var(--fs-floor, 0px)); color: var(--dim); text-align: right; }
 .st-c { font-family: var(--mono); font-size: max(.64rem, var(--fs-floor, 0px)); text-align: right; }
+.st-quiet { font-size: max(.58rem, var(--fs-floor, 0px)); letter-spacing: .1em; color: var(--dim); margin-bottom: 8px; line-height: 1.5; }
+.st-quiet a { color: var(--cy); }
+/* A failed check, a forecast out of date, a storm this page could not read: loud, never decoration. */
+.st-alarm { font-size: max(.64rem, var(--fs-floor, 0px)); font-weight: 600; color: var(--ink); line-height: 1.5;
+  background: color-mix(in srgb, var(--rd) 22%, transparent); border-left: 3px solid var(--rd); padding: 6px 8px; margin: 6px 0; }
+.st-alarm a { color: var(--ink); }
+.st-honest { font-size: max(.62rem, var(--fs-floor, 0px)); color: var(--ink); line-height: 1.5;
+  background: color-mix(in srgb, var(--am) 16%, transparent); border-left: 3px solid var(--am); padding: 6px 8px; margin: 6px 0 8px; }
+.st-honest a { color: var(--ink); }
+.st-live-row { grid-template-columns: minmax(0, 1fr) auto 2.2em; }
+.st-live-row .st-age { grid-column: 1 / -1; font-size: max(.56rem, var(--fs-floor, 0px)); letter-spacing: .08em; color: var(--dim); }
+.st-live-row .st-age.bad { color: var(--rd); font-weight: 600; }
+.st-you { margin-top: 6px; }
+.st-youhead { font-family: var(--mono); font-size: max(.74rem, var(--fs-floor, 0px)); color: var(--ink); line-height: 1.4; margin-top: 4px; }
 .st-transport { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .st-transport input[type=range] { flex: 1; min-width: 0; accent-color: var(--cy); }
 .st-season { display: flex; align-items: center; gap: 12px; margin-top: 10px; }

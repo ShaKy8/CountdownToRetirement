@@ -1397,8 +1397,7 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   because `store.span` is tied to the forecast window, which a 1992 storm can
   never be inside. Under `prefers-reduced-motion` a replay starts paused and
   the sweep button is hidden.
-- **`/api/storms` is built (phase 2, route only); the client does not read it
-  yet.** It lives in `lambda/index.mjs` and `../Weather/server.mjs` as one
+- **`/api/storms` is built and the STORMS mode reads it (phases 2 and 2b).** It lives in `lambda/index.mjs` and `../Weather/server.mjs` as one
   identical `STORMS` block (a test compares them), with `atcf.mjs` beside each
   (byte-identical: the Lambda zip holds only `lambda/`). It takes **no input**
   and checks every id against `/^(al|ep|cp)\d{2}\d{4}$/` (invests, number 90
@@ -1419,13 +1418,34 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   2026). A route that answered from memory once hid a hostile-a-deck test for
   two of its three cases: the route remembers its answer, so each such case
   needs its own process.
-- **Not yet built (phases 2b-4):** the live layer in the console (cone,
-  forecast track, a YOU card, honesty strip), model spaghetti (the parser
-  already reads any a-deck technique; the route asks for OFCL only), the wind
-  swirl from measured radii (HURDAT2 has them from 2004; the archive build does
-  not store them yet), and analog storms. The season ring covers only storms in
-  HURDAT2, which lags about six months, so this year's storms are absent until
-  it is revised.
+- **The live layer** (`views/storms.js`, rules in `lib/storms.js` under LIVE)
+  polls `/api/storms` every 3 minutes while STORMS is open and RADAR is on
+  screen, and the timer stops with either. It draws the cone, the official
+  forecast (dashed, +24H marks), the best track in category colours and the
+  storm's centre; the archive fades under it. **The honesty is structural:**
+  a strip says "NOT AN OFFICIAL SOURCE" whenever a storm is shown; a failed
+  check reads "COULD NOT CHECK NHC... does not mean there are no storms" and a
+  successful empty answer reads "NO ACTIVE STORMS · CHECKED n MIN AGO" (two
+  branches, a test pins them apart); **advisory age** is hours since NHC's
+  newest signal (forecast issue, advisory time, last fix), over 7 h is
+  "NHC UPDATE OVERDUE" and over 12 h the forecast is drawn faint and labelled
+  OUT OF DATE. **The YOU card** is `youCard()`: the closest the OFCL track
+  comes (to the line between points), when, and inside the cone or not (null,
+  "not available", when there is no cone: never "outside"). Wording says
+  "closest forecast approach", never "arrival", "landfall" or "safe", and
+  that outside the cone is not outside the storm's reach. A forecast that
+  stops before the track gets near says so. **Longitudes are unwrapped** for
+  the dateline (best track, then forecast continuing from it, cone moved to the
+  same side). **To see it with no storm active** (NHC's list is empty most of
+  the year): serve the NHC feeds from `tests/fixtures/atcf-*.dat` with times
+  shifted to now (a `node --import` preload that wraps `fetch` for the NHC
+  hosts; the route is unchanged) and run the dev server on it. Verified that
+  way on 2026-10-20: fresh, 14 h old, NHC down, empty, no cone.
+- **Not yet built (phases 3-4):** model spaghetti (the parser reads any a-deck
+  technique; the route asks for OFCL only), the wind swirl from measured radii
+  (HURDAT2 has them from 2004; the archive build does not store them yet), and
+  analog storms. The season ring covers only storms in HURDAT2, which lags
+  about six months, so this year's storms are absent until it is revised.
 
 ### How the console ships: one hashed bundle (October 13, 2026)
 

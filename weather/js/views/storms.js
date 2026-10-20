@@ -19,9 +19,10 @@
  */
 
 import { store } from '../state.js';
+import { api } from '../api.js';
 import { alpha, haloText, DIM, FAINT, INK, SERIES } from '../charts.js';
 import { escapeHtml as esc } from '../lib/util.js';
-import { decodeArchive, STATUS_NAME } from '../lib/stormpack.js';
+import { decodeArchive, STATUS_NAME, unwrapLon } from '../lib/stormpack.js';
 import * as S from '../lib/storms.js';
 
 const NEAR_MI = 500;
@@ -29,6 +30,8 @@ const RINGS_MI = [100, 150];
 const YEARS_PER_SECOND = 5;
 const REPLAY_SECONDS = 9;
 const PICK_PX = 24;
+const LIVE_TICK_MS = 60000;           // the live panel's ages are redrawn every minute
+const LIVE_POLL_MS = 180000;          // and NHC is asked again every three minutes
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const BASIN_NAME = { AL: 'Atlantic', EP: 'East Pacific', CP: 'Central Pacific' };
@@ -64,6 +67,12 @@ export function createStorms({ map, panel, hud, root }) {
   let sweep = { on: false, p: 0, first: 1851, last: 2025 };
   let loopId = 0, lastFrame = 0;
   let overlayAdded = false;
+  // The live layer (/api/storms). 'idle' until asked; 'fail' means the CHECK failed,
+  // which is never the same as "no storms": see renderLive().
+  let live = { state: 'idle', data: null, at: 0, lastOk: 0 };
+  let liveStorms = [];                // data.storms, each with unwrapped longitudes ready to draw
+  let liveSel = null;                 // id of the live storm the YOU card is about
+  let liveTimer = 0;
 
   const $ = (sel) => panel.querySelector(sel);
   const place = () => store.loc;
@@ -97,6 +106,87 @@ export function createStorms({ map, panel, hud, root }) {
       sweep.first = Math.min(...near.map((n) => n.storm.year));
       sweep.last = Math.max(...near.map((n) => n.storm.year));
     }
+  }
+
+  /* -------------------------------------------------------------- live */
+
+  const advisoryHours = (st, now) => S.advisoryAge(st, now);
+
+  /** Shift a ring's longitudes so it is contiguous and sits nearest `ref`. */
+  function nearRing(ring, ref) {
+    let prev = null;
+    return ring.map(([lo, la]) => {
+      prev = prev == null ? lo + 360 * Math.round((ref - lo) / 360) : unwrapLon(prev, lo);
+      return [prev, la];
+    });
+  }
+
+  /**
+   * Ready a live storm for drawing: its best track as an archive-shaped
+   * storm with unwrapped longitudes, its forecast continuing from the last
+   * best fix, and its cone moved to the same side of the dateline.
+   */
+  function prepareLive() {
+    const now = Date.now();
+    liveStorms = (live.data ? live.data.storms : []).map((st) => {
+      const track = { n: 0, t: new Float64Array(0), lat: new Float32Array(0), lon: new Float32Array(0), wind: new Int16Array(0), status: '', land: [] };
+      const f = st.best || [];
+      Object.assign(track, { n: f.length, t: Float64Array.from(f, (x) => x.t), lat: Float32Array.from(f, (x) => x.lat), wind: Int16Array.from(f, (x) => (x.wind == null ? -99 : x.wind)) });
+      let prev = f.length ? f[0].lon : (st.lon ?? 0);
+      track.lon = Float32Array.from(f, (x, i) => { prev = i ? unwrapLon(prev, x.lon) : x.lon; return prev; });
+      const ref = f.length ? track.lon[f.length - 1] : (st.lon ?? 0);
+      let q = ref;
+      const fc = (st.forecast ? st.forecast.points : []).map((p) => { q = unwrapLon(q, p.lon); return { ...p, lon: q }; });
+      const cone = [];
+      for (const ft of (st.cone && st.cone.features) || []) {
+        const g = ft.geometry;
+        const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+        for (const rings of polys) cone.push(rings.map((r) => nearRing(r, ref)));
+      }
+      const age = advisoryHours(st, now);
+      return {
+        ...st, _track: track, _fc: fc, _cone: cone, _ref: ref,
+        _lat: f.length ? track.lat[f.length - 1] : st.lat, _lon: ref, _age: age, _stale: S.staleness(age),
+      };
+    });
+    const here = place();
+    const cards = liveStorms.map((st) => ({ st, card: here ? S.youCard(st.forecast, here, st.cone, now) : null }));
+    cards.sort((a, b) => (a.card ? a.card.km : Infinity) - (b.card ? b.card.km : Infinity));
+    if (!liveStorms.some((x) => x.id === liveSel)) liveSel = cards.length ? cards[0].st.id : null;
+  }
+
+  async function pollLive() {
+    if (live.state !== 'ok') live = { ...live, state: 'loading' };
+    try {
+      const d = await api.storms();
+      if (!d || !Array.isArray(d.storms) || typeof d.activeCount !== 'number') throw new Error('unexpected /api/storms answer');
+      const had = liveStorms.length;
+      live = { state: 'ok', data: d, at: Date.now(), lastOk: Date.now() };
+      prepareLive();
+      if (!had && liveStorms.length) fitLive();
+    } catch (e) {
+      console.error('[storms] live', e);
+      live = { ...live, state: 'fail', at: Date.now() };
+      prepareLive();
+    }
+    renderLive();
+    frame();
+  }
+
+  function startLive() {
+    stopLive();
+    if (!active || !visible) return;
+    if (!live.at || Date.now() - live.at >= LIVE_POLL_MS) pollLive(); else renderLive();
+    liveTimer = setInterval(() => {
+      if (!active || !visible || document.hidden) return;
+      if (Date.now() - live.at >= LIVE_POLL_MS) pollLive();
+      else { prepareLive(); renderLive(); map.invalidate(); }
+    }, LIVE_TICK_MS);
+  }
+
+  function stopLive() {
+    if (liveTimer) clearInterval(liveTimer);
+    liveTimer = 0;
   }
 
   /* ----------------------------------------------------------- drawing */
@@ -165,6 +255,57 @@ export function createStorms({ map, panel, hud, root }) {
     }
   }
 
+  /** The forecast cone, the official forecast track, the best track and the storm's centre. */
+  function drawLive(ctx, m, now) {
+    const W = 256 * 2 ** m.zoom;
+    for (const st of liveStorms) {
+      const dim = st._stale === 'old' ? 0.35 : 1;      // an out-of-date forecast is drawn faint, not hidden
+      ctx.save();
+      for (const off of [-W, 0, W]) {
+        for (const poly of st._cone) {
+          ctx.beginPath();
+          for (const ring of poly) {
+            ring.forEach(([lo, la], i) => { const [x, y] = m.project(la, lo); if (i) ctx.lineTo(x + off, y); else ctx.moveTo(x + off, y); });
+            ctx.closePath();
+          }
+          ctx.fillStyle = alpha(INK, 0.13 * dim); ctx.fill('evenodd');
+          ctx.strokeStyle = alpha(INK, 0.55 * dim); ctx.lineWidth = 1.2; ctx.stroke();
+        }
+      }
+      // The official forecast track, dashed, from where the storm is now.
+      if (st._fc.length) {
+        ctx.setLineDash([7, 5]); ctx.lineWidth = 2; ctx.strokeStyle = alpha(INK, 0.9 * dim);
+        for (const off of [-W, 0, W]) {
+          ctx.beginPath();
+          const [x0, y0] = m.project(st._lat, st._lon); ctx.moveTo(x0 + off, y0);
+          for (const p of st._fc) { const [x, y] = m.project(p.lat, p.lon); ctx.lineTo(x + off, y); }
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.font = "600 11.5px 'Chakra Petch', sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        for (const p of st._fc) {
+          if (p.tau < 12 || p.tau % 12) continue;
+          const c = S.category(p.wind);
+          for (const off of [-W, 0, W]) {
+            const [x, y] = m.project(p.lat, p.lon);
+            ctx.fillStyle = alpha(c ? c.color : INK, dim);
+            ctx.beginPath(); ctx.arc(x + off, y, 4.2, 0, Math.PI * 2); ctx.fill();
+            if (p.tau % 24 === 0) { ctx.fillStyle = alpha(INK, dim); haloText(ctx, `+${p.tau}H`, x + off + 8, y); }
+          }
+        }
+      }
+      ctx.restore();
+      drawTrack(ctx, m, st._track, { a: dim, scale: 1.5 });
+      drawEye(ctx, m, st._lat, st._lon, st._track.n ? (st._track.wind[st._track.n - 1] === -99 ? st.windKt : st._track.wind[st._track.n - 1]) : st.windKt, now / 300);
+      ctx.save();
+      ctx.font = "600 11.5px 'Chakra Petch', sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillStyle = alpha(INK, dim);
+      const [lx, ly] = m.project(st._lat, st._lon);
+      haloText(ctx, `${(st.name || st.id).toUpperCase()}${st.windKt != null ? ` ${Math.round(st.windKt)} KT` : ''}`, lx + 16, ly - 8);
+      ctx.restore();
+    }
+  }
+
   function drawRings(ctx, m) {
     const p = place();
     if (!p) return;
@@ -202,7 +343,7 @@ export function createStorms({ map, panel, hud, root }) {
         }
       }
     } else {
-      for (const { storm: s } of near) if (s !== selected) drawTrack(ctx, m, s, { a: selected ? 0.18 : 0.5 });
+      for (const { storm: s } of near) if (s !== selected) drawTrack(ctx, m, s, { a: selected ? 0.18 : liveStorms.length ? 0.12 : 0.5 });
       // Name the closest three where they came nearest, so the map reads without the list.
       if (!selected) {
         ctx.save();
@@ -218,6 +359,8 @@ export function createStorms({ map, panel, hud, root }) {
       }
     }
 
+    if (liveStorms.length) drawLive(ctx, m, now);
+
     if (selected) {
       drawTrack(ctx, m, selected, { a: 0.35, scale: 1.2, dots: true });
       drawTrack(ctx, m, selected, { a: 1, scale: 1.3, cut: replay.t });
@@ -232,6 +375,7 @@ export function createStorms({ map, panel, hud, root }) {
     panel.innerHTML = `
       <div class="hd">STORMS<span class="rule"></span><span class="val" id="st-src">NHC BEST TRACKS</span></div>
       <div class="body">
+        <div id="st-live"></div>
         <div id="st-status" class="st-status" role="status"></div>
         <div id="st-facts"></div>
         <div class="oh-chips" id="st-modes">
@@ -261,6 +405,14 @@ export function createStorms({ map, panel, hud, root }) {
     });
     if (reduceMotion) $('#st-sweep').hidden = true;
     panel.addEventListener('click', (e) => {
+      const lv = e.target.closest('[data-live]');
+      if (lv) {
+        liveSel = lv.dataset.live;
+        const st = liveStorms.find((x) => x.id === liveSel);
+        if (st) fitLive(st);
+        renderLive(); map.invalidate();
+        return;
+      }
       const b = e.target.closest('[data-storm]');
       if (b) select(storms.find((s) => s.id === b.dataset.storm));
     });
@@ -303,6 +455,70 @@ export function createStorms({ map, panel, hud, root }) {
       + 'This is history, not a warning source: for current storms see <a href="https://www.nhc.noaa.gov/" target="_blank" rel="noopener">nhc.noaa.gov</a>.';
     paintHud();
     paintSweep();
+  }
+
+  /**
+   * The live section: what NHC says is happening now. Three outcomes that
+   * must never blur into one: storms (with the honesty strip and a YOU card),
+   * "no active storms" (a successful check that found none), and "could not
+   * check" (which says NOTHING about whether there are storms).
+   */
+  function renderLive() {
+    const el = $('#st-live');
+    if (!el) return;
+    const now = Date.now();
+    const link = '<a href="https://www.nhc.noaa.gov/" target="_blank" rel="noopener">nhc.noaa.gov</a>';
+    const clock = (ms) => `${store.fmt.weekday(ms)} ${store.fmt.hm12(ms)}`;
+    let html = '';
+    if (live.state === 'fail') {
+      html += `<div class="st-alarm" role="alert">COULD NOT CHECK NHC${live.lastOk ? ` (last answer ${clock(live.lastOk)})` : ''}. `
+        + `That does not mean there are no storms. Go to ${link}.</div>`;
+    }
+    if (live.state === 'idle' || (live.state === 'loading' && !live.data)) {
+      html += '<div class="st-quiet">CHECKING NHC FOR ACTIVE STORMS…</div>';
+    } else if (live.data && !liveStorms.length) {
+      const ago = Math.max(0, Math.round((now - Date.parse(live.data.checked)) / 60000));
+      html += live.data.activeCount > 0
+        ? `<div class="st-alarm" role="alert">NHC LISTS ${live.data.activeCount} STORM${live.data.activeCount === 1 ? '' : 'S'} THAT THIS PAGE COULD NOT READ. See ${link}.</div>`
+        : `<div class="st-quiet">NO ACTIVE STORMS · CHECKED ${ago} MIN AGO · NHC · ${link}</div>`;
+    }
+    if (liveStorms.length) {
+      html += `<div class="st-honest"><b>NOT AN OFFICIAL SOURCE.</b> Use ${link} and your local NWS office for warnings. `
+        + 'This page can be wrong, late, or missing a storm.</div>';
+      html += liveStorms.map((st) => {
+        const c = S.category(st.windKt);
+        const h = st._age;
+        const age = h == null ? 'ADVISORY AGE UNKNOWN' : h < 1 ? 'ADVISORY WITHIN THE HOUR' : `ADVISORY ${Math.floor(h)} H OLD`;
+        const bad = st._stale !== 'fresh';
+        return `<button class="st-row st-live-row" data-live="${esc(st.id)}" aria-pressed="${st.id === liveSel}">
+          <span class="st-n">${esc((st.name || st.id).toUpperCase())}</span>
+          <span class="st-d">${st.windKt != null ? Math.round(st.windKt) + ' kt' : '—'}</span>
+          <span class="st-c" style="color:${c ? c.color : 'var(--faint)'}">${c ? esc(c.key) : '—'}</span>
+          <span class="st-age${bad ? ' bad' : ''}">${age}${st._stale === 'old' ? ' · FORECAST OUT OF DATE' : st._stale === 'stale' ? ' · NHC UPDATE OVERDUE' : ''}</span></button>`;
+      }).join('');
+      const st = liveStorms.find((x) => x.id === liveSel);
+      if (st) html += youHtml(st, now);
+    }
+    el.innerHTML = html;
+  }
+
+  function youHtml(st, now) {
+    const here = place();
+    const notes = [];
+    if (st.parts.best === 'fail') notes.push('The best track could not be read.');
+    if (st.parts.forecast === 'fail') notes.push('NHC\'s forecast could not be read.');
+    else if (st.parts.forecast === 'none') notes.push('NHC has not published a forecast for this storm yet.');
+    if (st.parts.cone === 'fail') notes.push('The forecast cone could not be read.');
+    const card = here ? S.youCard(st.forecast, here, st.cone, now) : null;
+    const text = S.youText(card, store.fmt);
+    const old = st._stale === 'old' ? '<div class="st-alarm">THIS FORECAST IS OUT OF DATE. Do not rely on it: check NHC.</div>' : '';
+    return `<div class="st-you">
+      <div class="st-h">YOU · ${esc(here ? here.name.toUpperCase() : '')}</div>${old}
+      ${text ? `<div class="st-youhead">${esc(text.headline)}</div>${text.lines.map((l) => `<div class="st-note">${esc(l)}</div>`).join('')}
+        <div class="st-note">${esc(text.cone)}</div><div class="st-note">${esc(text.note)}</div>`
+        : '<div class="st-note">No official forecast track to measure against.</div>'}
+      ${notes.map((n) => `<div class="st-note">${esc(n)}</div>`).join('')}
+    </div>`;
   }
 
   function renderFacts(p, through) {
@@ -353,6 +569,12 @@ export function createStorms({ map, panel, hud, root }) {
       const st = STATUS_NAME[selected.status[p.i]] || '';
       t.textContent = S.titleOf(selected).toUpperCase();
       sub.textContent = `${c ? c.label : st} · ${p.wind == null ? '—' : Math.round(p.wind) + ' kt'} · ${when(replay.t, true)}`;
+    } else if (liveStorms.length) {
+      const st = liveStorms.find((x) => x.id === liveSel) || liveStorms[0];
+      const c = S.category(st.windKt);
+      t.textContent = (st.name || st.id).toUpperCase();
+      sub.textContent = `${c ? c.label : st.classification || 'Storm'} · ${st.windKt != null ? Math.round(st.windKt) + ' kt' : '—'}`
+        + (st._stale === 'old' ? ' · FORECAST OUT OF DATE' : st._stale === 'stale' ? ' · NHC UPDATE OVERDUE' : '');
     } else {
       t.textContent = 'HURRICANE ATLAS';
       sub.textContent = state === 'ready' ? `${near.length} storms within ${NEAR_MI} mi since 1851` : '';
@@ -421,15 +643,29 @@ export function createStorms({ map, panel, hud, root }) {
     paintSweep(); render(); frame(); kick();
   }
 
-  function fit(s) {
-    let la0 = 90, la1 = -90, lo0 = Infinity, lo1 = -Infinity;
-    for (let i = 0; i < s.n; i++) {
-      la0 = Math.min(la0, s.lat[i]); la1 = Math.max(la1, s.lat[i]);
-      lo0 = Math.min(lo0, s.lon[i]); lo1 = Math.max(lo1, s.lon[i]);
-    }
+  /** Frame a set of points (longitudes already unwrapped). */
+  function fitPoints(lats, lons) {
+    const la0 = Math.min(...lats), la1 = Math.max(...lats), lo0 = Math.min(...lons), lo1 = Math.max(...lons);
     const span = Math.max(lo1 - lo0, (la1 - la0) * 1.4, 4) * 1.35;
     const z = Math.max(map.minZoom, Math.min(7, Math.floor(Math.log2((360 * Math.min(map.w, map.h * 1.6)) / (256 * span)))));
     map.setView((la0 + la1) / 2, wrap180((lo0 + lo1) / 2), z);
+  }
+
+  function fit(s) { fitPoints(Array.from(s.lat), Array.from(s.lon)); }
+
+  /** Frame a live storm (or all of them) together with the visitor's place. */
+  function fitLive(only) {
+    const lats = [], lons = [];
+    for (const st of only ? [only] : liveStorms) {
+      for (let i = 0; i < st._track.n; i++) { lats.push(st._track.lat[i]); lons.push(st._track.lon[i]); }
+      for (const p of st._fc) { lats.push(p.lat); lons.push(p.lon); }
+    }
+    const here = place();
+    if (here && lons.length) {
+      // The visitor, on the same side of the dateline as the storm.
+      lats.push(here.lat); lons.push(here.lon + 360 * Math.round((lons[0] - here.lon) / 360));
+    }
+    if (lats.length) fitPoints(lats, lons);
   }
 
   function select(s) {
@@ -466,7 +702,7 @@ export function createStorms({ map, panel, hud, root }) {
   store.on('loc', () => {
     if (!active) return;
     locate(); selected = null; sweep.on = false;
-    render(); paintTransport();
+    prepareLive(); render(); renderLive(); paintTransport();
     if (place()) map.setView(place().lat, place().lon, 5);
   });
 
@@ -482,6 +718,8 @@ export function createStorms({ map, panel, hud, root }) {
       if (place()) map.setView(place().lat, place().lon, 5);
       load();
       render();
+      renderLive();
+      startLive();
       map.invalidate();
     },
     exit() {
@@ -489,12 +727,13 @@ export function createStorms({ map, panel, hud, root }) {
       sweep.on = false; replay.playing = false;
       if (loopId) cancelAnimationFrame(loopId);
       loopId = 0;
+      stopLive();
       map.onTap = undefined;
       hud.hidden = true;
       panel.hidden = true;
       map.invalidate();
     },
     /** RADAR left the screen or came back. */
-    setVisible(v) { visible = v; if (v) { kick(); map.invalidate(); } },
+    setVisible(v) { visible = v; if (v) { kick(); startLive(); map.invalidate(); } else stopLive(); },
   };
 }

@@ -6699,6 +6699,99 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
         assert.ok(/Centre within 100 mi/.test(ui), 'the fact is worded as a pass, not a hit');
     });
 
+    test('Should age NHC\'s word from its newest signal, and call a missed update stale and an old forecast out of date', () => {
+        const out = run(`const HR = 3600000, T = Date.UTC(2026, 9, 20, 12);
+            const st = (o) => ({ forecast: { cycle: new Date(T).toISOString() }, updated: null, best: [], ...o });
+            console.log(JSON.stringify({ at3: S.advisoryAge(st(), T + 3 * HR),
+              newest: S.advisoryAge(st({ updated: new Date(T + 2 * HR).toISOString() }), T + 3 * HR),
+              fix: S.advisoryAge(st({ forecast: null, best: [{ t: T + HR }] }), T + 4 * HR),
+              none: S.advisoryAge({}, T), future: S.advisoryAge(st(), T - 5 * HR),
+              levels: [0, 6.9, 7, 7.01, 12, 12.01, 40, null, NaN].map((h) => S.staleness(h)), K: [S.STALE_HOURS, S.OLD_HOURS, S.FAR_MI] }));`);
+        assert.strictEqual(out.at3, 3);
+        assert.strictEqual(out.newest, 1, 'the advisory two hours after the forecast is NHC\'s latest word');
+        assert.strictEqual(out.fix, 3, 'with no forecast, the latest best-track fix stands in');
+        assert.strictEqual(out.none, null, 'an age that cannot be read is null, not zero');
+        assert.strictEqual(out.future, 0, 'a clock behind NHC\'s is zero hours, not negative');
+        assert.deepStrictEqual(out.levels, ['fresh', 'fresh', 'fresh', 'stale', 'stale', 'old', 'old', 'unknown', 'unknown']);
+        assert.deepStrictEqual(out.K, [7, 12, 500], 'NHC speaks every 6 h: 7 is one missed; 12 is two');
+    });
+
+    test('Should say whether a place is inside the cone, holes and the dateline included, and "unknown" when there is no cone', () => {
+        const out = run(`const sq = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+            const cone = (geometry) => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry }] });
+            const plain = cone({ type: 'Polygon', coordinates: [sq(-110, 18, -105, 24)] });
+            const holed = cone({ type: 'Polygon', coordinates: [sq(-110, 18, -105, 24), sq(-108, 20, -107, 22)] });
+            const multi = cone({ type: 'MultiPolygon', coordinates: [[sq(0, 0, 1, 1)], [sq(10, 10, 11, 11)]] });
+            const seam = cone({ type: 'Polygon', coordinates: [sq(178, 10, 182, 14)] });
+            console.log(JSON.stringify({ inside: S.pointInCone(plain, 21, -107.5), outside: S.pointInCone(plain, 30, -107.5),
+              hole: S.pointInCone(holed, 21, -107.5), ring: S.pointInCone(holed, 19, -107.5),
+              multi: [S.pointInCone(multi, 0.5, 0.5), S.pointInCone(multi, 10.5, 10.5), S.pointInCone(multi, 5, 5)],
+              seam: [S.pointInCone(seam, 12, -179), S.pointInCone(seam, 12, 181), S.pointInCone(seam, 12, 170)],
+              none: [S.pointInCone(null, 1, 1), S.pointInCone({ features: [{}] }, 1, 1)] }));`);
+        assert.strictEqual(out.inside, true);
+        assert.strictEqual(out.outside, false);
+        assert.strictEqual(out.hole, false, 'a hole takes the point out again');
+        assert.strictEqual(out.ring, true);
+        assert.deepStrictEqual(out.multi, [true, true, false]);
+        assert.deepStrictEqual(out.seam, [true, true, false], 'a cone drawn past 180 contains the same place as -179');
+        assert.deepStrictEqual(out.none, [false, false]);
+    });
+
+    test('Should measure a place against the official forecast, and word it as a forecast, never as an arrival or a verdict', () => {
+        const out = run(`const HR = 3600000, T = Date.UTC(2026, 9, 20, 0);
+            const pts = [0, 12, 24, 36, 48].map((tau, i) => ({ tau, t: T + tau * HR, lat: 19.5 + i * 1.2, lon: -108 - i * 0.6, wind: [40, 50, 55, 50, 40][i] }));
+            const fc = { cycle: new Date(T).toISOString(), points: pts };
+            const cone = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[-110, 18], [-105, 18], [-105, 24], [-110, 24], [-110, 18]]] } }] };
+            const fmt = { weekday: () => 'Tue', hm12: () => '6:00 PM' };
+            const near = S.youCard(fc, { lat: 21, lon: -108 }, cone, T + 10 * HR);
+            const far = S.youCard(fc, { lat: 40, lon: -70 }, cone, T);
+            const past = S.youCard(fc, { lat: 19.5, lon: -108 }, null, T + 30 * HR);
+            const beyond = S.youCard(fc, { lat: 26, lon: -111 }, cone, T);
+            const texts = [near, far, past, beyond].map((c) => S.youText(c, fmt));
+            console.log(JSON.stringify({ near, far: [far.far, far.insideCone], past: [past.hoursFromNow, past.insideCone], beyond: beyond.atEnd, nearEnd: near.atEnd,
+              texts, nothing: [S.youCard(null, { lat: 1, lon: 1 }, null, T), S.youCard({ points: [] }, { lat: 1, lon: 1 }, null, T), S.youCard(fc, null, null, T), S.youText(null, fmt)] }));`);
+        assert.ok(out.near.mi < 60 && out.near.mi > 30, 'about 44 mi: ' + out.near.mi);
+        assert.strictEqual(out.near.insideCone, true);
+        assert.strictEqual(out.near.far, false);
+        assert.strictEqual(out.near.atEnd, false);
+        assert.ok(out.near.hoursFromNow > 0 && out.near.hoursFromNow < 4);
+        assert.deepStrictEqual(out.far, [true, false], 'across the continent it is far, and outside the cone');
+        assert.ok(out.past[0] < 0 && out.past[1] === null, 'a past approach is negative hours, and no cone is "unknown", never false');
+        assert.strictEqual(out.beyond, true, 'the closest point being the last forecast point is said to be the end of the forecast');
+        assert.ok(/^Closest forecast approach: \d+ mi, Tue 6:00 PM, in \d+ h$|within the hour/.test(out.texts[0].headline), out.texts[0].headline);
+        assert.ok(out.texts[1].lines.some((l) => /^Far from the forecast track/.test(l)));
+        assert.ok(out.texts[3].lines.some((l) => /forecast stops 48 h out/.test(l)), 'a forecast that ends is said to end');
+        assert.ok(/outside the forecast cone\. That does not mean outside the storm's reach/.test(out.texts[1].cone));
+        assert.ok(/not available/.test(out.texts[2].cone), 'no cone: not available, not "outside"');
+        assert.ok(/not the size of the storm or its impacts/.test(out.texts[0].note));
+        const all = JSON.stringify(out.texts);
+        assert.ok(!/\bsafe\b|arriv|will hit|landfall|you are in danger|no threat|no risk/i.test(all), 'a forecast is not a verdict: ' + all);
+        assert.deepStrictEqual(out.nothing, [null, null, null, null], 'no forecast, no place: no card');
+    });
+
+    test('Should show the live layer honestly: the strip, "could not check" apart from "no storms", and a clock that stops with the view', () => {
+        const ui = strip(read('weather', 'js', 'views', 'storms.js'));
+        const api = strip(read('weather', 'js', 'api.js'));
+        assert.ok(/storms: \(\) => get\('\/api\/storms'\)/.test(api), 'no query: the route takes no input');
+        for (const text of ['NOT AN OFFICIAL SOURCE', 'your local NWS office', 'This page can be wrong, late, or missing a storm',
+            'COULD NOT CHECK NHC', 'That does not mean there are no storms', 'NO ACTIVE STORMS', 'THIS FORECAST IS OUT OF DATE',
+            'FORECAST OUT OF DATE', 'NHC UPDATE OVERDUE', 'THAT THIS PAGE COULD NOT READ', 'forecast cone could not be read']) {
+            assert.ok(ui.includes(text), 'the live layer says: ' + text);
+        }
+        const live = ui.slice(ui.indexOf('function renderLive()'), ui.indexOf('function youHtml'));
+        const failAt = live.indexOf("live.state === 'fail'"), noneAt = live.indexOf('NO ACTIVE STORMS');
+        assert.ok(failAt > -1 && noneAt > failAt, 'a failed check and an empty answer are different branches');
+        assert.ok(!/NO ACTIVE STORMS/.test(live.slice(failAt, live.indexOf('COULD NOT CHECK NHC', failAt) + 160)), '"could not check" never reads "no active storms"');
+        assert.ok(/activeCount/.test(live.slice(noneAt - 400, noneAt)), '"no active storms" is only said after a successful answer that counted none');
+        assert.ok(/LIVE_POLL_MS = 180000/.test(ui), 'NHC is asked every three minutes, the edge\'s own time');
+        assert.ok(/clearInterval\(liveTimer\)/.test(ui) && /stopLive\(\);\s*\n\s*map\.onTap = undefined/.test(ui), 'leaving the atlas stops the clock');
+        assert.ok(/else stopLive\(\)/.test(ui), 'so does leaving RADAR');
+        assert.ok(/drawLive\(ctx, m, now\)/.test(ui) && /st\._cone/.test(ui) && /st\._fc/.test(ui) && /drawTrack\(ctx, m, st\._track/.test(ui), 'it draws the cone, the official forecast and the best track');
+        assert.ok(/st\._stale === 'old' \? 0\.35 : 1/.test(ui), 'an out-of-date forecast is drawn faint');
+        const css = read('weather', 'css', fs.readdirSync(path.join(__dirname, 'weather', 'css')).find((f) => /^views\./.test(f)));
+        assert.ok(/\.st-alarm/.test(css) && /\.st-honest/.test(css));
+    });
+
     test('Should keep the pure libs pure, and the archive off the deploy', () => {
         for (const f of ['storms.js', 'stormpack.js']) {
             const src = strip(read('weather', 'js', 'lib', f));

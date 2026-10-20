@@ -204,3 +204,117 @@ export function eraNote(year) {
   if (year < 1966) return 'Before weather satellites: the track is reconstructed and the strength estimated.';
   return null;
 }
+
+/* ===================================================================== LIVE
+ *
+ * The rules for a storm that is happening now, from /api/storms. Same
+ * discipline as above: pure, the clock and the time formatter are arguments.
+ * The words matter here more than anywhere: this is what a person reads
+ * about a storm that may be coming, so it says "closest forecast approach",
+ * never "arrival" or "impact", and it never calls a place safe.
+ */
+
+const HOUR = 3600000;
+export const STALE_HOURS = 7;      // NHC speaks every 6 h: past 7 it has missed one
+export const OLD_HOURS = 12;       // past 12 the forecast is out of date
+export const FAR_MI = 500;
+
+/**
+ * Hours since NHC last said anything about a storm: the newest of its forecast
+ * issue time, its advisory time and its latest best-track fix. Null when none
+ * of them can be read.
+ */
+export function advisoryAge(storm, nowMs) {
+  const when = [
+    Date.parse(storm && storm.forecast && storm.forecast.cycle),
+    Date.parse(storm && storm.updated),
+    storm && storm.best && storm.best.length ? storm.best[storm.best.length - 1].t : NaN,
+  ].filter(Number.isFinite);
+  return when.length ? Math.max(0, (nowMs - Math.max(...when)) / HOUR) : null;
+}
+
+/** 'fresh' | 'stale' (a missed advisory) | 'old' (forecast out of date) | 'unknown'. */
+export function staleness(hours) {
+  if (hours == null || !Number.isFinite(hours)) return 'unknown';
+  return hours > OLD_HOURS ? 'old' : hours > STALE_HOURS ? 'stale' : 'fresh';
+}
+
+/** Is a point inside any polygon of a GeoJSON cone? Even-odd, and seam-safe. */
+export function pointInCone(cone, lat, lon) {
+  const inRing = (ring, x, y) => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  for (const f of (cone && cone.features) || []) {
+    const g = f && f.geometry;
+    if (!g) continue;
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+    for (const rings of polys) {
+      for (const x of [lon, lon + 360, lon - 360]) {
+        // A ring contains the point; a hole inside it takes it out again.
+        if (rings.reduce((n, r) => n + (inRing(r, x, lat) ? 1 : 0), 0) % 2 === 1) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Where a place stands against NHC's official forecast: the closest the
+ * forecast track comes, when, and whether the place is inside the cone. Only
+ * the official points are used; nothing here forecasts. `cone` may be null
+ * (then insideCone is null, "unknown", never false).
+ */
+export function youCard(forecast, loc, cone, nowMs) {
+  const pts = forecast && Array.isArray(forecast.points) ? forecast.points.filter((p) => Number.isFinite(p.t)) : [];
+  if (!pts.length || !loc) return null;
+  const n = pts.length;
+  const track = {
+    n,
+    t: Float64Array.from(pts, (p) => p.t),
+    lat: Float32Array.from(pts, (p) => p.lat),
+    lon: Float32Array.from(pts, (p) => p.lon),
+    wind: Int16Array.from(pts, (p) => (p.wind == null ? -99 : p.wind)),
+  };
+  const c = closestApproach(track, loc.lat, loc.lon);
+  return {
+    km: c.km, mi: c.km / KM_PER_MI, t: c.t, wind: c.wind,
+    hoursFromNow: (c.t - nowMs) / HOUR,
+    far: c.km > FAR_MI * KM_PER_MI,
+    atEnd: c.t >= pts[n - 1].t - 60000,        // the closest point is where the forecast stops
+    lastTau: pts[n - 1].tau,
+    insideCone: cone ? pointInCone(cone, loc.lat, loc.lon) : null,
+  };
+}
+
+/** "in 38 h", "4 h ago", "within the hour". */
+function relative(hours) {
+  const h = Math.round(Math.abs(hours));
+  return h < 1 ? 'within the hour' : hours > 0 ? `in ${h} h` : `${h} h ago`;
+}
+
+/**
+ * The words for a YOU card: { headline, lines, cone }. `fmt` is the console's
+ * time formatter for the place (weekday, hm12), so times are the place's own.
+ */
+export function youText(card, fmt) {
+  if (!card) return null;
+  const mi = Math.round(card.mi);
+  const when = `${fmt.weekday(card.t)} ${fmt.hm12(card.t)}, ${relative(card.hoursFromNow)}`;
+  const lines = [];
+  if (card.far) lines.push(`Far from the forecast track: the closest it comes is ${mi} mi.`);
+  if (card.atEnd) lines.push(`NHC's forecast stops ${card.lastTau} h out, so the track may come closer than this.`);
+  const cone = card.insideCone === true ? 'This place is inside the forecast cone.'
+    : card.insideCone === false ? 'This place is outside the forecast cone. That does not mean outside the storm\'s reach: wind and rain extend well beyond the cone.'
+    : 'The forecast cone is not available right now.';
+  return {
+    headline: `Closest forecast approach: ${mi} mi, ${when}`,
+    lines,
+    cone,
+    note: 'The cone shows where the centre is expected to stay about two-thirds of the time. It is not the size of the storm or its impacts.',
+  };
+}
