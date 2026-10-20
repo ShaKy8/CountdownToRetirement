@@ -468,6 +468,8 @@
 /* The red lifted toward the ink, like the console's other alert titles: plain --rd read 4.25:1 on the panel. */
 .st-live-row .st-age.bad { color: color-mix(in srgb, var(--rd) 62%, var(--ink)); font-weight: 600; }
 .st-you { margin-top: 6px; }
+/* A matched past storm's detail, set in from its row. */
+.st-analog { margin: 0 0 8px 10px; padding-left: 8px; border-left: 2px solid color-mix(in srgb, var(--ink) 25%, transparent); }
 .st-legend { display: flex; gap: 12px; margin: 6px 0 2px; }
 .st-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: max(.56rem, var(--fs-floor, 0px)); letter-spacing: .1em; color: var(--dim); }
 .st-legend i { width: 14px; height: 7px; display: inline-block; border-radius: 1px; }

@@ -73,6 +73,8 @@ export function createStorms({ map, panel, hud, root }) {
   let liveStorms = [];                // data.storms, each with unwrapped longitudes ready to draw
   let liveSel = null;                 // id of the live storm the YOU card is about
   let liveTimer = 0;
+  const analogCache = new Map();      // `${storm}|${last fix}` -> { res, nexts }: the match is worked out once per fix
+  let analogSel = null;               // the id of the similar past storm the visitor opened
   const modelsOff = new Set();        // model keys the visitor has switched off (session only)
   // Wind radii, by basin file ('AL' | 'EP'): 'idle' | 'loading' | Map | 'fail' | 'absent'.
   const radiiFiles = { AL: 'idle', EP: 'idle' };
@@ -93,11 +95,13 @@ export function createStorms({ map, panel, hud, root }) {
       storms = [...decodeArchive(al), ...decodeArchive(ep)];
       state = 'ready';
       locate();
+      prepareLive();
     } catch (e) {
       state = e.absent ? 'absent' : 'fail';
       if (!e.absent) console.error('[storms]', e);
     }
     render();
+    renderLive();                      // a live storm's similar-storms section waits on the archive
     map.invalidate();
   }
 
@@ -114,6 +118,25 @@ export function createStorms({ map, panel, hud, root }) {
   /* -------------------------------------------------------------- live */
 
   const advisoryHours = (st, now) => S.advisoryAge(st, now);
+
+  /**
+   * The past storms whose track looked most like this live storm's, with what
+   * each did next. Needs the archive, so it is null until that has loaded.
+   * Worked out once per best-track fix and kept: it is ~40 ms over the whole
+   * archive, and the panel redraws every minute.
+   */
+  function analogsFor(st) {
+    if (state !== 'ready' || !st._track.n) return null;
+    const key = `${st.id}|${st._track.t[st._track.n - 1]}`;
+    if (!analogCache.has(key)) {
+      const res = S.analogs(st._track, storms, { k: 5 });
+      const nexts = res.results.map((r) => S.nextAfter(r));
+      res.results.forEach((r) => { let i = 0; while (i < r.storm.n - 1 && r.storm.t[i] < r.startT) i++; r.i0w = i; });
+      analogCache.clear();
+      analogCache.set(key, { res, nexts });
+    }
+    return analogCache.get(key);
+  }
 
   /** Shift a ring's longitudes so it is contiguous and sits nearest `ref`. */
   function nearRing(ring, ref) {
@@ -156,7 +179,7 @@ export function createStorms({ map, panel, hud, root }) {
       });
       const age = advisoryHours(st, now);
       return {
-        ...st, _track: track, _fc: fc, _cone: cone, _ref: ref, _runs: runs,
+        ...st, _track: track, _fc: fc, _cone: cone, _ref: ref, _runs: runs, _an: analogsFor({ ...st, _track: track }),
         _lat: f.length ? track.lat[f.length - 1] : st.lat, _lon: ref, _age: age, _stale: S.staleness(age),
       };
     });
@@ -265,7 +288,7 @@ export function createStorms({ map, panel, hud, root }) {
    * A storm's track in category colours, at the three world copies. `cut`
    * stops it at a time (ms), for the sweep and the replay.
    */
-  function drawTrack(ctx, m, s, { a = 1, scale = 1, cut = Infinity, dots = false } = {}) {
+  function drawTrack(ctx, m, s, { a = 1, scale = 1, cut = Infinity, dots = false, from = 0, to = Infinity, dash = null } = {}) {
     const n = s.n;
     const xs = new Float64Array(n), ys = new Float64Array(n);
     let last = n - 1;
@@ -279,9 +302,11 @@ export function createStorms({ map, panel, hud, root }) {
     for (let i = 0; i <= last; i++) { lo = Math.min(lo, xs[i]); hi = Math.max(hi, xs[i]); }
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (dash) ctx.setLineDash(dash);
+    const upto = Math.min(last, to);
     for (const off of [-W, 0, W]) {
       if (hi + off < -40 || lo + off > m.w + 40) continue;
-      for (let i = 0; i < last; i++) {
+      for (let i = from; i < upto; i++) {
         const c = S.category(S.windAt(s, i));
         ctx.strokeStyle = alpha(c ? c.color : DIM, a);
         ctx.lineWidth = (c ? c.width : 1.2) * scale;
@@ -356,6 +381,33 @@ export function createStorms({ map, panel, hud, root }) {
     ctx.restore();
   }
 
+  /**
+   * Similar past storms, in their own real positions: the stretch that matched
+   * (thin) and then what they did next (dotted, heavier, in their own
+   * intensity colours), with a ring where the match ends and the name at the
+   * far end. These are tracks that HAPPENED, to other storms.
+   */
+  function drawAnalogs(ctx, m, st, dim) {
+    const { res, nexts } = st._an;
+    res.results.forEach((r, i) => {
+      const s = r.storm, nx = nexts[i];
+      const a = dim * (analogSel == null ? 0.8 : analogSel === s.id ? 1 : 0.25);
+      drawTrack(ctx, m, s, { a: a * 0.55, scale: 1, from: r.i0w, to: r.endIndex });
+      drawTrack(ctx, m, s, { a, scale: 1.7, from: nx.i0, to: nx.i1, dash: [2, 4] });
+      const W = 256 * 2 ** m.zoom;
+      const [ex, ey] = m.project(s.lat[r.endIndex], s.lon[r.endIndex]);
+      const [fx, fy] = m.project(s.lat[nx.i1], s.lon[nx.i1]);
+      ctx.save();
+      ctx.font = "600 11.5px 'Chakra Petch', sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      for (const off of [-W, 0, W]) {
+        ctx.strokeStyle = alpha(INK, a); ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(ex + off, ey, 4.5, 0, Math.PI * 2); ctx.stroke();
+        if (nx.i1 > nx.i0 && (analogSel == null || analogSel === s.id)) { ctx.fillStyle = alpha(INK, a); haloText(ctx, S.titleOf(s), fx + off + 7, fy); }
+      }
+      ctx.restore();
+    });
+  }
+
   /** The forecast cone, the official forecast track, the best track and the storm's centre. */
   function drawLive(ctx, m, now) {
     const W = 256 * 2 ** m.zoom;
@@ -373,6 +425,7 @@ export function createStorms({ map, panel, hud, root }) {
           ctx.strokeStyle = alpha(INK, 0.55 * dim); ctx.lineWidth = 1.2; ctx.stroke();
         }
       }
+      if (st._an) drawAnalogs(ctx, m, st, dim);
       // Model guidance, thin and underneath: each line is one model's own run. NHC's official line is drawn over them.
       for (const run of st._runs) {
         if (modelsOff.has(run.key)) continue;
@@ -527,6 +580,12 @@ export function createStorms({ map, panel, hud, root }) {
     });
     if (reduceMotion) $('#st-sweep').hidden = true;
     panel.addEventListener('click', (e) => {
+      const an = e.target.closest('[data-analog]');
+      if (an) {
+        analogSel = analogSel === an.dataset.analog ? null : an.dataset.analog;
+        renderLive(); map.invalidate();
+        return;
+      }
       const md = e.target.closest('[data-model]');
       if (md) {
         const k = md.dataset.model;
@@ -631,6 +690,38 @@ export function createStorms({ map, panel, hud, root }) {
     el.innerHTML = html;
   }
 
+  /**
+   * Similar past tracks. Everything here is worded as similarity: the
+   * heading, the note, the limits. What a matched storm did next is what
+   * happened to it, and says nothing certain about this one.
+   */
+  function analogsHtml(st) {
+    const head = '<div class="st-h">SIMILAR PAST TRACKS</div>';
+    if (state === 'absent' || state === 'fail') return `${head}<div class="st-note">The hurricane archive is not available, so similar past storms cannot be found.</div>`;
+    if (!st._an) return `${head}<div class="st-note">Loading the archive to find similar storms…</div>`;
+    const { res, nexts } = st._an;
+    if (res.tooShort) return `${head}<div class="st-note">Too early to match: this storm needs at least ${S.ANALOG_MIN * 6 - 6} hours of track.</div>`;
+    if (!res.results.length) return `${head}<div class="st-note">No past storm in the archive has a track close to this one's.</div>`;
+    const hours = (res.window - 1) * 6;
+    const rows = res.results.map((r, i) => {
+      const c = S.category(S.windAt(r.storm, r.endIndex));
+      const on = analogSel === r.storm.id;
+      const p = r.parts;
+      return `<button class="st-row" data-analog="${esc(r.storm.id)}" aria-pressed="${on}">
+        <span class="st-n">${esc(S.titleOf(r.storm))}</span><span class="st-d">${Math.round(p.posKm)} km apart</span>
+        <span class="st-c" style="color:${c ? c.color : 'var(--faint)'}">${c ? esc(c.key) : '—'}</span></button>`
+        + (on ? `<div class="st-analog">
+          <div class="st-note">Matched on the last ${hours} hours of track: ${Math.round(p.posKm)} km apart on average, winds within ${Math.round(p.windKt)} kt, headings ${Math.round(p.headDeg)}° apart, ${Math.round(p.seasonDays)} days apart in the year. The match ends ${esc(when(r.endT, true))}.</div>
+          ${nexts[i].lines.map((l) => `<div class="st-note">${esc(l)}</div>`).join('')}
+          ${S.eraNote(r.storm.year) ? `<div class="st-note">${esc(S.eraNote(r.storm.year))}</div>` : ''}</div>` : '');
+    }).join('');
+    return `${head}<div class="st-honest st-sim"><b>Similarity, not a forecast.</b> These are past storms whose last ${hours} hours of track looked like this one's. `
+      + `What they did next is what happened to them: it says nothing certain about this storm.</div>${rows}`
+      + `<div class="st-note">It matches position (60%), strength (20%), heading (10%) and time of year (10%), and knows nothing of steering winds, wind shear or sea temperature. `
+      + `The archive holds ${storms.length.toLocaleString('en-US')} storms in 175 years, a score is not a probability, and it has never been checked against what happened. `
+      + `Dotted lines are what each did next, in its own intensity colours; the ring is where the match ends.</div>`;
+  }
+
   /** Model guidance: one chip per model that has a run, which is also the legend. */
   function modelsHtml(st) {
     if (!st._runs.length) {
@@ -671,6 +762,7 @@ export function createStorms({ map, panel, hud, root }) {
         <div class="st-note">${esc(text.cone)}</div><div class="st-note">${esc(text.note)}</div>`
         : '<div class="st-note">No official forecast track to measure against.</div>'}
       ${modelsHtml(st)}
+      ${analogsHtml(st)}
       ${windHtml(st)}
       ${notes.map((n) => `<div class="st-note">${esc(n)}</div>`).join('')}
     </div>`;

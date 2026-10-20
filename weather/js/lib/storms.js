@@ -447,3 +447,147 @@ export function runLag(modelCycle, officialCycle) {
 /** A model whose run is 12 or more hours older than NHC's latest forecast is old guidance. */
 export const OLD_RUN_HOURS = 12;
 export const isOldRun = (lag) => lag != null && lag >= OLD_RUN_HOURS;
+
+/* ==================================================================== ANALOGS
+ *
+ * Which past storms did the last two days of this one look like, and what did
+ * they do next? A similarity search over NHC's best tracks, and nothing more:
+ * it compares where a storm was, how strong, which way it was heading and what
+ * time of year it is. It knows nothing of steering winds, wind shear or sea
+ * temperature, which are what actually decide where a storm goes, and the
+ * archive holds a few thousand storms in 175 years, thin in any one place.
+ * A similarity score is not a probability and has never been checked against
+ * what happened. So this module returns tracks, and the words around it say
+ * "similar", never "will".
+ *
+ * Pure, like the rest: tracks in, ranked matches out, no clock.
+ */
+
+const STEP = 6 * HOUR;
+export const ANALOG_WINDOW = 8;           // fixes: 42 hours of six-hourly track
+export const ANALOG_MIN = 4;              // fewer is too little track to match: 18 hours
+export const ANALOG_REACH_KM = 1500;      // a window ending farther than this from the live storm cannot rank
+export const ANALOG_NEXT_HOURS = 120;
+/** The score is a weighted sum of each difference over its scale: lower is more alike. */
+export const ANALOG_WEIGHTS = { pos: 0.6, wind: 0.2, head: 0.1, season: 0.1 };
+export const ANALOG_SCALES = { pos: 150, wind: 20, head: 45, season: 30 };   // km, kt, degrees, days
+
+/** Initial bearing, degrees clockwise from north, from one point to another (longitudes may be unwrapped). */
+export function bearing(lat1, lon1, lat2, lon2) {
+  const p1 = lat1 * RAD, p2 = lat2 * RAD, dl = (lon2 - lon1) * RAD;
+  const y = Math.sin(dl) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return (Math.atan2(y, x) / RAD + 360) % 360;
+}
+
+const COMPASS = ['north', 'north-northeast', 'northeast', 'east-northeast', 'east', 'east-southeast', 'southeast', 'south-southeast',
+  'south', 'south-southwest', 'southwest', 'west-southwest', 'west', 'west-northwest', 'northwest', 'north-northwest'];
+/** 'northwest' for 315 degrees. */
+export const compass = (deg) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+
+/** Smallest angle between two bearings, 0-180. */
+const angleDiff = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+
+/** The track sampled every six hours back from `endT`, `count` points, as { lat, lon, wind } (wind null when unknown). */
+function gridOf(track, endT, count) {
+  const out = [];
+  for (let k = 0; k < count; k++) {
+    const p = positionAt(track, endT - STEP * (count - 1 - k));
+    out.push({ lat: p.lat, lon: p.lon, wind: p.wind });
+  }
+  return out;
+}
+
+/**
+ * The past storms whose track, over the same stretch of time, looked most like
+ * `query` ({ n, t, lat, lon, wind }: the live storm's best track so far).
+ *
+ * The query's last `window` fixes (at most 42 h, at least 18 h) are laid
+ * against every window of every storm that ends on a synoptic fix, and each
+ * window is scored on how far apart the two tracks run (RMS km), how different
+ * their winds are (RMS kt), how different their headings are (degrees) and how
+ * far apart in the year they are (days). Each storm contributes its best
+ * window; the top `k` come back, best first, as
+ *   { storm, score, parts: { posKm, windKt, headDeg, seasonDays }, window, startT, endT, endIndex }.
+ * `tooShort` is true when the query has less than 18 h of track. `excludeId`
+ * keeps a storm from matching itself.
+ */
+export function analogs(query, storms, { k = 5, window = ANALOG_WINDOW, excludeId = null } = {}) {
+  const none = { tooShort: false, window: 0, results: [] };
+  if (!query || !(query.n >= 2)) return { ...none, tooShort: true };
+  const tEnd = query.t[query.n - 1];
+  const W = Math.min(window, Math.floor((tEnd - query.t[0]) / STEP) + 1);
+  if (W < ANALOG_MIN) return { ...none, tooShort: true, window: W };
+  const q = gridOf(query, tEnd, W);
+  const qLast = q[W - 1];
+  const qHead = bearing(q[0].lat, q[0].lon, qLast.lat, qLast.lon);
+  const qDoy = dayOfYear(tEnd);
+  const { pos: wp, wind: ww, head: wh, season: ws } = ANALOG_WEIGHTS;
+  const sc = ANALOG_SCALES;
+  const results = [];
+  for (const s of storms) {
+    if (s.id === excludeId || s.n < W) continue;
+    let best = null;
+    for (let j = W - 1; j < s.n; j++) {
+      if (s.t[j] % STEP !== 0) continue;                              // windows end on a synoptic fix (00, 06, 12, 18 Z)
+      const start = s.t[j] - STEP * (W - 1);
+      if (start < s.t[0]) continue;
+      if (gcKm(qLast.lat, qLast.lon, s.lat[j], s.lon[j]) > ANALOG_REACH_KM) continue;
+      let sq = 0, wsq = 0, wn = 0;
+      const first = positionAt(s, start);
+      for (let i = 0; i < W; i++) {
+        const p = i === 0 ? first : positionAt(s, start + STEP * i);
+        const d = gcKm(q[i].lat, q[i].lon, p.lat, p.lon);
+        sq += d * d;
+        if (q[i].wind != null && p.wind != null) { const dw = q[i].wind - p.wind; wsq += dw * dw; wn++; }
+      }
+      const last = positionAt(s, s.t[j]);
+      const posKm = Math.sqrt(sq / W);
+      const windKt = wn ? Math.sqrt(wsq / wn) : 0;
+      const moved = gcKm(first.lat, first.lon, last.lat, last.lon) > 10 && gcKm(q[0].lat, q[0].lon, qLast.lat, qLast.lon) > 10;
+      const headDeg = moved ? angleDiff(qHead, bearing(first.lat, first.lon, last.lat, last.lon)) : 0;
+      const dd = Math.abs(qDoy - dayOfYear(s.t[j]));
+      const seasonDays = Math.min(dd, 365 - dd);
+      const score = wp * posKm / sc.pos + ww * windKt / sc.wind + wh * headDeg / sc.head + ws * seasonDays / sc.season;
+      if (!best || score < best.score) best = { storm: s, score, parts: { posKm, windKt, headDeg, seasonDays }, window: W, startT: start, endT: s.t[j], endIndex: j };
+    }
+    if (best) results.push(best);
+  }
+  results.sort((a, b) => a.score - b.score);
+  return { ...none, window: W, results: results.slice(0, k) };
+}
+
+/**
+ * What the matched storm went on to do: the indices of its fixes after the
+ * match, up to `hours` later (or to where its track ends), with the plain
+ * facts of that stretch as lines of text. These are things that HAPPENED to a
+ * different storm. `hoursAvailable` says how much of the stretch the record has.
+ */
+export function nextAfter(match, hours = ANALOG_NEXT_HOURS) {
+  const s = match.storm, j = match.endIndex;
+  let i1 = j;
+  while (i1 + 1 < s.n && s.t[i1 + 1] <= match.endT + hours * HOUR) i1++;
+  const hoursAvailable = (s.t[s.n - 1] - match.endT) / HOUR;
+  const lines = [];
+  if (i1 === j) {
+    lines.push('Its track ends at this point.');
+    return { i0: j, i1, hoursAvailable, lines };
+  }
+  let peak = null;
+  for (let i = j + 1; i <= i1; i++) {
+    const w = windAt(s, i);
+    if (w != null && (!peak || w > peak.w)) peak = { w, h: (s.t[i] - match.endT) / HOUR };
+  }
+  const here = windAt(s, j);
+  if (peak) {
+    const c = category(peak.w);
+    lines.push(here != null && peak.w <= here
+      ? `Its wind did not rise above ${Math.round(here)} kt.`
+      : `Its wind peaked at ${Math.round(peak.w)} kt${c && c.min >= 64 ? ` (${c.label})` : ''}, ${Math.round(peak.h)} h later.`);
+  }
+  if (s.land.some((i) => i > j && i <= i1)) lines.push('A landfall is recorded in this stretch.');
+  const km = gcKm(s.lat[j], s.lon[j], s.lat[i1], s.lon[i1]);
+  if (km > 20) lines.push(`It moved ${Math.round(km / KM_PER_MI)} mi toward the ${compass(bearing(s.lat[j], s.lon[j], s.lat[i1], s.lon[i1]))} over ${Math.round((s.t[i1] - match.endT) / HOUR)} h.`);
+  if (hoursAvailable < hours) lines.push(`Its track ends ${Math.round(hoursAvailable)} h after this point.`);
+  return { i0: j, i1, hoursAvailable, lines };
+}

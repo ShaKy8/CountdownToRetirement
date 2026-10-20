@@ -1482,9 +1482,32 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   the last two days of track plus the forecast and the models; framing the
   whole track shrank the fan to a smudge. The real fixture storm had no ECMWF
   run, so EMXI is tested on a renamed HFSA run, labelled synthetic.
-- **Not yet built:** analog storms (match a live track to similar past ones).
-  The season ring covers only storms in HURDAT2, which lags about six months,
-  so this year's storms are absent until it is revised.
+- **Analog storms are built, as similarity and nothing more** (phase 4, second
+  half). `analogs(query, storms)` in `lib/storms.js` lays the live storm's last
+  up-to-42 hours of best track (at least 18: fewer is "too early") against every
+  window of every archive storm that ends on a synoptic fix (00/06/12/18 Z; the
+  off-hour landfall records never end a window) and scores each on position
+  (RMS km, weight 60%), wind (RMS kt, 20%), heading (degrees, 10%) and time of
+  year (days, wrapped at 365, 10%), each over its scale (150 km, 20 kt, 45 deg,
+  30 days). A window ending more than 1,500 km from the live storm is not
+  scored. Each storm keeps its best window; the top five come back. ~40 ms over
+  3,250 storms, done once per best-track fix and cached. `nextAfter()` says
+  what each did in the 120 h after the match (peak wind, a landfall record, how
+  far and which way it moved, where its track ends), worded as what HAPPENED to
+  another storm, never "will". **The console** draws the matched stretch thin
+  and what came next dotted, in the storm's own intensity colours, in its real
+  position, with a ring where the match ends and the name at the far end, under
+  the models and NHC's official line; a row opens one and fades the rest. **The
+  words are the guard:** "Similarity, not a forecast"; it knows nothing of
+  steering winds, wind shear or sea temperature; a score is not a probability
+  and has never been checked against what happened; the weights are printed.
+  A test greps the section for prediction words and counts the one "forecast".
+  Verified on real Trudy against the real archive: Kiko 2007 first (October,
+  off Mexico, weak, west). It is a lookup, not a model: do not add a probability
+  or an "expected" line to it.
+- **Not yet built:** nothing in the hurricane plan. The season ring covers only
+  storms in HURDAT2, which lags about six months, so this year's storms are
+  absent until it is revised.
 
 ### How the console ships: one hashed bundle (October 13, 2026)
 

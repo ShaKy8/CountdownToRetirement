@@ -6996,6 +6996,172 @@ describe('WEATHER CONSOLE - HURRICANES (October 20, 2026)', () => {
         assert.ok(/st\.parts\.models === 'fail'/.test(ui));
     });
 
+    // Hand-built tracks for the analog tests: [lat, lon, wind] every six hours from t0, a straight line unless said otherwise.
+    const ANALOG_KIT = `const HR = 3600000, ST = 6 * HR, T0 = Date.UTC(2010, 8, 10);
+        const mk = (id, year, t0, pts, land = []) => ({ id, name: id, basin: 'AL', year, n: pts.length, t: Float64Array.from(pts, (_, i) => t0 + i * ST),
+          lat: Float32Array.from(pts, (p) => p[0]), lon: Float32Array.from(pts, (p) => p[1]), wind: Int16Array.from(pts, (p) => (p[2] == null ? -99 : p[2])), status: 'H'.repeat(pts.length), land });
+        const line = (lat0, lon0, dlat, dlon, n, w0 = 40, dw = 3) => Array.from({ length: n }, (_, i) => [lat0 + dlat * i, lon0 + dlon * i, w0 + dw * i]);
+        const head = (s, n) => ({ n, t: s.t.slice(0, n), lat: s.lat.slice(0, n), lon: s.lon.slice(0, n), wind: s.wind.slice(0, n) });`;
+
+    test('Should rank a storm against itself first and a look-alike above an unrelated one, once per storm, and reach only near the live storm', () => {
+        const out = run(`${ANALOG_KIT}
+            const A = mk('AL011999', 1999, T0, line(15, -50, 0.4, -0.8, 24));
+            const B = mk('AL021999', 1999, T0, line(15.2, -49.8, 0.4, -0.8, 24, 45));      // the same path, a little off
+            const C = mk('AL031999', 1999, T0 + 150 * 24 * HR, line(19, -57, -0.4, 0.8, 24, 70, -2));   // the other way, five months on, passing near
+            const D = mk('AL041999', 1999, T0, line(40, 10, 0.4, -0.8, 24));            // far away
+            const r = S.analogs(head(A, 10), [A, B, C, D], { k: 10 });
+            console.log(JSON.stringify({ ids: r.results.map((x) => x.storm.id), first: r.results[0], window: r.window, tooShort: r.tooShort,
+              scores: r.results.map((x) => x.score), excl: S.analogs(head(A, 10), [A, B, C, D], { excludeId: 'AL011999' }).results.map((x) => x.storm.id) }));`);
+        assert.deepStrictEqual(out.ids.slice(0, 2), ['AL011999', 'AL021999'], 'itself, then the near look-alike');
+        assert.ok(out.first.score < 1e-6, 'a storm against itself differs by nothing: ' + out.first.score);
+        assert.deepStrictEqual(Object.values(out.first.parts).map((v) => Math.round(v)), [0, 0, 0, 0]);
+        assert.strictEqual(out.first.endIndex, 9, 'the match ends where the query does');
+        assert.ok(out.scores[0] < out.scores[1] && out.scores[1] < out.scores[2], 'best first');
+        assert.ok(!out.ids.includes('AL041999'), 'a storm 4,000 km away cannot rank, and is not scored');
+        assert.strictEqual(new Set(out.ids).size, out.ids.length, 'each storm once, at its best window');
+        assert.strictEqual(out.window, 8);
+        assert.ok(!out.excl.includes('AL011999'), 'a storm is never its own analog when excluded');
+    });
+
+    test('Should say "too early" under 18 hours of track, and shorten the window for a short one', () => {
+        const out = run(`${ANALOG_KIT}
+            const A = mk('AL011999', 1999, T0, line(15, -50, 0.4, -0.8, 24));
+            const at = (n) => { const r = S.analogs(head(A, n), [A]); return [r.tooShort, r.window, r.results.length]; };
+            console.log(JSON.stringify({ n: [1, 2, 3, 4, 6, 8, 12].map(at), none: [S.analogs(null, [A]).tooShort, S.analogs({ n: 0 }, [A]).tooShort], K: [S.ANALOG_MIN, S.ANALOG_WINDOW, S.ANALOG_REACH_KM, S.ANALOG_NEXT_HOURS] }));`);
+        assert.deepStrictEqual(out.n[0], [true, 0, 0], 'one fix is not a track at all');
+        assert.deepStrictEqual(out.n[1], [true, 2, 0]);
+        assert.deepStrictEqual(out.n[2], [true, 3, 0], 'three fixes is 12 hours: too little');
+        assert.deepStrictEqual(out.n[3], [false, 4, 1], 'four fixes, 18 hours, is the least that is matched');
+        assert.deepStrictEqual(out.n[4], [false, 6, 1]);
+        assert.deepStrictEqual(out.n[5], [false, 8, 1]);
+        assert.deepStrictEqual(out.n[6], [false, 8, 1], 'the window is never longer than 42 hours');
+        assert.deepStrictEqual(out.none, [true, true]);
+        assert.deepStrictEqual(out.K, [4, 8, 1500, 120]);
+    });
+
+    test('Should weigh position, heading and time of year, wrap the year, ignore an unknown wind, and cross the dateline', () => {
+        const out = run(`${ANALOG_KIT}
+            const A = mk('AL011999', 1999, T0, line(15, -50, 0.4, -0.8, 24));
+            const q = head(A, 10);
+            // heading: the same track but travelled the other way ends where it started, passing the same points
+            const rev = mk('AL021999', 1999, T0, line(15, -50, 0.4, -0.8, 24).slice(0, 10).reverse());
+            const aligned = mk('AL031999', 1999, T0, line(15.6, -50.5, 0.4, -0.8, 24));
+            const r1 = S.analogs(q, [rev, aligned], { k: 5 });
+            // season: the same path in two other times of year
+            const same = mk('AL041999', 1999, T0, line(15, -50, 0.4, -0.8, 24));
+            const later = mk('AL051999', 1999, T0 + 150 * 24 * HR, line(15, -50, 0.4, -0.8, 24));
+            const r2 = S.analogs(q, [later, same], { k: 5 });
+            // the year wraps: a late-December query against an early-January storm
+            const dec = mk('AL061999', 1999, Date.UTC(1999, 11, 28), line(15, -50, 0.4, -0.8, 12));
+            const jan = mk('AL071999', 2000, Date.UTC(2000, 0, 5), line(15, -50, 0.4, -0.8, 12));
+            const r3 = S.analogs(head(dec, 8), [jan], { k: 2 });
+            // wind: an unknown wind everywhere is not a number that poisons the score
+            const blind = mk('AL081999', 1999, T0, line(15, -50, 0.4, -0.8, 24).map((p) => [p[0], p[1], null]));
+            const r4 = S.analogs(q, [blind]);
+            // headings across north: 350 and 10 degrees are 20 apart, not 340
+            const nnw = mk('AL091999', 1999, T0, line(15, -50, 0.4, -0.07, 24));
+            const nne = mk('AL101999', 1999, T0, line(15, -50, 0.4, 0.07, 24));
+            const r6 = S.analogs(head(nnw, 10), [nne]);
+            // the dateline: the same path written east of 180 and west of it
+            const east = mk('CP011999', 1999, T0, line(20, 178, 0.1, 0.8, 24));
+            const west = mk('CP021999', 1999, T0, line(20, 178 - 360, 0.1, 0.8, 24));
+            const r5 = S.analogs(head(east, 10), [west]);
+            console.log(JSON.stringify({ rev: r1.results.find((x) => x.storm.id === 'AL021999').parts, ali: r1.results.find((x) => x.storm.id === 'AL031999').parts,
+              seasonLater: r2.results.find((x) => x.storm.id === 'AL051999').parts.seasonDays, seasonSame: r2.results.find((x) => x.storm.id === 'AL041999').parts.seasonDays,
+              wrap: r3.results[0].parts.seasonDays, blind: [r4.results[0].parts.windKt, Number.isFinite(r4.results[0].score)], seam: [r5.results[0].parts.posKm, r5.results[0].parts.headDeg], across: r6.results[0].parts.headDeg }));`);
+        assert.ok(out.rev.headDeg > 150, 'travelling the other way is a heading ~180 degrees off: ' + out.rev.headDeg);
+        assert.ok(out.ali.headDeg < 5);
+        assert.ok(out.seasonLater > 140 && out.seasonSame === 0, 'five months apart in the year: ' + out.seasonLater);
+        assert.ok(out.wrap <= 10, 'December 28 and January 5 are 8 days apart, not 357: ' + out.wrap);
+        assert.deepStrictEqual(out.blind, [0, true], 'no known wind: no wind difference, and a finite score');
+        assert.ok(out.across > 10 && out.across < 30, '350 and 10 degrees are about 20 apart, not 340: ' + out.across);
+        assert.ok(out.seam[0] < 1 && out.seam[1] < 1, 'the same path east of 180 and west of it is the same path: ' + out.seam);
+    });
+
+    test('Should end a window only on a synoptic fix, never on an off-hour landfall record', () => {
+        const out = run(`${ANALOG_KIT}
+            const A = mk('AL011999', 1999, T0, line(15, -50, 0.4, -0.8, 24));
+            const offHour = mk('AL021999', 1999, T0 + 3 * HR, line(15, -50, 0.4, -0.8, 24));   // every fix at 03, 09, 15, 21 Z
+            const r = S.analogs(head(A, 10), [offHour, A]);
+            console.log(JSON.stringify({ ids: r.results.map((x) => x.storm.id), ends: r.results.map((x) => x.endT % (6 * HR)) }));`);
+        assert.deepStrictEqual(out.ids, ['AL011999'], 'a storm whose fixes are all off the synoptic hours has no window to match');
+        assert.deepStrictEqual(out.ends, [0], 'every match ends at 00, 06, 12 or 18 Z');
+    });
+
+    test('Should say what a matched storm did next, as what happened, and stop where its track stops', () => {
+        const out = run(`${ANALOG_KIT}
+            // 30 fixes: wind rises to a peak at fix 16, a landfall record at fix 20, heading west
+            const pts = line(20, -60, 0.1, -0.9, 30, 50, 0).map((p, i) => [p[0], p[1], i <= 16 ? 50 + i * 4 : 114 - (i - 16) * 5]);
+            const S1 = mk('AL011999', 1999, T0, pts, [20]);
+            const m = (end) => ({ storm: S1, endIndex: end, endT: S1.t[end] });
+            const nx = S.nextAfter(m(9));                         // 120 h = 20 more fixes: to fix 29
+            const early = S.nextAfter(m(25));                     // only 4 fixes left
+            const mid = S.nextAfter(m(2));                        // 120 h after fix 2 is fix 22, well inside the track
+            const last = S.nextAfter(m(29));
+            const flat = S.nextAfter({ storm: mk('AL021999', 1999, T0, line(20, -60, 0.1, -0.9, 14, 50, -1)), endIndex: 3, endT: T0 + 3 * ST });
+            console.log(JSON.stringify({ nx, early, mid: mid.i1, last, flat, brg: [S.bearing(0, 0, 0, 1), S.bearing(0, 0, 1, 0), S.bearing(0, 0, 0, -1), S.bearing(0, 0, -1, 0)],
+              comp: [0, 45, 90, 200, 315, 350, -10, 360].map(S.compass) }));`);
+        assert.strictEqual(out.nx.i0, 9);
+        assert.strictEqual(out.nx.i1, 29, 'the 120 hours after fix 9 run to fix 29');
+        assert.ok(out.nx.lines.some((l) => /^Its wind peaked at 114 kt \(Category 4\), 42 h later\.$/.test(l)), JSON.stringify(out.nx.lines));
+        assert.ok(out.nx.lines.includes('A landfall is recorded in this stretch.'));
+        assert.ok(out.nx.lines.some((l) => /^It moved \d+ mi toward the west over 120 h\.$/.test(l)), JSON.stringify(out.nx.lines));
+        assert.ok(out.early.i1 === 29 && out.early.lines.some((l) => /^Its track ends 24 h after this point\.$/.test(l)), JSON.stringify(out.early));
+        assert.strictEqual(out.mid, 22, 'a hundred and twenty hours after fix 2 is fix 22');
+        assert.ok(!out.early.lines.includes('A landfall is recorded in this stretch.'), 'a landfall before the match is not something it did next');
+        assert.deepStrictEqual(out.last.lines, ['Its track ends at this point.']);
+        assert.ok(out.flat.lines.some((l) => /^Its wind did not rise above 47 kt\.$/.test(l)), JSON.stringify(out.flat.lines));
+        assert.deepStrictEqual(out.brg.map((b) => Math.round(b)), [90, 0, 270, 180]);
+        assert.deepStrictEqual(out.comp, ['north', 'northeast', 'east', 'south-southwest', 'northwest', 'north', 'north', 'north']);
+        assert.ok(!/\b(will|likely|expected|predict)\b/i.test(JSON.stringify(out.nx.lines) + JSON.stringify(out.early.lines)), 'what happened is not worded as what will');
+    });
+
+    test('Should match real tracks without error and in order, on the archive\'s own storms', () => {
+        const out = run(`const dec = P.decodeArchive(JSON.parse(JSON.stringify(P.encodeArchive([...H.parseHurdat2(alTxt).storms, ...H.parseHurdat2(epTxt).storms]))));
+            const k = dec.find((s) => s.id === 'AL122005');
+            const q = { n: 14, t: k.t.slice(0, 14), lat: k.lat.slice(0, 14), lon: k.lon.slice(0, 14), wind: k.wind.slice(0, 14) };
+            const r = S.analogs(q, dec, { k: 5, excludeId: 'AL122005' });
+            const self = S.analogs(q, dec, { k: 1 });
+            console.log(JSON.stringify({ n: dec.length, ids: r.results.map((x) => x.storm.id), sorted: r.results.every((x, i) => !i || x.score >= r.results[i - 1].score), finite: r.results.every((x) => Number.isFinite(x.score)),
+              self: self.results[0] && self.results[0].storm.id, lines: r.results.map((x) => S.nextAfter(x).lines.length) }));`);
+        assert.ok(out.n >= 8);
+        assert.ok(out.sorted && out.finite, 'ranked, and every score a number');
+        assert.ok(!out.ids.includes('AL122005'));
+        assert.strictEqual(out.self, 'AL122005', 'with nothing excluded, Katrina\'s own start is its best match');
+        assert.ok(out.lines.every((n) => n >= 1), 'each match says what it did next');
+    });
+
+    test('Should show similar past storms as similarity and never as a forecast, draw what they did next under NHC\'s line, and match once per fix', () => {
+        const ui = strip(read('weather', 'js', 'views', 'storms.js'));
+        const lib = strip(read('weather', 'js', 'lib', 'storms.js'));
+        const html = ui.slice(ui.indexOf('function analogsHtml('), ui.indexOf('function modelsHtml('));
+        assert.ok(html.length > 500, 'found the panel code');
+        for (const text of ['Similarity, not a forecast', 'says nothing certain about this storm', 'knows nothing of steering winds, wind shear or sea temperature',
+            'a score is not a probability', 'never been checked against what happened', 'Too early to match', 'similar past storms cannot be found',
+            'Loading the archive to find similar storms', 'No past storm in the archive has a track close', 'What they did next is what happened to them',
+            'Dotted lines are what each did next']) assert.ok(html.includes(text), 'the panel says: ' + text);
+        const nextFn = lib.slice(lib.indexOf('export function nextAfter('));
+        assert.ok(!/\b(will|likely|expected to|predict|going to|is headed|should reach)\b/i.test(html + nextFn), 'worded as what happened, never as what will');
+        assert.ok(!/forecast/i.test(nextFn), 'what a past storm did is not called a forecast');
+        assert.ok((html.match(/forecast/gi) || []).length === 1 && /not a forecast/.test(html), 'the only "forecast" in the section is the one it says it is not');
+        const draw = ui.slice(ui.indexOf('function drawLive('), ui.indexOf('function drawRings('));
+        const an = draw.indexOf('drawAnalogs(ctx, m, st, dim)'), md = draw.indexOf('for (const run of st._runs)'), off = draw.indexOf('if (st._fc.length) {');
+        assert.ok(an > -1 && an < md && md < off, 'analogs under the models, and both under NHC\'s official line');
+        const fn = ui.slice(ui.indexOf('function drawAnalogs('), ui.indexOf('function drawLive('));
+        assert.ok(/dash: \[2, 4\]/.test(fn) && /analogSel === s\.id \? 1 : 0\.25/.test(fn), 'what they did next is dotted, and the others fade when one is opened');
+        assert.ok(/from: r\.i0w, to: r\.endIndex/.test(fn) && /from: nx\.i0, to: nx\.i1/.test(fn), 'the matched stretch and then what came after');
+        const af = ui.slice(ui.indexOf('function analogsFor('), ui.indexOf('function nearRing('));
+        assert.ok(/if \(state !== 'ready' \|\| !st\._track\.n\) return null/.test(af), 'nothing is matched before the archive is in');
+        assert.ok(/const key = `\$\{st\.id\}\|\$\{st\._track\.t\[st\._track\.n - 1\]\}`/.test(af) && /analogCache\.has\(key\)/.test(af), 'worked out once per best-track fix');
+        const load = ui.slice(ui.indexOf('async function load()'), ui.indexOf('function locate()'));
+        assert.ok(/\n\s*render\(\);\s*\n\s*renderLive\(\);\s*\n\s*map\.invalidate\(\);/.test(load), 'the live section is redrawn when the archive arrives, or it says "loading" for ever');
+        assert.ok(/e\.target\.closest\('\[data-analog\]'\)/.test(ui) && /analogSel === an\.dataset\.analog \? null : an\.dataset\.analog/.test(ui), 'opening a match again closes it');
+        assert.ok(/ANALOG_WEIGHTS = \{ pos: 0\.6, wind: 0\.2, head: 0\.1, season: 0\.1 \}/.test(lib) && /position \(60%\), strength \(20%\), heading \(10%\) and time of year \(10%\)/.test(html), 'the words give the weights the code uses');
+        const dist = path.join(__dirname, 'weather', 'dist');
+        const chunk = fs.readdirSync(dist).find((f) => /^storms\./.test(f));
+        for (const f of fs.readdirSync(dist).filter((x) => x.endsWith('.js') && x !== chunk)) assert.ok(!/analogsFor|nextAfter|ANALOG_WEIGHTS/.test(read('weather', 'dist', f)), f + ' carries none of it');
+    });
+
     test('Should keep the pure libs pure, and the archive off the deploy', () => {
         for (const f of ['storms.js', 'stormpack.js']) {
             const src = strip(read('weather', 'js', 'lib', f));
