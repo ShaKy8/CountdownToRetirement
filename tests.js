@@ -7344,6 +7344,26 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
         assert.strictEqual(out.cache, 'public, s-maxage=180', 'nothing failed, so it keeps the normal time');
     });
 
+    test('Should read NHC\'s 404 for a brand-new storm\'s best track and a-deck as "not there yet", cached normally, and still fail on anything else', () => {
+        // ep222026, October 21, 2026: listed minutes before NHC published btk/bep222026.dat or the a-deck.
+        const fresh = run(`brk.btk = () => mk(404); brk.adeck = () => mk(404);
+            const r = await call();
+            const s = r.body.storms[0];
+            console.log(JSON.stringify({ parts: s.parts, best: s.best, fc: s.forecast, models: s.models, cache: r.cache, status: r.status }));`);
+        assert.deepStrictEqual(fresh.parts, { best: 'none', forecast: 'none', models: 'none', cone: 'ok' }, 'not published yet is "none", never "fail"');
+        assert.deepStrictEqual(fresh.best, []);
+        assert.strictEqual(fresh.fc, null);
+        assert.deepStrictEqual(fresh.models, {});
+        assert.strictEqual(fresh.cache, 'public, s-maxage=180', 'nothing failed, so it is cached the normal three minutes, not 30 seconds');
+        for (const [name, code] of [['403', 'mk(403)'], ['500', 'mk(500)']]) {
+            const bad = run(`brk.btk = () => ${code}; brk.adeck = () => ${code};
+                const r = await call();
+                console.log(JSON.stringify({ parts: r.body.storms[0].parts, cache: r.cache }));`);
+            assert.deepStrictEqual([bad.parts.best, bad.parts.forecast, bad.parts.models], ['fail', 'fail', 'fail'], name + ' is still a failed read');
+            assert.notStrictEqual(bad.cache, 'public, s-maxage=180', name + ' is cached for seconds');
+        }
+    });
+
     test('Should take no input, and fetch nothing it has not checked', () => {
         const out = run(`live = { activeStorms: [
               ENTRY,

@@ -445,7 +445,13 @@ function shapeStorm(e) {
 }
 
 async function stormBest(id) {
-  const text = await cachedJSON(`st_btk_${id}`, 10 * MIN, `${NHC_BTK}b${id}.dat`, { text: true });
+  let text;
+  try { text = await cachedJSON(`st_btk_${id}`, 10 * MIN, `${NHC_BTK}b${id}.dat`, { text: true }); }
+  catch (err) {
+    // NHC lists a storm minutes before it publishes its files: a 404 is "not there yet", not a failed read.
+    if (/^404 /.test(err.message)) return [];
+    throw err;
+  }
   return parseBtk(text).fixes.slice(-BEST_FIXES_MAX).map((f) => ({
     t: f.t, lat: f.lat, lon: f.lon, wind: f.wind, pres: f.pres, status: f.status, r: f.r || null,
   }));
@@ -474,6 +480,8 @@ async function stormForecast(id) {
     headers: { 'User-Agent': UA },
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
+  // Not memoised: the file appears minutes after NHC lists the storm, and the next read should find it.
+  if (res.status === 404) return { forecast: null, models: {} };
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} :: a-deck ${id}`);
   if (Number(res.headers.get('content-length')) > ADECK_GZ_MAX) throw new Error(`a-deck ${id} is too large`);
   const buf = Buffer.from(await res.arrayBuffer());
