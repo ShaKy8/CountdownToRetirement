@@ -7607,6 +7607,12 @@ exit 0
         assert.ok(/GH issue close 9/.test(next.gh), 'the next ordinary run closes the test issue');
     });
 
+    test('Should be scheduled twice an hour, thirty minutes apart, because GitHub drops scheduled slots', () => {
+        const mins = [...wf.matchAll(/^\s+- cron: '(\d+) \* \* \* \*'/gm)].map((m) => Number(m[1])).sort((x, y) => x - y);
+        assert.strictEqual(mins.length, 2, 'two hourly crons');
+        assert.strictEqual(mins[1] - mins[0], 30, 'half an hour apart, so a dropped slot leaves a gap of one hour, not two');
+    });
+
     test('Should run hourly with the least permission, pinned actions and no secret, and only ever read production', () => {
         assert.ok(/^\s+- cron: '\d+ \* \* \* \*'/m.test(wf), 'hourly');
         assert.ok(/workflow_dispatch:\s*\n\s+inputs:\s*\n\s+test:[\s\S]*?type: boolean[\s\S]*?default: false/.test(wf), 'a manual test input, off by default');

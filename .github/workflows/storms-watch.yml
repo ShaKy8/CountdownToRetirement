@@ -13,14 +13,18 @@
 # [test] issue, and the next hourly run closes it.
 #
 # Third-party actions are pinned to commit SHAs, not tags, as in deploy.yml.
-# GitHub delays scheduled runs under load and pauses schedules in repositories
-# with no commits for 60 days.
+# GitHub delays scheduled runs under load, drops some outright (one of six
+# slots ran on the first evening) and pauses schedules in repositories with no
+# commits for 60 days. So there are two crons, thirty minutes apart: a dropped
+# slot leaves a gap of an hour rather than two. Running twice an hour is safe:
+# a storm already reported is quiet, because its issue is open.
 
 name: Storm watch
 
 on:
   schedule:
     - cron: '13 * * * *'
+    - cron: '43 * * * *'
   workflow_dispatch:
     inputs:
       test:
