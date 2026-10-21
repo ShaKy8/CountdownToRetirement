@@ -1237,6 +1237,55 @@ function slowNote(route, t0) {
   if (ms > SLOW_MS) console.warn(`[slow] ${route} ${ms} ms`);
 }
 
+/*
+ * The storm watch's heartbeat. An EventBridge rule (scripts/storm-watch-aws.sh)
+ * invokes this function every 15 minutes with a Scheduled Event; GitHub's own
+ * cron dropped most of its slots, which is why this exists. The event is the
+ * only thing that reaches this branch: API Gateway events carry
+ * `requestContext`, and a caller of the public API cannot add a top-level
+ * `source`. It asks NHC the way /api/storms does (same code, same cache) and
+ * prints ONE line CloudWatch turns into two metrics (embedded metric format,
+ * so the function needs no new permission):
+ *
+ *   ActiveStorms  how many storms NHC lists. Emitted ONLY when NHC was read,
+ *                 so a failed check can never count as zero storms.
+ *   CheckFailed   1 when NHC could not be read, else 0. Emitted on every run,
+ *                 so it is also the heartbeat: an alarm on its silence says the
+ *                 watch itself has stopped.
+ *
+ * Three alarms on those (atmos-storm-listed, -check-failed, -silent) email
+ * NotifyMe; an alarm mails on a change of state, so a storm that stays listed
+ * is one email. `{ source: 'aws.events', 'detail-type': 'Scheduled Event',
+ * test: true }`, sent by `storm-watch-aws.sh --test`, pretends one storm.
+ */
+const isScheduledEvent = (event) =>
+  !!event && event.source === 'aws.events' && event['detail-type'] === 'Scheduled Event' && !event.requestContext;
+
+async function stormWatch(event) {
+  let active = null;
+  if (event.test === true) {
+    active = 1;
+  } else {
+    try {
+      active = (await stormsPayload()).body.activeCount;
+      if (!Number.isFinite(active)) throw new Error('no activeCount');
+    } catch (err) {
+      active = null;
+      console.error(`[api] /api/storms -> scheduled check failed: ${err.message}`);
+    }
+  }
+  const failed = active == null ? 1 : 0;
+  const metrics = [{ Name: 'CheckFailed', Unit: 'Count' }];
+  if (!failed) metrics.push({ Name: 'ActiveStorms', Unit: 'Count' });
+  console.log(JSON.stringify({
+    _aws: { Timestamp: Date.now(), CloudWatchMetrics: [{ Namespace: 'AtmosWeather', Dimensions: [[]], Metrics: metrics }] },
+    CheckFailed: failed,
+    ...(failed ? {} : { ActiveStorms: active }),
+    ...(event.test === true ? { test: true } : {}),
+  }));
+  return failed ? { checked: false, failed: true } : { checked: true, activeCount: active, test: event.test === true };
+}
+
 /**
  * Lambda Function URL handler (payload format 2.0).
  *
@@ -1246,6 +1295,7 @@ function slowNote(route, t0) {
  * CloudFront distribution, so it is same-origin by construction.
  */
 export const handler = async (event) => {
+  if (isScheduledEvent(event)) return stormWatch(event);
   const rawPath = event?.rawPath || '/';
   const m = rawPath.match(/(\/api\/[a-z]+)\/?$/);
   const route = m && routes[m[1]] ? m[1] : null;

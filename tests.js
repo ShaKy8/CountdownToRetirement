@@ -7631,6 +7631,144 @@ exit 0
     });
 });
 
+describe('STORM WATCH ON AWS - EventBridge, two metrics and three alarms (October 21, 2026)', () => {
+    /*
+     * GitHub's cron dropped most of the hourly watch's slots, so the same watch
+     * runs on an EventBridge rule that invokes the weather Lambda every 15
+     * minutes. These run the real handler with fetch stubbed, and the real
+     * script with a fake `aws` that only records what it was asked.
+     */
+    const fs = require('fs');
+    const os = require('os');
+    const { spawnSync } = require('child_process');
+    const lambdaPath = path.join(__dirname, 'lambda', 'index.mjs');
+    const scriptPath = path.join(__dirname, 'scripts', 'storm-watch-aws.sh');
+    const SCHEDULED = { source: 'aws.events', 'detail-type': 'Scheduled Event' };
+    /** Run the handler on `event` with CurrentStorms.json answering `current`; returns the result, the EMF lines, stderr and the fetch count. */
+    const watch = (event, current) => {
+        const code = `import(${JSON.stringify(lambdaPath)}).then(async (m) => {
+            let calls = 0; const out = []; const errs = [];
+            const mk = (status, text) => ({ ok: status >= 200 && status < 300, status, statusText: 'x', headers: { get: () => null }, text: async () => text, json: async () => JSON.parse(text), arrayBuffer: async () => new ArrayBuffer(0) });
+            globalThis.fetch = async (url) => { calls++; ${current}; };
+            console.log = (...a) => out.push(a.join(' ')); console.error = (...a) => errs.push(a.join(' '));
+            const result = await m.handler(${JSON.stringify(event)});
+            process.stdout.write(JSON.stringify({ result, out, errs, calls }));
+          })`;
+        const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        const o = JSON.parse(r.stdout);
+        o.emf = o.out.map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((j) => j && j._aws);
+        return o;
+    };
+    const NONE = `return mk(200, JSON.stringify({ activeStorms: [] }))`;
+    const ONE = `if (String(url).includes('CurrentStorms')) return mk(200, JSON.stringify({ activeStorms: [{ id: 'ep212026', binNumber: 'EP1', name: 'Trudy', classification: 'TS', intensity: '40', pressure: '1004', latitudeNumeric: 19.5, longitudeNumeric: -107.9, movementDir: 135, movementSpeed: 1, lastUpdate: '2026-10-19T21:00:00.000Z', publicAdvisory: { advNum: '7' } }] })); return mk(404, '')`;
+
+    test('Should report no storms as ActiveStorms 0 and CheckFailed 0, from one NHC call', () => {
+        const o = watch(SCHEDULED, NONE);
+        assert.strictEqual(o.emf.length, 1, 'one metric line');
+        const e = o.emf[0];
+        assert.strictEqual(e.ActiveStorms, 0);
+        assert.strictEqual(e.CheckFailed, 0);
+        assert.strictEqual(e._aws.CloudWatchMetrics[0].Namespace, 'AtmosWeather');
+        assert.deepStrictEqual(e._aws.CloudWatchMetrics[0].Metrics.map((x) => x.Name).sort(), ['ActiveStorms', 'CheckFailed']);
+        assert.strictEqual(o.calls, 1, 'only CurrentStorms.json is asked');
+        assert.deepStrictEqual(o.result, { checked: true, activeCount: 0, test: false });
+    });
+
+    test('Should report a listed storm as ActiveStorms 1, even when a part of it could not be read', () => {
+        const o = watch(SCHEDULED, ONE);
+        assert.strictEqual(o.emf[0].ActiveStorms, 1);
+        assert.strictEqual(o.emf[0].CheckFailed, 0);
+    });
+
+    test('Should never turn a failed check into zero storms: CheckFailed 1, no ActiveStorms, the error logged', () => {
+        for (const [name, current] of [['503', `return mk(503, '')`], ['junk', `return mk(200, 'not json')`], ['shape', `return mk(200, '{"x":1}')`], ['thrown', `throw new Error('network down')`]]) {
+            const o = watch(SCHEDULED, current);
+            assert.strictEqual(o.emf.length, 1, name);
+            assert.strictEqual(o.emf[0].CheckFailed, 1, name + ': counted as a failure');
+            assert.ok(!('ActiveStorms' in o.emf[0]), name + ': no ActiveStorms value to read as zero');
+            assert.ok(!o.emf[0]._aws.CloudWatchMetrics[0].Metrics.some((x) => x.Name === 'ActiveStorms'), name + ': nor a declared metric');
+            assert.ok(o.errs.some((l) => l.includes('[api] /api/storms')), name + ': the log line the hourly check searches for');
+            assert.deepStrictEqual(o.result, { checked: false, failed: true });
+        }
+    });
+
+    test('Should pretend one storm for the test event and ask NHC nothing', () => {
+        const o = watch({ ...SCHEDULED, test: true }, `throw new Error('must not fetch')`);
+        assert.strictEqual(o.calls, 0);
+        assert.strictEqual(o.emf[0].ActiveStorms, 1);
+        assert.strictEqual(o.emf[0].test, true, 'the line says it is a test');
+        assert.strictEqual(o.result.test, true);
+    });
+
+    test('Should treat only a real Scheduled Event as the watch, never a web request', () => {
+        for (const ev of [
+            { ...SCHEDULED, requestContext: { http: { method: 'GET' } }, rawPath: '/weather/api/storms' },
+            { source: 'aws.events', 'detail-type': 'Something Else', rawPath: '/weather/api/nothing', requestContext: { http: { method: 'GET' } } },
+            { source: 'aws.s3', 'detail-type': 'Scheduled Event', rawPath: '/weather/api/nothing', requestContext: { http: { method: 'GET' } } },
+            { rawPath: '/weather/api/nothing', requestContext: { http: { method: 'GET' } } },
+        ]) {
+            const o = watch(ev, NONE);
+            assert.strictEqual(o.emf.length, 0, 'no metric from a web request');
+            assert.ok(o.result && typeof o.result.statusCode === 'number', 'it is answered as an API call: ' + JSON.stringify(ev).slice(0, 60));
+        }
+    });
+
+    test('Should create a 15-minute rule, its permission and three alarms to NotifyMe, and change nothing on a dry run', () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storm-aws-'));
+        const log = path.join(dir, 'aws.log');
+        fs.writeFileSync(path.join(dir, 'aws'), `#!/bin/bash
+echo "AWS $*" >> "$AWS_LOG"
+case "$1 $2" in
+  "sts get-caller-identity") echo 391292551001; exit 0;;
+  "configure get") echo us-east-1; exit 0;;
+  "lambda get-function") echo arn:aws:lambda:us-east-1:391292551001:function:atmos-weather-api; exit 0;;
+  "sns get-topic-attributes") exit 0;;
+  "sns list-subscriptions-by-topic") echo 1; exit 0;;
+  "events describe-rule") exit 254;;
+  "lambda get-policy") exit 254;;
+  "lambda invoke") for a in "$@"; do last="$a"; done; echo '{"checked":true,"activeCount":1,"test":true}' > "$last"; exit 0;;
+esac
+exit 0
+`, { mode: 0o755 });
+        const sh = (...args) => {
+            fs.rmSync(log, { force: true });
+            const r = spawnSync('bash', [scriptPath, ...args], { encoding: 'utf8', env: { ...process.env, PATH: dir + path.delimiter + process.env.PATH, AWS_LOG: log } });
+            return { status: r.status, out: r.stdout + r.stderr, log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
+        };
+        const WRITE = /^AWS (events put-rule|events put-targets|lambda add-permission|cloudwatch put-metric-alarm|lambda invoke)/m;
+        const dry = sh();
+        assert.strictEqual(dry.status, 0, dry.out);
+        assert.ok(!WRITE.test(dry.log), 'a dry run writes nothing: ' + dry.log);
+        assert.ok(/Dry run/.test(dry.out) && /rate\(15 minutes\)/.test(dry.out));
+        const app = sh('--apply');
+        assert.strictEqual(app.status, 0, app.out);
+        assert.ok(/AWS events put-rule --name atmos-storm-watch --schedule-expression rate\(15 minutes\) --state ENABLED/.test(app.log), 'every 15 minutes');
+        assert.ok(/AWS lambda add-permission .*--principal events\.amazonaws\.com --source-arn arn:aws:events:us-east-1:391292551001:rule\/atmos-storm-watch/.test(app.log), 'only this rule may invoke it');
+        assert.ok(/AWS events put-targets --rule atmos-storm-watch --targets Id=1,Arn=arn:aws:lambda:/.test(app.log));
+        const alarms = app.log.split('\n').filter((l) => /^AWS cloudwatch put-metric-alarm/.test(l));
+        assert.deepStrictEqual(alarms.map((l) => l.match(/--alarm-name (\S+)/)[1]).sort(), ['atmos-storm-check-failed', 'atmos-storm-listed', 'atmos-storm-silent']);
+        for (const l of alarms) {
+            assert.ok(l.includes('--alarm-actions arn:aws:sns:us-east-1:391292551001:NotifyMe'), 'it mails NotifyMe: ' + l.slice(0, 80));
+            assert.ok(l.includes('--ok-actions arn:aws:sns:us-east-1:391292551001:NotifyMe'), 'and says when it clears');
+            assert.ok(l.includes('--namespace AtmosWeather'));
+        }
+        const by = (n) => alarms.find((l) => l.includes('--alarm-name ' + n));
+        assert.ok(/--metric-name ActiveStorms/.test(by('atmos-storm-listed')) && /--treat-missing-data ignore/.test(by('atmos-storm-listed')), 'a failed check neither raises nor clears the storm alarm');
+        assert.ok(/--metric-name CheckFailed/.test(by('atmos-storm-check-failed')) && /--datapoints-to-alarm 2/.test(by('atmos-storm-check-failed')), 'one blip does not mail');
+        assert.ok(/--statistic SampleCount/.test(by('atmos-storm-silent')) && /--treat-missing-data breaching/.test(by('atmos-storm-silent')) && /LessThanThreshold/.test(by('atmos-storm-silent')), 'silence is what raises it');
+        assert.ok(!/no storms/i.test(by('atmos-storm-check-failed').replace(/not 'no storms'/i, '')), 'the could-not-check message never says no storms');
+        const test = sh('--test');
+        assert.strictEqual(test.status, 0, test.out);
+        assert.ok(/lambda invoke .*"detail-type":"Scheduled Event","test":true/.test(test.log), 'the test event');
+        fs.rmSync(dir, { recursive: true, force: true });
+        const src = fs.readFileSync(scriptPath, 'utf8');
+        const lam = fs.readFileSync(lambdaPath, 'utf8');
+        for (const m of src.matchAll(/--metric-name (\w+)/g)) assert.ok(lam.includes(`'${m[1]}'`) || lam.includes(`Name: '${m[1]}'`), 'the Lambda emits the metric the alarm reads: ' + m[1]);
+        assert.ok(/^set -euo pipefail/m.test(src));
+    });
+});
+
 describe('JOURNAL - Coming up, Places, the bookshelf, the year in review', () => {
     /*
      * October 3, 2026. Every entry in countdown/stats.json has an ISO date;
