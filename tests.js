@@ -1497,7 +1497,7 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'The theme-color meta exists before the script that updates it');
     });
 
-    test('Should group the eleven links into five titled cards, in order', () => {
+    test('Should group the ten links into five titled cards, in order', () => {
         // One <section class="group"> per category, each titled by its own
         // <h2>, inside a nav landmark. Every link lives in exactly one group
         // and the groups come in the order Kyle chose.
@@ -1508,11 +1508,11 @@ describe('BUSINESS SITE - HTML Structure', () => {
         assert.deepStrictEqual(groups, [
             ['Retirement', ['/countdown/index.html', '/year/']],
             ['Weather', ['/weather/']],
-            ['Play', ['/postcards-in-sound/', '/light-lasso/', '/game/', '/slingshot/', '/guitar/']],
+            ['Play', ['/postcards-in-sound/', '/game/', '/slingshot/', '/guitar/']],
             ['Property', ['/fish-hatchery/']],
             ['Reach me', ['mailto:shaky8@proton.me', 'https://github.com/ShaKy8']]
         ]);
-        assert.strictEqual((nav.match(/<a href=/g) || []).length, 11, 'Eleven links, all of them in a group');
+        assert.strictEqual((nav.match(/<a href=/g) || []).length, 10, 'Ten links, all of them in a group');
         assert.strictEqual((nav.match(/<ul class="links" role="list">/g) || []).length, 5, 'Each group holds its links in a .links list');
         assert.ok(!indexHtml.includes('<a href=', indexHtml.indexOf('</nav>')), 'No link outside the groups');
     });
@@ -1812,9 +1812,9 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.strictEqual(out.c.caption, 'Light rain in Irvine', 'and replaces it on screen');
     });
 
-    test('The eleven links should still fit one screen: the room is taken from the chrome, per form', () => {
+    test('The ten links should still fit one screen: the room is taken from the chrome, per form', () => {
         /*
-         * Postcards in Sound and Light Lasso each added a link to the Play
+         * Postcards in Sound and (since removed) Light Lasso each added a link to the Play
          * card, and the page ran past one screen at 390x844 (34px), 320x700
          * (40), 360x640 (41) and 1280x640 (64) while home-audit.mjs said so
          * and nobody ran it. Each form took its room from the chrome, not from
@@ -1824,7 +1824,7 @@ describe('BUSINESS SITE - The sky right now', () => {
          * tidied away.
          */
         const links = (html.match(/<li><a /g) || []).length;
-        assert.strictEqual(links, 11, 'the room was measured for eleven links; a twelfth needs home-audit.mjs and a new budget');
+        assert.strictEqual(links, 10, 'the room was measured for ten links; an eleventh needs home-audit.mjs and a new budget');
         const block = (query) => {
             const i = css.indexOf(query);
             assert.ok(i > -1, `styles.css should have ${query}`);
@@ -1944,7 +1944,6 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             year: ['/countdown/calc.js', '/countdown/journal.css', '/countdown/journal.js', '/game/putt.js', '/shared/daily.js', '/slingshot/orbit.js', 'styles.css', 'year.js'],
             game: ['/shared/daily.js', 'audio.js', 'putt.js', 'script.js', 'styles.css'],
             slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],
-            'light-lasso': ['engine.js', 'script.js', 'styles.css'],
             'postcards-in-sound': ['app.js'],
             'fish-hatchery': ['app.js', 'styles.css', ...photos].sort(),
             guitar: ['lib/guitar.css'],

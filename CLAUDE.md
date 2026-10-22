@@ -1989,94 +1989,15 @@ error, and every visitor quietly gets Los Angeles weather. Production sends
 `geolocation=(self)`.
 
 
-## LIGHT LASSO (October 10, 2026)
+## LIGHT LASSO — removed (October 22, 2026)
 
-`/light-lasso/` is an entirely static 75-second loop-drawing score attack.
-Circle rounded fireflies, release to close the visible dashed segment, and
-keep X-shaped embers outside. A burn cancels that catch, never earned points.
-The thread meter bounds a loop; large catches and four-second chains reward
-precision. Today's meadow is seeded by local calendar date; Shuffle is fresh.
-
-- `light-lasso/engine.js`: pure fixed-step rules, geometry, seeding, safe records.
-- `light-lasso/script.js`: Canvas rendering, pointer/keyboard control, lifecycle,
-  guarded local storage, optional gesture-activated synthesized sound.
-- `light-lasso/index.html`, `styles.css`, `favicon.svg`: accessible shell and art.
-- `tests/light-lasso*.test.cjs`: Node engine and UI lifecycle coverage.
-
-Run `node --test tests/light-lasso*.test.cjs`, then the existing full suite.
-Run `node scripts/stamp-assets.mjs` after asset edits. The route has explicit
-HTML/assets includes in deploy.yml and is in its path trigger. No Lambda,
-Weather source/generated output, permissions, services, APIs or analytics
-are added. Keyboard: arrows move, Space starts/closes, Enter closes, Escape
-cancels a loop or pauses. Hidden/background pages pause without consuming time.
-
-
-### Light Lasso touch input reliability
-
-A real iPhone report (October 10, 2026) found strokes stopping mid-draw.
-The exact device event was not observed, but regression tests proved two
-original weaknesses: losing pointer capture erased an active stroke, and a
-missed off-canvas pointerup could block later gestures behind a stale ID.
-
-Native Touch Events now own one canvas-started finger by identifier, with
-explicit non-passive touchstart/touchmove prevention. Compatibility Pointer
-Events cannot cancel that owned touch. True touchcancel, hiding the page and
-leaving the page still cancel safely. Pointer capture is an optimization,
-not a dependency: window move/up listeners cover capture loss, and a fresh
-primary down recovers a swallowed terminal event. Do not remove this path
-after testing only synthetic Pointer Events or a narrow desktop window.
-
-Only the canvas suppresses native gestures/callouts/selection; surrounding
-content remains scrollable and zoomable. Small-viewport units stabilize the
-field around iOS browser chrome; an active stroke keeps its scale fixed,
-follows the field’s current origin and defers backing-store resizing. tests/light-lasso-touch.test.cjs models
-Touch Events, mixed event ordering, interruption and phone-sized geometry;
-it is not a claim of physical iPhone or Safari validation.
-
-Apple canvas guidance: https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/HTML-canvas-guide/AddingMouseandTouchControlstoCanvas/AddingMouseandTouchControlstoCanvas.html
-Current Safari loupe report: https://bugs.webkit.org/show_bug.cgi?id=296492
-
-## GUITAR THEORY (/guitar/, October 22, 2026)
-
-A tools-only practice room for guitar theory, built for Kyle to reinforce what
-he is studying. A hub and four tools, each on a live, playable fretboard:
-
-- `/guitar/pentatonic/` **Pentatonic Boxes** — the minor pentatonic's five boxes
-  in any key, every dot labelled by interval or note, a name-that-interval drill.
-- `/guitar/modes/` **Mode Ladder** — the seven modes brightest to darkest, the one
-  note that flattens at each step, the mode on the neck, its vamp, licks over it.
-- `/guitar/chord-modes/` **Chord-to-Mode Matcher** — a chord, every mode tested
-  against its notes, the clashing note marked and playable, a generated drill.
-- `/guitar/caged/` **CAGED Explorer** — the five shapes chained up the neck as
-  chords, arpeggios or scales; a planner that picks the shape nearest the hand.
-
-Layout: `guitar/lib/` is shared — `theory.js` (pure: spelling, modes, chords,
-CAGED; required by tests.js), `board.js` (the one SVG fretboard renderer),
-`synth.js` (Web Audio plucks, one session at a time), `guitar.css` (the cream
-and plum of the homepage by day, the favicon's navy by
-`prefers-color-scheme: dark`). Each tool is `index.html` + `app.js`.
-
-Load-bearing:
-
-- **The content is original and names no source.** These began as study aids
-  for a paid course; nothing here may quote it. Theory (formulas, CAGED, which
-  mode fits a chord) is nobody's; a course's quiz questions, names, wording,
-  licks and backing tracks are somebody's. Every practice question is written
-  here or generated from `theory.js`. A test greps the section for the course,
-  teacher and product names. Keep it that way when adding a tool.
-- **The CSP shaped it**: no inline `<script>` (`script-src 'self'`), no font
-  hosts — the mono face is the console's `/weather/assets/fonts/jetbrainsmono-400.woff2`
-  by absolute path, as the games load it. Inline `style` is allowed and used.
-- **Dots are not buttons.** Dots on one fret sit 6px apart, which no
-  touch-target rule allows for buttons, so `board.js` marks them `data-key`
-  for pointer taps only and every choice they offer is also a real button
-  (the note stepper, the shape chain). `site-audit.mjs` covers all five pages.
-- **`theory.js` is checked as music**: every CAGED voicing and every chord
-  voicing plays only its chord's tones in all 12 keys, each pentatonic box has
-  two notes per string, each mode step lowers exactly one note by one fret.
-- **Stamped and deployed like the rest**: five pages in `stamp-assets.mjs`
-  and `STAMPED_PAGES`, every file in `deploy.yml` (a test walks `guitar/` and
-  fails on a file that is not), `guitar/**` in the path trigger, five sitemap
-  entries. `tests-server.js` checks one guitar file only: the server suite
-  already runs at the edge of `server.js`'s 100-requests-a-minute limit, and
-  more requests there fail unrelated tests with 429s.
+`/light-lasso/` was a static 75-second loop-drawing game (October 10, 2026).
+Kyle found it "kinda boring" and asked for it gone, so the page, its three
+test files, its homepage and 404 links, its sitemap entry, and its lines in
+`deploy.yml`, `test.yml`, `package.json`, `tests-server.js` and
+`stamp-assets.mjs` are removed. It stays in `countdown/stats.json` without a
+`url`, as THERMAL does, because it was built and the project count is about
+what was built. **Deploys never delete from S3** (the only `--delete` sync is
+`weather/`), so removing the files from the repo does not remove the live copy
+at `s3://branyontech.com/light-lasso/`: that is deleted by hand, and CloudFront
+invalidated. The git history (`c48dc30` onward) has the code if it is ever wanted.

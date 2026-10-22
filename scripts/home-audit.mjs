@@ -164,7 +164,7 @@ for (const [w, h] of [[1280, 800], [430, 932]]) {
       worstText = Math.min(worstText, c);
       if (c < 4.5) bad.push(`${hour}:00 ${t.tag} ${c.toFixed(2)}`);
     }
-    if (onCard < 15) bad.push(`${hour}:00 only ${onCard} runs of text measured on a card (five titles and eleven links expected)`);
+    if (onCard < 15) bad.push(`${hour}:00 only ${onCard} runs of text measured on a card (five titles and ten links expected)`);
     const lb = r.linkFill ? boundsOf(r, parse(r.linkFill)) : b;
     const u = worst(parse(r.underline), lb);
     worstUnderline = Math.min(worstUnderline, u);
@@ -235,7 +235,7 @@ await load(1280, 800, { noScript: true });
   const hex = rgb => '#' + rgb.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
   gate(r.inline === '' && hex(r.top) === morning.top && hex(r.bottom) === morning.bottom,
     'scripts off — the mid-morning cream from :root', `${hex(r.top)} / ${hex(r.bottom)}`);
-  gate(r.links === 11, 'scripts off — all eleven links', String(r.links));
+  gate(r.links === 10, 'scripts off — all ten links', String(r.links));
   gate(r.groups === 5 && r.titled === 5, 'scripts off — five titled groups', `${r.groups} groups, ${r.titled} titled`);
 }
 await S('Emulation.setScriptExecutionDisabled', { value: false });
@@ -345,8 +345,8 @@ for (const [w, h] of [[430, 932], [390, 844], [375, 667], [320, 700], [360, 640]
   gate(r.sh <= r.ih, `${tag}: one screen, no scrolling`, `${r.sh}px in ${r.ih}px`);
   gate(r.form === FORM[tag] && (r.form === 'cards' ? r.grid === 'grid' : r.hairline === '1px'),
     `${tag}: ${FORM[tag]}`, `${r.form}, grid ${r.grid}, hairline ${r.hairline}`);
-  gate(r.groups === 5 && r.titled === 5 && r.links === 11 && r.homed === 11,
-    `${tag}: five titled groups, eleven links, each in a group`, `${r.groups}/${r.titled}/${r.links}/${r.homed}`);
+  gate(r.groups === 5 && r.titled === 5 && r.links === 10 && r.homed === 10,
+    `${tag}: five titled groups, ten links, each in a group`, `${r.groups}/${r.titled}/${r.links}/${r.homed}`);
 }
 
 gate(errors.length === 0, 'no console errors', errors.slice(0, 3).join(' | '));

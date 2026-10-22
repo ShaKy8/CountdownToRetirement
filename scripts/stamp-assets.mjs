@@ -38,7 +38,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Pages whose assets get stamped. Adding a page is adding a line -- here and
 // in the STAMPED_PAGES list in tests.js, which checks the same thing.
-const PAGES = ['index.html', '404.html', 'countdown/index.html', 'game/index.html', 'slingshot/index.html', 'light-lasso/index.html', 'postcards-in-sound/index.html', 'fish-hatchery/index.html', 'year/index.html',
+const PAGES = ['index.html', '404.html', 'countdown/index.html', 'game/index.html', 'slingshot/index.html', 'postcards-in-sound/index.html', 'fish-hatchery/index.html', 'year/index.html',
   'guitar/index.html', 'guitar/pentatonic/index.html', 'guitar/modes/index.html', 'guitar/chord-modes/index.html', 'guitar/caged/index.html'];
 
 // This site's files only: a relative name, or a root-absolute one such as

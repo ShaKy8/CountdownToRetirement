@@ -27,7 +27,6 @@ on:
       - 'countdown/**'
       - 'game/**'
       - 'slingshot/**'
-      - 'light-lasso/**'
       - 'postcards-in-sound/**'
       - 'fish-hatchery/**'
       - 'year/**'
@@ -96,7 +95,6 @@ jobs:
             --include 'countdown/index.html' \
             --include 'game/index.html' \
             --include 'slingshot/index.html' \
-            --include 'light-lasso/index.html' \
             --include 'postcards-in-sound/index.html' \
             --include 'weather/index.html' \
             --include 'fish-hatchery/index.html' \
@@ -125,8 +123,6 @@ jobs:
             --include 'slingshot/orbit.js' --include 'slingshot/script.js' \
             --include 'slingshot/audio.js' --include 'slingshot/styles.css' \
             --include 'slingshot/favicon.svg' \
-            --include 'light-lasso/engine.js' --include 'light-lasso/script.js' \
-            --include 'light-lasso/styles.css' --include 'light-lasso/favicon.svg' \
             --include 'postcards-in-sound/app.js' --include 'postcards-in-sound/content.json' \
             --include 'fish-hatchery/app.js' --include 'fish-hatchery/styles.css' \
             --include 'fish-hatchery/favicon.svg' --include 'fish-hatchery/assets/*.webp' \
