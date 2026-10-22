@@ -1497,7 +1497,7 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'The theme-color meta exists before the script that updates it');
     });
 
-    test('Should group the ten links into five titled cards, in order', () => {
+    test('Should group the eleven links into five titled cards, in order', () => {
         // One <section class="group"> per category, each titled by its own
         // <h2>, inside a nav landmark. Every link lives in exactly one group
         // and the groups come in the order Kyle chose.
@@ -1508,11 +1508,11 @@ describe('BUSINESS SITE - HTML Structure', () => {
         assert.deepStrictEqual(groups, [
             ['Retirement', ['/countdown/index.html', '/year/']],
             ['Weather', ['/weather/']],
-            ['Play', ['/postcards-in-sound/', '/light-lasso/', '/game/', '/slingshot/']],
+            ['Play', ['/postcards-in-sound/', '/light-lasso/', '/game/', '/slingshot/', '/guitar/']],
             ['Property', ['/fish-hatchery/']],
             ['Reach me', ['mailto:shaky8@proton.me', 'https://github.com/ShaKy8']]
         ]);
-        assert.strictEqual((nav.match(/<a href=/g) || []).length, 10, 'Ten links, all of them in a group');
+        assert.strictEqual((nav.match(/<a href=/g) || []).length, 11, 'Eleven links, all of them in a group');
         assert.strictEqual((nav.match(/<ul class="links" role="list">/g) || []).length, 5, 'Each group holds its links in a .links list');
         assert.ok(!indexHtml.includes('<a href=', indexHtml.indexOf('</nav>')), 'No link outside the groups');
     });
@@ -1812,7 +1812,7 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.strictEqual(out.c.caption, 'Light rain in Irvine', 'and replaces it on screen');
     });
 
-    test('The ten links should still fit one screen: the room is taken from the chrome, per form', () => {
+    test('The eleven links should still fit one screen: the room is taken from the chrome, per form', () => {
         /*
          * Postcards in Sound and Light Lasso each added a link to the Play
          * card, and the page ran past one screen at 390x844 (34px), 320x700
@@ -1824,14 +1824,14 @@ describe('BUSINESS SITE - The sky right now', () => {
          * tidied away.
          */
         const links = (html.match(/<li><a /g) || []).length;
-        assert.strictEqual(links, 10, 'the room was measured for ten links; an eleventh needs home-audit.mjs and a new budget');
+        assert.strictEqual(links, 11, 'the room was measured for eleven links; a twelfth needs home-audit.mjs and a new budget');
         const block = (query) => {
             const i = css.indexOf(query);
             assert.ok(i > -1, `styles.css should have ${query}`);
             return css.slice(i, css.indexOf('\n}\n', i));
         };
-        const rows = block('@media (max-width: 640px) and (max-height: 819px),');
-        assert.ok(/\(min-width: 641px\) and \(min-height: 481px\) and \(max-height: 759px\)/.test(rows),
+        const rows = block('@media (max-width: 640px) and (max-height: 899px),');
+        assert.ok(/\(min-width: 641px\) and \(min-height: 481px\) and \(max-height: 799px\)/.test(rows),
             'a short desktop window gets the rows form: 1280x640 was 64px over as cards');
         for (const rule of ['.intro { padding-block: 0.6rem; }', '.brand { margin-bottom: 0.4rem; }',
             'line-height: 1.45', 'h1 { font-size: 2.5rem; }', '.site-footer { padding-block: 0.5rem; }']) {
@@ -1839,15 +1839,15 @@ describe('BUSINESS SITE - The sky right now', () => {
         }
         assert.ok(/\.groups \{\s*gap: 0\.4rem 0;/.test(rows) && /\.group \+ \.group \{[^}]*padding-top: 0\.4rem/.test(rows),
             'but never the air between groups: 0.4rem + 0.4rem + the hairline is the 12px WCAG 2.5.8 asks for');
-        const tall = block('@media (max-width: 640px) and (min-height: 820px)');
+        const tall = block('@media (max-width: 640px) and (min-height: 900px)');
         assert.ok(tall.includes('.group { padding: 0.5rem 1rem; }') && tall.includes('.groups { gap: 0.5rem; }'),
             'stacked cards on a tall phone are trimmed: 390x844 was 34px over');
         assert.ok(!/min-height: 82\d+px\) \{[^}]*\.links/.test(css), 'and the links themselves are not touched');
-        const short = block('@media (min-width: 641px) and (min-height: 481px) and (max-height: 759px) {');
+        const short = block('@media (min-width: 641px) and (min-height: 481px) and (max-height: 799px) {');
         assert.ok(/grid-template-columns: 1fr/.test(short) && /grid-column: auto/.test(short),
             'rows on a short desktop are one to a line, not a six-column grid');
         const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'home-audit.mjs'), 'utf8');
-        assert.ok(/'1280x640': 'rows'/.test(audit) && /'1280x720': 'rows'/.test(audit) && /'1280x760': 'cards'/.test(audit) && /'390x844': 'cards'/.test(audit),
+        assert.ok(/'1280x640': 'rows'/.test(audit) && /'1280x720': 'rows'/.test(audit) && /'1280x800': 'cards'/.test(audit) && /'390x844': 'rows'/.test(audit) && /'430x932': 'cards'/.test(audit),
             'the gate expects the form each size now gets');
     });
 
