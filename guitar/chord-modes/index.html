@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Pick a chord and see which of the seven modes fit it, note by note, with the clashes marked on the neck and playable, plus a practice drill.">
+  <meta name="theme-color" content="#fbf6ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15142a" media="(prefers-color-scheme: dark)">
+  <title>Chord-to-Mode Matcher — BranyonTech</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../lib/guitar.css?v=6ca4f487de">
+  <style>
+    .rule { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
+    .rule .big { font: 400 2rem var(--serif); color: var(--flavor); line-height: 1; }
+    .types { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 10px; }
+    .type { cursor: pointer; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--surface); color: var(--ink); display: grid; gap: 6px; align-content: start; text-align: left; font: inherit; }
+    .type .tn { font: 400 1.2rem var(--serif); }
+    .type .tf { font: 700 0.85rem var(--mono); color: var(--muted); }
+    .type .tf b { color: var(--flavor); }
+    .type .tm { display: flex; flex-wrap: wrap; gap: 4px; }
+    .mchip { font: 700 0.72rem var(--mono); padding: 2px 7px; border-radius: 99px; background: var(--cs); color: var(--c); }
+    .type[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+    .chordtitle { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+    .chordtitle h2 { font: 400 1.7rem var(--serif); }
+    .tones { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tones span { font: 700 0.95rem var(--mono); padding: 4px 10px; border-radius: 7px; background: var(--sunk); border: 1px solid var(--line); }
+    .tones span.key { border-color: var(--flavor); color: var(--flavor); }
+    .tones span.rt { background: var(--root); border-color: var(--root); color: #fff; }
+    svg.board { min-width: 480px; }
+    .fit { display: grid; gap: 6px; }
+    .frow { cursor: pointer; display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-align: left; font: inherit; min-height: 44px; }
+    .frow[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+    .frow .mn { font: 400 1.05rem var(--serif); color: var(--c); }
+    .checks { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+    .chk { font: 700 0.75rem var(--mono); padding: 2px 6px; border-radius: 6px; }
+    .chk.y { background: var(--good-soft); color: var(--good); }
+    .chk.n { background: var(--bad-soft); color: var(--bad); }
+    .verdict { font: 700 0.7rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; }
+    .verdict.y { background: var(--good); color: var(--on-color); }
+    .verdict.n { color: var(--bad); border: 1px solid var(--bad); }
+    .why3 { border-left: 3px solid var(--flavor); padding-left: 10px; }
+    @media (max-width: 420px) { .frow { grid-template-columns: minmax(0, 1fr) auto; } .frow .checks { grid-column: 1 / -1; grid-row: 2; } }
+  </style>
+  <script src="../lib/theory.js?v=5e3755e158" defer></script>
+  <script src="../lib/board.js?v=34845a5959" defer></script>
+  <script src="../lib/synth.js?v=3e5894048f" defer></script>
+  <script src="app.js?v=0f699eeb54" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the matcher</a>
+  <div class="wrap">
+    <nav class="topbar" aria-label="Breadcrumb">
+      <a class="back-link" href="/guitar/"><span aria-hidden="true">←</span> Guitar theory</a>
+      <p class="section-mark">BranyonTech · Guitar</p>
+    </nav>
+
+    <header class="intro">
+      <p class="eyebrow">Which mode fits this chord?</p>
+      <h1>Chord-to-Mode Matcher</h1>
+      <p class="lede">A mode fits a chord when the mode contains every note of the chord. Think of the chord as a list of required parameters: the mode has to supply all of them, or something clashes.</p>
+    </header>
+
+    <main id="main" class="stack">
+      <section class="card rule" aria-label="The shortcut">
+        <div class="big" aria-hidden="true">3 + 7</div>
+        <p><b>Read the 3rd and the 7th.</b> The 3rd picks the family: a 3 means a major mode, a ♭3 a minor one. The 7th narrows it: over a major chord, a 7 leaves Ionian or Lydian and a ♭7 leaves Mixolydian. The root and 5th are in nearly every mode, so they rarely decide anything.</p>
+      </section>
+
+      <section class="card" aria-labelledby="types-title">
+        <div class="headrow"><h2 id="types-title">Chord types and the modes that fit them</h2><span class="small">Pick one to load it below.</span></div>
+        <div class="types" id="types"></div>
+      </section>
+
+      <div class="two">
+        <section class="card" aria-labelledby="cname">
+          <div class="controls">
+            <label class="ctl"><span>Root</span><select id="root"></select></label>
+            <label class="ctl"><span>Chord</span><select id="chord"></select></label>
+            <div class="ctl"><span>Show the mode's notes</span><div class="seg" id="overlay"><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button></div></div>
+          </div>
+          <div class="chordtitle"><h2 id="cname"></h2><div class="tones" id="tones"></div></div>
+          <div class="scroller"><svg class="board" id="board" role="img" aria-labelledby="cname"></svg></div>
+          <div class="legend" id="legend"></div>
+          <div class="btns">
+            <button type="button" class="btn" id="p-chord">▶ Strum the chord</button>
+            <button type="button" class="btn" id="p-mode">▶ Play the mode over it</button>
+            <button type="button" class="btn" id="p-stop" disabled>■ Stop</button>
+          </div>
+          <p class="small" id="hint"></p>
+        </section>
+
+        <section class="card" aria-labelledby="fit-title">
+          <div class="headrow"><h2 id="fit-title">Fit test</h2><span class="small">Pick a mode to see and hear it</span></div>
+          <div class="fit" id="fit"></div>
+          <p class="why3" id="summary"></p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="drill-title">
+        <div class="headrow"><h2 id="drill-title">Practice</h2><span class="score" id="score"></span></div>
+        <div class="two">
+          <div class="stack" style="gap:10px">
+            <div class="scroller"><svg class="board" id="qboard" role="img" aria-label="The chord to match"></svg></div>
+            <div class="seg" id="qlabels" style="justify-self:start"><button type="button" data-v="on">Show intervals</button><button type="button" data-v="off">Hide intervals</button></div>
+          </div>
+          <div class="stack" style="gap:12px">
+            <p id="qtext"></p>
+            <div class="opts" id="qopts"></div>
+            <div id="qexp" aria-live="polite"></div>
+            <div class="btns"><button type="button" class="btn primary" id="qnext">Next chord</button></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <footer class="site-footer"><p>&copy; 2026 BranyonTech</p></footer>
+</body>
+</html>

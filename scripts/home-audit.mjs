@@ -144,7 +144,10 @@ async function load(w, h, opts = {}) {
 
 console.log(`\nTHE SKY RIGHT NOW — ${ORIGIN}/\n`);
 
-for (const [w, h] of [[1280, 800], [390, 844]]) {
+// The census reads text on the cards, so it runs at sizes that get cards:
+// since the Play card took its fifth link (October 22, 2026) a 390x844
+// phone gets the rows form, and the phone here is 430x932.
+for (const [w, h] of [[1280, 800], [430, 932]]) {
   await load(w, h);
   const tag = `${w}x${h}`;
   let prevX = -1, sunOk = true, worstText = 99, worstHover = 99, worstUnderline = 99, themeOk = true, glowOk = true;
@@ -161,7 +164,7 @@ for (const [w, h] of [[1280, 800], [390, 844]]) {
       worstText = Math.min(worstText, c);
       if (c < 4.5) bad.push(`${hour}:00 ${t.tag} ${c.toFixed(2)}`);
     }
-    if (onCard < 15) bad.push(`${hour}:00 only ${onCard} runs of text measured on a card (five titles and ten links expected)`);
+    if (onCard < 15) bad.push(`${hour}:00 only ${onCard} runs of text measured on a card (five titles and eleven links expected)`);
     const lb = r.linkFill ? boundsOf(r, parse(r.linkFill)) : b;
     const u = worst(parse(r.underline), lb);
     worstUnderline = Math.min(worstUnderline, u);
@@ -232,7 +235,7 @@ await load(1280, 800, { noScript: true });
   const hex = rgb => '#' + rgb.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
   gate(r.inline === '' && hex(r.top) === morning.top && hex(r.bottom) === morning.bottom,
     'scripts off — the mid-morning cream from :root', `${hex(r.top)} / ${hex(r.bottom)}`);
-  gate(r.links === 10, 'scripts off — all ten links', String(r.links));
+  gate(r.links === 11, 'scripts off — all eleven links', String(r.links));
   gate(r.groups === 5 && r.titled === 5, 'scripts off — five titled groups', `${r.groups} groups, ${r.titled} titled`);
 }
 await S('Emulation.setScriptExecutionDisabled', { value: false });
@@ -334,16 +337,16 @@ hereAnswer = { status: 200, body: { city: 'Los Angeles', code: 0, cloud: 0, prec
 
 // Still one screen: cards where they fit, labelled rows where stacked
 // cards would not. Every link has a group either way.
-const FORM = { '390x844': 'cards', '375x667': 'rows', '320x700': 'rows', '360x640': 'rows', '1280x720': 'rows', '1280x760': 'cards', '1280x640': 'rows' };
-for (const [w, h] of [[390, 844], [375, 667], [320, 700], [360, 640], [1280, 720], [1280, 760], [1280, 640]]) {
+const FORM = { '430x932': 'cards', '390x844': 'rows', '375x667': 'rows', '320x700': 'rows', '360x640': 'rows', '1280x720': 'rows', '1280x760': 'rows', '1280x800': 'cards', '1280x640': 'rows' };
+for (const [w, h] of [[430, 932], [390, 844], [375, 667], [320, 700], [360, 640], [1280, 720], [1280, 760], [1280, 800], [1280, 640]]) {
   await load(w, h);
   const r = await E(READ);
   const tag = `${w}x${h}`;
   gate(r.sh <= r.ih, `${tag}: one screen, no scrolling`, `${r.sh}px in ${r.ih}px`);
   gate(r.form === FORM[tag] && (r.form === 'cards' ? r.grid === 'grid' : r.hairline === '1px'),
     `${tag}: ${FORM[tag]}`, `${r.form}, grid ${r.grid}, hairline ${r.hairline}`);
-  gate(r.groups === 5 && r.titled === 5 && r.links === 10 && r.homed === 10,
-    `${tag}: five titled groups, ten links, each in a group`, `${r.groups}/${r.titled}/${r.links}/${r.homed}`);
+  gate(r.groups === 5 && r.titled === 5 && r.links === 11 && r.homed === 11,
+    `${tag}: five titled groups, eleven links, each in a group`, `${r.groups}/${r.titled}/${r.links}/${r.homed}`);
 }
 
 gate(errors.length === 0, 'no console errors', errors.slice(0, 3).join(' | '));

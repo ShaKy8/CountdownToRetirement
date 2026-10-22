@@ -31,6 +31,7 @@ on:
       - 'postcards-in-sound/**'
       - 'fish-hatchery/**'
       - 'year/**'
+      - 'guitar/**'
       - 'shared/**'
       - 'weather/**'
       - 'lambda/**'
@@ -100,6 +101,9 @@ jobs:
             --include 'weather/index.html' \
             --include 'fish-hatchery/index.html' \
             --include 'year/index.html' \
+            --include 'guitar/index.html' --include 'guitar/pentatonic/index.html' \
+            --include 'guitar/modes/index.html' --include 'guitar/chord-modes/index.html' \
+            --include 'guitar/caged/index.html' \
             --cache-control 'public, max-age=300'
 
       - name: Sync assets
@@ -126,6 +130,11 @@ jobs:
             --include 'postcards-in-sound/app.js' --include 'postcards-in-sound/content.json' \
             --include 'fish-hatchery/app.js' --include 'fish-hatchery/styles.css' \
             --include 'fish-hatchery/favicon.svg' --include 'fish-hatchery/assets/*.webp' \
+            --include 'guitar/favicon.svg' \
+            --include 'guitar/lib/theory.js' --include 'guitar/lib/board.js' \
+            --include 'guitar/lib/synth.js' --include 'guitar/lib/guitar.css' \
+            --include 'guitar/pentatonic/app.js' --include 'guitar/modes/app.js' \
+            --include 'guitar/chord-modes/app.js' --include 'guitar/caged/app.js' \
             --cache-control 'public, max-age=3600'
 
       - name: Sync weather console

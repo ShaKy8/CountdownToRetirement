@@ -1497,7 +1497,7 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'The theme-color meta exists before the script that updates it');
     });
 
-    test('Should group the ten links into five titled cards, in order', () => {
+    test('Should group the eleven links into five titled cards, in order', () => {
         // One <section class="group"> per category, each titled by its own
         // <h2>, inside a nav landmark. Every link lives in exactly one group
         // and the groups come in the order Kyle chose.
@@ -1508,11 +1508,11 @@ describe('BUSINESS SITE - HTML Structure', () => {
         assert.deepStrictEqual(groups, [
             ['Retirement', ['/countdown/index.html', '/year/']],
             ['Weather', ['/weather/']],
-            ['Play', ['/postcards-in-sound/', '/light-lasso/', '/game/', '/slingshot/']],
+            ['Play', ['/postcards-in-sound/', '/light-lasso/', '/game/', '/slingshot/', '/guitar/']],
             ['Property', ['/fish-hatchery/']],
             ['Reach me', ['mailto:shaky8@proton.me', 'https://github.com/ShaKy8']]
         ]);
-        assert.strictEqual((nav.match(/<a href=/g) || []).length, 10, 'Ten links, all of them in a group');
+        assert.strictEqual((nav.match(/<a href=/g) || []).length, 11, 'Eleven links, all of them in a group');
         assert.strictEqual((nav.match(/<ul class="links" role="list">/g) || []).length, 5, 'Each group holds its links in a .links list');
         assert.ok(!indexHtml.includes('<a href=', indexHtml.indexOf('</nav>')), 'No link outside the groups');
     });
@@ -1812,7 +1812,7 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.strictEqual(out.c.caption, 'Light rain in Irvine', 'and replaces it on screen');
     });
 
-    test('The ten links should still fit one screen: the room is taken from the chrome, per form', () => {
+    test('The eleven links should still fit one screen: the room is taken from the chrome, per form', () => {
         /*
          * Postcards in Sound and Light Lasso each added a link to the Play
          * card, and the page ran past one screen at 390x844 (34px), 320x700
@@ -1824,14 +1824,14 @@ describe('BUSINESS SITE - The sky right now', () => {
          * tidied away.
          */
         const links = (html.match(/<li><a /g) || []).length;
-        assert.strictEqual(links, 10, 'the room was measured for ten links; an eleventh needs home-audit.mjs and a new budget');
+        assert.strictEqual(links, 11, 'the room was measured for eleven links; a twelfth needs home-audit.mjs and a new budget');
         const block = (query) => {
             const i = css.indexOf(query);
             assert.ok(i > -1, `styles.css should have ${query}`);
             return css.slice(i, css.indexOf('\n}\n', i));
         };
-        const rows = block('@media (max-width: 640px) and (max-height: 819px),');
-        assert.ok(/\(min-width: 641px\) and \(min-height: 481px\) and \(max-height: 759px\)/.test(rows),
+        const rows = block('@media (max-width: 640px) and (max-height: 899px),');
+        assert.ok(/\(min-width: 641px\) and \(min-height: 481px\) and \(max-height: 799px\)/.test(rows),
             'a short desktop window gets the rows form: 1280x640 was 64px over as cards');
         for (const rule of ['.intro { padding-block: 0.6rem; }', '.brand { margin-bottom: 0.4rem; }',
             'line-height: 1.45', 'h1 { font-size: 2.5rem; }', '.site-footer { padding-block: 0.5rem; }']) {
@@ -1839,15 +1839,15 @@ describe('BUSINESS SITE - The sky right now', () => {
         }
         assert.ok(/\.groups \{\s*gap: 0\.4rem 0;/.test(rows) && /\.group \+ \.group \{[^}]*padding-top: 0\.4rem/.test(rows),
             'but never the air between groups: 0.4rem + 0.4rem + the hairline is the 12px WCAG 2.5.8 asks for');
-        const tall = block('@media (max-width: 640px) and (min-height: 820px)');
+        const tall = block('@media (max-width: 640px) and (min-height: 900px)');
         assert.ok(tall.includes('.group { padding: 0.5rem 1rem; }') && tall.includes('.groups { gap: 0.5rem; }'),
             'stacked cards on a tall phone are trimmed: 390x844 was 34px over');
         assert.ok(!/min-height: 82\d+px\) \{[^}]*\.links/.test(css), 'and the links themselves are not touched');
-        const short = block('@media (min-width: 641px) and (min-height: 481px) and (max-height: 759px) {');
+        const short = block('@media (min-width: 641px) and (min-height: 481px) and (max-height: 799px) {');
         assert.ok(/grid-template-columns: 1fr/.test(short) && /grid-column: auto/.test(short),
             'rows on a short desktop are one to a line, not a six-column grid');
         const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'home-audit.mjs'), 'utf8');
-        assert.ok(/'1280x640': 'rows'/.test(audit) && /'1280x720': 'rows'/.test(audit) && /'1280x760': 'cards'/.test(audit) && /'390x844': 'cards'/.test(audit),
+        assert.ok(/'1280x640': 'rows'/.test(audit) && /'1280x720': 'rows'/.test(audit) && /'1280x800': 'cards'/.test(audit) && /'390x844': 'rows'/.test(audit) && /'430x932': 'cards'/.test(audit),
             'the gate expects the form each size now gets');
     });
 
@@ -1947,6 +1947,11 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             'light-lasso': ['engine.js', 'script.js', 'styles.css'],
             'postcards-in-sound': ['app.js'],
             'fish-hatchery': ['app.js', 'styles.css', ...photos].sort(),
+            guitar: ['lib/guitar.css'],
+            'guitar/pentatonic': ['../lib/board.js', '../lib/guitar.css', '../lib/synth.js', '../lib/theory.js', 'app.js'],
+            'guitar/modes': ['../lib/board.js', '../lib/guitar.css', '../lib/synth.js', '../lib/theory.js', 'app.js'],
+            'guitar/chord-modes': ['../lib/board.js', '../lib/guitar.css', '../lib/synth.js', '../lib/theory.js', 'app.js'],
+            'guitar/caged': ['../lib/board.js', '../lib/guitar.css', '../lib/synth.js', '../lib/theory.js', 'app.js'],
             '.': ['home.js', 'styles.css']
         };
 
@@ -8046,6 +8051,143 @@ describe('QA REGRESSIONS - Responsive UI, daily rollover and error routing', () 
             'tests/site-qa-fixes.test.cjs'],
         { cwd: __dirname, encoding: 'utf8', timeout: 30000 });
         assert.strictEqual(result.status, 0, result.stdout + result.stderr);
+    });
+});
+
+
+describe('GUITAR THEORY - /guitar/ (October 22, 2026)', () => {
+    const fs = require('fs');
+    const T = require('./guitar/lib/theory.js');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, ...p), 'utf8');
+    const deploy = read('.github', 'workflows', 'deploy.yml');
+    const TOOLS = ['pentatonic', 'modes', 'chord-modes', 'caged'];
+
+    /*
+     * The music first. A wrong dot on a fretboard looks exactly like a right
+     * one, so the rules are checked here rather than by eye.
+     */
+    test('Should spell notes by letter, not by sharps alone', () => {
+        const eb = T.makeRoot('E♭');
+        assert.strictEqual(T.spell(eb, 2, 4), 'G', 'a major 3rd above E♭ is G');
+        assert.strictEqual(T.spell(T.makeRoot('C'), 2, 3), 'E♭', 'C minor has E♭, not D♯');
+        assert.strictEqual(T.spell(T.makeRoot('F♯'), 6, 11), 'E♯', 'F♯ major has E♯');
+        assert.strictEqual(T.modeNote(T.makeRoot('A'), T.modeByName('Dorian'), 9), 'F♯', 'A Dorian has F♯');
+    });
+
+    test('Should keep every CAGED voicing to its chord, in every key', () => {
+        for (let k = 0; k < 12; k++) {
+            T.cagedInstances(k, 17).forEach(it => {
+                T.CAGED[it.s].v.forEach((v, si) => {
+                    if (v === null) return;
+                    const iv = T.ivAt(k, si, it.p + v);
+                    assert.ok([0, 4, 7].includes(iv), `${it.s} shape in key ${k} plays interval ${iv} on string ${si}`);
+                });
+            });
+        }
+    });
+
+    test('Should chain the shapes C A G E D, 3 2 3 2 2 frets apart', () => {
+        const c = T.cagedInstances(0, 17).map(x => `${x.s}${x.p}`);
+        assert.deepStrictEqual(c, ['C0', 'A3', 'G5', 'E8', 'D10', 'C12']);
+        // The shared root each shape hands to the next really is a root.
+        T.CAGED_ORDER.forEach(s => {
+            const h = T.CAGED[s].hand, p = T.mod12(0 - T.CAGED[s].root) + 12;
+            assert.strictEqual(T.ivAt(0, h.si, p + h.off), 0, `${s} hands over on a root`);
+        });
+    });
+
+    test('Should order the modes by one flattened note a step', () => {
+        for (let i = 1; i < T.MODES.length; i++) {
+            const a = T.MODES[i - 1].iv, b = T.MODES[i].iv;
+            const gone = a.filter(x => !b.includes(x)), came = b.filter(x => !a.includes(x));
+            assert.strictEqual(gone.length, 1, `${T.MODES[i].name} changes one note`);
+            assert.strictEqual(came[0], gone[0] - 1, `and lowers it by one fret`);
+        }
+        assert.strictEqual(T.quality(T.triad(T.modeByName('Locrian'), 0)), 'dim');
+        assert.strictEqual(T.chordName(T.makeRoot('G'), T.modeByName('Mixolydian'), 6), 'F', 'G Mixolydian has F major on ♭VII');
+        assert.strictEqual(T.roman(T.modeByName('Mixolydian'), 6), '♭VII');
+    });
+
+    test('Should match chords to modes by their notes', () => {
+        const names = id => T.fitModes(T.CHORDS.find(c => c.id === id)).map(m => m.name);
+        assert.deepStrictEqual(names('maj7'), ['Lydian', 'Ionian']);
+        assert.deepStrictEqual(names('dom7'), ['Mixolydian']);
+        assert.deepStrictEqual(names('m7'), ['Dorian', 'Aeolian', 'Phrygian']);
+        assert.deepStrictEqual(names('m7b5'), ['Locrian']);
+        // Every chord voicing plays only its own tones, at every root.
+        T.CHORDS.forEach(c => {
+            for (let k = 0; k < 12; k++) {
+                const rf = T.chordRootFret(k);
+                c.v.forEach((v, si) => {
+                    if (v === null) return;
+                    assert.ok(c.tones.includes(T.ivAt(k, si, rf + v)), `${c.id} at ${k} plays a stray note on string ${si}`);
+                });
+            }
+        });
+    });
+
+    test('Should keep each pentatonic box to two notes a string', () => {
+        for (let k = 0; k < 12; k++) for (let b = 1; b <= 5; b++) {
+            const [a, z] = T.pentaBox(k, b, 15);
+            assert.ok(a >= 0 && z <= 15, `box ${b} in key ${k} fits the neck`);
+            for (let si = 0; si < 6; si++) {
+                let n = 0;
+                for (let f = a; f <= z; f++) if (T.PENTA_MINOR.includes(T.ivAt(k, si, f))) n++;
+                assert.strictEqual(n, 2, `box ${b}, key ${k}, string ${si}`);
+            }
+        }
+    });
+
+    test('Should not know a word about AudioContext or the page in the theory module', () => {
+        const src = read('guitar', 'lib', 'theory.js');
+        assert.ok(!/document|AudioContext|fetch\(/.test(src), 'theory.js stays pure');
+    });
+
+    /*
+     * The wiring. Every page has to be in deploy.yml or it 404s in production
+     * only, and the CSP (script-src 'self', font-src 'self') blocks what the
+     * prototypes these came from used: inline scripts and Google Fonts.
+     */
+    test('Should deploy every file the section loads, and nothing extra', () => {
+        const files = ['guitar/index.html', 'guitar/favicon.svg', 'guitar/lib/theory.js', 'guitar/lib/board.js',
+            'guitar/lib/synth.js', 'guitar/lib/guitar.css',
+            ...TOOLS.flatMap(t => [`guitar/${t}/index.html`, `guitar/${t}/app.js`])];
+        files.forEach(f => {
+            assert.ok(fs.existsSync(path.join(__dirname, f)), `${f} exists`);
+            assert.ok(deploy.includes(`--include '${f}'`), `${f} is in deploy.yml`);
+        });
+        const walk = d => fs.readdirSync(path.join(__dirname, d), { withFileTypes: true })
+            .flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+        walk('guitar').forEach(f => assert.ok(files.includes(f), `${f} is on disk but not deployed`));
+        assert.ok(/^\s+- 'guitar\/\*\*'$/m.test(deploy), 'a push under guitar/ triggers the deploy');
+        const htmlStep = deploy.slice(deploy.indexOf('Sync HTML'), deploy.indexOf('Sync assets'));
+        files.filter(f => f.endsWith('.html')).forEach(f => assert.ok(htmlStep.includes(`'${f}'`), `${f} gets the HTML cache`));
+        const sitemap = read('sitemap.xml');
+        ['', ...TOOLS.map(t => t + '/')].forEach(t => assert.ok(sitemap.includes(`https://branyontech.com/guitar/${t}<`), `sitemap lists /guitar/${t}`));
+    });
+
+    test('Should load only what the CSP allows', () => {
+        ['guitar/index.html', ...TOOLS.map(t => `guitar/${t}/index.html`)].forEach(f => {
+            const html = read(f);
+            assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html), `${f}: no inline script (script-src 'self')`);
+            assert.ok(!/fonts\.googleapis|fonts\.gstatic|cdnjs|jsdelivr|unpkg/.test(html), `${f}: no third-party host`);
+            assert.ok(/class="back-link"/.test(html), `${f}: a way back`);
+        });
+        assert.ok(read('guitar', 'lib', 'guitar.css').includes("url('/weather/assets/fonts/jetbrainsmono-400.woff2')"),
+            'the mono face is the console\'s own file, by absolute path');
+    });
+
+    test('Should synthesise sound and wait for a gesture', () => {
+        const synth = read('guitar', 'lib', 'synth.js');
+        assert.ok(!/^\s*(const|let|var)\s+\w+\s*=\s*new\s+\(?\s*(window\.)?AudioContext/m.test(synth), 'no AudioContext at load');
+        assert.ok(/function ensure\(\)[\s\S]{0,120}if \(!ctx\)/.test(synth), 'created lazily, from a Play press');
+    });
+
+    test('Should name no course, teacher or product the tools were studied from', () => {
+        // The tools teach theory in their own words. Theory is nobody's; a
+        // course's quiz questions, names and wording are somebody's.
+        const all = ['guitar/index.html', ...TOOLS.flatMap(t => [`guitar/${t}/index.html`, `guitar/${t}/app.js`]), 'guitar/lib/theory.js'].map(f => read(f)).join('\n');
+        assert.ok(!/guitar\s*playback|wallimann|modal explorer|chord builder|chord scales|visual tracks|your course|the course/i.test(all));
     });
 });
 

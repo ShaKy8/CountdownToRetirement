@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="The seven modes of the major scale on one ladder, brightest to darkest, with the note that changes at each step, a fretboard view and chord vamps you can hear.">
+  <meta name="theme-color" content="#fbf6ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15142a" media="(prefers-color-scheme: dark)">
+  <title>Mode Ladder — BranyonTech</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../lib/guitar.css?v=6ca4f487de">
+  <style>
+    .ladder-wrap { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; }
+    .rail { border-radius: 12px; background: linear-gradient(to bottom, #f2b53c, #2b2f6b); position: relative; min-height: 200px; }
+    .rail span { position: absolute; left: 50%; transform: translateX(-50%) rotate(180deg); writing-mode: vertical-rl; font: 700 0.64rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; }
+    .rail .t { top: 10px; } .rail .b { bottom: 10px; }
+    .ladder { display: grid; grid-template-columns: minmax(170px, 1.7fr) repeat(12, minmax(40px, 1fr)); gap: 5px; min-width: 720px; }
+    .colh { font: 700 0.78rem var(--mono); text-align: center; color: var(--muted); padding: 4px 0; border-radius: 6px; }
+    .colh.sh { background: var(--cs); color: var(--c); }
+    .colh.clash { background: var(--bad); color: #fff; }
+    .mname { box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-align: left; font: inherit; min-height: 44px; }
+    .mname b { font-family: var(--serif); font-size: 1.05rem; font-weight: 400; }
+    .mname small { grid-column: 1 / -1; font-size: 0.76rem; color: var(--muted); line-height: 1.2; }
+    .mname[aria-pressed="true"] { border-color: var(--c); box-shadow: inset 4px 0 0 var(--c); background: var(--cs); }
+    .cell { border-radius: 8px; display: grid; place-items: center; font: 700 0.85rem var(--mono); min-height: 44px; position: relative; color: transparent; background: var(--sunk); }
+    .cell.in { background: var(--cs); color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); }
+    .cell.flavor { box-shadow: inset 0 0 0 2px var(--flavor); color: var(--flavor); }
+    .cell.shared { background: var(--c); color: var(--on-color); }
+    .cell.dropped::after { content: "↓"; position: absolute; top: 1px; right: 4px; font-size: 0.7rem; color: var(--flavor); }
+    .cell.playing { background: var(--flavor); color: #fff; }
+    .row-dim { opacity: 0.38; }
+    .keyrow { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; color: var(--muted); }
+    .keyrow i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; vertical-align: -2px; margin-right: 6px; }
+    .mode-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .mode-head h3 { color: var(--c); }
+    .formula { display: flex; flex-wrap: wrap; gap: 6px; }
+    .formula span { font: 700 0.95rem var(--mono); padding: 4px 9px; border-radius: 7px; background: var(--cs); color: var(--c); }
+    .formula span.fl { background: var(--flavor); color: #fff; }
+    .formula span.rt { background: var(--root); color: #fff; }
+    .flav { border-left: 3px solid var(--flavor); padding-left: 10px; }
+    .chords { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .chord { display: grid; text-align: center; padding: 6px 12px; border-radius: 9px; border: 1px solid var(--line); min-width: 56px; }
+    .chord b { font-family: var(--serif); font-weight: 400; font-size: 1.15rem; }
+    .chord small { font: 600 0.72rem var(--mono); color: var(--muted); }
+    .chord.now { background: var(--c); color: var(--on-color); border-color: var(--c); }
+    .chord.now small { color: var(--on-color); }
+    svg.board { min-width: 860px; }
+    svg.board .dot.flash > circle { stroke: var(--flavor); stroke-width: 4; }
+    .qgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+    .q { display: grid; gap: 10px; align-content: start; border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+    .q .num { font: 700 0.72rem var(--mono); color: var(--muted); letter-spacing: 0.1em; }
+    .q h4 { margin: 0; font: 600 1rem var(--sans); }
+    .nowplaying { font: 600 0.85rem var(--mono); color: var(--flavor); min-height: 1.3em; }
+  </style>
+  <script src="../lib/theory.js?v=5e3755e158" defer></script>
+  <script src="../lib/board.js?v=34845a5959" defer></script>
+  <script src="../lib/synth.js?v=3e5894048f" defer></script>
+  <script src="app.js?v=8aaf97d97d" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the ladder</a>
+  <div class="wrap">
+    <nav class="topbar" aria-label="Breadcrumb">
+      <a class="back-link" href="/guitar/"><span aria-hidden="true">←</span> Guitar theory</a>
+      <p class="section-mark">BranyonTech · Guitar</p>
+    </nav>
+
+    <header class="intro">
+      <p class="eyebrow">Modes of the major scale</p>
+      <h1>Mode Ladder</h1>
+      <p class="lede">Each mode is the major scale with a few notes flipped flat, like toggling bits in a config. Going down the ladder, each step flips exactly one more note, and the sound gets darker. Pick a mode to see it on the neck and hear it over its chords.</p>
+    </header>
+
+    <main id="main" class="stack">
+      <div class="controls">
+        <label class="ctl"><span>Root note</span><select id="root"></select></label>
+        <div class="ctl"><span>Highlight what a family shares</span><div class="seg" id="shared">
+          <button type="button" data-v="none">Off</button><button type="button" data-v="major">Major modes</button><button type="button" data-v="minor">Minor modes</button></div></div>
+      </div>
+
+      <section class="card" aria-labelledby="ladder-title">
+        <div class="headrow"><h2 id="ladder-title">Brightest to darkest</h2><span class="small">Columns are frets above the root.</span></div>
+        <div class="ladder-wrap">
+          <div class="rail" aria-hidden="true"><span class="t">Brighter</span><span class="b">Darker</span></div>
+          <div class="scroller"><div class="ladder" id="ladder"></div></div>
+        </div>
+        <div class="keyrow">
+          <span><i style="background:var(--major-soft);border:1px solid var(--major)"></i>Major family (has a 3)</span>
+          <span><i style="background:var(--minor-soft);border:1px solid var(--minor)"></i>Minor family (has a ♭3)</span>
+          <span><i style="box-shadow:inset 0 0 0 2px var(--flavor)"></i>Flavor note</span>
+          <span><b style="color:var(--flavor)">↓</b> the note flattened from the row above</span>
+        </div>
+      </section>
+
+      <div class="two">
+        <section class="card" id="player" aria-live="polite"></section>
+        <section class="card" aria-labelledby="fb-title">
+          <div class="headrow"><h2 id="fb-title"></h2>
+            <div class="seg" id="labels"><button type="button" data-v="interval">Intervals</button><button type="button" data-v="note">Notes</button></div></div>
+          <div class="scroller"><svg class="board" id="fb" role="img" aria-labelledby="fb-title"></svg></div>
+          <div class="legend">
+            <span><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--root)"/></svg>Root</span>
+            <span><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--note)"/></svg>Pentatonic core</span>
+            <span><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--flavor)"/></svg>Flavor note</span>
+            <span><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="var(--board)" stroke="var(--note)" stroke-width="2"/></svg>Other mode note</span>
+          </div>
+          <p class="small">Solid dots are the five-note pentatonic inside the mode. The two extra notes are what make it this mode and not another.</p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="q-title">
+        <div class="headrow"><h2 id="q-title">Check yourself</h2><span class="nowplaying" id="nowplaying"></span></div>
+        <div class="qgrid" id="quiz"></div>
+      </section>
+    </main>
+  </div>
+  <footer class="site-footer"><p>&copy; 2026 BranyonTech</p></footer>
+</body>
+</html>
