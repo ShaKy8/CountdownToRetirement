@@ -104,6 +104,11 @@ const PAGES = [
   ['/weather/', '/weather/', 13000],
   ['/fish-hatchery/', '/fish-hatchery/', 2500],
   ['/year/', '/year/', 3500],
+  ['/guitar/', '/guitar/', 1500],
+  ['/guitar/pentatonic/', '/guitar/pentatonic/', 1500],
+  ['/guitar/modes/', '/guitar/modes/', 1500],
+  ['/guitar/chord-modes/', '/guitar/chord-modes/', 1500],
+  ['/guitar/caged/', '/guitar/caged/', 1500],
 ];
 
 const rows = [];

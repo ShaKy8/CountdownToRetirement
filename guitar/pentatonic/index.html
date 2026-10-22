@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="The minor pentatonic scale on the guitar neck: all five boxes in any key, every note labelled by its place in the formula, and a self-check drill.">
+  <meta name="theme-color" content="#fbf6ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15142a" media="(prefers-color-scheme: dark)">
+  <title>Pentatonic Boxes — BranyonTech</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../lib/guitar.css?v=6ca4f487de">
+  <style>
+    svg.board { min-width: 900px; }
+    .formula { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+    .chip { border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; text-align: center; background: var(--sunk); cursor: pointer; font: inherit; color: var(--ink); display: grid; gap: 2px; min-height: 44px; }
+    .chip b { font-family: var(--mono); font-size: 1.15rem; }
+    .chip small { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .chip.root b { color: var(--root); }
+    .chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .sel-big { display: flex; gap: 14px; align-items: center; }
+    .badge { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; font: 700 1.2rem var(--mono); flex: none; }
+    .sel-big p { color: var(--muted); font-size: 0.95rem; }
+    dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 0.95rem; }
+    dl.facts dt { color: var(--muted); }
+    dl.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+    ul.plain, ol.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
+    .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+    .answers { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+    .answers button { text-align: center; font-family: var(--mono); }
+  </style>
+  <script src="../lib/theory.js?v=5e3755e158" defer></script>
+  <script src="../lib/board.js?v=34845a5959" defer></script>
+  <script src="../lib/synth.js?v=3e5894048f" defer></script>
+  <script src="app.js?v=f49576bad4" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the fretboard</a>
+  <div class="wrap">
+    <nav class="topbar" aria-label="Breadcrumb">
+      <a class="back-link" href="/guitar/"><span aria-hidden="true">←</span> Guitar theory</a>
+      <p class="section-mark">BranyonTech · Guitar</p>
+    </nav>
+
+    <header class="intro">
+      <p class="eyebrow">R · ♭3 · 4 · 5 · ♭7</p>
+      <h1>Pentatonic Boxes</h1>
+      <p class="lede">The minor pentatonic is five notes, and its formula works like a function that takes the root as its argument. Pick a key and the same shapes slide to a new place on the neck. Tap any dot to see what it is.</p>
+    </header>
+
+    <main id="main" class="stack">
+      <div class="controls">
+        <label class="ctl"><span>Key</span><select id="key"></select></label>
+        <div class="ctl"><span>Box</span><div class="seg" id="box"></div></div>
+        <div class="ctl"><span>Show</span><div class="seg" id="view">
+          <button type="button" data-v="box">Box only</button><button type="button" data-v="neck">Whole neck</button></div></div>
+        <div class="ctl"><span>Dot labels</span><div class="seg" id="labels">
+          <button type="button" data-v="blank">Blank</button><button type="button" data-v="interval">Intervals</button><button type="button" data-v="note">Notes</button></div></div>
+      </div>
+
+      <section class="card" aria-labelledby="board-title">
+        <div class="headrow"><h2 id="board-title"></h2><span class="small" id="range"></span></div>
+        <div class="scroller"><svg class="board" id="fb" role="img" aria-labelledby="board-title"></svg></div>
+        <div class="btns">
+          <button type="button" class="btn" id="play">▶ Play the box</button>
+          <button type="button" class="btn" id="stop" disabled>■ Stop</button>
+        </div>
+        <p class="small">The top line is the thin high E string and the bottom line the thick low E, the way tab reads.</p>
+      </section>
+
+      <div class="two">
+        <div class="stack">
+          <section class="card" id="sel" aria-live="polite"></section>
+          <section class="card" aria-labelledby="formula-title">
+            <h2 id="formula-title">The formula</h2>
+            <p class="small">Tap an interval to light up every place it appears. The number under each is how many frets above the root it sits.</p>
+            <div class="formula" id="formula"></div>
+          </section>
+        </div>
+        <div class="stack">
+          <section class="card" id="drill" aria-live="polite"></section>
+          <section class="card" aria-labelledby="read-title">
+            <h2 id="read-title">Reading a neck diagram</h2>
+            <ul class="plain">
+              <li><b>Horizontal lines</b> are strings, <b>vertical lines</b> are frets. Further right is higher up the neck.</li>
+              <li><span class="swatch" style="background:var(--root)"></span><b>Red</b> is the root, the note the scale is named after.</li>
+              <li><span class="swatch" style="background:var(--note)"></span><b>Dark</b> dots are the other scale notes.</li>
+              <li><span class="swatch" style="background:var(--inlay)"></span><b>Small dots</b> in the wood are the inlay markers at frets 3, 5, 7, 9 and 12. Landmarks, not notes.</li>
+            </ul>
+            <h2>Recognising box 1</h2>
+            <ol class="plain">
+              <li>Count the dots on each string. A pentatonic box has <b>two on every string</b>; three on a string means a seven-note scale.</li>
+              <li>Find the roots: the low and high E strings at the same fret, and the D string two frets higher.</li>
+              <li>The outer strings stretch three frets; the middle ones stretch two.</li>
+            </ol>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <footer class="site-footer"><p>&copy; 2026 BranyonTech</p></footer>
+</body>
+</html>

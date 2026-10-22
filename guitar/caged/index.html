@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="The CAGED system on one neck: five chord shapes chained up the fretboard in any key, as chords, arpeggios or scales, with a planner that keeps chord changes close to your hand.">
+  <meta name="theme-color" content="#fbf6ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15142a" media="(prefers-color-scheme: dark)">
+  <title>CAGED Explorer — BranyonTech</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../lib/guitar.css?v=6ca4f487de">
+  <style>
+    .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .link { box-sizing: border-box; cursor: pointer; display: grid; justify-items: center; min-width: 62px; min-height: 44px; padding: 6px 10px; border-radius: 10px; border: 2px solid var(--s); background: var(--surface); font: inherit; color: var(--ink); }
+    .link b { font: 400 1.6rem var(--serif); color: var(--s); line-height: 1.1; }
+    .link small { font: 600 0.72rem var(--mono); color: var(--muted); }
+    .link[aria-pressed="true"] { background: var(--s); }
+    .link[aria-pressed="true"] b, .link[aria-pressed="true"] small { color: var(--on-color); }
+    .gap { font: 700 0.72rem var(--mono); color: var(--muted); display: grid; justify-items: center; min-width: 20px; }
+    .layer-note { border-left: 3px solid var(--accent); padding-left: 10px; font-size: 0.95rem; }
+    svg.full { min-width: 880px; }
+    .shape-head { display: flex; gap: 14px; align-items: center; }
+    .bigletter { width: 64px; height: 64px; border-radius: 14px; background: var(--s); color: var(--on-color); display: grid; place-items: center; font: 400 2.4rem var(--serif); flex: none; }
+    .origin { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: center; }
+    dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 0.95rem; }
+    dl.facts dt { color: var(--muted); }
+    dl.facts dd { margin: 0; }
+    .handoff { border-left: 3px solid var(--s); padding-left: 10px; }
+    .uses { display: grid; gap: 12px; }
+    .use { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; }
+    .use i { font-style: normal; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font: 700 0.85rem var(--mono); background: var(--sunk); border: 1px solid var(--line); }
+    .prog { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .pc { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 6px; min-width: 0; }
+    .pc.now { border-color: var(--s); box-shadow: inset 0 0 0 2px var(--s); }
+    .pc .pn { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+    .pc .pn b { font: 400 1.4rem var(--serif); }
+    .chip { font: 700 0.72rem var(--mono); padding: 2px 8px; border-radius: 99px; background: var(--s); color: var(--on-color); }
+    .metric { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+    .metric div { display: grid; }
+    .metric b { font: 400 1.9rem var(--serif); font-variant-numeric: tabular-nums; }
+    .metric .good { color: var(--good); } .metric .bad { color: var(--bad); }
+    input[type=range] { width: 220px; max-width: 100%; accent-color: var(--accent); min-height: 32px; }
+    .drill-board { max-width: 460px; }
+    @media (max-width: 420px) { .origin { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+  <script src="../lib/theory.js?v=5e3755e158" defer></script>
+  <script src="../lib/board.js?v=34845a5959" defer></script>
+  <script src="../lib/synth.js?v=3e5894048f" defer></script>
+  <script src="app.js?v=faf2b9f7fd" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the shapes</a>
+  <div class="wrap">
+    <nav class="topbar" aria-label="Breadcrumb">
+      <a class="back-link" href="/guitar/"><span aria-hidden="true">←</span> Guitar theory</a>
+      <p class="section-mark">BranyonTech · Guitar</p>
+    </nav>
+
+    <header class="intro">
+      <p class="eyebrow">C · A · G · E · D</p>
+      <h1>CAGED Explorer</h1>
+      <p class="lede">Five open chord shapes slide up the neck and lock together like tiles, always in the order C, A, G, E, D. Each shape shares a root note with the next, so together they map one key across the whole fretboard.</p>
+    </header>
+
+    <main id="main" class="stack">
+      <section class="card" aria-labelledby="chain-title">
+        <div class="headrow"><h2 id="chain-title"></h2><span class="small">Pick a shape to study it. The number is the fret it starts on.</span></div>
+        <div class="chain" id="chain"></div>
+      </section>
+
+      <section class="card" aria-label="The neck">
+        <div class="controls">
+          <label class="ctl"><span>Key</span><select id="key"></select></label>
+          <div class="ctl"><span>See the shapes as</span><div class="seg" id="layer">
+            <button type="button" data-v="chord">Chords</button><button type="button" data-v="arp">Arpeggios</button><button type="button" data-v="pent">Major pentatonic</button><button type="button" data-v="scale">Major scale</button></div></div>
+          <div class="ctl"><span>Labels</span><div class="seg" id="labels"><button type="button" data-v="iv">Intervals</button><button type="button" data-v="note">Notes</button></div></div>
+        </div>
+        <p class="layer-note" id="layer-note"></p>
+        <div class="scroller"><svg class="board full" id="main-board" role="img" aria-label="The fretboard with the CAGED shapes"></svg></div>
+        <div class="legend" id="legend"></div>
+        <div class="btns">
+          <button type="button" class="btn" id="p-shape">▶ Play</button>
+          <button type="button" class="btn" id="p-all">▶ Strum all five up the neck</button>
+          <button type="button" class="btn" id="p-stop" disabled>■ Stop</button>
+        </div>
+      </section>
+
+      <div class="two">
+        <section class="card" id="detail" aria-live="polite"></section>
+        <section class="card" aria-labelledby="uses-title">
+          <h2 id="uses-title">Why learn it</h2>
+          <div class="uses">
+            <div class="use"><i>1</i><p><b>Any chord, five places.</b> Every major chord can be played once per shape, so one is always near your hand.</p></div>
+            <div class="use"><i>2</i><p><b>Solos that follow the chords.</b> Play a shape's chord tones one at a time and the line outlines the harmony.</p></div>
+            <div class="use"><i>3</i><p><b>Scales with a landmark.</b> Each shape anchors a scale position, so the pentatonic and the major scale hang off a chord you already know.</p></div>
+            <div class="use"><i>4</i><p><b>Short moves between chords.</b> When the chord or the key changes, reach for the shape that is already under your fingers. Try the planner below.</p></div>
+          </div>
+          <p class="small">The system belongs to the guitar: the shapes are the open chords of standard tuning. On a keyboard every key has its own look, so there is nothing to slide.</p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="plan-title">
+        <div class="headrow"><h2 id="plan-title">Stay in one spot</h2><span class="small">For each chord, the shape closest to your hand.</span></div>
+        <div class="controls">
+          <label class="ctl"><span>Progression</span><select id="preset"></select></label>
+          <label class="ctl"><span>Hand around fret <b id="zone-val"></b></span><input type="range" id="zone" min="1" max="12" step="1"></label>
+          <div class="btns" style="align-self:end"><button type="button" class="btn" id="p-prog">▶ Play it</button></div>
+        </div>
+        <div class="prog" id="prog"></div>
+        <div class="metric" id="metric"></div>
+      </section>
+
+      <section class="card" aria-labelledby="drill-title">
+        <div class="headrow"><h2 id="drill-title">Shape spotter</h2><span class="score" id="score"></span></div>
+        <div class="two">
+          <div class="stack" style="gap:8px"><div class="scroller drill-board"><svg class="board" id="d-board" role="img" aria-label="A chord shape to identify"></svg></div><p class="small">Red dots are roots. Fret numbers are under the neck.</p></div>
+          <div class="stack" style="gap:12px">
+            <p id="dq"></p>
+            <div class="opts row" id="dopts"></div>
+            <p id="dexp" aria-live="polite"></p>
+            <div class="btns"><button type="button" class="btn primary" id="dnext">Next</button><button type="button" class="btn" id="dplay">▶ Hear it</button></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <footer class="site-footer"><p>&copy; 2026 BranyonTech</p></footer>
+</body>
+</html>

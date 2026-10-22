@@ -2026,3 +2026,48 @@ it is not a claim of physical iPhone or Safari validation.
 
 Apple canvas guidance: https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/HTML-canvas-guide/AddingMouseandTouchControlstoCanvas/AddingMouseandTouchControlstoCanvas.html
 Current Safari loupe report: https://bugs.webkit.org/show_bug.cgi?id=296492
+
+## GUITAR THEORY (/guitar/, October 22, 2026)
+
+A tools-only practice room for guitar theory, built for Kyle to reinforce what
+he is studying. A hub and four tools, each on a live, playable fretboard:
+
+- `/guitar/pentatonic/` **Pentatonic Boxes** — the minor pentatonic's five boxes
+  in any key, every dot labelled by interval or note, a name-that-interval drill.
+- `/guitar/modes/` **Mode Ladder** — the seven modes brightest to darkest, the one
+  note that flattens at each step, the mode on the neck, its vamp, licks over it.
+- `/guitar/chord-modes/` **Chord-to-Mode Matcher** — a chord, every mode tested
+  against its notes, the clashing note marked and playable, a generated drill.
+- `/guitar/caged/` **CAGED Explorer** — the five shapes chained up the neck as
+  chords, arpeggios or scales; a planner that picks the shape nearest the hand.
+
+Layout: `guitar/lib/` is shared — `theory.js` (pure: spelling, modes, chords,
+CAGED; required by tests.js), `board.js` (the one SVG fretboard renderer),
+`synth.js` (Web Audio plucks, one session at a time), `guitar.css` (the cream
+and plum of the homepage by day, the favicon's navy by
+`prefers-color-scheme: dark`). Each tool is `index.html` + `app.js`.
+
+Load-bearing:
+
+- **The content is original and names no source.** These began as study aids
+  for a paid course; nothing here may quote it. Theory (formulas, CAGED, which
+  mode fits a chord) is nobody's; a course's quiz questions, names, wording,
+  licks and backing tracks are somebody's. Every practice question is written
+  here or generated from `theory.js`. A test greps the section for the course,
+  teacher and product names. Keep it that way when adding a tool.
+- **The CSP shaped it**: no inline `<script>` (`script-src 'self'`), no font
+  hosts — the mono face is the console's `/weather/assets/fonts/jetbrainsmono-400.woff2`
+  by absolute path, as the games load it. Inline `style` is allowed and used.
+- **Dots are not buttons.** Dots on one fret sit 6px apart, which no
+  touch-target rule allows for buttons, so `board.js` marks them `data-key`
+  for pointer taps only and every choice they offer is also a real button
+  (the note stepper, the shape chain). `site-audit.mjs` covers all five pages.
+- **`theory.js` is checked as music**: every CAGED voicing and every chord
+  voicing plays only its chord's tones in all 12 keys, each pentatonic box has
+  two notes per string, each mode step lowers exactly one note by one fret.
+- **Stamped and deployed like the rest**: five pages in `stamp-assets.mjs`
+  and `STAMPED_PAGES`, every file in `deploy.yml` (a test walks `guitar/` and
+  fails on a file that is not), `guitar/**` in the path trigger, five sitemap
+  entries. `tests-server.js` checks one guitar file only: the server suite
+  already runs at the edge of `server.js`'s 100-requests-a-minute limit, and
+  more requests there fail unrelated tests with 429s.

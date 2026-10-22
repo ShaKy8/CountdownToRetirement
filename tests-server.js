@@ -919,7 +919,12 @@ async function runSlingshotTests() {
                 ['/postcards-in-sound/index.html', 'text/html'],
                 ['/postcards-in-sound/', 'text/html'],
                 ['/postcards-in-sound/app.js', 'text/javascript'],
-                ['/postcards-in-sound/content.json', 'application/json']
+                ['/postcards-in-sound/content.json', 'application/json'],
+                // The guitar section: one request, because the suite already
+                // runs at the edge of server.js's 100-a-minute limit (a fifth
+                // guitar request here failed three tests after it with 429s).
+                // tests.js holds deploy.yml to every file under guitar/.
+                ['/guitar/lib/theory.js', 'text/javascript']
             ];
             for (const [p, type] of assets) {
                 const { res } = await makeRequest({

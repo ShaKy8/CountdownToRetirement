@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Interactive guitar theory tools: pentatonic boxes, the modes, which mode fits a chord, and the CAGED system, each on a playable fretboard.">
+  <meta name="theme-color" content="#fbf6ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15142a" media="(prefers-color-scheme: dark)">
+  <title>Guitar Theory — BranyonTech</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="lib/guitar.css?v=6ca4f487de">
+  <style>
+    .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    @media (max-width: 720px) { .tools { grid-template-columns: minmax(0, 1fr); } }
+    .tool { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 6px 16px; align-items: start; padding: 20px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; }
+    .tool:hover { border-color: var(--accent); }
+    .tool:hover h2 { color: var(--accent-dark); }
+    .tool svg { grid-row: span 3; width: 56px; height: 56px; }
+    .tool h2 { font: 400 1.5rem var(--serif); text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
+    .tool .eyebrow { margin: 0; }
+    .tool p.small { max-width: 52ch; }
+    .order { font-size: 0.92rem; color: var(--muted); max-width: 68ch; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the tools</a>
+  <div class="wrap">
+    <nav class="topbar" aria-label="Breadcrumb">
+      <a class="back-link" href="/"><span aria-hidden="true">←</span> BranyonTech</a>
+      <p class="section-mark">Guitar</p>
+    </nav>
+
+    <header class="intro">
+      <p class="eyebrow">Practice room</p>
+      <h1>Guitar Theory</h1>
+      <p class="lede">Four tools for making music theory stick on the fretboard. Every diagram is live: pick a key, tap a note, press play.</p>
+    </header>
+
+    <main id="main" class="stack">
+      <div class="tools">
+        <a class="tool" href="/guitar/pentatonic/">
+          <svg viewBox="0 0 56 56" aria-hidden="true"><rect x="2" y="8" width="52" height="40" rx="4" fill="var(--board)" stroke="var(--board-edge)"/><g stroke="var(--fret)" stroke-width="1.5"><line x1="15" y1="8" x2="15" y2="48"/><line x1="28" y1="8" x2="28" y2="48"/><line x1="41" y1="8" x2="41" y2="48"/></g><circle cx="9" cy="14" r="4" fill="var(--root)"/><circle cx="35" cy="14" r="4" fill="var(--note)"/><circle cx="9" cy="28" r="4" fill="var(--note)"/><circle cx="22" cy="28" r="4" fill="var(--root)"/><circle cx="9" cy="42" r="4" fill="var(--root)"/><circle cx="35" cy="42" r="4" fill="var(--note)"/></svg>
+          <p class="eyebrow">R · ♭3 · 4 · 5 · ♭7</p>
+          <h2>Pentatonic Boxes</h2>
+          <p class="small">The five-note scale behind most rock and blues soloing, in all five positions and every key, with a drill for naming each note.</p>
+        </a>
+        <a class="tool" href="/guitar/modes/">
+          <svg viewBox="0 0 56 56" aria-hidden="true"><defs><linearGradient id="lad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2b53c"/><stop offset="1" stop-color="#2b2f6b"/></linearGradient></defs><rect x="4" y="4" width="10" height="48" rx="5" fill="url(#lad)"/><g fill="var(--major)"><rect x="20" y="6" width="32" height="5" rx="2"/><rect x="20" y="13" width="28" height="5" rx="2"/><rect x="20" y="20" width="24" height="5" rx="2"/></g><g fill="var(--minor)"><rect x="20" y="27" width="20" height="5" rx="2"/><rect x="20" y="34" width="16" height="5" rx="2"/><rect x="20" y="41" width="12" height="5" rx="2"/></g></svg>
+          <p class="eyebrow">Lydian → Locrian</p>
+          <h2>Mode Ladder</h2>
+          <p class="small">The seven modes from brightest to darkest, the one note that changes at each step, and chord vamps to hear what each one sounds like.</p>
+        </a>
+        <a class="tool" href="/guitar/chord-modes/">
+          <svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="21" cy="28" r="16" fill="none" stroke="var(--minor)" stroke-width="3"/><circle cx="35" cy="28" r="16" fill="none" stroke="var(--flavor)" stroke-width="3"/><circle cx="28" cy="28" r="5" fill="var(--root)"/></svg>
+          <p class="eyebrow">Read the 3rd and the 7th</p>
+          <h2>Chord-to-Mode Matcher</h2>
+          <p class="small">Pick a chord and see which modes fit it, note by note, with the clashing note marked on the neck and playable over the chord.</p>
+        </a>
+        <a class="tool" href="/guitar/caged/">
+          <svg viewBox="0 0 56 56" aria-hidden="true"><g><rect x="2" y="14" width="12" height="28" rx="3" fill="var(--sC)"/><rect x="12" y="14" width="10" height="28" rx="3" fill="var(--sA)"/><rect x="21" y="14" width="12" height="28" rx="3" fill="var(--sG)"/><rect x="32" y="14" width="10" height="28" rx="3" fill="var(--sE)"/><rect x="41" y="14" width="13" height="28" rx="3" fill="var(--sD)"/></g></svg>
+          <p class="eyebrow">C · A · G · E · D</p>
+          <h2>CAGED Explorer</h2>
+          <p class="small">Five chord shapes chained up the neck in any key, seen as chords, arpeggios or scales, plus a planner that keeps chord changes under your hand.</p>
+        </a>
+      </div>
+      <p class="order">New to all of it? They build on each other in this order: the pentatonic, then the modes, then matching modes to chords, then CAGED to find all of it anywhere on the neck.</p>
+    </main>
+  </div>
+  <footer class="site-footer"><p>&copy; 2026 BranyonTech</p></footer>
+</body>
+</html>
