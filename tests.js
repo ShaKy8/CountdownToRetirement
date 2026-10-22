@@ -7734,7 +7734,7 @@ describe('STORM WATCH ON AWS - EventBridge, two metrics and three alarms (Octobe
         }
     });
 
-    test('Should create a 15-minute rule, its permission and three alarms to NotifyMe, and change nothing on a dry run', () => {
+    test('Should create a 15-minute rule, its permission and four alarms to NotifyMe, and change nothing on a dry run', () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storm-aws-'));
         const log = path.join(dir, 'aws.log');
         fs.writeFileSync(path.join(dir, 'aws'), `#!/bin/bash
@@ -7767,14 +7767,18 @@ exit 0
         assert.ok(/AWS lambda add-permission .*--principal events\.amazonaws\.com --source-arn arn:aws:events:us-east-1:391292551001:rule\/atmos-storm-watch/.test(app.log), 'only this rule may invoke it');
         assert.ok(/AWS events put-targets --rule atmos-storm-watch --targets Id=1,Arn=arn:aws:lambda:/.test(app.log));
         const alarms = app.log.split('\n').filter((l) => /^AWS cloudwatch put-metric-alarm/.test(l));
-        assert.deepStrictEqual(alarms.map((l) => l.match(/--alarm-name (\S+)/)[1]).sort(), ['atmos-storm-check-failed', 'atmos-storm-listed', 'atmos-storm-silent']);
+        assert.deepStrictEqual(alarms.map((l) => l.match(/--alarm-name (\S+)/)[1]).sort(), ['atmos-storm-check-failed', 'atmos-storm-count-rose', 'atmos-storm-listed', 'atmos-storm-silent']);
         for (const l of alarms) {
             assert.ok(l.includes('--alarm-actions arn:aws:sns:us-east-1:391292551001:NotifyMe'), 'it mails NotifyMe: ' + l.slice(0, 80));
-            assert.ok(l.includes('--ok-actions arn:aws:sns:us-east-1:391292551001:NotifyMe'), 'and says when it clears');
+            if (!l.includes('--alarm-name atmos-storm-count-rose')) assert.ok(l.includes('--ok-actions arn:aws:sns:us-east-1:391292551001:NotifyMe'), 'and says when it clears');
             assert.ok(l.includes('--namespace AtmosWeather'));
         }
         const by = (n) => alarms.find((l) => l.includes('--alarm-name ' + n));
         assert.ok(/--metric-name ActiveStorms/.test(by('atmos-storm-listed')) && /--treat-missing-data ignore/.test(by('atmos-storm-listed')), 'a failed check neither raises nor clears the storm alarm');
+        const rose = by('atmos-storm-count-rose');
+        assert.ok(/--metric-name ActiveStorms/.test(rose) && /--statistic Maximum/.test(rose) && /--threshold 2 /.test(rose) && /GreaterThanOrEqualToThreshold/.test(rose), 'two storms or more, not one');
+        assert.ok(/--treat-missing-data ignore/.test(rose) && /--datapoints-to-alarm 1/.test(rose), 'one reading is enough; a failed check neither raises nor clears it');
+        assert.ok(!/--ok-actions/.test(rose), 'the count falling back is not mailed');
         assert.ok(/--metric-name CheckFailed/.test(by('atmos-storm-check-failed')) && /--datapoints-to-alarm 2/.test(by('atmos-storm-check-failed')), 'one blip does not mail');
         assert.ok(/--statistic SampleCount/.test(by('atmos-storm-silent')) && /--treat-missing-data breaching/.test(by('atmos-storm-silent')) && /LessThanThreshold/.test(by('atmos-storm-silent')), 'silence is what raises it');
         assert.ok(!/no storms/i.test(by('atmos-storm-check-failed').replace(/not 'no storms'/i, '')), 'the could-not-check message never says no storms');

@@ -11,11 +11,16 @@
 #     -> two metrics in namespace AtmosWeather, from one log line:
 #          ActiveStorms  how many storms NHC lists (only when NHC was read)
 #          CheckFailed   1 when NHC could not be read, else 0 (every run)
-#     -> three alarms, each emailing the SNS topic NotifyMe on a change of state:
+#     -> four alarms, each emailing the SNS topic NotifyMe on a change of state:
 #          atmos-storm-listed        ActiveStorms >= 1. One email when NHC first
 #                                    lists a storm; none while it stays listed
 #                                    (the alarm's state is "you were told"); one
 #                                    when it clears.
+#          atmos-storm-count-rose    ActiveStorms >= 2. One email when a second storm
+#                                    is listed while one is already active, which
+#                                    atmos-storm-listed (already in ALARM) cannot
+#                                    say. No email when it falls back; a third storm
+#                                    while two are active is not announced either.
 #          atmos-storm-check-failed  CheckFailed >= 1 on two checks running: NHC
 #                                    could not be read. Never "no storms".
 #          atmos-storm-silent        No check at all for an hour: the watch
@@ -40,7 +45,7 @@
 #       aws lambda remove-permission --function-name atmos-weather-api \
 #         --statement-id storm-watch-events;
 #       aws cloudwatch delete-alarms --alarm-names atmos-storm-listed \
-#         atmos-storm-check-failed atmos-storm-silent
+#         atmos-storm-check-failed atmos-storm-silent atmos-storm-count-rose
 #
 set -euo pipefail
 
@@ -77,13 +82,13 @@ fi
 
 exists_rule=$(aws events describe-rule --name "$RULE" --query 'ScheduleExpression' --output text 2>/dev/null || echo none)
 has_perm=$(aws lambda get-policy --function-name "$FN" --query 'Policy' --output text 2>/dev/null | grep -c "\"$SID\"" || true)
-alarms=$(aws cloudwatch describe-alarms --alarm-names atmos-storm-listed atmos-storm-check-failed atmos-storm-silent \
+alarms=$(aws cloudwatch describe-alarms --alarm-names atmos-storm-listed atmos-storm-count-rose atmos-storm-check-failed atmos-storm-silent \
   --query 'MetricAlarms[].AlarmName' --output text)
 
 echo "Lambda        $FN"
 echo "EventBridge   rule $RULE   now: $exists_rule -> $SCHEDULE, target $FN"
 echo "Permission    $SID (events.amazonaws.com may invoke $FN)   now: $([ "$has_perm" -gt 0 ] && echo present || echo missing)"
-echo "Alarms        atmos-storm-listed, atmos-storm-check-failed, atmos-storm-silent   now: ${alarms:-none}"
+echo "Alarms        atmos-storm-listed, atmos-storm-count-rose, atmos-storm-check-failed, atmos-storm-silent   now: ${alarms:-none}"
 echo "Notify        $TOPIC_ARN   confirmed subscriptions: $SUBS"
 [ "$SUBS" -gt 0 ] || echo "WARNING: $TOPIC has no confirmed subscription, so no alarm would reach anyone."
 
@@ -106,6 +111,15 @@ aws cloudwatch put-metric-alarm --alarm-name atmos-storm-listed \
   --namespace "$NS" --metric-name ActiveStorms --statistic Maximum --period 900 \
   --evaluation-periods 1 --datapoints-to-alarm 1 --threshold 1 --comparison-operator GreaterThanOrEqualToThreshold \
   --treat-missing-data ignore --alarm-actions "$TOPIC_ARN" --ok-actions "$TOPIC_ARN"
+
+# Count rose: a second storm while one is listed. atmos-storm-listed is already in ALARM then and
+# sends nothing, so this is the only word that something new appeared. It mails on ALARM only: the
+# count falling back to one is not news. Missing data is ignored, as for the listed alarm.
+aws cloudwatch put-metric-alarm --alarm-name atmos-storm-count-rose \
+  --alarm-description "NHC now lists two or more live storms at once. A storm was already listed, so atmos-storm-listed stayed quiet. Look at https://branyontech.com/weather/#radar and https://www.nhc.noaa.gov/ . Not an official source." \
+  --namespace "$NS" --metric-name ActiveStorms --statistic Maximum --period 900 \
+  --evaluation-periods 1 --datapoints-to-alarm 1 --threshold 2 --comparison-operator GreaterThanOrEqualToThreshold \
+  --treat-missing-data ignore --alarm-actions "$TOPIC_ARN"
 
 # Could not check: two 15-minute periods running, so one NHC blip does not mail. Missing data is
 # fine here; the silent alarm covers a watch that stopped. Its message must never say "no storms".
