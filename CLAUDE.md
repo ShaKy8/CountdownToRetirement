@@ -1414,10 +1414,18 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   THROWS (502, never cached), so "could not check" can never read as "no
   storms"; and one failed part (cone, forecast, best track) does not drop the
   storm: `parts` says `ok`, `none` (not there) or `fail`, and a response with
-  a `fail` is edge-cached 30 s, not 180. `EDGE_CACHE` is `s-maxage=180` with no
-  stale-while-revalidate. **`CurrentStorms.json` was empty on 2026-10-20, so its
-  field names (`latitudeNumeric`, `binNumber`, `publicAdvisory`...) are NHC's
-  documented schema, not seen: check them against the first live storm.** The
+  a `fail` is edge-cached 30 s, not 180. **A 404 is `none`, not `fail`**
+  (October 21, 2026, from the first live storm, ep222026): NHC lists a storm
+  minutes before it publishes its files, so its best track (`stormBest`) and
+  a-deck (`stormForecast`) answer 404, which is "not there yet". As `fail` the
+  response was cached 30 s and the console said the read failed; as `none` it
+  is cached 3 minutes. The a-deck's 404 is not memoised, so the next read
+  finds the file when it appears; any other status is still `fail`. Same edit
+  in `lambda/index.mjs` and `../Weather/server.mjs`.
+  `EDGE_CACHE` is `s-maxage=180` with no stale-while-revalidate.
+  **`CurrentStorms.json` was empty on 2026-10-20, so its field names
+  (`latitudeNumeric`, `binNumber`, `publicAdvisory`...) were NHC's documented
+  schema; the first live storm (2026-10-21) confirmed them, all non-null.** The
   ATCF parsers are tested on real rows (`tests/fixtures/atcf-*.dat`, Trudy
   2026). A route that answered from memory once hid a hostile-a-deck test for
   two of its three cases: the route remembers its answer, so each such case
@@ -1506,7 +1514,9 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   off Mexico, weak, west). It is a lookup, not a model: do not add a probability
   or an "expected" line to it.
 - **The storm watch works without a session** (`.github/workflows/storms-watch.yml`,
-  `scripts/check-storms.mjs`). Hourly at :13 it reads production's
+  `scripts/check-storms.mjs`). At :13 and :43 of every hour (two crons, because
+  GitHub drops scheduled slots: three of about twenty ran in the first ten
+  hours, and late) it reads production's
   `/weather/api/storms` and acts on `activeCount`: **zero to above zero** opens
   an issue labelled `storm-watch` (GitHub emails the owner) and fails the run
   (a failed scheduled run is mailed too, the way `spend.yml` already is);
@@ -1519,7 +1529,41 @@ the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
   actions, no secret, one GET to production. **Prove the email path** with the
   workflow's manual `test` input: it opens a `[test]` issue, and the next hourly
   run closes it. The first real storm's issue carries the checklist of what to
-  look at (the `CurrentStorms.json` field names have never been seen live).
+  look at. (The first live storm, ep222026 Vance, came on October 21, 2026: the
+  field names matched NHC's schema, all non-null; EMXI has no run on any storm
+  so far.) **Issue #11 is that storm's memory**; it closes when none is listed.
+- **The same watch runs on AWS, where a schedule is kept** (October 21, 2026;
+  `scripts/storm-watch-aws.sh`, dry run unless `--apply`, `--test` pretends one
+  storm). The GitHub workflow stays as the second, independent path and the one
+  that opens the issue with the checklist. **EventBridge rule
+  `atmos-storm-watch`**, `rate(15 minutes)`, invokes the weather Lambda with a
+  Scheduled Event (permission `storm-watch-events`, source the rule). The
+  handler's first line is `isScheduledEvent`: `source === 'aws.events'`,
+  `detail-type === 'Scheduled Event'` and **no `requestContext`**, because API
+  Gateway events always carry one and a caller cannot set a top-level `source`,
+  so a web request can never run the watch. `stormWatch` calls `stormsPayload`
+  (the route's own 3-minute memo) and logs one **embedded-metric-format** line
+  to namespace `AtmosWeather`: `CheckFailed` (0 or 1, **every run, so it is the
+  heartbeat**) and `ActiveStorms` (**only when NHC was read**; a failed read
+  emits no count, never a zero). `{test: true}` pretends one storm and asks NHC
+  nothing. **Four alarms mail SNS `NotifyMe` (one confirmed subscription) on a
+  change of state only:**
+  - `atmos-storm-listed`: `ActiveStorms` >= 1, one 15-minute datapoint, missing
+    data ignored. Mails once when a storm is first listed and once when it
+    clears; while any storm stays listed it is in ALARM and says nothing, like
+    the GitHub issue.
+  - `atmos-storm-count-rose`: `ActiveStorms` >= 2, the same settings, **alarm
+    action only**. The word that a second storm appeared while one was
+    listed, which `listed` cannot say. It does not mail when the count falls
+    back, and a third storm while two are active is not announced.
+  - `atmos-storm-check-failed`: `CheckFailed` >= 1 on two of two checks, missing
+    data fine. NHC could not be read: never "no storms".
+  - `atmos-storm-silent`: `CheckFailed` SampleCount < 1 over an hour, missing
+    data **breaching**. The watch itself (rule, permission or Lambda) stopped.
+  Proven end to end on October 21-22: scheduled runs every 15 minutes within
+  seconds, and the ALARM and OK emails arrived. **Not yet seen:** `listed`
+  returning to OK, which needs NHC to list nothing. Tests: "STORM WATCH ON AWS"
+  in `tests.js`, with a fake `aws` on PATH for the script.
 - **Not yet built:** nothing in the hurricane plan. The season ring covers only
   storms in HURDAT2, which lags about six months, so this year's storms are
   absent until it is revised.
