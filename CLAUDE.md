@@ -1324,9 +1324,21 @@ ISS came out 0.7 km off.
 - **Elements come from our own origin, not CelesTrak.** CelesTrak allows one
   download per 2-hour update, answers repeats with 403 and firewalls an IP at
   50 errors in 2 hours. So `.github/workflows/sats.yml` runs
-  `scripts/fetch-sats.mjs` every 2 hours, fetches each group once, **never
-  retries, stops at the first non-200**, refuses a group that is too small
-  to believe, and only then uploads gzipped JSON to `s3://branyontech.com/sats/`.
+  `scripts/fetch-sats.mjs` every 2 hours, fetches each group once, **stops at
+  the first non-200 and never asks again after any answer**, refuses a group
+  that is too small to believe, and only then uploads gzipped JSON to
+  `s3://branyontech.com/sats/`. **The one thing it tries again is a connect
+  timeout** (`getOnce`, error code `UND_ERR_CONNECT_TIMEOUT`): up to three
+  tries in all, 30 s apart. No connection was made, so CelesTrak was never
+  asked and nothing was downloaded; an HTTP status, even a 403, or any other
+  error still stops the run at once. Added October 23, 2026, after four
+  scheduled runs in a row (October 22 17:21 UTC to October 23 07:43 UTC)
+  failed; the one log seen (pasted by Kyle) was a `ConnectTimeoutError`
+  reaching `celestrak.org:443` from the GitHub runner, the other three logs
+  were not readable, and the same URL answered 200 in 0.26 s from this machine.
+  The run after the change (13:37 UTC) succeeded; **whether the retry has ever
+  fired in production is unknown** (the run logs were not readable from here),
+  so it is proven by its unit test only.
   A failed run leaves the last snapshot; the panel shows the elements' age.
   `deploy.yml` never touches `/sats/` (its only `--delete` sync is `weather/`).
 - **OMM JSON, never TLE.** Catalogue numbers have passed 99999 (SOYUZ-MS 29 is
