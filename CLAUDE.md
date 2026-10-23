@@ -278,45 +278,46 @@ CountdownToRetirement/
     last line only, the full width of the block. `skip-ink: none` keeps it
     the continuous rule the border was.
   - **Where stacked cards would not fit one screen, they flatten to
-    labelled rows** — `(max-width: 640px) and (max-height: 819px)`, and any
+    labelled rows** — `(max-width: 640px) and (max-height: 899px)`, and any
     screen under 480px tall: no fill, the title as the first flex item of
     its group, the links `flex: 1 1 10rem` beside it (or beneath it when
     10rem is not there), a hairline between groups. `align-items` is
     `flex-start` with padding on the title, not `baseline`: an
     inline-block's baseline is its *last* line, and a wrapped link put the
-    label beside its second line. 375x812 gets rows, 390x844 cards — the
+    label beside its second line. 390x844 gets rows, 430x932 cards — the
     gate covers one of each and asserts the form. A desktop window
-    641px+ wide and 481–759px tall gets rows too.
+    641px+ wide and 481–799px tall gets rows too.
   - **The budget was measured, not guessed.** Stacked cards at phone width
     are ~495px against the 226–274px the flat list was, so a phone gives up
     the 6vh header padding at any height (`(max-width: 480px)`), the groups'
     top margin and the brand and tagline margins shrink, and the footer
     tightens.
-  - **Ten links, not eight** (October 18, 2026). Light Lasso (`c48dc30`, 1px
-    over at 320x700, and the gate still expected eight links) and Postcards
-    in Sound (`73cc50b`) joined the Play card in October and nobody re-ran
-    `home-audit.mjs`: by the second, 390x844 ran 34px past one screen,
-    320x700 40, 360x640 41 and 1280x640 64 (found by running the gate at
-    each commit). The room came from the chrome, never from the links or the
-    air between them (that is WCAG 2.5.8): stacked cards on a
-    tall phone lose half a rem of padding and gap; the rows form trims the
-    header, tagline, h1 and footer; and **a short desktop window
-    (641px+ wide, 481–759px tall) gets the rows form**, one group to a line,
-    because Play's four links stacked in a 213px card made the first row of
-    cards 234px. Slack now: 390x844 cards 15px, 320x700 rows 17px, 360x640
-    rows 15px, 1280x720 rows 134px, 1280x760 cards 21px (the rows form runs to 759px tall; a 1024-wide window needs ~743px
-    tall as cards, so it stops short of that), 1280x640 rows 94px. The 404 page shares the
-    stylesheet and was 21px over at 1280x640; it fits too. An eleventh link
-    needs a new budget — a test pins the count at ten.
-  - **Eleven links** (October 22, 2026). Kyle put "Learn guitar theory"
-    (`/guitar/`) in the Play card, which costs one wrapped link line, ~43px.
-    The room: the rows form now runs to 899px tall on a phone (390x844 gets
-    rows; 430x932 still gets cards, so the census runs there) and to 799px on
-    a desktop (1280x760 gets rows); rows on a phone set the name at 2.15rem and
-    the tagline at 1rem/1.4 (0.94rem under 341px). Measured against main in
-    the same environment, every size kept or gained slack. **This machine's
-    fonts are not Kyle's**: in the cloud container 360x640 was 39px over on
-    main already, and 37 over after; re-run `home-audit.mjs` on his machine.
+  - **The link count and the one-screen budget** (October 18-22, 2026). The
+    page has **ten links** and a test pins the count; an eleventh needs a new
+    budget (`home-audit.mjs` and the pieces below), and nobody should add one
+    without running the gate. How it got here: Light Lasso (`c48dc30`, 1px over
+    at 320x700, and the gate still expected eight links) and Postcards in Sound
+    (`73cc50b`) joined the Play card on October 10-13 and nobody re-ran
+    `home-audit.mjs`; by the second, 390x844 ran 34px past one screen,
+    320x700 40, 360x640 41 and 1280x640 64 (found by running the gate at each
+    commit). On October 22 "Learn guitar theory" (`/guitar/`) made eleven, one
+    wrapped link line (~43px) more, and the same day Light Lasso was removed
+    (Kyle found it boring), so the count is ten again. **The room came from the
+    chrome, never from the links or the air between them** (that is WCAG
+    2.5.8): stacked cards on a tall phone lose half a rem of padding and gap;
+    the rows form trims the header, tagline, h1 and footer, sets the name at
+    2.15rem and the tagline at 1rem/1.4 on a phone (0.94rem under 341px); and
+    **the rows form, one group to a line, runs to 899px tall on a phone and
+    799px on a desktop** (so 390x844 and 1280x760 get rows, 430x932 still gets
+    cards and the census runs there; a 1024-wide window needs ~743px tall as
+    cards). Play's four links stacked in a 213px card once made the first row
+    of cards 234px. The 404 page shares the stylesheet and must fit too. The
+    rows-form ranges are in the stylesheet's `@media` blocks, and a test keeps
+    the pieces from being tidied away. **The pixel slack of the final
+    ten-link page was not measured** (the gate prints pass or fail, not
+    pixels): at the removal it passed at every size on this machine. **This
+    machine's fonts are not Kyle's**: in the cloud container 360x640 was 39px
+    over on main already; re-run `home-audit.mjs` on his machine.
   - **Touch targets:** links are 30px tall with 12.8px gaps — the WCAG 2.5.8
     case site-audit exists for (24px, or 44 with a neighbour under 12px).
     Between groups in the rows form the gap is 13.8px for the same reason.
