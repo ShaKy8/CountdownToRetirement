@@ -6,9 +6,13 @@
  * CelesTrak's usage policy (celestrak.org/usage-policy.php): download once
  * per 2-hour update, and "immediately stop querying when it receives any
  * non-HTTP 200 response" -- repeats get 403 and enough errors put the IP in
- * the firewall. So this never retries, stops at the first failure, and writes
- * a group only when it looks complete. Whatever is already in S3 stays until
- * the next good run.
+ * the firewall. So this never re-asks after an answer, stops at the first
+ * failure, and writes a group only when it looks complete. The one exception
+ * is a connect timeout: no connection was made, so CelesTrak was never asked
+ * and nothing was downloaded; GitHub's runners sometimes cannot reach it for
+ * a few minutes. That alone is tried again (CONNECT_TRIES in all, a pause
+ * between), and anything else, an HTTP status included, stops the run.
+ * Whatever is already in S3 stays until the next good run.
  *
  * It runs from a schedule, not from visitors: one fetch per group per cycle
  * however many people open the page. Exit status is non-zero if anything was
@@ -37,6 +41,25 @@ export const KEEP = [
 
 const UA = 'branyontech.com weather console (kbshaver@gmail.com)';
 
+export const CONNECT_TRIES = 3;
+export const CONNECT_PAUSE_MS = 30000;
+
+/** fetch(), tried again only when the connection could not be opened. */
+export async function getOnce(url, init, {
+  fetchImpl = fetch, tries = CONNECT_TRIES, pauseMs = CONNECT_PAUSE_MS,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+} = {}) {
+  for (let n = 1; ; n++) {
+    try {
+      return await fetchImpl(url, init);
+    } catch (e) {
+      if (e?.cause?.code !== 'UND_ERR_CONNECT_TIMEOUT' || n >= tries) throw e;
+      console.error(`connect timeout (${n} of ${tries}) -- nothing was asked of CelesTrak, pausing`);
+      await sleep(pauseMs);
+    }
+  }
+}
+
 export function trim(records) {
   return records.map((r) => Object.fromEntries(KEEP.map((k) => [k, r[k]])));
 }
@@ -52,7 +75,7 @@ async function main(outDir) {
   const fetched = new Date().toISOString();
   for (const group of Object.keys(GROUPS)) {
     const url = `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`;
-    const res = await fetch(url, { headers: { 'User-Agent': UA } });
+    const res = await getOnce(url, { headers: { 'User-Agent': UA } });
     if (res.status !== 200) {
       console.error(`${group}: HTTP ${res.status} -- stopping, not retrying`);
       process.exit(1);

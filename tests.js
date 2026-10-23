@@ -5374,9 +5374,40 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         const code = strip(fetcher);
         assert.ok(/status !== 200[\s\S]*process\.exit\(1\)/.test(code), 'any non-200 stops the run');
         assert.ok(!/\bwhile\b|\battempt|\bretry\(/.test(code), 'no retry loop');
+        assert.ok(/getOnce\(url/.test(code) && !/[^e]fetch\(url/.test(code), 'the request goes through getOnce');
         assert.ok(/FORMAT=json/.test(code));
         assert.ok(/cron: '\d+ \*\/2 \* \* \*'/.test(workflow), 'every two hours, matching CelesTrak updates');
         assert.ok(!/continue-on-error/.test(workflow), 'a failed fetch must skip the upload');
+    });
+
+    test('Should try again only when the connection could not be opened', () => {
+        // GitHub's runner timed out reaching celestrak.org:443 (Oct 22-23, 2026).
+        // That asked CelesTrak nothing; a status or any other error must still stop.
+        const out = spawnSync(process.execPath, ['--input-type=module', '-e', `
+            const m = await import(${JSON.stringify(path.join(__dirname, 'scripts', 'fetch-sats.mjs'))});
+            const timeout = () => Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } });
+            const reset = () => Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } });
+            const run = async (script) => {
+                let calls = 0, pauses = 0, got;
+                const fetchImpl = async () => { const step = script[Math.min(calls++, script.length - 1)]; if (step instanceof Error) throw step; return step; };
+                try { got = await m.getOnce('u', {}, { fetchImpl, sleep: async () => { pauses++; }, pauseMs: 1 }); } catch (e) { got = 'threw'; }
+                return { calls, pauses, got: got && got.status ? got.status : got };
+            };
+            const ok = { status: 200 }, no = { status: 403 };
+            console.log(JSON.stringify({
+                recovers: await run([timeout(), timeout(), ok]),
+                gives_up: await run([timeout()]),
+                http_error: await run([no, ok]),
+                other_error: await run([reset(), ok]),
+                tries: m.CONNECT_TRIES,
+            }));`], { encoding: 'utf8' });
+        assert.strictEqual(out.status, 0, out.stderr);
+        const r = JSON.parse(out.stdout);
+        assert.deepStrictEqual(r.recovers, { calls: 3, pauses: 2, got: 200 }, 'two timeouts then success');
+        assert.deepStrictEqual(r.gives_up, { calls: r.tries, pauses: r.tries - 1, got: 'threw' }, 'a timeout that never clears stops');
+        assert.deepStrictEqual(r.http_error, { calls: 1, pauses: 0, got: 403 }, 'an HTTP status is returned at once, never asked again');
+        assert.deepStrictEqual(r.other_error, { calls: 1, pauses: 0, got: 'threw' }, 'any other failure is not retried');
+        assert.ok(r.tries >= 2 && r.tries <= 3, 'once or twice more, no further');
     });
 
     test('Should keep what json2satrec reads when trimming records', () => {
