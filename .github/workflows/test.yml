@@ -39,3 +39,6 @@ jobs:
 
       - name: Run Postcards integration checks
         run: node --test tests/postcards-integration.test.cjs
+
+      - name: Run Elevator 86 gameplay and deployment checks
+        run: node --test tests/elevator.test.cjs

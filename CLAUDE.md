@@ -2014,3 +2014,18 @@ what was built. **Deploys never delete from S3** (the only `--delete` sync is
 `weather/`), so removing the files from the repo does not remove the live copy
 at `s3://branyontech.com/light-lasso/`: that is deleted by hand, and CloudFront
 invalidated. The git history (`c48dc30` onward) has the code if it is ever wanted.
+
+## Elevator ’86 — October 26, 2026
+
+`/elevator/` is an original retro spy arcade game: callable elevators, document
+checkpoints, telegraphed enemy fire, jump/crouch combat, falling lamps, medkits,
+getaway objective, escalating missions and browser-local best score. Original
+canvas art and Web Audio only. The homepage now has eleven links in its five
+groups; `home-audit.mjs` passes the existing viewport/contrast gates with the
+short label “Play Elevator ’86”. No homepage CSS or existing game was changed.
+
+`docs/elevator-86.md` describes rules, controls, test harness and rollback.
+`node --test tests/elevator.test.cjs` covers rules and deployment wiring;
+`/tests/elevator-browser.html` is a local-only browser UI integration harness.
+The new static assets participate in `stamp-assets.mjs` and the existing
+explicit S3 deployment lists. Keep test harness files out of those lists.

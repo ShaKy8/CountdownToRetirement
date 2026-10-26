@@ -128,14 +128,13 @@ function startServer() {
 function stopServer() {
     return new Promise((resolve) => {
         if (serverProcess) {
-            serverProcess.on('exit', resolve);
-            serverProcess.kill('SIGTERM');
-            setTimeout(() => {
-                if (serverProcess) {
-                    serverProcess.kill('SIGKILL');
-                }
-                resolve();
-            }, 2000);
+            // Capture this instance: a delayed cleanup must never kill the
+            // fresh server started for the next integration suite.
+            const stopped = serverProcess;
+            serverProcess = null;
+            const timeout = setTimeout(() => { stopped.kill('SIGKILL'); resolve(); }, 2000);
+            stopped.once('exit', () => { clearTimeout(timeout); resolve(); });
+            stopped.kill('SIGTERM');
         } else {
             resolve();
         }
@@ -987,6 +986,27 @@ async function runSlingshotTests() {
     });
 }
 
+async function runElevatorTests() {
+    // A separate server instance keeps this independent of the existing suite's
+    // 100-request rate-limit budget; production limits are unchanged.
+    await stopServer();
+    await startServer();
+    await describe('SERVER TESTS - Elevator 86', async () => {
+        for (const [route, type] of [
+            ['/elevator/', 'text/html'], ['/elevator/index.html', 'text/html'],
+            ['/elevator/engine.js', 'text/javascript'], ['/elevator/app.js', 'text/javascript'],
+            ['/elevator/render.js', 'text/javascript'], ['/elevator/audio.js', 'text/javascript'],
+            ['/elevator/styles.css', 'text/css'], ['/elevator/favicon.svg', 'image/svg+xml']
+        ]) await test(`Should serve ${route} with strict security headers`, async () => {
+            const { res } = await makeRequest({ hostname: TEST_HOST, port: TEST_PORT, path: route, method: 'GET' });
+            assert.equal(res.statusCode, 200);
+            assert.ok(res.headers['content-type'].startsWith(type));
+            assert.ok(res.headers['content-security-policy'].includes("script-src 'self'"));
+            assert.ok(!res.headers['content-security-policy'].includes('unsafe-eval'));
+        });
+    });
+}
+
 async function runAllTests() {
     console.log(`\n${'='.repeat(60)}`);
     console.log(`${colors.blue}Server Integration Test Suite${colors.reset}`);
@@ -1011,6 +1031,7 @@ async function runAllTests() {
         await runSubdirectoryTests();
         await runGameTests();
         await runSlingshotTests();
+        await runElevatorTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);
