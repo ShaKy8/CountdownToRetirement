@@ -1,0 +1,50 @@
+:root{color-scheme:dark;--bg:#09131e;--surface:#101f2d;--line:#304450;--ink:#e5f0ee;--muted:#9fb4c0;--mint:#9df6da;--orange:#ffbc8a;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 5% 0,#18313a 0,transparent 47%),var(--bg);color:var(--ink)}button,a{-webkit-tap-highlight-color:transparent}a{color:inherit;text-underline-offset:4px}button{font:inherit;color:var(--ink);border:1px solid var(--line);background:#152737;border-radius:5px;cursor:pointer;min-height:44px;padding:10px 13px}button:hover{border-color:var(--mint);background:#203b46}button:disabled{opacity:.45;cursor:default}:focus-visible{outline:3px solid var(--orange);outline-offset:4px}button[hidden],[hidden]{display:none!important}.shell{max-width:1440px;margin:auto;padding:0 40px}.masthead{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:76px;border-bottom:1px solid var(--line);font-size:12px}.masthead a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}.masthead span{color:var(--muted);letter-spacing:.16em}.title-row{display:flex;justify-content:space-between;align-items:center;padding:34px 0 28px}.eyebrow{font-size:10px;letter-spacing:.18em;color:var(--mint);line-height:1.6;margin:0 0 9px}h1{font-family:Impact,'Arial Black',sans-serif;font-size:clamp(44px,5.6vw,76px);line-height:1;margin:0;letter-spacing:.045em;font-weight:900}h1 span{color:var(--mint)}h1 b{font-size:.5em;color:var(--orange);vertical-align:top;margin-left:12px}.tagline{font-size:13px;color:var(--muted);line-height:1.7;margin:0}.layout{display:grid;grid-template-columns:minmax(0,1fr) 242px;gap:32px;align-items:start}.cabinet{min-width:0;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#0b1823}.hud{display:flex;justify-content:space-between;padding:18px 22px;gap:10px;border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.12em;color:var(--muted)}.hud strong{display:block;font-size:24px;font-weight:500;letter-spacing:.04em;margin-top:5px;color:var(--ink);font-variant-numeric:tabular-nums}.hud div:first-child strong{color:var(--mint)}.arena{position:relative;aspect-ratio:3/2;isolation:isolate}canvas{display:block;width:100%;height:100%;touch-action:none}.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(4,12,20,.66);padding:18px}.panel{text-align:center;max-width:430px;padding:28px 22px;border:1px solid #45616b;background:rgba(12,29,39,.95);border-radius:8px;box-shadow:0 12px 70px #0005}.panel h2{font-family:system-ui,sans-serif;font-size:clamp(25px,3vw,37px);letter-spacing:-.04em;margin:0 0 14px}.panel p:not(.eyebrow){font-size:13px;color:#c0d0d8;line-height:1.7}.primary{background:var(--mint);color:#092220;border-color:var(--mint);font-weight:700;min-width:195px;margin:9px 0}.primary:hover{background:#c4ffe9;color:#092220}.primary span{margin-left:16px}.panel #secondary{display:block;margin:8px auto}.panel .panel-hint{font-size:11px;color:var(--muted);margin:14px 0 0}.toolbar{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-top:1px solid var(--line);gap:10px}.toolbar>span{font-size:9px;letter-spacing:.05em;color:var(--muted)}.toolbar>div{display:flex;gap:4px}.toolbar button{border-color:transparent;background:transparent;font-size:11px;padding:8px;white-space:nowrap}kbd{font:inherit;font-size:11px;border:1px solid #46606c;border-bottom-width:2px;border-radius:3px;padding:3px 5px;color:#e5f0ee}.toolbar kbd{font-size:9px;margin-left:3px}aside{padding-top:5px}aside h2{font:600 23px system-ui,sans-serif;margin:0 0 17px;letter-spacing:-.03em}aside p{font-size:12px;color:var(--muted);line-height:1.8}dl{margin:26px 0}dl div{border-top:1px solid var(--line);padding:13px 0}dt{font-size:12px}dt span{color:var(--muted);font-size:10px;margin-left:5px}dd{margin:9px 0 0;font-size:11px;color:var(--muted)}.field-note{display:flex;align-items:center;gap:12px;border-block:1px solid var(--line);padding:14px 0}.field-note p{font-size:11px;margin:0}.field-note strong{color:var(--orange);font-weight:400}.note-mark{color:var(--orange);font-size:28px}.tip{font-size:11px;margin-top:20px}.signature{letter-spacing:.13em;font-size:9px;margin-top:28px;color:var(--mint)}footer{display:flex;justify-content:space-between;gap:20px;padding:28px 0;color:var(--muted);font-size:10px;line-height:1.7}footer a{min-height:24px}.touch-controls{display:none}.skip{position:absolute;left:12px;top:-100px;z-index:10;background:var(--ink);color:var(--bg);padding:12px}.skip:focus{top:12px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.noscript{padding:20px;text-align:center}
+@media(max-width:1100px){.shell{padding:0 24px}.layout{grid-template-columns:minmax(0,1fr) 200px;gap:22px}.toolbar>span{display:none}.toolbar{justify-content:flex-end}}
+@media(max-width:800px){.shell{padding:0 16px}.layout{grid-template-columns:1fr}.title-row{padding:22px 0}.masthead{min-height:60px}.masthead span{display:none}aside{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;padding-top:15px}aside>h2,aside>.eyebrow{grid-column:1/-1}aside>p:first-of-type{margin-top:0}dl{grid-row:3/6;grid-column:2;margin:0}.signature{grid-column:1/-1}.touch-controls{display:flex;gap:10px;padding:12px;border-top:1px solid var(--line);touch-action:none;user-select:none;-webkit-user-select:none}.steering{display:flex;gap:8px;margin-right:auto}.touch-controls button{width:58px;min-height:61px;padding:3px;font-size:27px;touch-action:none}.touch-controls small{display:block;font:9px ui-monospace,monospace;letter-spacing:.06em}.touch-controls .held{background:#345e67;border-color:var(--mint)}.touch-controls .fire{border-color:#ba855e;color:var(--orange)}.touch-controls .thrust{color:var(--mint)}.toolbar{justify-content:center}.toolbar button{font-size:11px}footer{flex-direction:column;gap:8px}.hud{padding:13px 17px}.hud strong{font-size:22px}}
+@media(max-width:500px){.shell{padding:0 10px}.title-row{padding:18px 2px}.tagline{font-size:10px}.eyebrow{font-size:9px}h1{font-size:43px}.arena{aspect-ratio:4/5}.panel{padding:24px 14px}.panel p:not(.eyebrow){font-size:12px}.hud{padding:11px 14px}.hud strong{font-size:20px}.masthead{font-size:11px;min-height:52px}.toolbar kbd{display:none}aside{padding-inline:6px}.touch-controls{padding:10px;gap:8px}.touch-controls button{width:55px}.toolbar{padding:3px}footer{padding:20px 6px}}
+@media(max-width:350px){h1{font-size:36px}.tagline{display:none}.hud{font-size:9px}.hud strong{font-size:17px}.touch-controls button{width:50px}.panel h2{font-size:26px}}
+@media(max-height:500px) and (min-width:600px){.title-row{padding:12px 0}h1{font-size:34px}.masthead{min-height:42px}.layout{display:block}.arena{aspect-ratio:2.4}.touch-controls{display:flex}.touch-controls button{min-height:48px}.hud{padding:8px 18px}.hud strong{font-size:17px}aside{display:none}.panel{padding:12px 22px}.panel .panel-hint{display:none}.panel h2{font-size:24px}.panel p{margin:8px 0}.panel .primary{margin:4px 0}footer{padding:12px 0}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important}}
+@media(forced-colors:active){button,.panel,.cabinet{border:1px solid ButtonText}canvas{forced-color-adjust:none}}
+
+/* Keep the whole flight deck reachable without scrolling during play. */
+@media (min-width: 801px) and (min-height: 501px) {
+  .arena { aspect-ratio: auto; height: clamp(320px, calc(100svh - 380px), 640px); }
+}
+@media (max-width: 500px) {
+  .arena { max-height: max(260px, calc(100svh - 360px)); }
+}
+@media (max-height: 500px) and (min-width: 600px) {
+  .masthead, .title-row { display: none; }
+  .cabinet { margin-top: 6px; }
+  .arena { aspect-ratio: auto; height: max(160px, calc(100svh - 185px)); max-height: none; }
+  .hud { display: flex; padding: 6px 18px; }
+  .hud strong { display: inline; margin-left: 12px; }
+  .touch-controls { padding: 7px 12px; }
+  .toolbar { padding: 2px 10px; }
+}
+
+@media (max-width: 500px) and (max-height: 749px) {
+  .panel { padding: 17px 12px; }
+  .panel .panel-hint { display: none; }
+  .panel h2 { font-size: 25px; }
+}
+/* An explicit width prevents aspect-ratio + max-height shrinking the field
+   horizontally on a short phone. Menus always remain inside that field. */
+.arena { width: 100%; }
+@media (max-height: 500px) and (min-width: 600px) {
+  .overlay { padding: 8px; }
+  .panel { padding: 10px 22px; }
+  .panel .eyebrow { margin: 0 0 4px; }
+  .panel h2 { margin-bottom: 8px; }
+  .panel p:not(.eyebrow) { font-size: 11px; line-height: 1.5; margin: 6px 0; }
+}
+@media (max-height: 500px) and (min-width: 600px) {
+  .touch-controls { gap: 12px; touch-action: none; user-select: none; }
+  .steering { display: flex; gap: 8px; margin-right: auto; }
+  .touch-controls button { min-width: 70px; touch-action: none; }
+  .touch-controls small { font: 10px ui-monospace, monospace; margin-left: 5px; }
+  .touch-controls .held { background: #345e67; border-color: var(--mint); }
+  .touch-controls .thrust { color: var(--mint); }
+  .touch-controls .fire { color: var(--orange); border-color: #ba855e; }
+}

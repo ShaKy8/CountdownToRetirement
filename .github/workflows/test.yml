@@ -42,3 +42,6 @@ jobs:
 
       - name: Run Elevator 86 gameplay and deployment checks
         run: node --test tests/elevator.test.cjs
+
+      - name: Run Starfall gameplay and deployment checks
+        run: node --test tests/asteroids.test.cjs

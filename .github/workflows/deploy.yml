@@ -28,6 +28,7 @@ on:
       - 'game/**'
       - 'slingshot/**'
       - 'elevator/**'
+      - 'asteroids/**'
       - 'postcards-in-sound/**'
       - 'fish-hatchery/**'
       - 'year/**'
@@ -97,6 +98,7 @@ jobs:
             --include 'game/index.html' \
             --include 'slingshot/index.html' \
             --include 'elevator/index.html' \
+            --include 'asteroids/index.html' \
             --include 'postcards-in-sound/index.html' \
             --include 'weather/index.html' \
             --include 'fish-hatchery/index.html' \
@@ -125,6 +127,9 @@ jobs:
             --include 'slingshot/orbit.js' --include 'slingshot/script.js' \
             --include 'slingshot/audio.js' --include 'slingshot/styles.css' \
             --include 'slingshot/favicon.svg' \
+            --include 'asteroids/engine.js' --include 'asteroids/render.js' \
+            --include 'asteroids/app.js' --include 'asteroids/audio.js' \
+            --include 'asteroids/styles.css' --include 'asteroids/favicon.svg' \
             --include 'elevator/engine.js' --include 'elevator/render.js' \
             --include 'elevator/app.js' --include 'elevator/audio.js' \
             --include 'elevator/styles.css' --include 'elevator/favicon.svg' \

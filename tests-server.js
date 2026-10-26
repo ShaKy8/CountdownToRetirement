@@ -1007,6 +1007,27 @@ async function runElevatorTests() {
     });
 }
 
+async function runAsteroidsTests() {
+    // A separate server instance keeps this independent of the existing suite's
+    // 100-request rate-limit budget; production limits are unchanged.
+    await stopServer();
+    await startServer();
+    await describe('SERVER TESTS - Starfall', async () => {
+        for (const [route, type] of [
+            ['/asteroids/', 'text/html'], ['/asteroids/index.html', 'text/html'],
+            ['/asteroids/engine.js', 'text/javascript'], ['/asteroids/app.js', 'text/javascript'],
+            ['/asteroids/render.js', 'text/javascript'], ['/asteroids/audio.js', 'text/javascript'],
+            ['/asteroids/styles.css', 'text/css'], ['/asteroids/favicon.svg', 'image/svg+xml']
+        ]) await test(`Should serve ${route} with strict security headers`, async () => {
+            const { res } = await makeRequest({ hostname: TEST_HOST, port: TEST_PORT, path: route, method: 'GET' });
+            assert.equal(res.statusCode, 200);
+            assert.ok(res.headers['content-type'].startsWith(type));
+            assert.ok(res.headers['content-security-policy'].includes("script-src 'self'"));
+            assert.ok(!res.headers['content-security-policy'].includes('unsafe-eval'));
+        });
+    });
+}
+
 async function runAllTests() {
     console.log(`\n${'='.repeat(60)}`);
     console.log(`${colors.blue}Server Integration Test Suite${colors.reset}`);
@@ -1032,6 +1053,7 @@ async function runAllTests() {
         await runGameTests();
         await runSlingshotTests();
         await runElevatorTests();
+        await runAsteroidsTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);

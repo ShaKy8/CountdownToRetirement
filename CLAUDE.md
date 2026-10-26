@@ -2029,3 +2029,18 @@ short label “Play Elevator ’86”. No homepage CSS or existing game was chan
 `/tests/elevator-browser.html` is a local-only browser UI integration harness.
 The new static assets participate in `stamp-assets.mjs` and the existing
 explicit S3 deployment lists. Keep test harness files out of those lists.
+
+## Starfall and the Games / Music split — October 26, 2026
+
+The current homepage has **six groups and twelve links**, superseding the
+historical counts and Play-card descriptions above: Retirement · Weather ·
+Games · Music · Property · Reach me. Games contains Starfall Asteroids,
+Elevator ’86, ONE PUTT and SLINGSHOT. Music contains Postcards in Sound and
+guitar theory. The card grid is two complete rows of three. Compact link names
+and the narrow-phone column gaps retain the measured single-screen layout.
+
+`/asteroids/` is Starfall, an original Asteroids-style browser arcade game.
+`docs/starfall.md` describes controls, rules, browser audits and rollback.
+Run `node scripts/asteroids-audit.mjs http://localhost:8137 /tmp/starfall-qa`
+for ordinary-input wave progression, input/storage failures and screenshots.
+The pure rules/deploy checks are included in npm test and GitHub CI.
