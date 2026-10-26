@@ -2044,3 +2044,16 @@ and the narrow-phone column gaps retain the measured single-screen layout.
 Run `node scripts/asteroids-audit.mjs http://localhost:8137 /tmp/starfall-qa`
 for ordinary-input wave progression, input/storage failures and screenshots.
 The pure rules/deploy checks are included in npm test and GitHub CI.
+
+## IRONWING — October 26, 2026
+
+`/ironwing/` is an original low-poly carrier flight game. Read `docs/ironwing.md`
+for controls, design references, scope, audits and rollback. Its pure flight and
+combat rules, original software renderer, synthesized sound and UI are independent
+of the existing games. `npm test` and CI include `tests/ironwing.test.cjs`;
+`tests-server.js` checks every route/asset and the existing CSP. Two browser audits
+exercise normal input and read-only telemetry: `scripts/ironwing-audit.mjs` and
+`scripts/ironwing-circuit-audit.mjs`. Do not deploy their output or expose state
+mutation/time-acceleration hooks in the game. Add future game assets to the explicit
+S3 include list and the stamp checks. Homepage now has thirteen links in six groups;
+run `scripts/home-audit.mjs` for further link changes.

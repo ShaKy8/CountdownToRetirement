@@ -1497,7 +1497,7 @@ describe('BUSINESS SITE - HTML Structure', () => {
             'The theme-color meta exists before the script that updates it');
     });
 
-    test('Should group the twelve links into six titled cards, in order', () => {
+    test('Should group the thirteen links into six titled cards, in order', () => {
         // One <section class="group"> per category, each titled by its own
         // <h2>, inside a nav landmark. Every link lives in exactly one group
         // and the groups come in the order Kyle chose.
@@ -1508,12 +1508,12 @@ describe('BUSINESS SITE - HTML Structure', () => {
         assert.deepStrictEqual(groups, [
             ['Retirement', ['/countdown/index.html', '/year/']],
             ['Weather', ['/weather/']],
-            ['Games', ['/asteroids/', '/elevator/', '/game/', '/slingshot/']],
+            ['Games', ['/ironwing/', '/asteroids/', '/elevator/', '/game/', '/slingshot/']],
             ['Music', ['/postcards-in-sound/', '/guitar/']],
             ['Property', ['/fish-hatchery/']],
             ['Reach me', ['mailto:shaky8@proton.me', 'https://github.com/ShaKy8']]
         ]);
-        assert.strictEqual((nav.match(/<a href=/g) || []).length, 12, 'Twelve links, all of them in a group');
+        assert.strictEqual((nav.match(/<a href=/g) || []).length, 13, 'Thirteen links, all of them in a group');
         assert.strictEqual((nav.match(/<ul class="links" role="list">/g) || []).length, 6, 'Each group holds its links in a .links list');
         assert.ok(!indexHtml.includes('<a href=', indexHtml.indexOf('</nav>')), 'No link outside the groups');
     });
@@ -1813,7 +1813,7 @@ describe('BUSINESS SITE - The sky right now', () => {
         assert.strictEqual(out.c.caption, 'Light rain in Irvine', 'and replaces it on screen');
     });
 
-    test('The twelve links should still fit one screen: the room is taken from the chrome, per form', () => {
+    test('The thirteen links should still fit one screen: the room is taken from the chrome, per form', () => {
         /*
          * Postcards in Sound and (since removed) Light Lasso each added a link to the Play
          * card, and the page ran past one screen at 390x844 (34px), 320x700
@@ -1825,7 +1825,7 @@ describe('BUSINESS SITE - The sky right now', () => {
          * tidied away.
          */
         const links = (html.match(/<li><a /g) || []).length;
-        assert.strictEqual(links, 12, 'the room was measured for twelve links; another needs home-audit.mjs and a new budget');
+        assert.strictEqual(links, 13, 'the room was measured for thirteen links; another needs home-audit.mjs and a new budget');
         const block = (query) => {
             const i = css.indexOf(query);
             assert.ok(i > -1, `styles.css should have ${query}`);
@@ -1944,6 +1944,7 @@ describe('BUSINESS SITE - Countdown Subdirectory', () => {
             countdown: ['calc.js', 'extras.js', 'journal.css', 'journal.js', 'script.js', 'styles.css'],
             year: ['/countdown/calc.js', '/countdown/journal.css', '/countdown/journal.js', '/game/putt.js', '/shared/daily.js', '/slingshot/orbit.js', 'styles.css', 'year.js'],
             game: ['/shared/daily.js', 'audio.js', 'putt.js', 'script.js', 'styles.css'],
+            ironwing: ['app.js', 'audio.js', 'engine.js', 'render.js', 'styles.css'],
             asteroids: ['app.js', 'audio.js', 'engine.js', 'render.js', 'styles.css'],
             elevator: ['app.js', 'audio.js', 'engine.js', 'render.js', 'styles.css'],
             slingshot: ['/shared/daily.js', 'audio.js', 'orbit.js', 'script.js', 'styles.css'],

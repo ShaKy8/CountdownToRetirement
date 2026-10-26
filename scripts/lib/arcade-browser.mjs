@@ -5,7 +5,7 @@ import { chromiumPath } from './chromium.mjs';
 export const wait = ms => new Promise(r => setTimeout(r, ms));
 export async function browser() {
  const dir = await mkdtemp(tmpdir()+'/starfall-qa-'), port=9400+process.pid%400;
- const chrome=spawn(chromiumPath(),['--headless=new','--no-sandbox',`--remote-debugging-port=${port}`,`--user-data-dir=${dir}`,'--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-gpu-sandbox','about:blank'],{stdio:'ignore'});
+ const chrome=spawn(chromiumPath(),['--headless=new','--disable-background-timer-throttling','--disable-renderer-backgrounding','--disable-backgrounding-occluded-windows','--no-sandbox',`--remote-debugging-port=${port}`,`--user-data-dir=${dir}`,'--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-gpu-sandbox','about:blank'],{stdio:'ignore'});
  let data; for(let i=0;i<80;i++){try{data=await(await fetch(`http://127.0.0.1:${port}/json/version`)).json();break;}catch{await wait(100);}}
  if(!data)throw Error('Browser did not start');
  const ws=new WebSocket(data.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pending=new Map(),errors=[];

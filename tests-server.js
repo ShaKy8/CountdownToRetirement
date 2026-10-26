@@ -1027,6 +1027,26 @@ async function runAsteroidsTests() {
         });
     });
 }
+async function runIronwingTests() {
+    // A separate server instance keeps this independent of the existing suite's
+    // 100-request rate-limit budget; production limits are unchanged.
+    await stopServer();
+    await startServer();
+    await describe('SERVER TESTS - Ironwing', async () => {
+        for (const [route, type] of [
+            ['/ironwing/', 'text/html'], ['/ironwing/index.html', 'text/html'],
+            ['/ironwing/engine.js', 'text/javascript'], ['/ironwing/app.js', 'text/javascript'],
+            ['/ironwing/render.js', 'text/javascript'], ['/ironwing/audio.js', 'text/javascript'],
+            ['/ironwing/styles.css', 'text/css'], ['/ironwing/favicon.svg', 'image/svg+xml']
+        ]) await test(`Should serve ${route} with strict security headers`, async () => {
+            const { res } = await makeRequest({ hostname: TEST_HOST, port: TEST_PORT, path: route, method: 'GET' });
+            assert.equal(res.statusCode, 200);
+            assert.ok(res.headers['content-type'].startsWith(type));
+            assert.ok(res.headers['content-security-policy'].includes("script-src 'self'"));
+            assert.ok(!res.headers['content-security-policy'].includes('unsafe-eval'));
+        });
+    });
+}
 
 async function runAllTests() {
     console.log(`\n${'='.repeat(60)}`);
@@ -1054,6 +1074,7 @@ async function runAllTests() {
         await runSlingshotTests();
         await runElevatorTests();
         await runAsteroidsTests();
+        await runIronwingTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);

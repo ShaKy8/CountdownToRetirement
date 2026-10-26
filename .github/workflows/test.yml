@@ -45,3 +45,6 @@ jobs:
 
       - name: Run Starfall gameplay and deployment checks
         run: node --test tests/asteroids.test.cjs
+
+      - name: Run Ironwing flight and deployment checks
+        run: node --test tests/ironwing.test.cjs

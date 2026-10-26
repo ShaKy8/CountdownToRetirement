@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests.js && node tests-server.js && node --test tests/postcards-integration.test.cjs tests/elevator.test.cjs tests/asteroids.test.cjs",
+    "test": "node tests.js && node tests-server.js && node --test tests/postcards-integration.test.cjs tests/elevator.test.cjs tests/asteroids.test.cjs tests/ironwing.test.cjs",
     "test:unit": "node tests.js",
     "test:server": "node tests-server.js",
     "test:watch": "nodemon --exec 'npm test' --ext js"
