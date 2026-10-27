@@ -3,14 +3,16 @@
 const frame = document.getElementById('frame'), results = document.getElementById('results');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let passed = 0, failed = 0;
-const check = (ok, name) => { const li = document.createElement('li'); li.className = ok ? 'pass' : 'fail'; li.textContent = `${ok ? 'PASS' : 'FAIL'} ${name}`; results.append(li); if (ok) passed++; else failed++; };
+const check = (ok, name) => { const li = document.createElement('li'); li.className = ok ? 'pass' : 'fail'; li.textContent = `${ok ? 'PASS' : 'FAIL'} ${name}`; if (!ok) { const s = frame.contentWindow.Elevator86App?.snapshot(); li.textContent += ' ' + JSON.stringify({ time:s?.time, paused:s?.paused, score:s?.score, player:s?.player, docs:s?.docs }); } results.append(li); if (ok) passed++; else failed++; };
 const until = async (fn, ms = 3500) => { const end = performance.now() + ms; while (!fn() && performance.now() < end) await wait(16); return fn(); };
 document.getElementById('run').onclick = async () => {
   document.getElementById('run').disabled = true; results.replaceChildren(); passed = failed = 0;
   try {
     let w = frame.contentWindow, d = frame.contentDocument, s;
     const snap = () => w.Elevator86App.snapshot(), key = (code, down = true) => d.dispatchEvent(new w.KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true, cancelable: true }));
-    const hold = async (code, ms) => { key(code); await wait(ms); key(code, false); };
+    // Input duration is measured in game time: a throttled headless iframe
+    // must receive the same number of simulation steps as a visible browser.
+    const hold = async (code, ms) => { const end = snap().time + ms / 1000; key(code); await until(() => snap().time >= end || snap().mode !== 'playing', 10000); key(code, false); };
     const click = id => d.getElementById(id).click();
     const at = (x, floor = 0) => Object.assign(s.player, { x, floor, y: w.Elevator86.floorY(floor), grounded: true, riding: null, vy: 0, invul: 0 });
     check(snap().mode === 'ready' && !d.getElementById('overlay').hidden, 'Ready screen has mission briefing and start action');
@@ -25,13 +27,13 @@ document.getElementById('run').onclick = async () => {
     click('primary'); await wait(60); check(!snap().paused, 'Resume returns to active mission');
     at(98); await hold('KeyE', 700);
     check(snap().docs[0].taken && snap().score === 500, 'Hold USE steals a file and updates score / objective');
-    key('Space'); await wait(150); key('Space', false);
-    check(snap().player.y < w.Elevator86.floorY(0) - 25, 'Jump moves player above bullet height'); await wait(650);
+    key('Space'); await until(() => snap().player.y < w.Elevator86.floorY(0) - 25); key('Space', false);
+    check(snap().player.y < w.Elevator86.floorY(0) - 25, 'Jump moves player above bullet height'); await until(() => snap().player.grounded);
     at(246); key('ArrowDown'); await until(() => snap().player.floor === 1); key('ArrowDown', false);
     check(snap().player.floor === 1 && snap().player.riding === null, 'Real Down input rides and stops on the next floor');
     at(150, 1); s.health = 3; s.bullets = [{x:100,y:s.player.y-24,vx:210,hostile:true,life:2}]; await hold('ArrowDown', 450);
     check(snap().health === 3 && snap().player.crouch, 'Crouching under an enemy shot prevents damage');
-    at(150,1); s.bullets = [{x:120,y:s.player.y-24,vx:210,hostile:true,life:2}]; await wait(250);
+    at(150,1); s.bullets = [{x:120,y:s.player.y-24,vx:210,hostile:true,life:2}]; await until(() => snap().health === 2);
     check(snap().health === 2, 'Standing in the same shot takes one health');
     const scoreBefore = s.score; s.enemies = [{x:250,y:s.player.y,floor:1,dir:-1,speed:0,cool:99,aim:0,alive:true,stun:0,walk:0}]; s.player.dir = 1; await hold('KeyX', 500);
     check(snap().score > scoreBefore && s.kills === 1, 'Fire kills a guard and awards points');
@@ -46,7 +48,7 @@ document.getElementById('run').onclick = async () => {
     check(snap().mode === 'escaped' && d.getElementById('panel-title').textContent === 'CLEAN GETAWAY.', 'Reaching car with every file opens victory screen');
     const victoryScore = s.score; click('primary'); await wait(100);
     check(snap().level === 2 && snap().floors === 9 && snap().score === victoryScore, 'Next mission escalates building and carries the run score');
-    s.enemies=[]; s.spawnClock=1e6; at(150); s.health=1; s.lives=1; s.bullets=[{x:120,y:s.player.y-24,vx:210,hostile:true,life:2}]; await wait(300);
+    s.enemies=[]; s.spawnClock=1e6; at(150); s.health=1; s.lives=1; s.bullets=[{x:120,y:s.player.y-24,vx:210,hostile:true,life:2}]; await until(() => snap().mode === 'gameover');
     check(snap().mode === 'gameover' && d.getElementById('panel-title').textContent === 'BUSTED.', 'Final hit opens loss screen without running behind the dialog');
     click('primary'); await wait(100);
     check(snap().level === 1 && snap().score === 0 && snap().lives === 3, 'Try again fully resets run state');
@@ -62,7 +64,7 @@ document.getElementById('run').onclick = async () => {
     // Synthetic pointers cannot be captured by the browser. Stub capture only
     // in this test realm; CUA separately tests the actual touch UI visually.
     right.setPointerCapture=()=>{}; fire.setPointerCapture=()=>{}; const touchX=s.player.x;
-    pointer(right,'pointerdown',11); pointer(fire,'pointerdown',12); await wait(180);
+    pointer(right,'pointerdown',11); pointer(fire,'pointerdown',12); await until(() => s.player.x > touchX + 10 && s.bullets.length > 0);
     check(s.player.x > touchX + 10 && s.bullets.length>0, 'Two touch pointers can move and fire simultaneously');
     pointer(right,'pointercancel',11);pointer(fire,'pointerup',12);const releasedX=s.player.x;await wait(130);
     check(s.player.x === releasedX && !right.classList.contains('held'), 'Touch cancel/up releases controls without stuck movement');

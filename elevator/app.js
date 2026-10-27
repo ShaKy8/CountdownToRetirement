@@ -19,11 +19,13 @@
   function hidePanel() { overlayMode = null; $('overlay').hidden = true; $('screen').classList.remove('covered'); clearInput(); $('pause').disabled = false; $('restart').disabled = false; $('pause').textContent = 'Pause'; canvas.focus({ preventScroll: true }); }
   function panel(kind) {
     clearInput(); overlayMode = kind; $('overlay').hidden = false; $('intro-steps').hidden = kind !== 'ready'; $('secondary').hidden = kind !== 'restart';
+    const upcoming = E.missionPlan(state.level + 1);
+    const nextBrief = `Next: ${upcoming.floors} floors, ${upcoming.files} files.${upcoming.floors === state.floors ? ' New routes and guard patrols.' : ''}`;
     const data = {
       ready: ['TRANSMISSION 001 / CLASSIFIED', 'NIGHT SHIFT.', 'The building is crawling with agents. Steal every red-door file, ride the lifts down, and reach your getaway car.', 'Begin mission →', '3 lives · unlimited ammo · no downloads'],
       paused: ['TRANSMISSION ON HOLD', 'TAKE A BREATHER.', 'Your mission is safe. Resume when you’re ready.', 'Resume mission →', 'P or Escape to resume'],
       restart: ['NEW ASSIGNMENT', 'START OVER?', 'This resets your current mission, lives, and score. Your best score is saved.', 'Restart mission →', 'Or keep your current run'],
-      escaped: ['TRANSMISSION COMPLETE', 'CLEAN GETAWAY.', `Mission ${state.level} complete. ${state.docs.length} files secured. +${state.bonus || 0} escape bonus. The next tower has more floors and tougher agents.`, 'Next mission →', `Score ${state.score.toLocaleString()} · +1 life and +1 health next mission`],
+      escaped: ['TRANSMISSION COMPLETE', 'CLEAN GETAWAY.', `Mission ${state.level} complete. ${state.docs.length} files secured. +${state.bonus || 0} escape bonus. ${nextBrief}`, 'Next mission →', `Score ${state.score.toLocaleString()} · +1 life and +1 health next mission`],
       gameover: ['SIGNAL LOST / MISSION ENDED', 'BUSTED.', `You secured ${state.totalDocs} files and took down ${state.kills} agents across ${state.level} mission${state.level === 1 ? '' : 's'}. Ready for another run?`, 'Try again →', `Score ${state.score.toLocaleString()} · Best ${best.toLocaleString()}`]
     }[kind];
     $('panel-kicker').textContent = data[0]; $('panel-title').textContent = data[1]; $('panel-copy').textContent = data[2]; $('primary').textContent = data[3]; $('panel-note').textContent = data[4];

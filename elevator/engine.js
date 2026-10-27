@@ -5,32 +5,59 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const W = 768, GAP = 112, TOP = 170, STEP = 1 / 60;
+  const MAX_FLOORS = 20, MAX_FILES = 10;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const floorY = f => TOP + f * GAP;
   function random(seed) { let n = seed >>> 0; return () => { n += 0x6D2B79F5; let t = n; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  // Growth is independent of door placement: 8/4, 9/4, 10/5 ... 20/10.
+  // Ten files keep capped missions bounded. Routes then rotate through four
+  // arrangements, with the first and penultimate floors always represented.
+  function missionPlan(level) {
+    const mission = clamp(Math.floor(Number(level) || 1), 1, Number.MAX_SAFE_INTEGER);
+    const floors = Math.min(MAX_FLOORS, 7 + mission);
+    const files = Math.min(MAX_FILES, 4 + Math.floor((mission - 1) / 2));
+    const variant = mission < 13 ? 0 : (mission - 13) % 4;
+    const documents = Array.from({ length: files }, (_, i) => {
+      let floor = Math.round(i * (floors - 2) / (files - 1));
+      if (variant && i > 0 && i < files - 1 && (i + variant) % 3 === 0) floor++;
+      const side = variant === 3 ? Math.floor(i / 2) % 2 : (i + variant) % 2;
+      return { x: i === 0 || side === 0 ? 98 : 664, floor };
+    });
+    return { floors, files, documents, variant,
+      alarmAt: 150 + (floors - 8) * 10,
+      escapeBudget: 1800 + (floors - 8) * 50 };
+  }
   function createGame(seed = 1986) {
     const s = { seed, rng: random(seed), mode: 'ready', level: 1, score: 0, lives: 3, health: 3, elapsed: 0, kills: 0, totalDocs: 0, chain: 0, chainTime: 0, events: [], bullets: [], particles: [], texts: [], shake: 0 };
     build(s); return s;
   }
   function build(s) {
-    s.floors = 8 + Math.min(4, s.level - 1); s.worldH = floorY(s.floors - 1) + 60;
-    s.time = 0; s.spawnClock = 12; s.bullets = []; s.particles = []; s.texts = []; s.docs = []; s.enemies = []; s.lights = []; s.supplies = [];
+    const plan = missionPlan(s.level);
+    s.floors = plan.floors; s.variant = plan.variant;
+    s.alarmAt = plan.alarmAt; s.escapeBudget = plan.escapeBudget;
+    s.worldH = floorY(s.floors - 1) + 60;
+    s.time = 0; s.spawnClock = 12; s.bullets = []; s.particles = []; s.texts = []; s.docs = plan.documents.map(d => ({ ...d, taken: false, progress: 0 })); s.enemies = []; s.lights = []; s.supplies = [];
     s.player = { x: 115, y: floorY(0), floor: 0, vy: 0, dir: 1, grounded: true, crouch: false, riding: null, invul: 2, fire: 0, hack: 0, walk: 0 };
     s.checkpoint = { x: 115, floor: 0 }; s.respawn = 0;
     s.lifts = [246, 514].map((x, i) => ({ x, y: floorY(i ? 3 : 0), floor: i ? 3 : 0, target: i ? 3 : 0, moving: false, dwell: 0, occupied: false }));
     for (let f = 0; f < s.floors; f++) {
-      if (f % 2 === 0 && f < s.floors - 1) s.docs.push({ x: (f / 2) % 2 ? 664 : 98, floor: f, taken: false, progress: 0 });
       if (f === 3 || f === s.floors - 2) s.supplies.push({ x: 370, floor: f, taken: false });
       s.lights.push({ x: f % 2 ? 610 : 366, y: floorY(f) - 69, floor: f, falling: false, broken: false, vy: 0 });
-      if (f > 0) addEnemy(s, f, f % 2 ? 650 : 400);
-      if (f > 2 && s.level > 1) addEnemy(s, f, 115);
+      const post = f % 2 ? 650 : 400;
+      if (f > 0) addEnemy(s, f, s.variant % 2 ? W - post : post);
+      if (f > 2 && s.level > 1) addEnemy(s, f, s.variant % 2 ? W - 115 : 115);
     }
     s.events.push({ type: 'level', level: s.level });
   }
   function start(s) { s.mode = 'playing'; }
   function next(s) { if (s.mode !== 'escaped') return; s.level++; s.health = Math.min(3, s.health + 1); s.lives = Math.min(5, s.lives + 1); s.chain = 0; build(s); s.mode = 'playing'; }
   function addEnemy(s, floor, x) {
-    s.enemies.push({ x, y: floorY(floor), floor, dir: x > 384 ? -1 : 1, speed: 24 + Math.min(s.level * 4, 24) + s.rng() * 12, cool: 1.4 + s.rng() * 1.8, aim: 0, alive: true, stun: 0, walk: 0, elite: s.level > 2 && s.rng() > .65 });
+    // Capped missions alternate patrol routes and stationary sentry posts.
+    // Shot speed, reaction time and reinforcement count retain their ceilings.
+    const sentry = s.variant >= 2 && floor % (s.variant === 2 ? 2 : 3) === 0;
+    const speed = 24 + Math.min(s.level * 4, 24) + s.rng() * 12;
+    s.enemies.push({ x, y: floorY(floor), floor, sentry,
+      dir: (x > 384 ? -1 : 1) * (s.variant === 1 ? -1 : 1), speed: sentry ? 0 : speed, cool: 1.4 + s.rng() * 1.8, aim: 0, alive: true, stun: 0, walk: 0, elite: s.level > 2 && s.rng() > .65 });
   }
   function say(s, x, y, text, color = '#f5ce72') { s.texts.push({ x, y, text, color, life: 1.2 }); }
   function burst(s, x, y, color, count = 10) { for (let i = 0; i < count; i++) s.particles.push({ x, y, vx: (s.rng() - .5) * 140, vy: -s.rng() * 130, life: .25 + s.rng() * .5, color }); }
@@ -91,7 +118,7 @@
       }
       for (const item of s.supplies) if (!item.taken && item.floor === p.floor && Math.abs(item.x - p.x) < 23) { item.taken = true; s.health = Math.min(3, s.health + 1); score(s, 100, item.x, p.y - 50); say(s, item.x, p.y - 70, 'MEDKIT', '#70efdc'); s.events.push({ type: 'heal' }); }
       if (p.floor === s.floors - 1 && p.x > 650 && p.grounded && s.docs.every(d => d.taken)) {
-        s.bonus = Math.max(0, 1800 - Math.floor(s.time) * 5) + s.health * 200; s.score += s.bonus; s.mode = 'escaped'; s.events.push({ type: 'escaped' }); return;
+        s.bonus = Math.max(0, s.escapeBudget - Math.floor(s.time) * 5) + s.health * 200; s.score += s.bonus; s.mode = 'escaped'; s.events.push({ type: 'escaped' }); return;
       }
     }
     for (let i = 0; i < s.lifts.length; i++) {
@@ -115,7 +142,7 @@
         if (e.aim <= 0) { shot(s, e.x + e.dir * 18, e.y - 24, e.dir, true, e.elite); e.cool = Math.max(.9, 2.3 - s.level * .13) + s.rng() * .7; }
       } else if (sees && e.cool <= 0) { e.dir = p.x > e.x ? 1 : -1; e.aim = e.elite ? .4 : .65; }
       else {
-        e.x += e.dir * e.speed * (s.time > 150 ? 1.3 : 1) * dt; e.walk += dt * 7;
+        e.x += e.dir * e.speed * (s.time > s.alarmAt ? 1.3 : 1) * dt; if (e.speed > 0) e.walk += dt * 7;
         if (e.x < 48 || e.x > 720) { e.x = clamp(e.x, 48, 720); e.dir *= -1; }
       }
       if (sees && Math.abs(e.x - p.x) < 19 && Math.abs(e.y - p.y) < 25) damage(s);
@@ -146,5 +173,5 @@
     s.particles = s.particles.filter(a => a.life > 0);
     for (const t of s.texts) { t.y -= 22 * dt; t.life -= dt; } s.texts = s.texts.filter(t => t.life > 0);
   }
-  return { W, GAP, TOP, STEP, floorY, clamp, random, createGame, start, next, update };
+  return { W, GAP, TOP, STEP, MAX_FLOORS, MAX_FILES, missionPlan, floorY, clamp, random, createGame, start, next, update };
 });

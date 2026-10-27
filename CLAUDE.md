@@ -2057,3 +2057,18 @@ exercise normal input and read-only telemetry: `scripts/ironwing-audit.mjs` and
 mutation/time-acceleration hooks in the game. Add future game assets to the explicit
 S3 include list and the stamp checks. Homepage now has thirteen links in six groups;
 run `scripts/home-audit.mjs` for further link changes.
+
+## Elevator progression — October 27, 2026
+
+`missionPlan(level)` separates tower height from required file count: missions
+start at 8 floors / 4 files, add one floor per mission and one file every other
+mission, and stop at 20 / 10 on mission 13. Later missions rotate four document
+routes and guard/sentry arrangements. A file always remains just above the exit.
+Alarm/escape-time budgets scale with height; combat ceilings and saves are unchanged.
+The first mission, other games and Games/Music navigation are preserved.
+
+Run `node scripts/elevator-audit.mjs http://localhost:8137 /tmp/elevator-qa`
+for normal-input play plus isolated local progression, tall-camera and touch
+fixtures. Use `--live` for a fixture-free public smoke test. Do not publish test
+state hooks or change the existing storage keys. See `docs/elevator-86.md` for
+the current rollback reference; the pre-October-26 rollback predates other games.

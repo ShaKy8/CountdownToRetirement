@@ -110,7 +110,7 @@
       // Screen furniture stays legible while the world scrolls.
       this.rect(9, 9, 121, 25, '#0b1726dc'); this.text(`FILES ${s.docs.filter(d => d.taken).length} / ${s.docs.length}`, 18, 26, 13, C.gold);
       if (s.chain > 1 && s.chainTime > 0) this.text(`CHAIN ×${s.chain}`, this.w - 12, 27, 12, C.mint, 'right');
-      else this.text(s.time > 150 ? 'SECURITY ALERT' : 'HELIOS TOWER', this.w - 12, 26, 10, s.time > 150 ? C.red : '#afc4bf', 'right');
+      else this.text(s.time > s.alarmAt ? 'SECURITY ALERT' : 'HELIOS TOWER', this.w - 12, 26, 10, s.time > s.alarmAt ? C.red : '#afc4bf', 'right');
       if (s.respawn > 0) { this.rect(this.w / 2 - 100, this.h / 2 - 25, 200, 50, '#101f2beb'); this.text('REDEPLOYING…', this.w / 2, this.h / 2 + 5, 16, C.gold, 'center'); }
     }
     agent(x, y, dir, player, walk, crouch, firing, stunned, airborne = false) {

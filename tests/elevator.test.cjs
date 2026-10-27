@@ -30,7 +30,7 @@ test('death spends one life, respawns at last document, and preserves files', ()
 test('last life shows gameover without a negative life or score', () => { const s = game(); place(s, 150); s.health = 1; s.lives = 1; s.bullets = [{ x: 130, y: s.player.y - 24, vx: 210, hostile: true, life: 2 }]; run(s, {}, 1); assert.equal(s.mode, 'gameover'); assert.equal(s.lives, 0); assert.equal(s.health, 0); });
 test('escape is locked until every file has been secured', () => { const s = game(); place(s, 690, 7); run(s, {}, .1); assert.equal(s.mode, 'playing'); s.docs.forEach(d => d.taken = true); run(s, {}, .1); assert.equal(s.mode, 'escaped'); assert.ok(s.bonus > 0); const score = s.score; run(s, {}, 5); assert.equal(s.score, score); });
 test('next mission increases floors and guards, preserves score, and replenishes life/health', () => { const s = game(); s.mode = 'escaped'; s.score = 4200; s.health = 2; E.next(s); assert.equal(s.level, 2); assert.equal(s.floors, 9); assert.equal(s.score, 4200); assert.equal(s.lives, 4); assert.equal(s.health, 3); assert.equal(s.mode, 'playing'); assert.ok(s.enemies.length > 8); assert.ok(s.docs.every(d => !d.taken)); });
-test('twenty missions remain bounded; enemies and projectiles do not grow without limit', () => { const s = game(); for (let i = 0; i < 20; i++) { s.mode = 'escaped'; E.next(s); } assert.equal(s.floors, 12); assert.equal(s.lives, 5); run(s, { fire: true }, 30); assert.ok(s.enemies.length <= s.floors * 3); assert.ok(s.bullets.length < 50); assert.ok(s.particles.length < 250); });
+test('twenty missions remain bounded; enemies and projectiles do not grow without limit', () => { const s = game(); for (let i = 0; i < 20; i++) { s.mode = 'escaped'; E.next(s); } assert.equal(s.floors, 20); assert.equal(s.lives, 5); run(s, { fire: true }, 30); assert.ok(s.enemies.length <= s.floors * 3); assert.ok(s.bullets.length < 50); assert.ok(s.particles.length < 250); });
 test('entire mission is traversable using only movement, lift and use inputs', () => {
   const s = game();
   const walk = x => { let limit = 600; while (s.mode === 'playing' && Math.abs(s.player.x - x) > 2 && limit--) E.update(s, { left: s.player.x > x, right: s.player.x < x }); assert.ok(limit > 0); };
@@ -44,4 +44,91 @@ test('every game asset is explicitly deployed, stamped and discoverable', () => 
   assert.ok(deploy.includes("- 'elevator/**'"));
   for (const file of ['index.html', '404.html', 'sitemap.xml']) assert.ok(fs.readFileSync(path.join(root, file), 'utf8').includes('/elevator/'));
   assert.ok(fs.readFileSync(path.join(root, 'scripts/stamp-assets.mjs'), 'utf8').includes("'elevator/index.html'"));
+});
+
+function mission(level, quiet = true) {
+  const s = game(false);
+  if (level > 1) { s.level = level - 1; s.mode = 'escaped'; E.next(s); }
+  if (quiet) { s.enemies = []; s.spawnClock = 1e6; }
+  return s;
+}
+
+test('approved pacing: one floor each mission, one file every other mission, then 20/10 cap', () => {
+  const expected = [[8,4],[9,4],[10,5],[11,5],[12,6],[13,6],[14,7],[15,7],
+    [16,8],[17,8],[18,9],[19,9],[20,10],[20,10],[20,10],[20,10]];
+  const s = game();
+  expected.forEach(([floors, files], i) => {
+    assert.equal(s.level, i + 1);
+    assert.equal(s.floors, floors, `mission ${i + 1} height`);
+    assert.equal(s.docs.length, files, `mission ${i + 1} required files`);
+    s.mode = 'escaped'; E.next(s);
+  });
+});
+test('all missions distribute unique reachable documents from roof through the lower floors', () => {
+  for (const level of [...Array.from({length:60}, (_,i)=>i+1), 999, 1000000, Number.MAX_SAFE_INTEGER]) {
+    const s = mission(level);
+    assert.equal(s.docs[0].floor, 0);
+    assert.equal(s.docs[0].x, 98, 'familiar first document stays beside spawn');
+    assert.equal(s.docs.at(-1).floor, s.floors - 2, `mission ${level} has a file just above getaway`);
+    assert.equal(new Set(s.docs.map(d => d.floor)).size, s.docs.length);
+    assert.ok(s.docs.every(d => d.floor >= 0 && d.floor < s.floors - 1 && [98,664].includes(d.x)));
+    for (let i=1;i<s.docs.length;i++) assert.ok(s.docs[i].floor-s.docs[i-1].floor <= 3, 'no empty stretch longer than two floors');
+    assert.equal(s.worldH, E.floorY(s.floors-1)+60);
+  }
+});
+test('capped missions rotate file routes, guard posts and sentry behavior without more height or quotas', () => {
+  const capped = [13,14,15,16].map(level=>mission(level,false));
+  assert.equal(new Set(capped.map(s=>JSON.stringify(s.docs.map(d=>[d.floor,d.x])))).size, 4);
+  assert.notDeepEqual(capped[0].enemies.map(e=>[e.x,e.dir]),capped[1].enemies.map(e=>[e.x,e.dir]));
+  assert.ok(capped[2].enemies.some(e=>e.sentry));
+  assert.ok(capped[2].enemies.some(e=>!e.sentry));
+  assert.notDeepEqual(capped[2].enemies.filter(e=>e.sentry).map(e=>e.floor),capped[3].enemies.filter(e=>e.sentry).map(e=>e.floor));
+  for (const s of capped) { assert.equal(s.floors,20); assert.equal(s.docs.length,10); assert.equal(s.enemies.length,36); }
+});
+test('sentries hold their post and telegraph shots; patrollers keep moving', () => {
+  const s=mission(15,false);s.spawnClock=1e6;
+  const sentry=s.enemies.find(e=>e.sentry), patrol=s.enemies.find(e=>!e.sentry);
+  const sx=sentry.x, px=patrol.x;run(s,{},.5);
+  assert.equal(sentry.x,sx);assert.equal(sentry.walk,0);assert.notEqual(patrol.x,px);
+  place(s,sentry.x-80,sentry.floor);sentry.cool=0;run(s,{},.05);
+  assert.ok(sentry.aim>0);assert.equal(sentry.x,sx);
+});
+test('very high missions retain bounded difficulty, effects and entity counts', () => {
+  const s=mission(1000000,false);s.player.invul=1e6;
+  assert.equal(s.floors,20);assert.equal(s.docs.length,10);
+  assert.ok(s.enemies.every(e=>Number.isFinite(e.speed)&&e.speed<=60));
+  run(s,{fire:true},60);
+  assert.ok(s.enemies.length<=57);assert.ok(s.bullets.length<50);assert.ok(s.particles.length<250);
+  assert.ok(s.bullets.every(b=>Math.abs(b.vx)<=560));
+  assert.ok(s.spawnClock<=8);assert.ok(Number.isFinite(s.player.y));
+});
+test('both elevators traverse all twenty floors in both directions and stop at boundaries', () => {
+  for (const lift of [0,1]) {
+    const s=mission(13);place(s,s.lifts[lift].x,0);
+    run(s,{down:true},26);assert.equal(s.player.floor,19);assert.equal(s.player.y,E.floorY(19));assert.equal(s.player.riding,null);
+    run(s,{up:true},24);assert.equal(s.player.floor,0);assert.equal(s.player.y,E.floorY(0));assert.equal(s.player.riding,null);
+  }
+});
+test('twenty-floor checkpoint deaths preserve the lower-floor objective and cleanly respawn', () => {
+  const s=mission(16), file=s.docs.at(-1);place(s,file.x,file.floor);run(s,{use:true},.7);
+  assert.ok(file.taken);place(s,500,19);s.health=1;
+  s.bullets=[{x:485,y:s.player.y-24,vx:210,hostile:true,life:2}];run(s,{},2);
+  assert.equal(s.lives,3);assert.equal(s.player.floor,18);assert.equal(s.player.x,file.x);assert.equal(s.health,3);assert.ok(file.taken);
+});
+test('expanded building gets proportionate alarm and escape-time budgets', () => {
+  const first=mission(1), capped=mission(13);
+  assert.equal(first.alarmAt,150);assert.equal(first.escapeBudget,1800);
+  assert.equal(capped.alarmAt,270);assert.equal(capped.escapeBudget,2400);
+  const later=mission(1000000);assert.equal(later.alarmAt,capped.alarmAt);assert.equal(later.escapeBudget,capped.escapeBudget);
+  capped.time=200;capped.docs.forEach(d=>d.taken=true);place(capped,690,19);E.update(capped);
+  assert.equal(capped.mode,'escaped');assert.equal(capped.bonus,2000);
+});
+test('growing and capped layouts can be fully cleared using only walking, lifts and collection', () => {
+  for (const level of [2,3,12,13,14,15,16,1000000]) {
+    const s=mission(level);
+    const walk=x=>{let limit=600;while(s.mode==='playing'&&Math.abs(s.player.x-x)>2&&limit--)E.update(s,{left:s.player.x>x,right:s.player.x<x});assert.ok(limit>0,`mission ${level} walk`);};
+    const ride=f=>{walk(246);let limit=1800;while((s.player.floor!==f||s.player.riding!==null)&&limit--)E.update(s,{down:s.player.floor<f,up:s.player.floor>f});assert.ok(limit>0,`mission ${level} lift`);};
+    for(const file of s.docs){ride(file.floor);walk(file.x);run(s,{use:true},.7);assert.ok(file.taken);}
+    ride(s.floors-1);walk(665);assert.equal(s.mode,'escaped');assert.equal(s.totalDocs,s.docs.length);
+  }
 });
