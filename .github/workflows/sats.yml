@@ -4,9 +4,10 @@ name: Satellite elements
 # layer and publishes them to s3://branyontech.com/sats/. CelesTrak updates
 # every 2 hours and answers a repeat download with 403 (and firewalls an IP
 # that keeps asking), so this is the ONLY thing that talks to it: visitors read
-# the snapshot from our own origin. scripts/fetch-sats.mjs never retries and
-# stops at the first non-200. A failed run leaves the previous snapshot in
-# place; the console shows how old the elements are.
+# the snapshot from our own origin. Only confirmed TCP connect timeouts are
+# retried (three tries total); all HTTP non-200s, including redirects, stop.
+# A shared S3 cooldown also covers delayed/manual/failed/partial runs.
+# A failed run leaves the previous snapshot; the console shows its age.
 
 on:
   schedule:
@@ -28,20 +29,35 @@ env:
 jobs:
   sats:
     name: CelesTrak -> S3
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20 # Must match JOB_BUDGET_MS in scripts/sats-cooldown.mjs.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
 
       - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Reserve CelesTrak update window
+        id: cooldown
+        run: node scripts/sats-cooldown.mjs reserve
+
       - name: Fetch elements
+        if: steps.cooldown.outputs.ready == 'true'
         run: node scripts/fetch-sats.mjs "$RUNNER_TEMP/sats"
+
+      - name: Record cooldown even after a partial or failed fetch
+        if: always() && steps.cooldown.outputs.ready == 'true'
+        run: node scripts/sats-cooldown.mjs finish
 
       # Files are gzipped by the script, so say so; S3 does not compress.
       - name: Publish
+        if: success() && steps.cooldown.outputs.ready == 'true'
         run: |
           aws s3 cp "$RUNNER_TEMP/sats/" "s3://${S3_BUCKET}/sats/" --recursive \
             --content-type 'application/json' --content-encoding gzip \
