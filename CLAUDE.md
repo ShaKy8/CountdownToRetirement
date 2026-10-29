@@ -1327,20 +1327,19 @@ ISS came out 0.7 km off.
   `scripts/fetch-sats.mjs` every 2 hours, fetches each group once, **stops at
   the first non-200 and never asks again after any answer**, refuses a group
   that is too small to believe, and only then uploads gzipped JSON to
-  `s3://branyontech.com/sats/`. **The one thing it tries again is a connect
-  timeout** (`getOnce`, error code `UND_ERR_CONNECT_TIMEOUT`): up to three
-  tries in all, 30 s apart. No connection was made, so CelesTrak was never
-  asked and nothing was downloaded; an HTTP status, even a 403, or any other
-  error still stops the run at once. Added October 23, 2026, after four
-  scheduled runs in a row (October 22 17:21 UTC to October 23 07:43 UTC)
-  failed; the one log seen (pasted by Kyle) was a `ConnectTimeoutError`
-  reaching `celestrak.org:443` from the GitHub runner, the other three logs
-  were not readable, and the same URL answered 200 in 0.26 s from this machine.
-  The run after the change (13:37 UTC) succeeded; **whether the retry has ever
-  fired in production is unknown** (the run logs were not readable from here),
-  so it is proven by its unit test only.
-  A failed run leaves the last snapshot; the panel shows the elements' age.
-  `deploy.yml` never touches `/sats/` (its only `--delete` sync is `weather/`).
+  `s3://branyontech.com/sats/`. Only confirmed TCP connection timeouts are
+  retried, up to three tries 30 seconds apart. The transport gives connections
+  30 seconds and complete requests 60 seconds, logs DNS/TCP/TLS phases, and
+  never follows redirects. DNS/TLS/body failures and every non-200 stop.
+  The October 28 run exhausted all three attempts; the following run succeeded
+  on the same code and Ubuntu image. The historical logs do not prove the
+  upstream cause. See `docs/satellite-fetch.md` for run links and diagnosis.
+  A durable S3 cooldown covers scheduled/manual/partial/failed runs. Use the
+  workflow (not the fetch script directly) to preserve that shared guard.
+  Closely spaced runs skip; all five downloads must validate before writing
+  the local snapshot, and Publish requires success. Existing S3 data stays
+  on failure; the panel shows the elements' age. `deploy.yml` never touches
+  `/sats/` (its only `--delete` sync is `weather/`).
 - **OMM JSON, never TLE.** Catalogue numbers have passed 99999 (SOYUZ-MS 29 is
   100057 in the stations group) and a two-line set cannot hold them.
 - **SGP4 is vendored satellite.js 7.1.0** (MIT, `weather/js/lib/satellite/`, with

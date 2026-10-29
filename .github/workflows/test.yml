@@ -34,6 +34,9 @@ jobs:
       - name: Run client-side tests
         run: node tests.js
 
+      - name: Test satellite fetching offline
+        run: node --test tests/fetch-sats.test.mjs
+
       - name: Run server integration tests
         run: node tests-server.js
 

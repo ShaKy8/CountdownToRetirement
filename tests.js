@@ -5376,9 +5376,9 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
 
     test('Should fetch CelesTrak once per cycle and stop at the first non-200', () => {
         const code = strip(fetcher);
-        assert.ok(/status !== 200[\s\S]*process\.exit\(1\)/.test(code), 'any non-200 stops the run');
+        assert.ok(/status !== 200[\s\S]*throw new Error/.test(code), 'any non-200 stops the run');
         assert.ok(!/\bwhile\b|\battempt|\bretry\(/.test(code), 'no retry loop');
-        assert.ok(/getOnce\(url/.test(code) && !/[^e]fetch\(url/.test(code), 'the request goes through getOnce');
+        assert.ok(/get = getOnce/.test(code) && !/[^e]fetch\(url/.test(code), 'the request goes through getOnce');
         assert.ok(/FORMAT=json/.test(code));
         assert.ok(/cron: '\d+ \*\/2 \* \* \*'/.test(workflow), 'every two hours, matching CelesTrak updates');
         assert.ok(!/continue-on-error/.test(workflow), 'a failed fetch must skip the upload');
@@ -5389,7 +5389,7 @@ describe('WEATHER CONSOLE - SATELLITES', () => {
         // That asked CelesTrak nothing; a status or any other error must still stop.
         const out = spawnSync(process.execPath, ['--input-type=module', '-e', `
             const m = await import(${JSON.stringify(path.join(__dirname, 'scripts', 'fetch-sats.mjs'))});
-            const timeout = () => Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } });
+            const timeout = () => Object.assign(new Error('TCP connection timed out'), { code: 'SAT_CONNECT_TIMEOUT', retryableConnectTimeout: true });
             const reset = () => Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } });
             const run = async (script) => {
                 let calls = 0, pauses = 0, got;
