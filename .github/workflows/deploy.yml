@@ -34,6 +34,7 @@ on:
       - 'fish-hatchery/**'
       - 'year/**'
       - 'guitar/**'
+      - 'mustang-micro-plus/**'
       - 'shared/**'
       - 'weather/**'
       - 'lambda/**'
@@ -108,6 +109,7 @@ jobs:
             --include 'guitar/index.html' --include 'guitar/pentatonic/index.html' \
             --include 'guitar/modes/index.html' --include 'guitar/chord-modes/index.html' \
             --include 'guitar/caged/index.html' \
+            --include 'mustang-micro-plus/index.html' \
             --cache-control 'public, max-age=300'
 
       - name: Sync assets
@@ -142,6 +144,7 @@ jobs:
             --include 'fish-hatchery/app.js' --include 'fish-hatchery/styles.css' \
             --include 'fish-hatchery/favicon.svg' --include 'fish-hatchery/assets/*.webp' \
             --include 'guitar/favicon.svg' \
+            --include 'mustang-micro-plus/app.js' --include 'mustang-micro-plus/styles.css' \
             --include 'guitar/lib/theory.js' --include 'guitar/lib/board.js' \
             --include 'guitar/lib/synth.js' --include 'guitar/lib/guitar.css' \
             --include 'guitar/pentatonic/app.js' --include 'guitar/modes/app.js' \

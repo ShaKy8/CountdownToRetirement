@@ -76,4 +76,9 @@
     <priority>0.6</priority>
   </url>
   <url><loc>https://branyontech.com/ironwing/</loc></url>
+  <url>
+    <loc>https://branyontech.com/mustang-micro-plus/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
 </urlset>

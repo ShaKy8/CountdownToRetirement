@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mustang Micro Plus - Factory Presets</title>
+<meta name="description" content="Browse 70 Fender Mustang Micro Plus factory presets, filter by genre, and save favorites and notes on this device.">
+<link rel="icon" type="image/svg+xml" href="/guitar/favicon.svg">
+<link rel="stylesheet" href="styles.css?v=ff3cbe29a6">
+</head>
+<body>
+<header>
+  <a class="back-link" href="/">&larr; BranyonTech</a>
+  <h1>Fender Mustang Micro <span class="plus">Plus</span></h1>
+  <div class="sub">All 70 factory presets &mdash; tap a star to mark favorites, add notes, everything saves automatically on this device.</div>
+  <div class="controls">
+    <input id="search" type="search" aria-label="Search presets" placeholder="Search presets..." autocomplete="off">
+    <div class="chips" id="genreChips"></div>
+    <button class="chip" id="favToggle">&#9733; Favorites</button>
+    <span class="count" id="count"></span>
+  </div>
+</header>
+<main>
+  <table>
+    <thead>
+      <tr><th style="text-align:center">#</th><th>Genre</th><th>Preset</th><th style="text-align:center">Fav</th><th>Notes</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="foot">
+    Presets are listed in unit order; your display may number them from 0 instead of 1 &mdash; names and order are the same.
+    Slots 71&ndash;100 are empty for your own presets. Genre labels are grouped for quick scanning, not Fender&rsquo;s official categories.
+  </div>
+</main>
+<script src="app.js?v=b84815f14c"></script>
+</body>
+</html>
