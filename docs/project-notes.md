@@ -1,0 +1,2099 @@
+# Project notes: every decision, and why
+
+This was `CLAUDE.md` until November 12, 2026, moved here unchanged when
+`CLAUDE.md` became the short rulebook. It is the long record: what each
+feature is, what was measured, what broke and why each odd-looking choice was
+made. **Do not read it top to bottom.** `CLAUDE.md` has a table that says which
+heading to read before touching each area; find the heading with
+`grep -n '^## \|^### ' docs/project-notes.md` and read that section.
+
+Where this file and `CLAUDE.md` disagree, `CLAUDE.md` is newer. Where either
+disagrees with the code or the tests, the code and the tests are right: fix
+the note. When you change a feature, update its section here in the same
+commit.
+
+Known stale spots in here, as of November 12, 2026:
+
+- **The homepage's counts.** "Landing Page (/)" speaks of eight and then ten
+  links in five groups with a Play card. The page now has fourteen links in
+  six groups (Games and Music replaced Play); the last four sections of this
+  file and `docs/mustang-micro-plus.md` have the current state.
+- **The test counts** under "Development Commands" (482 and 65). `tests.js`
+  has 617 tests and `tests-server.js` 90.
+- **The folder tree**: its root name, and it has no `guitar/`,
+  `postcards-in-sound/`, `elevator/`, `asteroids/`, `ironwing/` or
+  `mustang-micro-plus/`.
+- **"All thirteen gates"**: there are seventeen `scripts/*-audit.mjs` now.
+- **"22 WebP photographs"** in the Fish Hatchery section:
+  `fish-hatchery/assets/` holds 34.
+- **"`pull.rebase` is set here"**: it is not set on every machine.
+
+## Project Overview
+
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, eight links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
+
+## Tech Stack
+
+- **Frontend:** Vanilla JavaScript, HTML5, CSS3
+- **Backend:** Node.js HTTP server (for local development)
+- **Hosting:** AWS S3 + CloudFront (production)
+- **Testing:** Custom test framework using Node.js built-in modules (no external dependencies). The one vendored library is satellite.js's SGP4, under `weather/js/lib/satellite/`
+
+## Development Commands
+
+```bash
+# Serve the site the way production does — static files plus the weather API
+# routed to the Lambda handler, so /weather/ can be exercised from its real
+# subpath. This is what catches absolute-path bugs before they ship.
+node scripts/dev-server.mjs        # http://localhost:8000
+
+# Re-copy the weather console after changing it in the Weather repo. Pass the
+# source: the script's default (../../Weather/public) does not exist on this
+# machine (see Weather console)
+./scripts/sync-weather.sh ~/Projects/Weather/public
+
+# Original static server (site + countdown; sets the security headers)
+node server.js
+
+# Run client-side tests (482 tests)
+node tests.js
+
+# After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
+# refresh the ?v= content stamps in those pages (tests.js fails until you do)
+node scripts/stamp-assets.mjs
+
+# Run server integration tests (65 tests)
+# Note: Stop any running server first, tests start their own -- or, where
+# port 8000 belongs to the systemd service, run them on another port:
+PORT=8137 node tests-server.js
+```
+
+## Deployment
+
+### Production (AWS)
+- **S3 Bucket:** `branyontech.com`
+- **CloudFront Distribution:** `E1MBTRO86GIH7E`
+- **URL:** https://branyontech.com
+- **Countdown URL:** https://branyontech.com/countdown/index.html
+- **Game URL:** https://branyontech.com/game/
+- **Slingshot URL:** https://branyontech.com/slingshot/
+
+**Deploys run from `.github/workflows/deploy.yml` on every push to `main`**
+— bake the homepage counts, stamp the assets, sync the static site to S3 with
+an explicit `--include` list, sync `weather/`, update the Lambda, invalidate
+CloudFront. That workflow is the source of truth for what ships, and tests
+make its lists agree with the pages; a hand-written copy of the list here
+drifted (SLINGSHOT's files listed twice, the homepage script, the fish
+hatchery and ONE PUTT's audio missing) and was removed. To deploy by hand,
+run the workflow's steps rather than reconstructing them.
+
+### Local Server (Systemd)
+```bash
+# Install systemd service
+sudo cp countdown-retirement.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable countdown-retirement
+sudo systemctl start countdown-retirement
+
+# Check status
+sudo systemctl status countdown-retirement
+```
+
+## Project Structure
+
+```
+CountdownToRetirement/
+├── index.html              # One-screen personal landing page (one script: home.js)
+├── home.js                 # The sky right now: time of day + the visitor's weather
+├── styles.css              # Landing page styles (warm cream, plum text, coral accent)
+├── favicon.svg             # Professional "BT" monogram favicon
+├── weather/                # ATMOS//NET console (generated — scripts/sync-weather.sh)
+├── lambda/index.mjs        # Weather API, derived from ../Weather/server.mjs
+├── scripts/                # dev server, sync-weather.sh, bake-home.mjs, stamp-assets.mjs,
+│                           #   the *-audit.mjs gates, CloudFront scripts
+├── docs/aws-setup.md       # One-time IAM / Lambda / CloudFront setup
+├── 404.html  robots.txt  sitemap.xml
+├── server.js               # Node.js HTTP server with security headers
+├── countdown/              # Retirement clock (easter egg)
+│   ├── index.html          # Dual-mode page (countdown / count-up) with back link
+│   ├── calc.js             # Pure date math, shared by the page and tests.js
+│   ├── script.js           # DOM rendering, mode switching, celebration
+│   ├── stats.json          # Personal counters + the trip and concert lists (edit + push)
+│   ├── journal.js          # Pure: what has happened, what is coming, miles, the year
+│   ├── extras.js           # Coming up, Places, the bookshelf (a module)
+│   ├── places.js           # The flight-arc map (shared with /year/)
+│   ├── journal.css         # Their styles (shared with /year/)
+│   ├── land.json           # Natural Earth 1:110m coastline (scripts/make-land.mjs)
+│   ├── styles.css          # Night theme (countdown) + dawn theme (count-up)
+│   └── favicon.svg         # Beach/sunset themed favicon
+├── game/                   # ONE PUTT - the daily putting game
+│   ├── index.html          # Board, HUD, aim/power readouts, result card
+│   ├── putt.js             # Pure rules: seeding, holes, physics, wind, state,
+│   │                       #   the ace-line search, cell packing
+│   ├── script.js           # Canvas, input, weather fetch, localStorage, the feel
+│   ├── audio.js            # Web Audio synthesis - NO audio files
+│   ├── styles.css          # Console palette, borrowed from weather/css/core.css
+│   └── favicon.svg
+├── shared/daily.js         # Seeding, API sampling, storage - shared by the games
+├── year/                   # Year in Review: index.html, year.js, styles.css, favicon.svg
+├── slingshot/              # SLINGSHOT - a daily orbital puzzle
+│   ├── index.html          # One canvas, HUD, result card
+│   ├── orbit.js            # Pure rules: level generation + validation, gravity,
+│   │                       #   flight, par, scoring, share, storage schema
+│   ├── script.js           # Canvas, aiming, ghost trails, localStorage
+│   ├── audio.js            # Web Audio synthesis - NO audio files, see below
+│   ├── styles.css
+│   └── favicon.svg
+├── tests.js                # Client-side unit tests (482 tests)
+├── tests-server.js         # Server integration tests (65 tests)
+├── countdown-retirement.service  # Systemd service file
+└── .github/workflows/      # GitHub Actions for CI/CD
+    ├── deploy.yml          # Auto-deploy on push to main
+    └── test.yml            # Run tests on PRs
+```
+
+## Key Features
+
+### Landing Page (/)
+- **Content:** "Kyle Shaver", the tagline "Retired technologist. Since February: N trips, N concerts, N books, N things built with AI. Consulting by referral." — the numbers are counted from `countdown/stats.json` at build time (see below), so read them off the live page, not this file — and eight text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, the year in review, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
+- **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, and exactly one script: `home.js`, the sky right now.
+- **The sky right now.** `home.js` makes the page's colours follow the
+  visitor's local time of day — the favicon's navy at night, the clock's
+  dawn at sunrise, the cream the page always had by mid-morning, gold and
+  dusk in the evening, the glow at the top edge crossing left to right as
+  the sun. The device's clock sets the time of day; since September 28, 2026
+  the visitor's weather sets what that sky is doing (below) — still no
+  permission prompt: the location is the CDN's, and a failed request leaves
+  the clock's sky. `node scripts/home-audit.mjs` is the gate. What is
+  load-bearing:
+  - **Sky and ink are separate.** The sky interpolates by the minute; the
+    ink (text, muted, accent) is a function of the sky's *luminance*, never
+    the hour. Interpolating plum text toward cream text across dusk passes
+    through a band where nothing reads — at the midpoint text and sky are
+    both grey. So the ink flips polarity once at dawn and once at dusk, on a
+    deliberately flat "blue hour" sky, in near-pure black or white; `FLIP`
+    is the one luminance where both clear 4.5:1.
+  - **Every minute is checked, not sampled.** `apply()` floors to the
+    minute, so the 1,440 palettes are every state the page can paint, and a
+    test computes text 4.5:1, muted 4.5:1, hover 4.5:1 and underline 3:1 for
+    all of them, against the darkest and brightest pixel of the gradient
+    *with its glow*, bounded per channel at the corners. That census is why
+    the coral deepened from `#e07a5f` to `#bd5c43`: the original underline
+    was 2.7:1 on plain cream and would have failed on day one.
+  - **Nothing transitions.** A fade through the flip is seconds of grey on
+    grey, the exact state the census forbids. One discrete step a minute.
+  - **The script stands aside for `prefers-contrast: more` and
+    `forced-colors`**, and undoes itself if the preference changes
+    mid-session: inline custom properties on `<html>` beat the stylesheet's
+    `@media :root` override, so setting them at all would break the
+    high-contrast page. The gate emulates the preference and checks that
+    `<html>` carries no inline `--bg`.
+  - **It blocks in `<head>`, after the stylesheet.** Chromium runs it only
+    once the stylesheet is in, so the vars are set before the body paints;
+    `defer` would paint cream and then flip. It re-applies on
+    `visibilitychange` and `pageshow`, because a background tab's timers are
+    throttled and a tab left overnight would show yesterday's sky.
+  - **The sky wears the visitor's weather** (September 28, 2026). One
+    same-origin request, `/weather/api/here`, answers in ~150 bytes with the
+    weather where the visitor is — located by CloudFront's viewer headers,
+    never a permission prompt (`scripts/cloudfront-here.py`, runbook in
+    `docs/aws-setup.md` §3c). `conditionFor()` maps the WMO code to one of
+    eight conditions and `weatherize()` greys, darkens or lightens the
+    clock's sky for it; the ink is still chosen by `inkFor` from the result.
+    Kyle asked for it after the midday page looked unchanged: the clock's sky
+    is the old cream from 08:30 to 17:00 by design.
+    - **The census is 11,520 states** — 1,440 minutes × 8 conditions, sky and
+      cards, with the motion overlay composited — and every condition must
+      flip its ink on a flat sky. A weathered sky can be *sloped* across
+      `FLIP` (fog near 06:00 was, in review), where no ink reads against both
+      ends, so `weatherize` flattens any sky whose bounds straddle it. With
+      today's parameters it never triggers; a test proves the rule works.
+    - **The motion is CSS only** (`body::before`, rain/snow/cloud tiles moved
+      by `transform` one tile a loop) and its colour is always **opposite the
+      ink**, like the card fill, so it can only raise contrast. Gone under
+      reduced motion and high contrast. The gate reads the layer's real
+      colour off `::before` and proves a layer in the ink's own colour fails.
+    - **The query must never choose the answer.** The edge cache for
+      `/weather/api/here` keys on the viewer headers, not the query, and the
+      origin request policy still forwards the query; a route that read
+      `?lat=` would let one request set a city's weather. And the CDN change
+      must go live *with* the route, not after: `/weather/api/*` already
+      forwards the viewer headers (assumed not to, wrongly), so before
+      `cloudfront-here.py --apply` each edge served the first visitor's city
+      to everyone for ten minutes — about half an hour on launch day. The route takes the
+      query as `_q` and never reads it; tests pin it; `check-headers.sh`
+      asks twice with different queries. The dev server plays CloudFront:
+      `?wx=lat,lon,City` on the API request becomes the headers, `?wx=fail` a 500.
+    - **The city is untrusted header text**: percent-decoded (AWS documents
+      that CloudFront percent-encodes non-ASCII characters in the location
+      headers per RFC 3986, so "San José" arrives as `San Jos%C3%A9`), kept
+      only if it looks like a place and is under 40 characters, and written
+      with `textContent`.
+    - **The last reading is kept an hour** in `localStorage['branyon.sky.v1']`,
+      read before first paint, so a repeat visit never shows clear-then-rain;
+      every access is in try/catch and the gate runs with storage throwing.
+    - **The caption is one flex row with the copyright** — "Light rain in
+      Irvine · © 2026 BranyonTech" — where only the caption shrinks, with an
+      ellipsis: a second footer line pushed 320×700 past one screen. That
+      fix exposed the grid trap the console hit: `body`'s implicit `auto`
+      column sized to the one-line footer and a phone zoomed out to 410px, so
+      `grid-template-columns: minmax(0, 100%)`, and the gate now requires
+      `innerWidth` to equal the screen — height alone passed, because both grew.
+  - **Without the script the page is exactly the mid-morning cream** — the
+    `:root` defaults — and a test pins them to the 8:30 stop.
+  - **`home.js` has to be in four places** or it 404s in production while
+    working locally, silently: `index.html`, `deploy.yml`'s `paths` and
+    `--include` list, `tests-server.js`. A test makes them agree.
+  - **The gate reads what was painted.** `getComputedStyle(body)`'s gradient
+    comes back with every `var()` resolved, so it parses the two colours,
+    the glow and its position from that string, reads every visible text
+    colour and the forced `:hover` colour, and computes contrast from the
+    cascade's own output. It then paints the text the sky's colour and
+    requires its own measurement to fail — or it measured nothing.
+- **The tagline's numbers are counted, not typed** (September 27, 2026).
+  The clause between `<!-- since -->` and `<!-- /since -->` in
+  `index.html` is baked from `countdown/stats.json` by
+  `node scripts/bake-home.mjs` — the lengths of the same lists the
+  retirement clock shows, counted by the clock's rules (an entry is an
+  object with its title key; a book with `reading: true` is not a book
+  read). So adding a concert and pushing updates the homepage with no
+  script on the page. `tests.js` recounts independently and fails while
+  the page and the data disagree; `deploy.yml` bakes before it stamps,
+  because the test workflow does not gate the deploy. Singular at one, an
+  empty list drops out rather than print "0", and "Since February" becomes
+  "Since February 2026" once the build is 300 days past retirement. The
+  meta description names the activities without numbers, because search
+  snippets are cached for weeks. The longer tagline costs a line: phones
+  still fit (measured at all four sizes), and above 640px the measure
+  widens from 34ch to 48ch, which keeps it to two lines on desktop — at
+  34ch it was three, and 1280×640 and 1024×640 went 10px past one screen.
+- **The links are five titled cards** (chosen by Kyle, September 27, 2026):
+  Retirement (the clock, the year in review) · Weather · Play (ONE PUTT, SLINGSHOT) · Property (Fish
+  Hatchery) · Reach me (the address, GitHub), in that order — the clock
+  first because it follows straight on from "retired technologist" and is
+  the site's original feature, contact last where people expect it — each a
+  `<section class="group">` with its own `<h2>` inside a
+  `<nav aria-label="Around the site">` — the first real structure a screen
+  reader gets on the page. `.links a` is still the link selector and there
+  are exactly eight; a test pins the groups, their order and which
+  link is in which. `node scripts/home-audit.mjs` is the gate. Load-bearing:
+  - **A six-column grid, so both rows are full.** Three cards of two
+    columns, then two of three (`nth-last-child(-n+2)`): five cards in a
+    three-column grid leaves a hole. Under 640px they stack.
+  - **The card fill is sky ink of the OPPOSITE polarity** — `--card` is
+    white over the sky under dark ink, black under light, set by `home.js`
+    with everything else. In dark polarity every ink is darker than the
+    darkest sky pixel (an accent lighter than a sky at `FLIP` could not
+    clear 3:1 against it), so a white fill can only raise every channel of
+    the surface and every contrast with it; symmetric at night. That is
+    what lets the census stay a proof without re-tuning a stop: a fill the
+    ink's own way fails 4.5:1 at the flip. The census checks `cardBounds`
+    (the fill composited over the four glowed corners — *after* the glow,
+    the page paints gradient, glow, then card) as well as the sky, and
+    asserts card contrast ≥ sky contrast for every ink at every minute.
+    The card tokens do not blend with `k`, and `:root` spells the default
+    byte-for-byte as `home.js` does, because the defaults test is a string
+    match. High contrast: white cards with a black rim.
+  - **The gate measures the surface the text is on.** Each run of text
+    reports the nearest ancestor with a fill, and the gate composites it
+    over the sky before taking contrast; a bite proof fills a card the
+    ink's own way and requires a link's measurement to fail. It reads the
+    hover underline as well as the hover text now.
+  - **The underline is `text-decoration`, not `border-bottom`.** A 250px
+    link in a 213px card wraps, and an inline-block's border draws under its
+    last line only, the full width of the block. `skip-ink: none` keeps it
+    the continuous rule the border was.
+  - **Where stacked cards would not fit one screen, they flatten to
+    labelled rows** — `(max-width: 640px) and (max-height: 899px)`, and any
+    screen under 480px tall: no fill, the title as the first flex item of
+    its group, the links `flex: 1 1 10rem` beside it (or beneath it when
+    10rem is not there), a hairline between groups. `align-items` is
+    `flex-start` with padding on the title, not `baseline`: an
+    inline-block's baseline is its *last* line, and a wrapped link put the
+    label beside its second line. 390x844 gets rows, 430x932 cards — the
+    gate covers one of each and asserts the form. A desktop window
+    641px+ wide and 481–799px tall gets rows too.
+  - **The budget was measured, not guessed.** Stacked cards at phone width
+    are ~495px against the 226–274px the flat list was, so a phone gives up
+    the 6vh header padding at any height (`(max-width: 480px)`), the groups'
+    top margin and the brand and tagline margins shrink, and the footer
+    tightens.
+  - **The link count and the one-screen budget** (October 18-22, 2026). The
+    page has **ten links** and a test pins the count; an eleventh needs a new
+    budget (`home-audit.mjs` and the pieces below), and nobody should add one
+    without running the gate. How it got here: Light Lasso (`c48dc30`, 1px over
+    at 320x700, and the gate still expected eight links) and Postcards in Sound
+    (`73cc50b`) joined the Play card on October 10-13 and nobody re-ran
+    `home-audit.mjs`; by the second, 390x844 ran 34px past one screen,
+    320x700 40, 360x640 41 and 1280x640 64 (found by running the gate at each
+    commit). On October 22 "Learn guitar theory" (`/guitar/`) made eleven, one
+    wrapped link line (~43px) more, and the same day Light Lasso was removed
+    (Kyle found it boring), so the count is ten again. **The room came from the
+    chrome, never from the links or the air between them** (that is WCAG
+    2.5.8): stacked cards on a tall phone lose half a rem of padding and gap;
+    the rows form trims the header, tagline, h1 and footer, sets the name at
+    2.15rem and the tagline at 1rem/1.4 on a phone (0.94rem under 341px); and
+    **the rows form, one group to a line, runs to 899px tall on a phone and
+    799px on a desktop** (so 390x844 and 1280x760 get rows, 430x932 still gets
+    cards and the census runs there; a 1024-wide window needs ~743px tall as
+    cards). Play's four links stacked in a 213px card once made the first row
+    of cards 234px. The 404 page shares the stylesheet and must fit too. The
+    rows-form ranges are in the stylesheet's `@media` blocks, and a test keeps
+    the pieces from being tidied away. **The pixel slack of the final
+    ten-link page was not measured** (the gate prints pass or fail, not
+    pixels): at the removal it passed at every size on this machine. **This
+    machine's fonts are not Kyle's**: in the cloud container 360x640 was 39px
+    over on main already; re-run `home-audit.mjs` on his machine.
+  - **Touch targets:** links are 30px tall with 12.8px gaps — the WCAG 2.5.8
+    case site-audit exists for (24px, or 44 with a neighbour under 12px).
+    Between groups in the rows form the gap is 13.8px for the same reason.
+    No `@media (pointer: coarse)` block on this page; a test forbids one.
+- **Layout:** Fits one screen; body grid pins the footer to the bottom. `prefers-reduced-motion` and `prefers-contrast` handled in styles.css
+- **Eight homepage destinations are owner-approved as of October 3, 2026.**
+  The owner explicitly requested the Fish Hatchery link (September 25) and the
+  year in review link (October 3: he could not find it on the clock, and chose
+  the homepage's Retirement card for it). The earlier six- and seven-link
+  ceilings are superseded (the page has ten now; see the budget above).
+  Preserve all the links and
+  verify the homepage at 390x844, 375x667, 320x700 and 360x640 when changing
+  it — `home-audit.mjs` does, and `site-audit.mjs` at each size for targets.
+
+### Fish Hatchery (/fish-hatchery/)
+
+An elegant before/during/after property showcase with five comparisons and a
+full-screen gallery. Read `docs/fish-hatchery/HANDOFF.md` before continuing this
+work; confirmed facts and image provenance are in that directory. The page,
+22 WebP photographs, and integration were copied from the owner's approved
+local draft. The rehabilitation began January 2026; no completion date is
+asserted. Credit, in this order, Keith, Diane, Jeremiah, and Harley. The showcase is deployed.
+
+### Retirement Clock (/countdown/)
+- **Dual mode:** `calc.js` `getMode()` picks count-up when the target date is in the past (the default, Feb 27, 2026) and countdown when it is in the future. Mode-specific markup carries `data-mode="countdown|countup"` and is toggled with the `hidden` attribute; per-mode labels use `data-text-countdown` / `data-text-countup`.
+- **Count-up mode:** Big day count with a months/days breakdown, dawn color palette (`body.mode-countup`), freedom metrics (weekends enjoyed, workdays skipped, work hours reclaimed, Mondays dodged, commutes avoided, meetings skipped, alarms not set), "Retired longer than..." comparisons, and milestones at 7, 30, 100, 182, 365, 500, 730, 1000, 1095, 1826, 3652 days. The progress bar fills toward the next milestone.
+- **The sky arc** is the fixed figure on the right (desktop only, hidden
+  below 1440px wide or 600px tall, like the trail on the left, so neither
+  overlays the 1000px content column). In count-up mode the sun crosses a
+  semicircle from "Retired" to the next milestone, `fraction` of the way
+  along, with the milestone's emoji at the far horizon; in countdown mode the
+  moon crosses the night from "Day One" (employment start, which is what
+  `computeProgress` measures) to "Freedom Day", into a dawn glow. It replaced
+  an hourglass that was two separate egg-shaped bulbs of gold "sand" on a
+  cream page, swaying forever — and whose meaning was wrong: nothing runs out
+  after retirement, and its sand jumped back *up* at every milestone.
+  `node scripts/figures-audit.mjs` is the gate for it and for the trail.
+  Five things in it are decisions:
+  - **The geometry is in `calc.js`** (`SKY_ARC`, `skyArcPoint()`), pure and
+    exported, so the gate checks the *drawn* centre against it to a pixel
+    instead of trusting the drawing. viewBox 200x110, horizon y=98, r=76; a
+    test pins the typed clip, arc path and horizon line to the same numbers.
+  - **Nothing in it animates or transitions.** The body's place is an SVG
+    `transform`. A transition on a translate interpolates the *chord* of the
+    arc, and when a milestone is crossed the fraction *drops* (1.0 → 365/500),
+    so the sun would slide backwards through the sky once a milestone — and
+    in countdown mode the render runs every second, so the moon would never
+    not be mid-transition. The gate asserts `getAnimations().length === 0`.
+  - **The SVG is geometry only; every word and emoji is HTML beneath it.**
+    Emoji glyph boxes differ per platform, so an emoji in SVG `<text>` sits on
+    the horizon differently everywhere, and `<text>` cannot wrap "Every
+    milestone reached".
+  - **No sky-of-the-hour gradient.** `days/next` spends most of its life
+    between 0.5 and 0.95, so it would nearly always read "afternoon". One
+    static glow at the far horizon is the whole weather of the figure.
+  - **The hourglass's caption was `aria-live` inside `role="img"`**, whose
+    descendants are presentational, so it never spoke. Nothing inside the
+    figure is live now; the number is exposed by the progress bar in `main`.
+    Forced colours: fills are not forced, so the glows are hidden and the sun
+    takes `CanvasText`; arc and moon are `currentColor` already.
+- **The milestone trail** is the fixed figure on the left: the long view to
+  the arc's near view. Every milestone is a stop on one vertical path, the
+  origin at the bottom, the ones passed lit, the next ringed, the rest dimmed,
+  and the sun (the moon before retirement) at today with the day count beside
+  it. It replaced a thermometer that showed the day count the hero already
+  shows in 8rem type, filled to the percentage the arc shows, against tick
+  marks that were not linear in days while the fill was.
+  - **Stops are spaced evenly by index, not by days** — `milestoneTrail()` in
+    `calc.js`. Linear in days puts the first five stops in the bottom tenth
+    of the path and parks the sun for years. Between stops the sun moves by
+    its share of that one segment, so it never moves down and reaches each
+    stop exactly when the milestone does.
+  - **The stops are built from the milestone list**, so a milestone is
+    defined in one place; the markup holds no stop, and a test asserts it.
+  - **In countdown mode the stops are days *left*** (2 Years to Go … Last
+    Day, then Freedom Day), and the segment before the first stop is the
+    working years: `renderCountdown` passes their length so the moon moves
+    through it. Without it — a visitor's date under two years out — the moon
+    waits at the origin until the first stop, which is honest.
+  - **The day count sits on the other side of the line from the stop
+    labels**, so it cannot collide with one however close the sun is to a
+    stop; the gate checks every label box against every other. It is two
+    lines ("209" over "days") because "3,652 DAYS" on one line needs more
+    margin than the figure has.
+  - **Rebuilt once a day**, keyed on `direction:days`: in countdown mode the
+    render runs every second.
+- **Personal counters:** `countdown/stats.json` (trips, concerts, projects, books, plus an `updated` date). Edit it, push to main, and the deploy publishes it. A missing or invalid file simply hides that section.
+- **Every counter is a list, and its count is derived.** `trips` is an
+  array of `{ place, when }`, `concerts` of `{ who, when }`, `projects` of
+  `{ what, when, url? }`, `books` of `{ title, when, note }` with the author
+  in the note, and each tile shows `.length`. **A book still open** carries
+  `reading: true` and no `when`: it is listed at the top as "Reading now" but
+  not counted, because the tile says *read*. A `trips: 5` stored beside the list would disagree with it the first
+  time a trip was added to one and not the other, and the number is the half
+  everyone sees. `when` may be blank — the entry then renders as just the place —
+  and an element that is not an object, or has no `place` (a concert's `who`), is
+  skipped rather than allowed to break the page. An empty list hides the tile exactly as an invalid
+  number does.
+- **An entry may carry a `note`** — why we went, or where it was ("🎶 Earth, Wind & Fire, live at
+  the Civic Theatre"). On a wide panel it is its own italic line under the
+  entry; on a phone it joins the date ("March 2026 · Visiting Family"). It is
+  optional, so leave the key out rather than blank. A concert's note is the
+  venue ("🎸 Lord of the Strings, Mission Viejo").
+- **Concerts replaced a "naps taken" tile** that read a made-up 100. The list
+  came out of Kyle's mail and calendars, and the two SFGMC shows on one day are
+  two entries because they were two concerts. **Both lists run on one
+  mechanism**: `LISTS` in `script.js` names each list and the key its entries
+  are titled by, ids derive from the key (`stat-${key}-card|detail|list`), and
+  the classes are `.entry-*`, not `.trip-*` — `.trip-place` on a band name is a
+  lie the next reader has to decode. A third list is one line in `LISTS`, one
+  in the loader's key array, a button and a panel; a test cross-checks the
+  three, because a key missing from the loader leaves its tile on screen
+  reading the "0" it shipped with. Projects was the third, and proved it.
+- **A project may carry a `url`, and then its title is a link to the thing
+  itself.** `LISTS.projects` names the key (`link: 'url'`); the other lists
+  have no link key and cannot grow one by accident. The loader keeps only a
+  root-relative path or an `https://` URL — the file is hand-edited and the
+  panel is public, so `javascript:` is a script and `http:` is a console
+  warning. Site pages are root-relative (`/game/`) so they work under the dev
+  server too, and a test checks each one has an `index.html` in this repo;
+  off-site links open beside the page with `rel="noopener"`. The link is an
+  inline-block with 3px of padding because at 0.92rem its line box is 20px and
+  the audit measures the *link*, not the entry, against the 24px floor. The
+  list itself came from a survey of GitHub and the local checkouts, dated from
+  git; THERMAL is on it because it genuinely shipped, for thirty hours.
+- **The file is oldest-first; the panel is newest-first.** Append a new trip at
+  the bottom of `trips` — the file order *is* the chronology, because `when` is
+  free text ("May–June 2026") and cannot be sorted. `renderList()` reverses a
+  copy, so that when the list outgrows the room beside the tile, what scrolls
+  out of reach is March and not the trip everyone just asked about.
+  `lat`/`lon` are not shown here: they are what ELSEWHERE in the weather
+  console ranks, and an entry without them is simply not ranked, so a new trip
+  needs all of `place`, `when`, `lat`, `lon`.
+- **Tapping the trips or concerts tile opens its list.** Each is a `<button>`,
+  not an article, so it answers to a tap, Enter, Space and a screen reader;
+  hover alone would make it invisible on a phone. `node scripts/lists-audit.mjs`
+  is the gate — run it at 390x844 and 320x700. It runs every gate for both
+  tiles, then the gates that exist only because there are two, then a synthetic
+  forty-entry list. The traps in it:
+  - **A real tap focuses before it clicks**, and focus opens the panel. The
+    click handler therefore toggles the *pinned* flag rather than reading
+    whether the panel is open — otherwise it finds its own focus handler's work
+    and closes again in the same gesture. A programmatic `.click()` skips focus
+    and hides this entirely, so the gate calls `focus()` first.
+  - **Hover is guarded by `event.pointerType`, not by a media query.** A laptop
+    with a touchscreen matches `(hover: hover)` and is still touched, and a
+    touch fires `pointerenter` before the tap and `pointerleave` on the lift.
+  - **The panel spans the grid horizontally and anchors to the tile
+    vertically.** Anchoring both to the grid was a bug: at 320px the grid
+    collapses to one column and is four tiles tall, so "above the grid" put the
+    panel off the top of the viewport and "below the grid" put it off the
+    bottom. Horizontally the grid is still right — it is what stops a 150px
+    tile's panel hanging off the side.
+  - **Above is preferred, below is the fallback.** What a panel above covers is
+    earlier siblings, which paint underneath by default; what it covers below
+    is later glass sections, which is the whole reason `body.list-open` exists.
+    (The older reason — a caret against the bottom row of the grid — stopped
+    being true when vertical anchoring moved to the tile.)
+  - **`body.list-open` raises the whole section.** Every glass section is its
+    own stacking context — `backdrop-filter` creates one — so a *later* sibling
+    paints over anything the panel's `z-index` can reach from inside it.
+    Raising `.personal-section` is the only move available, and it only has to
+    hold while the panel is open. The audit gates on the section's computed
+    `z-index`, not on the class: a script and a stylesheet that disagree about
+    the class name pass every DOM-state check while the panel paints underneath.
+  - **Only one list is ever open, and that is a property of the state, not a
+    rule.** Both panels span the whole grid, so two open is one drawn over the
+    other. There is one `openKey` and one `pinnedKey` rather than a flag per
+    list, so two of either cannot be written down. `showList()` closes the
+    other list itself, for every caller, and `hideList()` is a no-op for a list
+    that is not the one open — a hover that yielded still fires its
+    `pointerleave`, and an unconditional hide there dropped `body.list-open`
+    out from under the panel that *was* open.
+  - **Explicit gestures take over; hover yields.** A tap, a click and a Tab all
+    say "this tile" and close the other panel. A mouse crossing a tile on its
+    way somewhere else says nothing. The guard is "another list is *open*",
+    not "pinned": a panel opened by keyboard focus is unpinned, and the
+    narrower guard let the mouse open a second panel on top of it. Safari does
+    not focus a button on click, so the click handler takes over on its own —
+    the audit's `clickOnly()` is that path.
+  - **The re-place decides which list inside the frame, not when it is
+    scheduled.** A frame is long enough for Escape to land or for the other
+    tile to take over, and a callback that remembered the old answer reopened a
+    panel that had just been closed — during exactly the smooth scroll a tap
+    starts. Latent with one list; with two it ended with the wrong one open.
+    The audit proves its frame ran with a flag of its own, or it measures
+    nothing.
+  - **Re-placing keeps the reader's place.** Lifting the height cap to measure
+    resets the list's `scrollTop`, and that runs on every window scroll — a
+    phone's URL bar collapsing included — so a reader half way down a long
+    list was thrown back to the top. `showList()` holds it and puts it back.
+    Harmless while six trips fit; concerts do not fit at 320x700.
+  - **A tap on the list is not a tap outside it.** The panel is the tile's
+    *sibling*, so `!card.contains(target)` was true of the list itself and
+    closed it under the finger that was reading it.
+  - **The panel must be its button's next sibling.** The stylesheet fades it
+    in with `.is-open + .metric-detail`; anywhere else it stays at opacity 0,
+    and since the audit asserts on DOM state and never on opacity, nothing but
+    a gate on `nextElementSibling` would notice.
+  - **The fade at the bottom of a long list means "more below", not
+    "clipped".** A list scrolled to its end is still clipped, and a fade left
+    on there dims the last entry for nothing, so `has-more-below` accounts for
+    `scrollTop`. It is a `mask-image` — alpha works on the night panel and the
+    near-white dawn one alike — and it sits on the list, never the panel, for
+    the same reason the height cap does. High contrast and forced colours get
+    a rule instead of a fade.
+  - **A clipped list is focusable**, because Safari never focuses a scroller.
+    Tab from the tile into its own list is not leaving, so the tile's blur
+    checks `relatedTarget`, and a `focusout` on the panel closes an unpinned
+    list when focus goes anywhere else.
+  - **"Longer than the screen" has gates of its own.** `!holds || !clipped`
+    asserts nothing once the list is too long, and nine concerts already are
+    at 320x700 (585px into 465). There the tile must be as high as the back
+    link allows, the list beneath it using what is left, the newest entry
+    whole, and the oldest reachable with the fade lifted. The forty-entry pass
+    calls the page's own `renderList()` so that branch is exercised at both
+    sizes whatever today's data is.
+  - **Placement is re-measured on scroll, not just resize.** Open the panel at
+    the top of the page and scroll down to read it and a choice of "above" that
+    was right when you tapped puts it off screen.
+  - **The height cap goes on the list, not the panel**, because the caret is
+    drawn outside the panel's box and any `overflow` on it clips the caret
+    away. And the side is chosen *before* the cap is applied — capping to the
+    larger of the two rooms and then landing on the smaller one cut the last
+    trip in half with 250px sitting unused.
+  - **The room above stops at the back link.** It is `position: fixed` in the
+    top corner and paints over anything beneath it, so a panel tall enough to
+    reach the top of the screen lost its first trip behind it. Five short
+    entries never reached; the sixth did. `showList()` subtracts the link's
+    bottom edge wherever the two overlap, and the audit gates on it.
+  - **A tap makes room for the whole list.** Mid-screen there is not room for
+    six trips on either side of the tile — at 320x700 the list needs 330px and
+    the better side had 257 — yet tile and list together are under 500px. The
+    screen has the room; the tile splits it in two. `makeRoomFor()` scrolls
+    the page until the list fits beneath the tile (never pushing the tile under
+    the back link), and the scroll listener re-places the panel as it goes.
+    **Only a tap or click does this.** Hover and focus must never move the page
+    out from under a pointer that is only passing over. The audit's old gate,
+    "it scrolls, but only after using the room it has", is what let this pass
+    for so long: it was true, of a 257px box on a 700px screen.
+  - **The audit has to pump frames to see that scroll finish.** Headless
+    Chromium draws no frames unless asked, and a smooth scroll only advances on
+    a frame — left alone it stalled 51px into a 75px scroll and reported a
+    position no visitor would ever be left at. `settle()` takes and discards a
+    screenshot per step, which is a request for a frame.
+  - **Under 420px an entry is two lines of plain block and inline flow, not a
+    flex column.** The column is what once wrapped a full-basis note into a
+    second *column* that the list scrolled sideways to reach. Two traps in the
+    replacement: the " · " hangs off `.entry-when + .entry-note`, so a trip with
+    a blank `when` does not open its line with a stray dot; and the second
+    line's height comes from the `li`'s font size, not the spans' — at 1rem
+    each entry was 4px taller, which across six trips was the difference
+    between fitting beside the tile at 390x844 and scrolling.
+- **The clock's and both games' assets carry a content stamp** — `script.js?v=afcbd11b2c`.
+  Assets are cached for an hour under names that never change, while
+  `stats.json` is fetched `no-cache`, so new data used to meet old code: the
+  San Diego trip appeared in the list without its note, because the cached
+  script had never heard of notes. `index.html` is cached for five minutes and
+  a new `?v=` is a new URL, so the gap is now five minutes, not sixty.
+  `node scripts/stamp-assets.mjs` rewrites the stamps, `tests.js` fails on a
+  stale one, and `deploy.yml` re-stamps before it syncs — the test workflow
+  does not gate the deploy, so that step is what actually protects a visitor.
+  The query string is for the browser only: S3 ignores it and both local
+  servers strip it. `/game/` and `/slingshot/` are stamped too, including the
+  root-absolute `/shared/daily.js` they both load — an hour of new `putt.js`
+  against an old `daily.js` is the same bug with a daily puzzle at stake.
+  **The showcase's photographs are stamped as well**, in `src` and in the
+  viewer's `data-image`: a re-edited photograph went live under its old name
+  and the owner saw no change, because his browser held the old bytes for the
+  hour. The test derives the expected list from `fish-hatchery/assets/`, so an
+  orphan photograph fails it too, and a photograph named twice must carry the
+  same stamp both times or the viewer's dedupe splits it into two slots.
+  Adding a page is one line in the script's `PAGES` and one in `tests.js`'s
+  `STAMPED_PAGES`. Tests that look for a script by name must allow the stamp:
+  match `src="name.js[?"]`, not `src="name.js"`. `/weather/` is not part of
+  this; `sync-weather.sh` hashes its stylesheet *filenames* instead.
+- **Countdown mode:** Unchanged days/hours/minutes/seconds timer, original metrics and milestones, purple night theme.
+- **Celebration:** The CONGRATULATIONS overlay only plays when a countdown reaches zero while the page is open, then transitions to count-up without a reload.
+- **Customizable Date:** Collapsed behind "Not retired yet? Set your date"; accepts 1950-01-01 through 50 years ahead (stored in localStorage).
+- **Metric assumptions:** 8 work hours/day, 2 commutes of 30 minutes, 3 meetings and 1 alarm per workday, as constants at the top of `calc.js`.
+
+### Coming up · Places · the bookshelf (/countdown/)
+
+Kyle asked to make the vanity site more fun (October 3, 2026) and chose four
+things; three live on the clock and the fourth is /year/. The entries came
+from his calendar and mail, which he approved: the October Grants Pass trip
+(Fish Hatchery work), The Outsiders (counted as a concert, his call), two SF
+Gay Men's Chorus Holiday Spectacular shows, and Panama & the San Blas Islands.
+`node scripts/journal-audit.mjs` is the gate — both pages, three sizes, four
+"todays", expected values computed from journal.js in Node.
+
+- **Every entry is dated, and "coming up" is derived, never stored.** Each
+  entry has an ISO `date` (`YYYY-MM-DD`, or `YYYY-MM` when only the month is
+  known) and an optional `end`; `when` stays the display text. An entry
+  counts — tile, list, homepage, map, year — from its first day; before that
+  it is a countdown. So a booked trip is added once, to `trips`, and moves
+  itself. A separate `upcoming` list would have to be emptied by hand.
+- **One rule, in `countdown/journal.js`, used everywhere**: the clock's
+  `usableEntries`, `bake-home.mjs` (via `createRequire`), lists-audit,
+  journal-audit, the year page. ELSEWHERE (Weather repo) re-implements it in
+  three lines because the console is standalone, and also dedupes a place
+  visited twice (Grants Pass is in the file twice now). `tests.js` recounts
+  independently. **The homepage count is baked at deploy time, so
+  `deploy.yml` runs daily at 09:17 UTC** (site job only; the Lambda job is
+  skipped on `schedule`) — the count rolls over the morning after a trip.
+- **`?today=YYYY-MM-DD`** on /countdown/ and /year/ moves the journal's clock
+  only (never the retirement day count): testing, and a time machine.
+- **`home` in stats.json is a city, rounded to two decimals** (Mission Viejo,
+  Kyle's choice, for the arcs and the year's weather). A test pins its shape:
+  "City, State", no number, no street.
+- **Coming up**: a card per entry (two same-day shows by one act are one card
+  naming both times), states future/tomorrow/today/now ("Day 2 of 4"), a line
+  under the hero, and **the anniversary callout** — any retirement milestone
+  inside an entry's dates is named on its card. The first anniversary, Feb 27,
+  2027, is day 12 of Panama; a test pins it.
+- **Destination weather** inside 16 days, from `/weather/api/bundle` by
+  ABSOLUTE path (the ONE PUTT lesson), with the console's own `wx`/`wxGlyph`
+  and TONIGHT's `assessNights` imported from `/weather/js/lib` — dynamically,
+  only when needed. A test imports those three modules and fails if the names
+  change. A trip's nights run from its first day to its second-to-last: the
+  night before you fly in is not yours there (it named a Tuesday for a trip
+  starting Wednesday until that was fixed).
+- **Places is an offline map.** Tiles are CSP-blocked off /weather/ on purpose,
+  so the coastline ships as `land.json` (Natural Earth 110m, public domain,
+  46 KB, 18 KB gzipped). Mercator fitted to home and every place; SVG for
+  geometry, HTML for every word and pin (the sky-arc rule). Solid arcs draw in
+  once on first view; a trip still to come is a dashed, marching arc with a
+  pulsing pin. **Pins cluster by on-screen distance** (32px, WCAG 2.5.8): the
+  Bay Area, Grants Pass and San Diego are one pin on a phone and four on a
+  laptop, and the map redraws when the width changes. **It must be visible
+  before it draws** — a hidden container measures 0, which drew a phone's map
+  with a desktop's six overlapping pins; journal-audit caught what a resized
+  screenshot hid.
+- **A trip can have `stops`** — `[{ place, lat, lon }]`, in order, after its main
+  place. The Alaska cruise (UnCruise, "Wild, Woolly & Wow with Glacier Bay",
+  from Juneau, May 2026) is one: Vancouver, then Juneau, then Glacier Bay.
+  Each stop is its own pin, its arc leaves from the stop before, and
+  `routeMiles` follows the route home → place → stops → home. Still one trip
+  on every count. Added at Kyle's request, October 3, 2026.
+- **The bookshelf** is drawn from `spineFor(title)` (FNV hash → cloth colour,
+  height, lean), so a book's spine never changes; every colour holds white
+  type at 4.5:1 (tested). The book being read leans out with a ribbon. The
+  books tile and its list are unchanged.
+- **Hidden by default, revealed by extras.js, and no `data-mode`**:
+  `applyMode()` un-hides every `[data-mode]` element, which would flash them
+  empty before stats.json arrives. `body:not(.mode-countup) .journal-extra`
+  hides them outside count-up. script.js hands stats.json over as
+  `window.__stats` plus a `stats:loaded` event, so it is fetched once.
+
+### Year in Review (/year/)
+
+Ten full-screen, scroll-snapped slides, the sky moving from dawn to night;
+numbers count up as each slide arrives (static under reduced motion);
+"2026 so far" until Dec 31; `?year=`; prints one slide per page. Linked from
+the clock ("Your 2026 so far →") and the sitemap — not the homepage, whose
+links are owner-approved — until October 3, when Kyle asked for the year
+here too; it is the Retirement card's second link ("Look back on my year").
+
+- **Sources:** stats.json through `Journal.yearStats`; Mondays, alarms and
+  meetings from `calc.computeWorkweekCounts` over the year's retired days;
+  ONE PUTT and SLINGSHOT from **this browser's** localStorage (same origin),
+  decoded with the games' own `parseState`; the weather at home from
+  **`/api/yearwx`**.
+- **The games keep 400 days now, not 30** (`maxDays`), so 2027 has every
+  round; 2026 falls back to the lifetime counters, which for the games' first
+  year are the truer count. ~40 KB a year. The two history tests moved their
+  boundary to 400 rather than going away.
+- **`/api/yearwx?lat&lon&year`** (Lambda only): `point(q)`, year 2026…now,
+  one calendar year from Open-Meteo's archive (it lags ~5 days, and the slide
+  says "through Sep 27"), reduced server-side by the exported `reduceYear` to
+  hottest, coldest, wettest, rainy days and days at 90°F+. Edge-cached 6 hours.
+  Its 400s are tested to reach no upstream, like the other routes.
+- **Each sky carries its ink** (dark to golden hour, white from sunset), and a
+  test checks the ink against both ends of all ten gradients.
+
+### ONE PUTT (/game/)
+- **One hole a day, rolling over at LOCAL midnight.** `putt.js` `puzzleDay()` keys
+  off the player's local calendar date, as Wordle does. This still gives everyone
+  the identical hole, because the seed comes from the date (2026-09-07) rather
+  than from an instant: two people both playing their own Sep 7 derive the same
+  seed, even though Tokyo starts sixteen hours before Los Angeles — and the
+  puzzle number travels with the date, so "#249" is never ambiguous.
+  `Date.UTC()` of the local y/m/d normalises each date to a UTC-midnight instant
+  before subtracting, which keeps the count exact across DST, where a local day
+  is 23 or 25 hours long. The tests are built from local date parts so they pass
+  in any zone; CI runs UTC and the author's machine does not.
+- **The wind is the player's real wind.** `extractWind()` interpolates
+  `forecast.data.hourly` from `/weather/api/bundle` — never `current`, which
+  `weather/js/state.js` documents as the noisy 15-minute model step. Direction
+  interpolates the short way around the circle; averaging 350° and 10°
+  arithmetically gives 180°, exactly backwards.
+- **It is playable before the network answers.** Boot is synchronous on
+  `syntheticWind(seed)`; live wind upgrades it only *before the first stroke*,
+  because changing the wind mid-round would make the score meaningless. Every
+  malformed payload resolves to synthetic rather than an error path.
+- **Daily vs practice.** `recordDaily()` is idempotent per day and refuses days
+  at or before `lastDay`, so "the first attempt is the one that counts" is a
+  property of the data, not a rule the UI has to remember. `?seed=` forces
+  practice mode so a hand-picked hole can never be recorded.
+- **Holes are parameterised archetypes, not free-form geometry**, so the space is
+  bounded by construction. `generateHole()` validates and retries 32 times before
+  a hand-authored fallback, and cannot return an invalid hole. All coordinates
+  snap to a half-unit grid: `Math.sin/cos/pow` are not bit-identical across JS
+  engines, and the hole must be.
+- **Dev overrides:** `?seed=1234` and `?wind=12@210`.
+- **The keyboard is SLINGSHOT's, and there are no sliders.** One `keydown`
+  listener on `window` (not the canvas, which needed a click first), 0.6° a
+  press and 0.15° with Shift, up/down two power points, Space putts; drag and
+  release is the touch path. The handler leaves Space to a focused button,
+  because there Space is the button. A test pins both scripts to the same
+  step literal so they cannot drift. The AIM/POWER readouts are the only
+  feedback besides the preview line, and the instruction line under them is
+  the only place the page says how to play, so it is set at body size.
+
+### Impact is an event (ONE PUTT)
+
+The rules and physics were always excellent and the wind was always real,
+but none of it was *felt*: the ball was a white dot that stopped on the cup,
+a make and a miss looked the same, the wind existed only as a chip, and
+there was no sound. Kyle asked for a wow factor (September 27, 2026) and
+chose all four packages below, sound **off by default**, the rules frozen,
+and no leaderboard (the Lambda is GET-only with no datastore). `?fx=0` is
+the game exactly as it was, `1` the default, `2` full; everything degrades
+under `prefers-reduced-motion`. `node scripts/oneputt-fx-audit.mjs` is the
+gate. **Nothing here changes a physics step**: every effect is read off
+events `stepBall` already produces (`event`, `bounces`, `overCup`), and a
+test asserts `putt.js` never learns the words *particle*, *shake*, *fx* or
+*Audio*.
+
+- **The moment.** A putter blade sweeps through the ball over a 140 ms
+  windup before the first step. **Slow motion at the cup** (0.4× within 10
+  units) changes how many steps a frame *consumes*, never the steps, so the
+  outcome is identical. The cup brightens and a tone lifts as the ball
+  closes (`near`). A lip-out is detected from `overCup` going true→false
+  without a sink and is named in the status line. Walls spark and flash
+  with a 0.6 px kick, sand puffs and thumps, water splashes and the ball
+  *fades* back to the stroke origin instead of teleporting. **The drop**:
+  on `sunk` the loop stays alive 280 ms while the ball shrinks into the cup,
+  a ring leaves it and the flag quivers; the result card waits **900 ms**
+  so the drop is seen (0 at `fx=0` or reduced motion). An ace bursts.
+- **Sound is synthesised** in `game/audio.js`, SLINGSHOT's structure with a
+  green's voices: a looped noise roll whose cutoff follows speed, the
+  approach tone, and one-shots for putt, wall, sand, water, lip-out, sunk
+  and ace. The `#sound` toggle persists in `settings.sound`, which was in
+  the schema from day one and never read; the putt gesture arms it.
+- **The green alive.** The pennant points *downwind* (the direction
+  `windVector` pushes), lengthens with speed and flaps; faint streaks drift
+  downwind. Both run on an **idle loop** — rAF while the ball is still,
+  drawing every 40 ms, only with motion and a visible tab. Mown bands, a
+  vignette, a lip on the cup, a shadow under the ball, sand speckled once
+  per hole from the seed. Up to six **ghost trails** of earlier strokes
+  stay, coloured by how they ended. The aim preview now starts at the
+  roll's own gust phase (`t0: simTime`); it previewed at t = 0 before.
+- **Your record.** The stored day gained `cells` — the round's cells packed
+  base-5 with the count in a base-13 digit (`packCells`/`unpackCells`),
+  twelve at most — so a revisit rebuilds the real share instead of all-🟩.
+  It is the **last** day field, so nothing else's key order moved; `readDay`
+  emits it as 0 for older records, which is why exactly two golden rows in
+  the DAILY SHARED table changed that day. The result card shows played,
+  aces, best streak and a seven-day strip; the STREAK chip gets 🔥 at two;
+  replay and practice hide the share (it carried today's number); "Copied"
+  resets; a played day's STROKES chip shows what you shot.
+- **Reveal the line.** `findAceLine(hole, wind)` in `putt.js` is pure: from
+  the tee at gust phase 0, a coarse lattice (150 angles × 12 powers) ranked
+  by `closest` (a new field on `simulateShot`), the twelve best refined at
+  **keyboard resolution** — angles built by successive addition of the
+  0.15° Shift-nudge from −π/2 exactly as the handler builds them, powers the
+  even integers the power keys reach — so every revealed line is one the
+  player could have keyed in, and the gate keys it in and requires the
+  sink. About 2,500 simulations, 12–50 ms. Found on roughly half of days;
+  the button says "No ace found … N lines tried", not "none exists". The
+  button is disabled until the hole is finished, so it cannot spoil a round.
+- **The gate drives a clock, not frames.** SLINGSHOT's gate advances by
+  counting rAF callbacks; ONE PUTT requests no frame while the ball is
+  still, so that pump hangs after the first rest. `oneputt-fx-audit.mjs`
+  ticks a synthetic clock on `setTimeout` whether or not a callback is
+  pending and hands it to shimmed callbacks; `frame(now)` still takes its
+  time from the rAF argument and clamps to 100 ms, so game time is exact.
+  It plays `?seed=1234&wind=0@0`, a hole with an ace, at `fx=2`, `fx=0` and
+  under reduced motion.
+
+### Two things that will silently break it
+
+1. **`makeRng` and `ARCHETYPES` are frozen.** Changing either rewrites every hole
+   ever played and invalidates every share string ever posted. A test pins the
+   PRNG's first five outputs so it cannot happen by accident; a deliberate change
+   means a new `oneputt.v2` storage epoch.
+2. **The API must be called by absolute path.** A relative `./api/bundle` from
+   `/game/` resolves to `/game/api/bundle`, which CloudFront does not route to the
+   Lambda — and it fails *quietly* into synthetic wind, indistinguishable from a
+   slow API day. Asserted by a test rather than remembered.
+
+### SLINGSHOT (/slingshot/)
+
+One orbital puzzle a day. Launch a probe from the pad and reach the beacon; the
+direct line is always blocked by a body, so every level has to be flown *around*
+something and gravity is what gets you there. **Score is shots, exactly as ONE
+PUTT scores strokes**, against a par derived from the level.
+
+- **You cannot lose.** Keep firing until you arrive; a bad day is a high score,
+  not a game over.
+- **Predictable aim, unpredictable consequence.** The preview shows only the
+  first fraction of the path. You know exactly where you are pointing; what the
+  planets do about it is the entire product, and previewing the whole trajectory
+  would hand over the answer.
+- **Ghost trails are the teaching mechanism.** Every previous attempt stays on
+  screen, faint, red if it hit a body. That turns the error gradient into
+  something you can see rather than a number you have to interpret.
+- **Failure is nameable** — "into the planet, go wider", "out of the system,
+  closest approach 40". This is the property THERMAL never had.
+- **`?level=N`** loads a specific level as unscored practice, and free play never
+  records; a hand-picked level must never become the day's score.
+
+### The three constants that decide whether it is a game
+
+Every one of these was measured, and each has a failure mode that looks like
+working code:
+
+1. **`MASS_SCALE = 70`.** Deflection of a flyby is `tan(θ/2) = GM/(b·v²)`. At
+   MASS_SCALE 1 that is about one degree, and measured across 30 levels **the
+   median path curved a total of 2°** — the probe flew straight past every planet
+   and the slingshot slung nothing. At 70 the median path curves 41°. Raising it
+   trades drama for chaos: stronger gravity bends more but fewer levels pass
+   `validateLevel`, which only costs generation retries.
+2. **The timescale (`G`, `V_MIN`, `V_MAX`).** Trajectory shape depends only on
+   speed over `sqrt(GM)`, so scaling speeds by *k* and `G` by *k²* leaves paths
+   identical and flies them *k* times faster. An earlier scale put a solved shot
+   at a median 14.5 s with the hard ones at 25–37 s, which is dead time you
+   cannot influence. It is now about 2 s — a ONE PUTT roll.
+3. **`validateLevel`'s smoothness test.** About half of all generated levels have
+   a *flat* error surface: miss by 1° and you land 150 units away, miss by 5° and
+   you land 153 away, so nothing tells you which way to correct. Those are thrown
+   away. Generation retries up to 14 times, at ~19 ms and a median of 2 attempts.
+
+Measured over 40 daily levels: **40/40 playable, median aim window 1.8°** (ONE
+PUTT's ace window is 1.6–1.9°), median flight 2.0 s, median 48 distinct
+solutions per level. `node tests.js` asserts all of it — reverting MASS_SCALE to
+1 fails two tests by name.
+
+### Impact is an event
+
+Most shots miss — the median aim window is 1.8° — so **failure is the main
+experience in this game**, and it used to have no picture at all: a sound, a
+sentence, and a probe that stopped mid-frame. Each outcome now has its own
+visual language, and `node scripts/slingshot-fx-audit.mjs` is the gate.
+
+- **crash** — flash at the contact point, a shockwave through the halo the
+  planet already draws, a debris cone facing away from the surface, a screen
+  kick, and **a scar that stays**. The asymmetry is the drama: the probe is
+  destroyed and the planet shrugs.
+- **lost** — it dwindles rather than bangs. **timeout** — a small dispersing
+  puff. **hit** — the beacon blooms.
+- **The near miss is felt while it happens.** `frame()` computes the probe's
+  distance to the beacon each tick; the rings brighten and the flying tone
+  lifts as you close. The game always knew that number and only ever reported
+  it afterwards, as a figure you had to interpret.
+
+`?fx=0` is exactly the game as it was, `1` is the default, `2` is full — so the
+comparison is real rather than nominal.
+
+**Why the planet does not actually explode:** `validateLevel` computes par with
+all bodies present, the share card counts them, and everyone plays the same
+day. If a crash removed a body then "crash into everything, then fly straight"
+becomes optimal and your fifth shot faces a different puzzle than mine.
+
+Three things there that are easy to get wrong:
+
+1. **`orbit.js` is not touched, and must not be.** `fly()` already returns the
+   contact point and `body`, the index of the planet hit, so nothing needed a
+   rules change. A test asserts the rules never learn the words *particle*,
+   *scar*, *shake* or *fx*.
+2. **Under `reduceMotion` the flight is skipped in a single frame**
+   (`probe.i += probe.path.length`), so anything driven by flight progress
+   never runs. Every effect degrades to a static end state — and the scar is
+   recorded *before* the reduced-motion bail-out, because it is not motion and
+   it is the part that teaches. A test pins that ordering.
+3. **The gate drives the game loop itself.** Headless Chromium produces no
+   frames, so `requestAnimationFrame` never fires, nothing decays, and under
+   reduced motion a shot never even lands. An early version read that frozen
+   state as a leaking particle pool.
+
+   It shims `rAF` onto `setTimeout` with a synthetic clock advancing 16ms a
+   callback, installed with `addScriptToEvaluateOnNewDocument` so the game's
+   first frame already has it. That works because **`frame(now)` takes its
+   timestamp from the rAF argument** and clamps the delta to 100ms — read
+   `performance.now()` there instead and the gate would advance no game time
+   while still counting frames. A test pins both halves.
+
+   Two mechanisms were measured and rejected first, and both look right:
+   - **Forcing each frame with `Page.captureScreenshot`** costs a
+     software-rendered paint per frame. Three hundred of them, each followed
+     by a 100ms sleep, is why fifteen assertions took **5m34s** — and a gate
+     that slow does not get run, which makes it not a gate. It is ~3x faster
+     now, though this machine varies from 1m15s to 2m38s for identical work.
+   - **`Page.startScreencast`** delivers about 6fps under swiftshader, so the
+     waits spent their time waiting. Slower *and* wrong.
+   - **`Emulation.setVirtualTimePolicy`** advances the clock 5000ms in 102ms
+     of wall time but fired exactly **one** rAF callback: it drives timers and
+     the clock, not the compositor.
+
+   **Peaks are sampled inside the page, every frame.** Debris lives 320–600ms,
+   so sampling once per CDP round trip measures the empty pool afterwards —
+   which is how an early version concluded nothing was spawning at all. Waiting
+   happens in the page too, so advancing 150 frames is one round trip.
+
+   **The frame count is itself asserted.** Everything else here measures a
+   running game; if the shim were dropped, every drain and cap check would pass
+   by measuring a game that never started.
+
+### Two things that will silently break it
+
+1. **The rules must stay pure** and the level must stay bit-identical. `fly()`
+   takes a unit vector rather than an angle, and every coordinate snaps to a
+   half-unit grid, because `Math.sin` is not correctly rounded across JS engines
+   while `+ - * /` and `sqrt` are. Two people playing day 251 must fly the same
+   day 251. A test greps `fly()` for transcendentals.
+2. **Sound must be synthesised.** `server.js`'s `allowedExtensions` has no audio
+   MIME type, so any `.mp3` 404s in dev and is silently absent in production. A
+   test walks the whole repo and fails on one. The `AudioContext` is created
+   lazily on the Launch click — the guaranteed first gesture of a session.
+
+## Security Features
+
+The server implements:
+- Rate limiting (100 requests/minute/IP)
+- Path traversal protection with URL decoding
+- Dotfile/dotdirectory blocking (.env, .git, etc.)
+- File extension whitelist
+- Subdirectory index.html resolution
+- Security headers (X-Frame-Options, CSP, X-Content-Type-Options, etc.)
+- HTTP method validation (GET/HEAD only)
+
+## Working on it from more than one machine
+
+`bash scripts/setup-dev-machine.sh` sets this project up somewhere new: it
+checks the prerequisites, clones both repos as siblings, and runs the suite as
+proof. Bootstrap it with one clone by hand, since the script lives in the repo
+it sets up.
+
+Everything that matters is in the two git repos. **Three things are not**, and
+each needs a deliberate move:
+
+1. **The Anthropic API key.** `~/.config/anthropic/branyontech-key`, mode 600.
+   Move it with `tailscale file cp` rather than scp — no SSH auth, and it never
+   reaches a command line.
+2. **Claude Code's memory for this project**, at
+   `~/.claude/projects/-home-kyle-Projects-branyontech/memory/`. The directory
+   name is derived from the project path, so **clone to the same path on every
+   machine** or past sessions' learned facts silently fail to load.
+3. **The AWS session.** Nothing to copy; `aws login` fresh. It is an IAM user in
+   account `391292551001`, region `us-east-1`, and `aws login` is stock
+   aws-cli 2.34, not local tooling.
+
+Two things the code needs from the machine, both asserted by tests:
+
+- **Node 22 or newer.** All thirteen gates speak CDP over a global `WebSocket` with
+  nothing to install; on an older Node they fail deep inside a browser session
+  rather than up front.
+- **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves
+  it from a candidate list and `$CHROMIUM` overrides. All the gates used to
+  hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
+  and one wrong assumption became twelve identical unhelpful failures.
+
+**Push before switching machines.** The repos are the sync mechanism, and the
+setup script refuses to touch a working tree with uncommitted changes rather
+than guess. Note also that `pull.rebase` is set here, so a plain `git pull` with
+unstaged changes fails with an error about rebasing that has nothing to do with
+what actually went wrong.
+
+## The whole site on a phone
+
+`node scripts/site-audit.mjs` loads `/`, `/countdown/`, `/game/`, `/slingshot/`
+and `/weather/` at 390x844 and checks four things per page. Run it at 320x700
+too — the narrowest phones still in use are where things break.
+
+**Touch targets are judged by WCAG 2.5.8, not by a flat 44px.** 24x24 CSS px
+always, and 44x44 only where another target sits within 12px. A flat 44 would
+have forced the landing page's text links (six of them then, as a flat row) — 36px tall with 16px of air and
+nothing else near them — to grow boxes that pull their underlines off the
+words. That is a worse page, not a more accessible one. Controls that sit
+beside other controls do get 44, in `@media (pointer: coarse)` blocks so the
+desktop layout is untouched.
+
+**Two ways it hangs that are not the site.** A gate killed by `timeout`
+leaves its headless browser running, holding a debugging port the next run
+may pick (ports are `base + pid % 90`); find them with
+`pgrep -fa "[c]hrome-linux64/chrome --headless=new"` and kill those PIDs — never
+`pkill -f` with the pattern in the command line, which kills its own shell
+(exit 144). And on September 30, 2026 a `Runtime.evaluate` stalled at
+random pages against production and local alike, so a timeout here is not a
+verdict until the same run completes elsewhere.
+
+**It also checks for text hard-clipped inside its own box**, which is the one
+thing neither the overflow check nor the label audit could see: nothing leaves
+the viewport, so the page measures clean. Truncation with
+`text-overflow: ellipsis` is a decision and passes; truncation without one is
+a bug. That check is what found "Los Angeles / California · US" arriving on a
+phone as "Los Ang / CALIFORNI" — an unnamed wrapper span between `.loc` and
+its two lines sized itself to its widest line, so `max-width: 100%` on the
+children measured against 118px instead of the 92px on offer and `.loc`
+hard-clipped the lot. The same shape of bug as `#app`'s implicit `auto`
+column: **an intermediate box that was never told it could shrink.**
+
+## Weather console (`/weather/`)
+
+ATMOS//NET — a live weather console (WebGL sky, five views, a time scrubber).
+Developed in the sibling repo `../Weather`; `scripts/sync-weather.sh` copies its
+`public/` tree into `weather/` and adapts it:
+
+- **Absolute asset paths become relative.** `/css/…`, `/js/…` and `/assets/…`
+  resolve to the apex when served from `/weather/`, so every one would 404 and
+  the page would render unstyled with no JS. The script rewrites them and then
+  *fails* if any survive.
+- **`wallpaper.html` is dropped** — it drives a desktop wallpaper renderer.
+- **A back-link to the site is injected**, rather than committed upstream: the
+  console is a standalone app in its own repo and shouldn't carry this site's
+  chrome.
+
+`weather/` is generated output. Change the console in the Weather repo, re-run
+the sync, commit the result. **The source is `~/Projects/Weather`**, and the
+sync's default path (`../../Weather/public` from `scripts/`) does not exist
+on this machine, so run it as
+`./scripts/sync-weather.sh ~/Projects/Weather/public`. (A stale duplicate
+checkout at `~/VibeCoding/Weather` was deleted on 2026-10-03.)
+
+### One transport: the radar and the scrubber
+
+Kyle: "the buttons to pause, rewind and fast forward don't work." They did,
+on every view but RADAR, which is where he was: `views/radar.js` ran its
+own loop over its own frame index with its own ❚❚ on the map, and never
+read `store.cursor`, so the footer moved the readout while the picture kept
+looping, and the map's pause left the footer alone. Now (2026-09-27) there
+is one cursor and one `store.playing`; `node scripts/transport-audit.mjs`
+is the gate. What is load-bearing:
+
+- **The frame shown is the one nearest the cursor** (`frameFor`, strict
+  `<` so a midpoint picks the earlier frame), applied from a `'cursor'`
+  listener while the view is radar. ◀◀/▶▶, NOW, the footer's strip, the
+  arrow keys and the map's own strip all land there.
+- **The loop drives the cursor at the radar's own cadence** — a frame every
+  0.42 s, about 24 minutes of radar a second — with `setCursor`, never
+  `scrubTo`: the loop is ambient, so `following` stays true and `onHide`
+  can put the deck back on live time. A user's scrub clears `following`
+  and is kept. `timeline.tick` stands down on the radar, or two drivers
+  advance one cursor.
+- **The map's ❚❚ and the footer's ▶ are one flag.** Six places pause
+  without emitting `'play'` (the arrow keys, both strips, the meteogram),
+  so the map's glyph is refreshed on `'cursor'` as well as `'play'`,
+  exactly as the footer's button always was.
+- **A pause must survive the clock.** `syncToNow` runs every 20 s while
+  `following && !playing`, and on the radar a pause leaves `following`
+  true; without the `view === 'radar'` guard the cursor, and so the
+  frame, snapped back to now twenty seconds after every pause. The gate
+  waits 25 s to prove it.
+- **The side panels rebuild only when their hour changes.** `main.js`
+  re-renders the view on every cursor event, and the loop emits one every
+  0.42 s; three panels' `innerHTML` seven times a second was the cost of
+  doing nothing about it.
+
+**The stylesheets are content-hashed by the sync** (`core.<hash>.css`), so a CSS
+change is a new URL and is cached for a year. The JS cannot be — 21 ES modules
+importing each other by relative specifier with no bundler — so it ships with
+`max-age=60, stale-while-revalidate`. That combination is what stops a deploy
+serving new HTML against hour-old CSS and JS.
+
+### Every word readable — the grey ramp and the type floor
+
+Kyle: HUMIDITY, PRESSURE and the 16-day lows were too hard to read (September
+28, 2026). A census of every HTML text run and every canvas label on all six
+views at 1920×1080, measured against the real screenshot pixels behind each,
+found **1,036 runs, 882 under 12px and 564 under 4.5:1**. Two causes, fixed
+once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
+
+- **The grey ramp.** `--faint` was #3a5064, about 2:1 on the panels, and the
+  colour of most labels (in CSS it was only ever a text colour; in the charts
+  `FAINT` filled 31 labels). Then `--faint` #87a2b7 and `--dim` #a7bdce (since replaced — see Midnight Slate below), ~7
+  and ~10:1, with `--ink` ~16: three steps still. (The first retune, #7b97ad,
+  passed locally and then read 4.1:1 on production at dusk, where the live sky
+  behind the glassy panels is brighter; a live Extreme Heat Watch in alert red
+  read 4.3:1. So `--faint` went a step lighter, alert titles mix toward ink,
+  and panel headers mix their accent 65/35 with ink. Run the gate against
+  production too: its conditions are not the dev machine's.) `charts.js`'s `DIM` and
+  `FAINT` must equal the tokens; a test holds them together. The dark theme
+  was never the problem — its greys and its smallest sizes were.
+- **The type floor.** The root is a fixed 15px, and 50 CSS rules set labels at
+  .46–.66rem (7–10px). Every size under .8rem is now
+  `max(size, var(--fs-floor, 0px))` and `--fs-floor` is 12px at `:root`
+  (12.5 on phones) — the mechanism the phone layout already had, switched on
+  everywhere. Tracking on floored uppercase labels tightened to .12em so they
+  grew taller, not wider. Canvas: `MONO` 12px, `MONO_SM`/`UI_LBL` 11.5px,
+  and every literal `ctx.font` in the views at 11.5px or more; `gridY`'s
+  spacing guard went from 11 to 14px to match. Chart density is measured, so
+  larger labels thinned tight charts (~3% fewer text runs) rather than
+  colliding; the label audit is still at zero.
+- **Labels over a chart's own fills are outlined** — `haloText` in
+  `charts.js`, a thin dark stroke under the glyphs (`tag()`, axis numbers,
+  peak temperatures, REC, STORM, the AQI bands). "GOOD" drawn in green on the
+  green band measured 2:1; the outline gives every glyph its own ground.
+- **Smaller fixes the census found:** the tab digits were at opacity .5
+  (2.8:1), now .8; buttons floating on the maps sat on bright tiles (2.5:1)
+  and have their own ground, except toggled-on ones, which keep their cyan;
+  panel headers mix their accent toward `--ink`, not `--dim` (magenta was
+  ~4:1; 65% accent, since violet and magenta are dark hues); aircraft callsigns keep their altitude colour, lifted a fifth toward
+  ink.
+- **The gate measures what is on screen.** Chart text is captured by wrapping
+  `fillText`; an outlined label is measured against its outline; text
+  scrolled out of a panel or covered is skipped (`elementFromPoint`); view
+  fade-ins are finished first — headless draws no frames, and an early run
+  measured whole views at opacity 0; radar playback is paused, or NOW is
+  caught mid-flicker. Fails under 11.5px, under 4.5:1 (3:1 large), or on text
+  hard-clipped without an ellipsis at a desktop size. Two named exceptions,
+  both glyphs: the "//" in ATMOS//NET and the "◈" location pin. With the old
+  grey restored it fails 217 times.
+- **Known, not from this:** `tap-audit`'s "a slide along the chart is not a
+  pick" fails against production too, before any of this; unexplained.
+
+### Midnight Slate — the palette, and why it is not black
+
+Kyle, once every word passed the floor: "light gray text on a black
+background. It's very hard on the eyes." (September 30, 2026). That was
+glare, the opposite failure: #d6ecfa on #03050b is 16.7:1, and light glyphs
+on near-black bloom. He chose a dark scheme that is not black, with the
+neon toned to jewel tones. `read-audit.mjs` now holds both ends — against
+production's old palette it found **149 glare and 373 near-black** among
+1,001 runs; now none, 4.2–13.4:1 at all three sizes.
+
+- **The tokens** (core.css, the one place a hue lives): ground `--void`
+  #0f1826, panels `--panel-solid` #16212f at ~94% opacity (text sits on a
+  known ground, not on the sky), `--raised` #1c2939; `--ink` #dde2e8
+  (~12:1), `--dim` #b3bfcc, `--faint` #8d9aab; accents `--cy` #3fd0d8,
+  `--mg` #f07aa6, `--am` #f2b45a, `--lm` #8fdc6a, `--vi` #b39dfa,
+  `--rd` #f47171, `--ice` #7fb2f0 — every one ≥5:1 on `--raised`. CSS
+  literals are `color-mix()` of the tokens; `charts.js` repeats the palette
+  for the canvas (`SERIES`, `STATUS`, `INK`, `DIM`, `FAINT`, `GROUND`) and a
+  test holds the two copies together and fails on any neon left. The status
+  ramps (AQI, UV, Kp, dew point, CAPE, alerts, radar legend) moved one for
+  one, keeping their order.
+- **The gate's two new checks:** small text over 14:1 (large numerals
+  exempt), and any text whose measured ground has luminance under 0.008.
+  It samples only what a scroller shows — a row half out of a scrolling
+  panel had been measuring the gap beyond the panel as its ground.
+  `SHOTS=dir` saves every screenshot it measured; look at them.
+- **Where the black was hiding**, none of it a token: the screen-wide
+  vignette (55% black at every edge — the lower-left panel sat in it), the
+  basemap filter (`ESRI_BASE_FILTER` in `map.js`; slate land, water the
+  ground's colour), chart night bands in `rgba(0,0,0)`, and a `<button>`
+  (`.loc`) with no colour, which dark mode paints pure white.
+- **Glow is faint on purpose.** A 7px full-strength `text-shadow` blurred
+  glyph edges, and the big numerals' chromatic split was a double image;
+  both are a distant halo now. Canvas `shadowBlur` halved. Bars fill at 60%
+  with a full-strength cap (`capBar`, and the pollen outlook in CSS): a week
+  of solid yellow AQI bars was the brightest area on the screen.
+- **The games follow it** (September 30, 2026): `game/styles.css` and
+  `slingshot/styles.css` carry the console's token values, the canvas
+  accents (cup ring, pennant, probe, beacon, particles) moved to the jewel
+  tones, titles lost their glow, HUD panels are 92% slate, and SLINGSHOT's
+  space is navy #0d1522, not #04070f. The game *worlds* keep their own
+  materials — ONE PUTT's green, sand and water, SLINGSHOT's planets and
+  stars. ONE PUTT's labels had been the old #3a5064, ~2:1. The WebGL sky in
+  the console is untouched.
+
+### ACTIVITY WINDOWS — when to go and do it
+
+The DECK panel scoring seven activities (walk, bike, grill, stargaze, photo,
+swim, open up — Kyle swapped run for walk and line dry for swim on
+September 28, 2026) over the next 36 hours, in `js/activity.js`. Swim is
+outdoors in daylight between 7 AM and 8 PM, warm air first, and a
+thunderstorm code scores its "no thunder" factor 0: lightning is the one
+real hazard, not a nudge. Kyle could
+not read it ("RUN – Tuesday 07:00 · window 20:00–09:00 · 100"), and he was
+right: nothing was labelled, the window crossed midnight silently on a
+24-hour clock, the run window went straight through 3 AM, and on a good day
+every number read 99 or 100. Reworked September 28, 2026:
+
+- **Each row reads "Best Tue 7 AM · good Tue 6 AM–9 AM".** The best hour is
+  the highest-scoring hour; "good" is the stretch around it within 12 points
+  of it. Whole hours ("7 AM"), and the day is said again only when the stretch
+  crosses midnight. `tf.hour`, `tf.isoDate`, the place's time zone.
+- **The number is GREAT HOURS**: how many of the next 36 score 90+, not the
+  best hour's score. On a good Southern California day every best hour scored
+  95–100 and the numbers stopped telling activities apart; great hours read
+  Grill 19, Walk 16, Bike 13, Photo 0 on the same day. Rows sort by great hours,
+  then by the best hour; the bar is great hours over eligible hours. With no
+  great hours the row says what the best hour scores instead.
+- **Sensible hours are declared per activity** (`hours` next to `score`):
+  walk, bike, grill and open up 6 AM–10 PM in the place's time; swim in
+  daylight from 7 AM to 8 PM; photo in daylight and the golden edges (sun above −8°);
+  stargaze in the dark. An hour outside cannot be a best hour, cannot sit
+  in a window (the window stops at the boundary), and is not a great hour.
+  Darkness cost a run (as it then was) only ~4 points, which is why without this the good
+  window ran 8 PM to 9 AM. **`scoredHours` is the one scoring path** for the
+  windows and the count, so they cannot disagree; a test runs a synthetic
+  36 hours of perfect weather, 3 AM included, so the rule is the only thing
+  keeping the night out — and fails with the rule removed.
+- **Readable, measured on the real pixels** (two passes, both at Kyle's
+  prompting). Pass one moved the secondary lines off `--faint` (#3a5064,
+  2.3:1). Pass two was about size and face: the rows were a thin monospace
+  at 9.6–10.8px, and on a 1920 screen the panel is 549px wide and the text
+  stayed that small, because the console's root is a fixed 15px. Now the
+  rows use the interface face ELSEWHERE uses (which reads easily), the list
+  is a size container and every line is `clamp(floor, cqi, ceiling)` —
+  12px at the least, ~14px in the wide panel — the number 19–22px, the
+  secondary lines `--dim` (~9:1 since the grey ramp was retuned), and the list has a steadier backing so city lights behind
+  the glass cannot pull them down. Tests pin the 12px floors, the face and
+  the grey. The cost: 1280×800 shows two rows before scrolling rather than
+  three; the rows are sorted best first. OPEN UP's icon was U+2337, in no
+  font here; it drew as an empty box and is 🪟 now.
+- **A tap opens "why"**: each row is a `<button aria-expanded>` and shows the
+  best hour's factors with the points each cost. One row open at a time,
+  Escape closes it, and the open row survives the re-render every cursor
+  tick causes. A factor's colour follows the same rounded points its label
+  shows — a bar coloured by the unrounded value read "full marks" in yellow.
+
+### OVERHEAD — what is above you, right now
+
+A sixth view: aircraft from a volunteer ADS-B network, the ISS, and the sun and
+moon, on the same slippy map the radar uses. Tap an aircraft and it says what it
+is and where it is going. No API key, no recurring cost.
+
+- **The feeds go through the Lambda, never the browser.** `/api/aircraft` proxies
+  adsb.lol and adsb.fi **at once** and takes the first good answer (4 s
+  timeout each); `/api/flight` proxies adsbdb. That keeps two more hosts out
+  of the CSP — and at a ten-second edge cache keyed to a tenth of a degree, it
+  means **one pair of upstream requests per ten seconds per neighbourhood**
+  however many people are watching. These are hobbyists' receivers and nobody
+  is being paid for them. Asking in turn made a dead adsb.lol cost its whole
+  timeout on every miss (11 s, then 4 s, then 2 s as it was shortened), and
+  adsb.fi names its list `aircraft` where adsb.lol says `ac`, so for a while
+  the fallback answered and was thrown away: OVERHEAD showed "0 AIRCRAFT".
+- **Enrichment is lazy.** Routes and airframes are fetched only for the aircraft
+  you tap. Doing all hundred on every refresh would be a hundred requests every
+  ten seconds against a free service, which is how you get blocked and deserve
+  to be.
+- **Polling stops when the view does.** `setView` now calls `onHide()` on the
+  view being left; without it a tab open overnight is 8,640 requests.
+- **Routes are keyed by callsign**, which airlines reuse day to day, so they are
+  usually right and occasionally a stale pairing. The panel says so rather than
+  pretending otherwise.
+- **adsb.lol is ODbL and the attribution is not optional.** It lives in the
+  ALSO UP panel.
+- **The aircraft count has three states, and "0" is only one of them**
+  (October 17, 2026). When both feeds fail, `/api/aircraft` still answers 200,
+  with `source: null` and an empty list, so "no aircraft" and "nobody answered"
+  look alike unless the view reads `source`. `overhead.js` keeps `answered`
+  (a reply has arrived) and `feedsDown` (`r.source == null`):
+  - **Before the first answer** the count is `—`, the source label `—`, and
+    NEAREST says "Looking for aircraft…". The ten-second timer redraws the
+    stamp while a poll is still in flight, and with nothing yet it read
+    "0 AIRCRAFT". `renderNear()` is also called once when the view is built:
+    it otherwise runs only from a reply, so NEAREST sat blank. A request that
+    throws is not an answer, so a failed first poll stays on the dash.
+  - **A null source** reads `AIRCRAFT FEEDS NOT ANSWERING`, NEAREST says the
+    feeds are not answering, and the source label says `NO FEED`. An empty
+    list from a working feed is still "0 AIRCRAFT" and "Nothing in the air
+    within range". `feedsDown` comes from the source, never from the list.
+  - **The empty answer is edge-cached for 10 s** like any other
+    (`s-maxage=10`), so after both feeds recover a viewer can keep seeing "not
+    answering" for up to ten seconds more, on top of the page's own 10 s
+    refresh. Measured locally with the feeds hung then restored: 9.8 s to the
+    count, one refresh; the local server has no edge cache, so the extra
+    ten seconds is expected, not measured. A both-dead miss costs the 4 s
+    timeout.
+  - **`.radar-hud` has `max-width: calc(100% - 90px)`.** The stamp is
+    absolutely placed top left and the map's locate and zoom buttons are
+    top right; the longer text ran one line under them at 390px and lost the
+    last letter. Now it wraps. RADAR shares the HUD, and its short stamp is
+    far under the cap. `mobile-audit.mjs` never waits for the count, so it
+    cannot see this: hang the feeds on a dev server (a preload that makes
+    `fetch` to adsb.lol and adsb.fi never resolve) and measure `#o-count`
+    against the buttons at 390 and 320.
+
+Three things that will silently break it:
+
+1. **Six views have to agree in four places** — the `<button role="tab">` and the
+   `<section>` in `index.html`, `VIEWS` in `main.js`, and the keyboard range,
+   which is now `1`–`6`. Miss one and a view is unreachable, or a tab selects
+   nothing.
+2. **`topocentric` lives in `lib/astro.js`.** It was a private function inside
+   `views/sky.js` reading `store.loc` from its closure; both views need it, so it
+   moved and now takes the observer explicitly. A satellite is close enough that
+   the observer's displacement from the Earth's centre matters — the
+   `R / (R + altKm)` term is why the ISS is below your horizon beyond about
+   2,300km, which a great-circle bearing would happily ignore.
+3. **The basemap constants are exported from `map.js`**, not redeclared per view.
+   Two views drawing the same Esri tiles through different filters would be
+   visibly wrong and nobody would know which was intended.
+
+### SATELLITES — a mode of OVERHEAD (October 13, 2026)
+
+Kyle asked for real satellites on the weather console. A SATELLITES panel in
+OVERHEAD switches the map to a world view (zoom 2) and draws every enabled
+group as dots, with the selected one's next 90 minutes of ground track and an
+ABOVE YOU list of what is over the visitor's horizon. Four toggles, one colour
+each, remembered in `localStorage['atmos.sats.v1']`: Stations (on),
+Bright (CelesTrak `visual`), Weather & science, Starlink. Pure rules are in
+`weather/js/lib/sats.js` (like `tonight.js`: no DOM, no network, the clock is an
+argument), so the time scrubber moves them. Checked against wheretheiss.at: the
+ISS came out 0.7 km off.
+
+- **Why a world map.** At OVERHEAD's aircraft zoom (9, ~240 km across) a low
+  orbit crosses the whole map in about thirty seconds, so it would be empty
+  almost always. Satellite mode lowers `map.minZoom` to 1 and stops the
+  aircraft poll.
+- **Elements come from our own origin, not CelesTrak.** CelesTrak allows one
+  download per 2-hour update, answers repeats with 403 and firewalls an IP at
+  50 errors in 2 hours. So `.github/workflows/sats.yml` runs
+  `scripts/fetch-sats.mjs` every 2 hours, fetches each group once, **stops at
+  the first non-200 and never asks again after any answer**, refuses a group
+  that is too small to believe, and only then uploads gzipped JSON to
+  `s3://branyontech.com/sats/`. Only confirmed TCP connection timeouts are
+  retried, up to three tries 30 seconds apart. The transport gives connections
+  30 seconds and complete requests 60 seconds, logs DNS/TCP/TLS phases, and
+  never follows redirects. DNS/TLS/body failures and every non-200 stop.
+  The October 28 run exhausted all three attempts; the following run succeeded
+  on the same code and Ubuntu image. The historical logs do not prove the
+  upstream cause. See `docs/satellite-fetch.md` for run links and diagnosis.
+  A durable S3 cooldown covers scheduled/manual/partial/failed runs. Use the
+  workflow (not the fetch script directly) to preserve that shared guard.
+  Closely spaced runs skip; all five downloads must validate before writing
+  the local snapshot, and Publish requires success. Existing S3 data stays
+  on failure; the panel shows the elements' age. `deploy.yml` never touches
+  `/sats/` (its only `--delete` sync is `weather/`).
+- **OMM JSON, never TLE.** Catalogue numbers have passed 99999 (SOYUZ-MS 29 is
+  100057 in the stations group) and a two-line set cannot hold them.
+- **SGP4 is vendored satellite.js 7.1.0** (MIT, `weather/js/lib/satellite/`, with
+  its licence): the first third-party code in the repo. Only its pure-JS files;
+  the package's own `index.js` re-exports a WASM build the CSP would block
+  (no `wasm-unsafe-eval`), so `sats.js` imports the files directly and a test
+  fails if any vendored file mentions wasm.
+- **Starlink is 11,100 objects** (4.7 MB, ~690 KB gzipped on 2026-10-13), so it
+  loads only when switched on and its positions refresh every 5 s, not every
+  second (~20 ms to propagate all of them in Node).
+- **Docked craft share one position.** The ISS, Poisk, Nauka, Progress, Soyuz
+  and Dragon are propagated from the same elements, so they are one dot and
+  the panel says so rather than listing six ISSes.
+- **"Kind" is read from the catalogue name alone** (R/B = rocket body,
+  DEB = debris) and the panel says so.
+- **Production only.** The standalone `../Weather` server has no `/sats/`; the
+  panel then shows "not available here" and everything else works.
+- **Dev:** `/sats/` is git-ignored. To see it locally, put
+  `{ group, fetched, records }` JSON files there (`tests/fixtures/sats-stations.json`
+  has the shape). Do not run `fetch-sats.mjs` by hand more than once per two
+  hours: that is the 403 it exists to avoid.
+
+### HURRICANES — the STORMS atlas, a mode of RADAR (October 20, 2026)
+
+Kyle asked for something cool about hurricanes. NHC's live feed lists no
+active storms for most of the year (`CurrentStorms.json` was
+`{"activeStorms": []}` the day this was built), so the first layer is history,
+which works every day: a **STORMS** button in RADAR (🌀) turns the map into an
+atlas of every Atlantic (1851-) and East/Central Pacific (1949-) tropical
+cyclone in NHC's HURDAT2 best-track archive that came within 500 miles of the
+visitor. Tracks are faint, coloured by Saffir-Simpson category; a tap on one
+replays it (an eye moves along it on its own playhead); SWEEP THE YEARS grows
+each season's storms in turn; the panel gives the facts for the place, the
+nearest tracks, "on this date", and where today falls in the season. The live
+layer (forecast cone, model spaghetti, wind swirl, analogs) is later phases;
+the plan is in `~/.claude/plans/what-do-you-think-shimmering-aurora.md`.
+`node scripts/mobile-audit.mjs` and `read-audit.mjs` open STORMS themselves.
+
+- **The archive is a snapshot, built by CI, read from our own origin.**
+  `.github/workflows/storms.yml` runs `scripts/fetch-storms.mjs` daily; HURDAT2
+  is revised about once a year, so most runs find the published
+  `storms/index.json` already names the newest files and upload nothing. The
+  newest file names are read from NHC's directory listing (they carry the year
+  and a date). Files are content-hashed (`al.<hash>.json`, immutable) and
+  `index.json` is uploaded last with a short cache, so it never names a missing
+  file. Like `fetch-sats.mjs` it never retries, stops at the first non-200 and
+  refuses what it does not believe (fewest storms and fixes, `through` may not
+  regress, Katrina and 1851 present, 600 KB gz cap). **`FORMAT` in the script,
+  copied into `index.json`, is what makes it republish when the archive's shape
+  changes:** the skip compared only NHC's file names, so when the wind radii files
+  were added (NHC's files unchanged) the daily run said "unchanged" and
+  published nothing. Raise it whenever the files or the index change shape. `deploy.yml` never
+  touches `storms/`; `/storms/` is git-ignored. **Dev:** build the real one
+  with `node scripts/fetch-storms.mjs storms --from-file al.txt ep.txt --plain`
+  (HURDAT2 files from nhc.noaa.gov/data/hurdat/), or the small real-row
+  fixtures in `tests/fixtures/` with `--fixture`. The standalone Weather server
+  has no `/storms/`; the panel then says "not available here".
+- **The format is `lib/stormpack.js`**, shared by the build and the console so
+  they cannot disagree: columnar, delta-quantised, lossless (HURDAT2 is 0.1 deg
+  and 1 kt already). **Longitude is unwrapped, east-positive** (a Central
+  Pacific storm carries on 181, 182...), so a track is one polyline and no
+  step jumps the seam; drawing wraps with modulo and draws three world copies.
+  Measured on 2026-10-20: 3,250 storms, 87,584 fixes, 237 KB gzipped.
+- **The rules are `lib/storms.js`**, pure like `sats.js`. **Distance is to the
+  straight line between fixes, not to the fixes**: a six-hour step is 100 km or
+  more. Measured for Mission Viejo, Norman 1978 is 29 mi by segments and 31 by
+  fixes, Kathleen 1976 93 and 123. HURDAT2 does **not** carry Hilary 2023
+  across Southern California, so nothing may claim it.
+- **Wording is part of the rules.** A track is where a storm's centre was every
+  six hours, not what a place felt: facts say "centre within 100 mi" and "wind
+  when nearest", never "hit" or "felt", an empty result says it covers only
+  the Atlantic and the East and Central Pacific, and the panel says it is
+  history, not a warning source, with a link to NHC. Tracks before 1900 and
+  before 1966 carry a caveat (`eraNote`). A test greps for the words.
+- **STORMS is a lazy chunk and RADAR's loop stands down under it.**
+  `radar.js` does `import('./storms.js')` on first press (a test pins one
+  dynamic import and that no eager bundle file carries atlas code); while it is
+  on the radar layer is hidden, `store.playing` is false, `tick` returns, and
+  showing RADAR does not restart the loop. The atlas has its own playhead
+  because `store.span` is tied to the forecast window, which a 1992 storm can
+  never be inside. Under `prefers-reduced-motion` a replay starts paused and
+  the sweep button is hidden.
+- **`/api/storms` is built and the STORMS mode reads it (phases 2 and 2b).** It lives in `lambda/index.mjs` and `../Weather/server.mjs` as one
+  identical `STORMS` block (a test compares them), with `atcf.mjs` beside each
+  (byte-identical: the Lambda zip holds only `lambda/`). It takes **no input**
+  and checks every id against `/^(al|ep|cp)\d{2}\d{4}$/` (invests, number 90
+  and up, are refused) before any URL is built. It reads `CurrentStorms.json`
+  (3 min), each storm's b-deck best track, the a-deck's `OFCL` official forecast
+  (gunzipped server-side, capped at 3 MB compressed and 25 MB inflated; it is
+  ~800 KB gz for one finished storm) and the cone from NHC's ArcGIS service,
+  whose layer ids are found by name (`EP1 Forecast Cone`), never assumed. **Two
+  rules are the point:** if `CurrentStorms.json` cannot be read the route
+  THROWS (502, never cached), so "could not check" can never read as "no
+  storms"; and one failed part (cone, forecast, best track) does not drop the
+  storm: `parts` says `ok`, `none` (not there) or `fail`, and a response with
+  a `fail` is edge-cached 30 s, not 180. **A 404 is `none`, not `fail`**
+  (October 21, 2026, from the first live storm, ep222026): NHC lists a storm
+  minutes before it publishes its files, so its best track (`stormBest`) and
+  a-deck (`stormForecast`) answer 404, which is "not there yet". As `fail` the
+  response was cached 30 s and the console said the read failed; as `none` it
+  is cached 3 minutes. The a-deck's 404 is not memoised, so the next read
+  finds the file when it appears; any other status is still `fail`. Same edit
+  in `lambda/index.mjs` and `../Weather/server.mjs`.
+  `EDGE_CACHE` is `s-maxage=180` with no stale-while-revalidate.
+  **`CurrentStorms.json` was empty on 2026-10-20, so its field names
+  (`latitudeNumeric`, `binNumber`, `publicAdvisory`...) were NHC's documented
+  schema; the first live storm (2026-10-21) confirmed them, all non-null.** The
+  ATCF parsers are tested on real rows (`tests/fixtures/atcf-*.dat`, Trudy
+  2026). A route that answered from memory once hid a hostile-a-deck test for
+  two of its three cases: the route remembers its answer, so each such case
+  needs its own process.
+- **The live layer** (`views/storms.js`, rules in `lib/storms.js` under LIVE)
+  polls `/api/storms` every 3 minutes while STORMS is open and RADAR is on
+  screen, and the timer stops with either. It draws the cone, the official
+  forecast (dashed, +24H marks), the best track in category colours and the
+  storm's centre; the archive fades under it. **The honesty is structural:**
+  a strip says "NOT AN OFFICIAL SOURCE" whenever a storm is shown; a failed
+  check reads "COULD NOT CHECK NHC... does not mean there are no storms" and a
+  successful empty answer reads "NO ACTIVE STORMS · CHECKED n MIN AGO" (two
+  branches, a test pins them apart); **advisory age** is hours since NHC's
+  newest signal (forecast issue, advisory time, last fix), over 7 h is
+  "NHC UPDATE OVERDUE" and over 12 h the forecast is drawn faint and labelled
+  OUT OF DATE. **The YOU card** is `youCard()`: the closest the OFCL track
+  comes (to the line between points), when, and inside the cone or not (null,
+  "not available", when there is no cone: never "outside"). Wording says
+  "closest forecast approach", never "arrival", "landfall" or "safe", and
+  that outside the cone is not outside the storm's reach. A forecast that
+  stops before the track gets near says so. **Longitudes are unwrapped** for
+  the dateline (best track, then forecast continuing from it, cone moved to the
+  same side). **To see it with no storm active** (NHC's list is empty most of
+  the year): serve the NHC feeds from `tests/fixtures/atcf-*.dat` with times
+  shifted to now (a `node --import` preload that wraps `fetch` for the NHC
+  hosts; the route is unchanged) and run the dev server on it. Verified that
+  way on 2026-10-20: fresh, 14 h old, NHC down, empty, no cone.
+- **Wind radii are the wind field (phase 3).** NHC measures, per fix, how far
+  34, 50 and 64 kt winds reach in each quadrant (NE SE SW NW, nm); HURDAT2 has
+  them from 2004 (and the radius of maximum wind from 2021). The archive build
+  stores them in **separate lazy files per basin** (`al-radii.<hash>.json`,
+  `ep-radii.<hash>.json`, listed in the index as `alr` and `epr`; ~90 KB gz
+  together, inside the same 600 KB cap), fetched only when a storm from 2004 or
+  later is replayed. **Three states, kept apart on purpose:** a full row is
+  measured; a bare `[fix]` is measured and none; a fix with no row was not
+  measured (HURDAT2's -999). The first version read "not measured" as zero and
+  Katrina's wind field shrank to almost nothing at landfall, because its two
+  landfall records (off-synoptic times, `L`) have no radii. `radiiAt()` skips
+  unmeasured fixes and interpolates by time between the nearest measured ones
+  (one side only: within 3 h), and returns `{ known, r }` so the panel can say
+  "not measured at this time" apart from "no winds of tropical-storm force".
+  **It draws what NHC measured and nothing else:** four quarter circles per
+  threshold (the outline steps at quadrant edges, as NHC draws it), a replay's
+  field at its eye, a live storm's at its latest best-track fix with NHC's
+  forecast 34 kt edge dashed at +24 h and later, and the numbers in words in
+  the panel. Before 2004 it draws none and says so. **Not built (needs a
+  decision):** an animated swirl, which would need a wind speed between the
+  radii that the data does not give; any modelled profile would be invented.
+- **Model spaghetti is built** (phase 4, first half). `/api/storms` returns
+  each storm's `models`: the a-deck runs of AVNO (GFS), EMXI (ECMWF), HFSA and
+  HFSB (HAFS) and CTCX (COAMPS-TC), each at **its own latest cycle** (older than
+  NHC's forecast is normal), thinned to every 12 h out to 120 h and cut to
+  `{ tau, t, lat, lon, wind }` (~2.8 KB for five); a model with a single point
+  is not a line and is dropped, one with no run is absent, never invented.
+  `parts.models` is `ok`, `none` or `fail`, and fails with `parts.forecast`
+  because both come from one read of the a-deck. The console draws each as a
+  thin line in its own colour **under** NHC's official dashed line, with a chip
+  per model (legend and switch, session only: no storage); a run 12 h or more
+  older than NHC's forecast is labelled OLD and drawn faint. **The words:**
+  each line is one model's own forecast, the spread is not a probability, and
+  NHC's official line weighs them: follow it, not any one model. The map frames
+  the last two days of track plus the forecast and the models; framing the
+  whole track shrank the fan to a smudge. The real fixture storm had no ECMWF
+  run, so EMXI is tested on a renamed HFSA run, labelled synthetic.
+- **Analog storms are built, as similarity and nothing more** (phase 4, second
+  half). `analogs(query, storms)` in `lib/storms.js` lays the live storm's last
+  up-to-42 hours of best track (at least 18: fewer is "too early") against every
+  window of every archive storm that ends on a synoptic fix (00/06/12/18 Z; the
+  off-hour landfall records never end a window) and scores each on position
+  (RMS km, weight 60%), wind (RMS kt, 20%), heading (degrees, 10%) and time of
+  year (days, wrapped at 365, 10%), each over its scale (150 km, 20 kt, 45 deg,
+  30 days). A window ending more than 1,500 km from the live storm is not
+  scored. Each storm keeps its best window; the top five come back. ~40 ms over
+  3,250 storms, done once per best-track fix and cached. `nextAfter()` says
+  what each did in the 120 h after the match (peak wind, a landfall record, how
+  far and which way it moved, where its track ends), worded as what HAPPENED to
+  another storm, never "will". **The console** draws the matched stretch thin
+  and what came next dotted, in the storm's own intensity colours, in its real
+  position, with a ring where the match ends and the name at the far end, under
+  the models and NHC's official line; a row opens one and fades the rest. **The
+  words are the guard:** "Similarity, not a forecast"; it knows nothing of
+  steering winds, wind shear or sea temperature; a score is not a probability
+  and has never been checked against what happened; the weights are printed.
+  A test greps the section for prediction words and counts the one "forecast".
+  Verified on real Trudy against the real archive: Kiko 2007 first (October,
+  off Mexico, weak, west). It is a lookup, not a model: do not add a probability
+  or an "expected" line to it.
+- **The storm watch works without a session** (`.github/workflows/storms-watch.yml`,
+  `scripts/check-storms.mjs`). At :13 and :43 of every hour (two crons, because
+  GitHub drops scheduled slots: three of about twenty ran in the first ten
+  hours, and late) it reads production's
+  `/weather/api/storms` and acts on `activeCount`: **zero to above zero** opens
+  an issue labelled `storm-watch` (GitHub emails the owner) and fails the run
+  (a failed scheduled run is mailed too, the way `spend.yml` already is);
+  **while a storm stays listed it is quiet**, because the open issue is the
+  memory that Kyle has been told (an email an hour for a week gets filtered);
+  **back to zero** closes the issue; **a check that cannot say** (non-200, not
+  JSON, no count, network down) fails the run loudly and never closes an open
+  alert: the route's 502 for "could not read NHC" must not read as "no storms"
+  here either. Least permission (`contents: read`, `issues: write`), pinned
+  actions, no secret, one GET to production. **Prove the email path** with the
+  workflow's manual `test` input: it opens a `[test]` issue, and the next hourly
+  run closes it. The first real storm's issue carries the checklist of what to
+  look at. (The first live storm, ep222026 Vance, came on October 21, 2026: the
+  field names matched NHC's schema, all non-null; EMXI has no run on any storm
+  so far.) **Issue #11 is that storm's memory**; it closes when none is listed.
+- **The same watch runs on AWS, where a schedule is kept** (October 21, 2026;
+  `scripts/storm-watch-aws.sh`, dry run unless `--apply`, `--test` pretends one
+  storm). The GitHub workflow stays as the second, independent path and the one
+  that opens the issue with the checklist. **EventBridge rule
+  `atmos-storm-watch`**, `rate(15 minutes)`, invokes the weather Lambda with a
+  Scheduled Event (permission `storm-watch-events`, source the rule). The
+  handler's first line is `isScheduledEvent`: `source === 'aws.events'`,
+  `detail-type === 'Scheduled Event'` and **no `requestContext`**, because API
+  Gateway events always carry one and a caller cannot set a top-level `source`,
+  so a web request can never run the watch. `stormWatch` calls `stormsPayload`
+  (the route's own 3-minute memo) and logs one **embedded-metric-format** line
+  to namespace `AtmosWeather`: `CheckFailed` (0 or 1, **every run, so it is the
+  heartbeat**) and `ActiveStorms` (**only when NHC was read**; a failed read
+  emits no count, never a zero). `{test: true}` pretends one storm and asks NHC
+  nothing. **Four alarms mail SNS `NotifyMe` (one confirmed subscription) on a
+  change of state only:**
+  - `atmos-storm-listed`: `ActiveStorms` >= 1, one 15-minute datapoint, missing
+    data ignored. Mails once when a storm is first listed and once when it
+    clears; while any storm stays listed it is in ALARM and says nothing, like
+    the GitHub issue.
+  - `atmos-storm-count-rose`: `ActiveStorms` >= 2, the same settings, **alarm
+    action only**. The word that a second storm appeared while one was
+    listed, which `listed` cannot say. It does not mail when the count falls
+    back, and a third storm while two are active is not announced.
+  - `atmos-storm-check-failed`: `CheckFailed` >= 1 on two of two checks, missing
+    data fine. NHC could not be read: never "no storms".
+  - `atmos-storm-silent`: `CheckFailed` SampleCount < 1 over an hour, missing
+    data **breaching**. The watch itself (rule, permission or Lambda) stopped.
+  Proven end to end on October 21-22: scheduled runs every 15 minutes within
+  seconds, and the ALARM and OK emails arrived. **Not yet seen:** `listed`
+  returning to OK, which needs NHC to list nothing. Tests: "STORM WATCH ON AWS"
+  in `tests.js`, with a fake `aws` on PATH for the script.
+- **Not yet built:** nothing in the hurricane plan. The season ring covers only
+  storms in HURDAT2, which lags about six months, so this year's storms are
+  absent until it is revised.
+
+### How the console ships: one hashed bundle (October 13, 2026)
+
+`index.html` loads `dist/main.<hash>.js` — the ~25 modules bundled and
+minified by `scripts/sync-weather.sh` (esbuild, pinned, fetched with `npx` on
+demand; nothing is added to the repo's dependencies and the output is
+committed, so CI and visitors never build). ~70 KB gzipped in one request,
+down from ~154 KB in 26 requests found one import level at a time; the name
+carries a content hash, so `deploy.yml` caches `weather/dist/` for a year
+like the stylesheets. SGP4 is a separate lazy chunk, fetched only when
+satellite mode is first used (the dynamic `import()` in `overhead.js`; keep
+`satcats.js` import-free). **The unbundled sources stay in `weather/js/`**:
+`/countdown/` and `/year/` import `/weather/js/lib/*` directly and the tests
+read them; the page just no longer loads them. An earlier attempt to start
+`/api/config` and `/api/bundle` before the modules loaded measured no gain
+on a 1.6 Mbps link (bytes, not round trips, were the limit) and was reverted;
+the 480 ms boot fade delay is gone too.
+
+Boot work followed (slow link ≈2.82 s → ≈2.1 s ready, fast ≈0.65 s):
+
+- **`store.refresh()` in `state.js` no longer awaits the five side feeds**
+  (radar, pollen, observations, climate, models). The boot waits for the
+  bundle alone; the side feeds settle afterwards via
+  `Promise.allSettled(side).then(...)`, which emits `'data'` again if the
+  location is still current. A test pins that `setLocation` resolves on the
+  bundle alone, and the request-identity test needs a `flush()` for the late
+  notification. `tests/weather-reliability.test.cjs` exists in both repos and
+  must stay identical.
+- **The shared chunk gets a `<link rel="modulepreload">`**, injected by
+  `sync-weather.sh` in the head before the first stylesheet, for every chunk
+  `main` imports statically. Without it the chunk costs one extra round trip
+  after `main` arrives. The lazy satellite chunk is never hinted, and a test
+  checks the hints equal the static chunks.
+- **JetBrains Mono is served as one variable font with a weight range**
+  (`font-weight: 400 700` in a single `@font-face`). The three weight files
+  were byte-identical and each was downloaded; one file saves ~63 KB (slow
+  link ≈2.41 s → ≈2.09 s). The filename stays `jetbrainsmono-400.woff2`
+  because `/game/` and `/slingshot/` load it directly from
+  `/weather/assets/fonts/`, so renaming it would break both.
+- **A ~233 ms stall in headless Chromium is software WebGL, not the page.**
+  A trace of the console build showed one task blocked in
+  `GLES2::ReadPixels` (~206 ms, then ~60 ms on every later frame):
+  headless renders WebGL with SwiftShader. To profile against the real GPU,
+  launch with `--use-angle=vulkan --enable-features=Vulkan --ignore-gpu-blocklist`
+  and check the renderer string (`WEBGL_debug_renderer_info`) says the
+  hardware, not SwiftShader. There the readback is gone and slow-link ready
+  is ≈1.9 s, not ≈2.1 s. `--disable-gpu` is still SwiftShader, and
+  `--use-gl=egl` gives no WebGL2 at all (sky off), so neither is evidence.
+  What the build really costs is ~100 ms of JS (`mountUI` ~50 ms, first deck
+  render ~40 ms).
+- **RADAR and OVERHEAD are built on first open, not at boot**, through
+  `lazyView(name, make, id)` in `main.js`: a getter on `views` that builds
+  the view on first read, then replaces itself with the plain value. Each owns
+  a map, and building both at boot fetched ~70 tiles against the data feeds.
+  `setView()` must read `views[v]` **before** it toggles the tabs: a view's
+  constructor sets `root.className`, which wipes the `active` class set a
+  moment earlier, so RADAR opened to an empty page. A test pins that order.
+  The cost is a slower first open on a slow link (RADAR's map fills in over a
+  few seconds).
+- **Map tiles retry, and the RADAR loop only steps onto frames that are in**
+  (October 17, 2026). RainViewer's tile host rate-limits with HTTP 429 and
+  sends no CORS header, so the browser reports `net::ERR_FAILED`, not a 429.
+  - `loadTile()` in `map.js` retries a failed tile after 1.5 s and again after
+    4 s before caching the error; before, one failure blanked that tile for the
+    whole session. Each retry is another request to a host that may be
+    throttling.
+  - `map.tilesSettled(name, url?)` is true when every tile a layer wants has
+    loaded or finally failed. With `url` (a function) it asks about another
+    source for the same view and **starts those loads**: nothing draws an
+    upcoming radar frame, so asking is the only thing that ever requests it.
+  - `radar.js` holds on the first frame until its tiles are in (up to
+    `PRIME_MAX`, 5 s), then each step goes to the next frame that is settled,
+    skipping the rest, and waits in place if none is. Measured on production's
+    slow link over six runs: the displayed frame was fully drawn at 2, 3 and 6 s
+    (hold alone: 17-21% at 6 s, from stepping onto unloaded frames). At 1 s it
+    is ~58% either way. The frames are fetched as the loop reaches them, so
+    fewer requests (144-211, not 266-276).
+  - Tests pin all three (retry, settled, skip).
+- **Measuring the console's requests: the resource-timing buffer holds 250.**
+  It truncates silently, so request counts and "settled at" times read low
+  until `performance.setResourceTimingBufferSize(5000)`. And a measurement run
+  is itself load on RainViewer: a burst of runs from one IP got it 429s that
+  lasted minutes to an hour and invalidated the numbers. Probe first, space
+  runs several minutes apart, and treat one slow run as noise.
+
+### TONIGHT — in the SKY view's observing panel
+
+`weather/js/lib/tonight.js` answers "is tonight worth going outside for, and if
+not, which night is". Pure rules, in the same spirit as `putt.js` and
+`orbit.js`: no DOM, no network, no zero-argument `new Date()`, and astro is
+injected rather than imported. `node scripts/tonight-check.mjs` runs it against
+live forecasts for five places and asserts the invariants.
+
+**It is calibrated for the naked eye**, which is a different question rather
+than a simpler one. Seeing, transparency and dew point decide whether a
+telescope is worth setting up; they have nothing to do with whether it is worth
+stepping outside. Cloud, moonlight and how long the sky is dark do. The
+headline is the number a person would actually ask for: **hours of clear,
+moonless dark**, and the longest unbroken run of them, because you only go
+outside once.
+
+Three things learned the hard way, all of them from running it on real data:
+
+1. **Clamp each score term, not the sum.** The first version clamped only the
+   total, so every night with a four-hour clear run scored 100 — five clear
+   nights in a row ranked identically, which is the one question the feature
+   exists to answer. The gate now fails if scores stop discriminating.
+2. **Say the better night in both branches.** A serviceable two-hour gap
+   tonight was suppressing "Thursday is clear from dusk to dawn".
+3. **Anchor the day in the place's timezone, not the viewer's.** Harmless for
+   the console, wrong the moment ELSEWHERE asks about somewhere else, so
+   `assessNights` takes an optional UTC offset.
+
+**`verdict()` is the deterministic floor and it ships without any API key.** It
+is what gets served when the model is unreachable or the month's budget is
+spent, and it is the bar the model has to beat to earn the call. The rules
+module must not know an LLM exists — a test asserts it.
+
+**A model was measured against it, and did not beat it.**
+`node scripts/model-bake-off.mjs` runs Haiku 4.5, Sonnet 5 and Opus 5 against
+live forecasts, prints `verdict()` first as the bar, and flags invented
+figures, register slips and over-long sentences. Two rounds, 8.6 cents:
+
+- **Round 1** — every model reached for words the house voice does not use
+  ("washout", "excellent viewing"), and on a night that was already good one
+  volunteered a *better* night, which is noise.
+- **Round 2**, with `brief.js` sample lines and a ban list, fixed the register
+  completely (zero slips in twelve calls) and made the models suppress the
+  week ahead when tonight already works. But Haiku over-obeyed "shorter is
+  better" and stopped writing sentences, and its Tromso line put **Friday's
+  cloud figure on tonight** — a misattribution, not an invention, which the
+  gate's hallucination check structurally cannot catch.
+- **The rules still won on content.** "About 8 hours" and "2 clear moonless
+  hours" are the numbers a person wants; the models traded them for cloud
+  percentages. And round 2's prompt had to spell out the decision rule — at
+  which point the decision belongs in code, and all the model adds is phrasing.
+
+If it is ever revisited: **Sonnet 5**, not Haiku, on that evidence. Opus is out
+on latency alone — 3.9s median, 10.9s worst, in a request path.
+
+**The sentence takes its shape from the night**, in four forms, because one
+template read daily says less each time: a run that fills the dark window is
+*the night* rather than a window ("clear and moonless all night"); a run under
+three hours is the only case with a real decision in it, so it names the cloud
+that closes it; anything between is the plain window; and no window at all
+leads with the better night. All four are chosen by measurement, not by score.
+
+**One pluralisation helper serves every count.** The run branch pluralised and
+the alternative-night branch did not, so Tromso read *"Fri is the better night:
+1 clear moonless hours"* — visible only on a one-hour night, which is why
+`tonight-check.mjs` now checks every night rather than today's.
+
+**It lives in SKY's OBSERVING CONDITIONS panel, not in a view of its own.**
+That panel already scored stargazing *this second* and named the single best
+hour in the next thirty; TONIGHT is the planning layer for the same question,
+so it extends that panel rather than competing with it with a second opinion.
+A seventh nav tab would also have been about 45px wide on a 320px phone, which
+is the touch-target floor with "TONIGHT" to fit inside it.
+
+**The strip's bar height is hours, not score.** Scoring the bars made every
+good night full height, so a settled week drew seven identical blocks and the
+strip said nothing at all. Height is the number printed above it — hours of
+clear moonless dark — and colour carries the score.
+
+### ELSEWHERE — is it nicer somewhere you have been?
+
+A panel on the DECK, in the side column. It ranks the places from
+`countdown/stats.json` against wherever the visitor is, and draws "here" as
+the line the list is split by rather than as another row — which side of it a
+place falls on is the whole question.
+
+- **`lib/elsewhere.js` decides what "better" means**, and it is a decision, not
+  an average. Warmer is not automatically better: temperature scores as
+  distance from 21°C, which is why a 28°C night ranks above a 35°C afternoon
+  where a raw-temperature sort would invert them. Rain outranks cloud, cloud
+  outranks wind, and **every term clamps on its own** — clamping only the sum
+  is what made TONIGHT's clear nights all score 100.
+- **`fromCurrent()` reads the units off the payload.** The API serves °F, mp/h
+  and inches while the curve is Celsius; hand 91.5°F to a Celsius field and it
+  scores a pleasant afternoon as unbearable, with no error and a ranking that
+  still looks like it works. It also keeps the raw number, so "5° colder" can
+  be said in the reader's units without a second conversion to get wrong.
+- **The trip list is read, not copied.** It is already the canonical list of
+  Kyle's places and already deployed. The fallback list exists because the
+  console is standalone in its own repo, and it **says so in the console** when
+  it fires — a silent fallback here is a working panel with the wrong places
+  in it.
+- **Ties break on temperature and then on name.** A list that reshuffles
+  between refreshes looks broken even when every row is correct.
+- `node scripts/elsewhere-check.mjs` runs the ranking against live forecasts.
+
+**`/api/elsewhere` writes the sentence, and it is the one place a model earned
+the call.** TONIGHT's rules beat every model tried; here there is no
+deterministic sentence to lose to. `verdict()` is still what ships and what is
+on screen first — the route only ever *replaces* it, and returns
+`{ text: null }` on every failure path, including the site's normal state of
+having no key configured at all.
+
+Three things about that route are load-bearing:
+
+1. **It sits in front of an API key on a public URL, so nothing the caller
+   sends reaches the model as text.** Facts are parsed, type-checked and
+   re-rendered into a prompt the Lambda writes. Conditions come from a
+   whitelist; a place name is the only string that survives, and only if it
+   matches a name pattern and is under 40 characters. A test pins all of it.
+   Without that, the route is a free LLM with somebody else's card attached.
+2. **The Lambda counts the better places itself.** Asked to count for itself,
+   the model said "one other place beats here" about a list where exactly one
+   place did — a claim the data contradicts, which is the only kind of wrong
+   that matters here.
+3. **`ANTHROPIC_API_KEY` is a Lambda environment variable set by hand.** The
+   GitHub deploy role holds only `UpdateFunctionCode` and
+   `GetFunctionConfiguration`, so CI cannot set it, and it must never reach the
+   repo or the browser. Kyle's key expires **2027-01-01**, and an expired key
+   is indistinguishable from a normal fallback — the panel just quietly stops
+   being model-written.
+
+The route is cached at the edge for 30 minutes. Whole degrees and a handful of
+condition words repeat for long stretches, so one model call serves everyone
+who loads the page in that window; an uncached model call per page view is how
+a hobby budget disappears.
+
+### It has a phone layout, and it is easy to break
+
+`css/mobile.css` is a second form factor behind one `max-width: 700px` query;
+the desktop console is untouched. Run `node scripts/mobile-audit.mjs` before
+changing any console layout — it loads all five views at 390x844 and checks for
+overflow, unreachable controls, sub-44px targets and sub-12px text.
+
+**Audit the DEPLOYED copy** (`localhost:8000/weather/` via `dev-server.mjs`),
+never `../Weather`'s own server. `inject-backlink.py` adds a top-bar child that
+the source does not have, and that one extra element pushed the settings button
+off screen and widened every view by 26px — the source passed while production
+failed.
+
+**Chart density is decided from measured pixels, never from a constant.**
+Every axis, legend and label used to take its density from a number typed at
+the call site — three y-ticks on a panel 40px tall, a legend drawn beside a
+title with neither knowing how wide the other was, hour labels centred on
+x = 0. `node scripts/label-audit.mjs` wraps `fillText` so each label reports
+its own ink box, and counts the pairs that collide: **ten pairs and five
+labels off the canvas at 390px, three and five at 1440px**, now zero at both.
+Run it at *both* widths — a third of those were desktop bugs.
+
+`fitTicks`, `fitStride`, `fitLabel` and `tagRow` in `charts.js` are all
+**ceilings and never floors**: given desktop room they return exactly what the
+call site asked for, so this cannot make any chart denser than it was. Two of
+them are worth knowing about:
+
+- **`gridY` thins its own labels**, so no call site has to. It also draws the
+  top gridline's number *inside* the box — by default it landed above, which
+  is where the panel's title and legend live.
+- **`tagRow` gives things up in a fixed order**: the long legend words, then
+  the long title, then the legend itself. The title survives longest because
+  it is the one thing you cannot recover by looking at the picture — and the
+  legend is now recoverable by tapping.
+
+`CENSUS=1 node scripts/label-audit.mjs` also prints the label count per
+canvas. That is how you tell a fix from a regression: a chart that stopped
+colliding by dropping half its axis is not fixed.
+
+**A finger cannot hover, so the readouts are sticky.** Six charts hold numbers
+that appear nowhere else — model confidence, the record high and the year it was
+set, Kp, pollutant concentrations hours ahead. All six lived in a hover tooltip,
+which on a phone drew *under the finger that summoned it* and vanished on the
+lift. `mount()` now keeps a tapped readout on screen until something else is
+tapped, and `tooltip()`'s `pin` option puts the box in the corner diagonally
+opposite the touch. `node scripts/tap-audit.mjs` is the gate, and it asserts on
+pixels of the readout box rather than on whole-canvas equality — the console
+keeps loading while it runs, and a model update moves every bar.
+
+Two traps in that mechanism:
+
+- **`pointerleave` fires on every touch lift**, so clearing on it is exactly
+  what made the readout unreadable. It is guarded by pointer type.
+- **Chart canvases are `touch-action: pan-y`** — vertical scrolling stays the
+  browser's, horizontal movement is ours, and the browser announces that it took
+  the gesture with `pointercancel`, which is where the readout is dropped. The
+  scrubber is the exception: it runs its own drag, so it passes
+  `mount(..., { inspect: false })` and keeps `touch-action: none`.
+
+**The radar map pinches, and the map owns the gesture.** `map.js` tracks
+pointers by id — the first version kept one `drag` and ignored `pointerId`, so
+a second finger overwrote the first and its movement was then measured from
+wherever that second finger landed. One pointer pans, two pinch, and both are
+the same operation: `_placeAt` holds one geographic point under the midpoint
+of whatever is down. `node scripts/pinch-audit.mjs` is the gate.
+
+- **The anchor is recomputed whenever the pointer count changes**, on down and
+  on up. Without that, lifting one finger out of a pinch jumps the map.
+- **Safari's `gesturestart`/`gesturechange` must be prevented.**
+  `touch-action: none` stops the page scrolling but not those, and the
+  viewport meta allows scaling, so a pinch would zoom the whole document.
+- **The radar layer declares `maxTileZoom: 7`.** RainViewer's public tiles
+  stop there and return the same 1370-byte "Zoom Level Not Supported"
+  placeholder above it, worldwide — which pinch reaches in one gesture, and
+  which then tiled itself across the map in letters a hundred pixels tall.
+  The renderer scales the deepest tiles up instead.
+- **CDP cannot release one of two fingers** — `Input.dispatchTouchEvent`'s
+  `touchEnd` takes no touch points and ends the whole sequence — so the two
+  gates that cover the 2→1 transition dispatch `PointerEvent`s directly. And
+  the tile-cap gate spies on `layer.url` rather than on the network: tiles are
+  cached for the whole session, so a broken cap would simply make no requests
+  and a network check would pass.
+
+`window.ATMOS.views` exists so that gate can reach the map; there is no DOM
+readout of where the map is.
+
+Three things there are load-bearing and non-obvious:
+
+1. **The phone views are flex columns, not reflowed grids.** An `auto` grid
+   track sizes from the item's intrinsic contribution, and these panels are
+   nested flex columns whose contribution resolved to 61px against content
+   needing 418 — they overflowed their own tracks and drew on top of each other.
+2. **`#app` sets `grid-template-columns: minmax(0, 100%)`.** An implicit column
+   is `auto`, so an overflowing top bar silently widened the entire shell.
+3. **`viewport-fit=cover` requires `env(safe-area-inset-*)`.** Without it the
+   top bar sits under the status bar and the scrubber under the home indicator,
+   which is exactly where its drag gesture lives.
+
+### API — `lambda/index.mjs`
+
+Derived from `../Weather/server.mjs`, so the twelve route bodies are the same
+code and response shapes cannot drift. `state.js` names every Open-Meteo field
+by its exact upstream key, so a single dropped variable would null an entire
+data column silently; and `bundle.space` is double-enveloped in a way that
+blanks every space-weather readout if flattened.
+
+Differences from the local server, all deliberate:
+
+- `/api/config` returns a neutral Los Angeles default plus `public: true`. It
+  must **never** carry a home address. The flag tells the frontend to offer the
+  visitor geolocation — the local server omits it, so the console never prompts
+  on the tailnet (where it also couldn't: geolocation needs a secure context).
+- The on-disk cache points at `/tmp`, which Lambda keeps across warm invocations.
+- Each route sets `Cache-Control`, so CloudFront's edge cache does the job the
+  local server's in-memory TTLs do — one upstream fetch serves every visitor.
+- No CORS headers: the API is same-origin through the same distribution.
+
+### Two things that will silently break it
+
+1. **The CloudFront cache policy for `/weather/api/*` must include query strings
+   in the cache key.** Every route is keyed by `?lat=…&lon=…`, and the default
+   `CachingOptimized` policy ignores them — CloudFront would cache one visitor's
+   city and serve it worldwide, looking like it worked.
+2. **Lambda Function URLs return 403 in this account** for every auth mode,
+   even with an explicit public grant, and requests never reach the function.
+   The API is therefore fronted by an API Gateway HTTP API. If you ever rebuild
+   it, note the invoke permission's source ARN must be `${API}/*` — the
+   `apiid/*/*/*` form used for REST APIs does not match an HTTP API and causes
+   a 500 with no Lambda log entry.
+3. **The CSP must allow the map tile hosts under `/weather`.** The console draws
+   Esri and RainViewer tiles into a canvas, and the site-wide
+   `img-src 'self' data:` blocks them, leaving the radar blank with only a
+   console error. `server.js` handles this with `headersFor()`, and the
+   CloudFront policy in `scripts/cloudfront-headers.py` mirrors it. A test keeps
+   the two lists of tile hosts identical.
+
+## Abuse limits on the API
+
+A security audit on October 3, 2026 found no secrets anywhere and strong
+headers, and one real exposure: **the public API had no limit of any kind**
+— no API Gateway throttle, no Lambda concurrency cap, no WAF. CloudFront
+answers repeats, but every query it has not seen reaches the Lambda.
+`tests.js` "Abuse limits" runs the real handler with `fetch` stubbed and
+counts what it sends upstream; each test was shown to fail with its fix
+removed.
+
+- **`/api/elsewhere` spends at most `MODEL_CALLS_PER_HOUR` (10) model calls
+  an hour per running copy**, after the cache, so a cached sentence is free.
+  Past it the route answers `{ text: null, why: 'budget' }` and the page
+  keeps its rules sentence. Before, a script varying one degree per request
+  could make unlimited paid calls (~$290/hour at 50 requests a second). Normal
+  use is ~46 calls a day. **The hard backstop is a spend limit on the key's
+  workspace in the Anthropic Console**, which no code here can check.
+- **Its cache key hashes all the facts.** It was the first 90 characters of
+  their base64 — about as far as "here" — so every visitor in one city with the
+  same sky got the same cached sentence, quoting someone else's places and
+  temperatures, for up to 30 minutes per Lambda copy.
+- **`scripts/api-throttle.sh`** (dry run unless `--apply`; applied October 3,
+  2026): the `$default` stage at 20 requests/s with bursts of 50, Lambda
+  reserved concurrency 20 (raised from 10 on October 18, 2026, with the budget halved from 20, so the model budget's worst case is 20 × 10 = 200
+  calls an hour), and the GitHub deploy role trusting `ref:refs/heads/main`
+  only, not any ref in the repo. Proven by a manual spend-check run, which
+  assumes the same role. The throttle also protects the free upstreams: a
+  flood that got the Lambda's addresses blocked by Open-Meteo would take the
+  console down for everyone.
+- **The memory cache has a hard cap** (`MEM_MAX`, 200 entries, oldest
+  evicted). It used to sweep only expired entries, so a few hundred requests
+  for distinct coordinates grew it until the 512 MB Lambda ran out of memory.
+  The raw climate archive (~400 KB a cell) is disk-only now
+  (`cachedJSON(..., { mem: false })`); memory holds the reduced form.
+- **`point(q)` validates every route that takes coordinates**: both present
+  (`Number(null)` is 0, so a missing `lat` read as the equator), finite, on
+  the globe. **`/api/pollen`'s `zip` must be five digits** — it went
+  straight into pollen.com's URL path.
+- All of this is in both `lambda/index.mjs` and `../Weather/server.mjs`, and
+  a test fails if the pieces drift.
+
+## Security headers in production
+
+`server.js` only ever protected the tailnet. `scripts/cloudfront-headers.py`
+creates and attaches the CloudFront response-headers policies (dry run unless
+`--apply`), and `scripts/check-headers.sh` reports what production actually
+sends. Full runbook in `docs/aws-setup.md`.
+
+**The one header that must NOT be copied from `server.js`:** it sends
+`Permissions-Policy: geolocation=()`, which is right for plain-HTTP local use
+and would silently break the site in production. The console and ONE PUTT both call `getCurrentPosition`; an empty allowlist disables it with no
+error, and every visitor quietly gets Los Angeles weather. Production sends
+`geolocation=(self)`.
+
+
+## LIGHT LASSO — removed (October 22, 2026)
+
+`/light-lasso/` was a static 75-second loop-drawing game (October 10, 2026).
+Kyle found it "kinda boring" and asked for it gone, so the page, its three
+test files, its homepage and 404 links, its sitemap entry, and its lines in
+`deploy.yml`, `test.yml`, `package.json`, `tests-server.js` and
+`stamp-assets.mjs` are removed. It stays in `countdown/stats.json` without a
+`url`, as THERMAL does, because it was built and the project count is about
+what was built. **Deploys never delete from S3** (the only `--delete` sync is
+`weather/`), so removing the files from the repo does not remove the live copy
+at `s3://branyontech.com/light-lasso/`: that is deleted by hand, and CloudFront
+invalidated. The git history (`c48dc30` onward) has the code if it is ever wanted.
+
+## Elevator ’86 — October 26, 2026
+
+`/elevator/` is an original retro spy arcade game: callable elevators, document
+checkpoints, telegraphed enemy fire, jump/crouch combat, falling lamps, medkits,
+getaway objective, escalating missions and browser-local best score. Original
+canvas art and Web Audio only. The homepage now has eleven links in its five
+groups; `home-audit.mjs` passes the existing viewport/contrast gates with the
+short label “Play Elevator ’86”. No homepage CSS or existing game was changed.
+
+`docs/elevator-86.md` describes rules, controls, test harness and rollback.
+`node --test tests/elevator.test.cjs` covers rules and deployment wiring;
+`/tests/elevator-browser.html` is a local-only browser UI integration harness.
+The new static assets participate in `stamp-assets.mjs` and the existing
+explicit S3 deployment lists. Keep test harness files out of those lists.
+
+## Starfall and the Games / Music split — October 26, 2026
+
+The current homepage has **six groups and twelve links**, superseding the
+historical counts and Play-card descriptions above: Retirement · Weather ·
+Games · Music · Property · Reach me. Games contains Starfall Asteroids,
+Elevator ’86, ONE PUTT and SLINGSHOT. Music contains Postcards in Sound and
+guitar theory. The card grid is two complete rows of three. Compact link names
+and the narrow-phone column gaps retain the measured single-screen layout.
+
+`/asteroids/` is Starfall, an original Asteroids-style browser arcade game.
+`docs/starfall.md` describes controls, rules, browser audits and rollback.
+Run `node scripts/asteroids-audit.mjs http://localhost:8137 /tmp/starfall-qa`
+for ordinary-input wave progression, input/storage failures and screenshots.
+The pure rules/deploy checks are included in npm test and GitHub CI.
+
+## IRONWING — October 26, 2026
+
+`/ironwing/` is an original low-poly carrier flight game. Read `docs/ironwing.md`
+for controls, design references, scope, audits and rollback. Its pure flight and
+combat rules, original software renderer, synthesized sound and UI are independent
+of the existing games. `npm test` and CI include `tests/ironwing.test.cjs`;
+`tests-server.js` checks every route/asset and the existing CSP. Two browser audits
+exercise normal input and read-only telemetry: `scripts/ironwing-audit.mjs` and
+`scripts/ironwing-circuit-audit.mjs`. Do not deploy their output or expose state
+mutation/time-acceleration hooks in the game. Add future game assets to the explicit
+S3 include list and the stamp checks. Homepage now has thirteen links in six groups;
+run `scripts/home-audit.mjs` for further link changes.
+
+## Elevator progression — October 27, 2026
+
+`missionPlan(level)` separates tower height from required file count: missions
+start at 8 floors / 4 files, add one floor per mission and one file every other
+mission, and stop at 20 / 10 on mission 13. Later missions rotate four document
+routes and guard/sentry arrangements. A file always remains just above the exit.
+Alarm/escape-time budgets scale with height; combat ceilings and saves are unchanged.
+The first mission, other games and Games/Music navigation are preserved.
+
+Run `node scripts/elevator-audit.mjs http://localhost:8137 /tmp/elevator-qa`
+for normal-input play plus isolated local progression, tall-camera and touch
+fixtures. Use `--live` for a fixture-free public smoke test. Do not publish test
+state hooks or change the existing storage keys. See `docs/elevator-86.md` for
+the current rollback reference; the pre-October-26 rollback predates other games.
