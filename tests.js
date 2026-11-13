@@ -3528,8 +3528,16 @@ describe('BUSINESS SITE - Deploy wiring', () => {
         const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e =>
             e.isDirectory() ? (e.name === 'node_modules' || e.name.startsWith('.') ? [] :
                 walk(path.join(d, e.name))) : [path.join(d, e.name)]);
-        const audioFiles = walk(__dirname)
+        const found = walk(__dirname)
             .filter(f => /\.(mp3|ogg|wav|m4a|aac|flac|webm)$/i.test(f));
+        // A git-ignored file can never be committed, so it can never ship: a
+        // prototype folder of samples (postcards-in-sound/_proto/) is not the
+        // bug this guards. Git says which paths those are. Where git cannot
+        // answer (exit 128, or no git at all) nothing is skipped.
+        const git = found.length ? require('child_process').spawnSync('git',
+            ['check-ignore', '--stdin'], { cwd: __dirname, input: found.join('\n'), encoding: 'utf8' }) : null;
+        const ignored = new Set(git && git.status === 0 ? git.stdout.split('\n').filter(Boolean) : []);
+        const audioFiles = found.filter(f => !ignored.has(f));
         assert.deepStrictEqual(audioFiles, [],
             'Audio files cannot be served: server.js has no audio MIME type');
 

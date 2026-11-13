@@ -23,3 +23,8 @@ secrets/
 .wx-cache/
 /sats/
 /storms/
+
+# Local work in progress and Python's bytecode cache. The prototype folder
+# holds audio samples; tests.js's no-audio-files test skips git-ignored paths.
+/postcards-in-sound/_proto/
+/scripts/__pycache__/
