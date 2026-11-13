@@ -85,6 +85,19 @@ A separate normal browser playthrough, with no fixtures, collected all four
 files and escaped mission 1 with 4,765 points. On-screen controls were also
 used to collect a file and ride to the next floor at a 320×700 viewport.
 
+### The title at 320px wide (November 13, 2026)
+
+`elevator-audit.mjs` failed "320×700: thumb controls fit without scrolling" on
+a machine with no Impact or Arial Black: the title fell back to Noto Sans, was
+325px wide at 45px in a 296px box, and wrapped. The second line (43px) pushed
+the controls to 741px on a 700px screen. `@media(max-width:340px)` now sets the
+title at 38px (276px wide, one line), and the controls end at 692px. 40px was
+tried first: it fits a phone's 296px but wraps in the harness's frame, where a
+desktop scrollbar takes 15px and leaves 281px. Not seen on a device that has
+Impact, where the title is narrower. Not fixed: at 320×568 the controls still
+end below the screen; the fixed heights need more than that screen has, and
+the harness does not test that size.
+
 ## Release and rollback
 
 The existing `.github/workflows/deploy.yml` publishes to S3 `branyontech.com`

@@ -851,3 +851,14 @@ footer>span:nth-child(2) {
     min-height:200px
   }
 }
+/* Where Impact is missing (most Android phones) the title is drawn in a much
+   wider fallback: at 45px it needs 325px, so on a 320px screen "'86" wrapped
+   to a second line and pushed the thumb controls 41px past a 700px screen.
+   38px is 276px wide, one line in the 296px a phone gives it and in the
+   281px left when a scrollbar takes 15px (the test harness's frame). 40px
+   fits the first and wraps in the second. */
+@media(max-width:340px) {
+  h1 {
+    font-size:38px
+  }
+}
