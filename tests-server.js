@@ -1048,6 +1048,25 @@ async function runIronwingTests() {
     });
 }
 
+async function runMustangTests() {
+    // A separate server instance keeps this independent of the existing suite's
+    // 100-request rate-limit budget; production limits are unchanged.
+    await stopServer();
+    await startServer();
+    await describe('SERVER TESTS - Mustang Micro Plus presets', async () => {
+        for (const [route, type] of [
+            ['/mustang-micro-plus/', 'text/html'], ['/mustang-micro-plus/index.html', 'text/html'],
+            ['/mustang-micro-plus/app.js', 'text/javascript'], ['/mustang-micro-plus/styles.css', 'text/css']
+        ]) await test(`Should serve ${route} with strict security headers`, async () => {
+            const { res } = await makeRequest({ hostname: TEST_HOST, port: TEST_PORT, path: route, method: 'GET' });
+            assert.equal(res.statusCode, 200);
+            assert.ok(res.headers['content-type'].startsWith(type));
+            assert.ok(res.headers['content-security-policy'].includes("script-src 'self'"));
+            assert.ok(!res.headers['content-security-policy'].includes('unsafe-eval'));
+        });
+    });
+}
+
 async function runAllTests() {
     console.log(`\n${'='.repeat(60)}`);
     console.log(`${colors.blue}Server Integration Test Suite${colors.reset}`);
@@ -1075,6 +1094,7 @@ async function runAllTests() {
         await runElevatorTests();
         await runAsteroidsTests();
         await runIronwingTests();
+        await runMustangTests();
 
     } catch (error) {
         console.error(`${colors.red}✗ Failed to start server: ${error.message}${colors.reset}`);

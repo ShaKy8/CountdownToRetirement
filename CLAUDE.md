@@ -110,7 +110,7 @@ scripts/          dev-server.mjs, sync-weather.sh, bake-home.mjs, stamp-assets.m
                   fetch-sats.mjs, sats-cooldown.mjs, fetch-storms.mjs,
                   AWS setup scripts, lib/ (chromium.mjs, arcade-browser.mjs, sats-http.mjs, ...)
 tests.js          Main suite (617 tests)
-tests-server.js   Local server suite (90 tests)
+tests-server.js   Local server suite (94 tests)
 tests/            node:test files (*.test.cjs, fetch-sats.test.mjs), fixtures/, and
                   elevator-browser.html + .js, a local-only harness that is never deployed
 server.js         Original static server with security headers (runs as a systemd service)
