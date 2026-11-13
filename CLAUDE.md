@@ -291,7 +291,8 @@ tag mark the commit before each recent release; leave them alone.
   to the model as text. Every upstream fetch has a deadline.
 - **No audio files, ever.** Sound is synthesised with Web Audio, and the
   `AudioContext` is created on the first user gesture. A test fails on any
-  `.mp3`, `.wav` or `.ogg` anywhere in the working folder.
+  `.mp3`, `.wav` or `.ogg` in the working folder that git does not ignore,
+  which is every audio file that could be committed.
 - **No test hooks in a shipped game.** Each arcade game exposes one frozen,
   read-only `snapshot()` for its gate (`Elevator86App`, `StarfallApp`,
   `IronwingApp`). Never add a setter, a cheat, an invulnerability flag or a
@@ -512,8 +513,8 @@ tag mark the commit before each recent release; leave them alone.
 30. **Touching Kyle's untracked files.** A file or folder that `git status`
     shows as untracked and that you did not create is his work in progress.
     Never delete, move, tidy or commit it. If it makes a test fail (audio
-    samples in a prototype folder trip the no-audio-files test), report the
-    failure and leave both the folder and the test alone.
+    samples in a folder git does not ignore trip the no-audio-files test),
+    report the failure and leave both the folder and the test alone.
 
 **Scope and honesty**
 
