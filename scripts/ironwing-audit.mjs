@@ -10,6 +10,12 @@ const snap=()=>b.E('IronwingApp.snapshot()');
 const tap=async(code)=>{await b.key(code);await b.key(code,false);};
 const hold=async(code,ms)=>{await b.key(code);await wait(ms);await b.key(code,false);};
 const until=async(fn,ms=5000)=>{const t=Date.now()+ms;while(Date.now()<t){if(await fn())return true;await wait(100);}return false;};
+// Game time, read from the snapshot, not the wall clock: a headless browser on a
+// software renderer runs the game slower than real time (about 75-85% on one
+// machine), so a 1200 ms hold was under a second of flight and the turn fell
+// short of the check. These wait for the game's own clock to advance.
+const gameWait=async(sec,ms=30000)=>{const end=(await snap()).state.time+sec,t=Date.now()+ms;while(Date.now()<t){if((await snap()).state.time>=end)return true;await wait(20);}return false;};
+const gameHold=async(code,sec)=>{await b.key(code);await gameWait(sec);await b.key(code,false);};
 const menu=async()=>{await b.nav(origin+'/ironwing/');};
 try{
  await b.size(1440,1000);await menu();gate((await snap()).mode==='menu','hangar loads');await b.screenshot(out+'/desktop-hangar.png');
@@ -22,7 +28,7 @@ try{
  await b.click('#manual');await b.click('#back');gate((await snap()).mode==='result','manual returns to debrief without resuming finished state');gate((await snap()).saved.recoveries===1,'debrief help does not double-count recovery');
  await menu();gate((await snap()).saved.recoveries===1&&(await snap()).saved.muted,'recovery and mute persist after reload');
  await b.click('[data-start=free]');await tap('Enter');gate((await snap()).state.status==='deck','launch rejects low throttle');await b.key('KeyW');await until(async()=>(await snap()).state.throttle>=.95);await b.key('KeyW',false);await tap('Enter');await wait(6000);s=await snap();gate(s.state.launches===1&&s.state.status==='flying'&&s.state.y>50,'normal catapult takeoff reaches free flight',{speed:s.state.speed,altitude:s.state.y,z:s.state.z});
- await tap('KeyG');await tap('KeyF');const h=s.state.heading;await hold('ArrowRight',1200);await wait(1000);s=await snap();gate(s.state.heading>h+.1&&s.state.roll>.2,'normal bank input turns aircraft',{heading:s.state.heading,roll:s.state.roll});await tap('KeyV');await b.screenshot(out+'/desktop-flight.png');
+ await tap('KeyG');await tap('KeyF');const h=s.state.heading;await gameHold('ArrowRight',1.2);await gameWait(1);s=await snap();gate(s.state.heading>h+.1&&s.state.roll>.2,'normal bank input turns aircraft',{heading:s.state.heading,roll:s.state.roll});await tap('KeyV');await b.screenshot(out+'/desktop-flight.png');
  await tap('KeyR');await b.key('KeyR',true,true);await b.key('KeyR',false);gate((await snap()).mode==='confirm','restart ignores repeat');await b.click('#cancel');gate((await snap()).mode==='playing','cancel restart preserves flight');await tap('KeyR');await b.click('#confirm');s=await snap();gate(s.state.status==='deck'&&s.state.launches===0,'confirmed restart restores deck');
  await menu();await b.click('[data-start=approach]');await hold('ArrowUp',6000);await until(async()=>(await snap()).mode==='result');gate((await snap()).state.status==='crashed','normal nose-down input produces crash and explanation');await b.click('#again');gate((await snap()).state.health===100&&(await snap()).state.status==='flying','crash retry restores usable flight');
  // Deliberately miss the recovery and fly a go-around with the ordinary controls.
