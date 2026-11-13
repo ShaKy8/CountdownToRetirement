@@ -19,7 +19,7 @@ Known stale spots in here, as of November 12, 2026:
   six groups (Games and Music replaced Play); the last four sections of this
   file and `docs/mustang-micro-plus.md` have the current state.
 - **The test counts** under "Development Commands" (482 and 65). `tests.js`
-  has 617 tests and `tests-server.js` 90.
+  has 617 tests and `tests-server.js` 94.
 - **The folder tree**: its root name, and it has no `guitar/`,
   `postcards-in-sound/`, `elevator/`, `asteroids/`, `ironwing/` or
   `mustang-micro-plus/`.
