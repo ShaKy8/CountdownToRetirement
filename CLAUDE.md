@@ -212,9 +212,9 @@ targets it found were fixed: Elevator's back link (11px tall), Ironwing's
 top-bar back link and "?" button, and the Mustang page's search box and genre
 chips (now 12px apart). The same day, Elevator's title row was hidden visually
 on phones 600px tall or less so the thumb controls fit at 320x568; no gate
-tests that size, so it was measured by hand. The arcade gates play in real time, and a headless
-browser there runs a game at about 75-85% of real speed; a wait in a gate
-should read the game's own clock from `snapshot()`.
+tests that size, so it was measured by hand. The arcade gates play in real
+time, and a headless browser there runs a game at about 75-85% of real speed;
+a wait in a gate should read the game's own clock from `snapshot()`.
 
 `mobile-audit.mjs` always exits 0, even when it prints `FAIL` rows, so read
 its last line (`all gates green`) and never its exit code. The other sixteen
