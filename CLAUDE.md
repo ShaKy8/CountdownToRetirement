@@ -197,8 +197,9 @@ node scripts/ironwing-circuit-audit.mjs http://localhost:8137 OUT_DIR   # flies 
 ```
 
 Run the gates for the area you changed, not all seventeen. Run slow ones in
-the background, once, and wait for them to finish. Postcards in Sound and the
-Mustang page have no browser gate: look at them yourself.
+the background, once, and wait for them to finish. Postcards in Sound has no
+browser gate, and the Mustang page has only `site-audit.mjs`'s phone check:
+look at both yourself.
 
 **All seventeen gates pass on Kyle's main machine as of November 13, 2026**
 (run on November 12 and 13, against the dev server, at the sizes above). So a
