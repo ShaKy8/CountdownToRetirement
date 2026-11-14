@@ -17,7 +17,7 @@
  *   node scripts/figures-audit.mjs http://localhost:8137
  */
 import { spawn } from 'node:child_process';
-import { chromiumPath } from './lib/chromium.mjs';
+import { chromiumPath, throwawayProfile } from './lib/chromium.mjs';
 import { createRequire } from 'node:module';
 import http from 'node:http';
 
@@ -26,9 +26,11 @@ const ORIGIN = (process.argv[2] || 'http://localhost:8000').replace(/\/$/, '');
 const W = 1440, H = 800;
 const port = 9200 + (process.pid % 90);
 
-const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`,
+const profile = throwawayProfile();
+const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, `--remote-debugging-port=${port}`,
   '--no-sandbox', `--window-size=${W},${H}`, '--use-gl=angle', '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader', '--disable-gpu-sandbox', 'about:blank'], { stdio: 'ignore' });
+profile.owner(chrome);
 const get = p => new Promise((r, j) => http.get({ host: '127.0.0.1', port, path: p },
   x => { let d = ''; x.on('data', c => d += c); x.on('end', () => r(JSON.parse(d))); }).on('error', j));
 const wait = ms => new Promise(r => setTimeout(r, ms));

@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { chromiumPath } from './lib/chromium.mjs';
+import { chromiumPath, throwawayProfile } from './lib/chromium.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,8 +38,10 @@ const SIZES = [[1280, 800], [390, 844], [320, 700]];
 const DATES = ['2026-10-03', '2026-10-08', '2027-02-20', '2026-12-31'];
 
 const port = 9600 + (process.pid % 90);
-const chrome = spawn(chromiumPath(), ['--headless=new', `--remote-debugging-port=${port}`, '--no-sandbox',
+const profile = throwawayProfile();
+const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, `--remote-debugging-port=${port}`, '--no-sandbox',
     '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', 'about:blank'], { stdio: 'ignore' });
+profile.owner(chrome);
 const get = (p) => new Promise((r, j) => http.get({ host: '127.0.0.1', port, path: p }, (x) => { let d = ''; x.on('data', (c) => d += c); x.on('end', () => r(JSON.parse(d))); }).on('error', j));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const rows = [];

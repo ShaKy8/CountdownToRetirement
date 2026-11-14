@@ -9,8 +9,8 @@
  *
  * $CHROMIUM wins when set, so an unusual install needs no code change.
  */
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const HOME = homedir();
@@ -43,4 +43,40 @@ export function chromiumPath() {
   throw new Error(
     'No Chromium found. Install one, or set $CHROMIUM to its path.\n  looked in:\n'
     + CANDIDATES.map((p) => `    ${p}`).join('\n'));
+}
+
+/**
+ * A browser profile for one gate run, deleted when the gate exits.
+ *
+ * Without --user-data-dir, headless Chromium makes its own profile under
+ * ~/.config/chromium-headless and removes it only when it is shut down
+ * cleanly (Browser.close). The gates stop it with chrome.kill(), which skips
+ * that, so every run left a profile of about 50 MB behind: 337 of them,
+ * 13 GB, on Kyle's laptop by November 14, 2026.
+ *
+ *   const profile = throwawayProfile();
+ *   const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, ...]);
+ *   profile.owner(chrome);
+ *
+ * On exit, including an uncaught error or Ctrl-C, the browser is stopped
+ * first and the folder removed after: a browser still shutting down writes
+ * into its profile and would put files back.
+ */
+export function throwawayProfile() {
+  const dir = mkdtempSync(join(tmpdir(), 'gate-chromium-'));
+  let browser = null;
+  process.on('exit', () => {
+    try { browser?.kill('SIGKILL'); } catch { /* already gone */ }
+    // A moment for it to die. This runs on 'exit', so there is no event loop
+    // to wait on; Atomics.wait blocks without one.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch { /* best effort: a leftover is all that is at stake */ }
+  });
+  // A signal ends Node without 'exit' unless something handles it.
+  for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) {
+    process.once(signal, () => process.exit(code));
+  }
+  return { arg: `--user-data-dir=${dir}`, owner(child) { browser = child; } };
 }

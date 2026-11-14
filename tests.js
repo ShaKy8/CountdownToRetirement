@@ -5862,6 +5862,54 @@ describe('BUSINESS SITE - Runs on more than one machine', () => {
         }
     });
 
+    test('Every gate should give its browser a profile that is deleted afterwards', () => {
+        /*
+         * Without --user-data-dir, headless Chromium keeps its profile in
+         * ~/.config/chromium-headless and deletes it only on a clean
+         * Browser.close. The gates stop it with chrome.kill(), so every run
+         * left about 50 MB behind: 337 profiles, 13 GB, by November 14, 2026.
+         */
+        for (const g of gates) {
+            const src = fs.readFileSync(path.join(dir, g), 'utf8');
+            if (src.includes("'./lib/arcade-browser.mjs'")) {
+                const driver = fs.readFileSync(path.join(dir, 'lib', 'arcade-browser.mjs'), 'utf8');
+                assert.ok(/--user-data-dir=\$\{dir\}/.test(driver) && /rm\(dir/.test(driver),
+                    `${g}'s shared driver should start the browser in a temporary folder and remove it`);
+                continue;
+            }
+            assert.ok(/const profile = throwawayProfile\(\);/.test(src)
+                && /spawn\(chromiumPath\(\), \['--headless=new', profile\.arg,/.test(src)
+                && /profile\.owner\(chrome\);/.test(src),
+                `${g} should start its browser with throwawayProfile() from lib/chromium.mjs`);
+        }
+    });
+
+    test('Should delete the throwaway profile when a gate ends, finishes or is stopped', () => {
+        const lib = require('url').pathToFileURL(path.join(dir, 'lib', 'chromium.mjs')).href;
+        const run = (tail, opts = {}) => {
+            const code = `import { throwawayProfile } from ${JSON.stringify(lib)};
+                import { writeFileSync } from 'node:fs';
+                const p = throwawayProfile(), d = p.arg.slice('--user-data-dir='.length);
+                writeFileSync(d + '/Preferences', '{}');
+                console.log(d);
+                ${tail}`;
+            const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', ...opts });
+            const d = r.stdout.trim();
+            assert.ok(d.length > 0, `the child should name its profile folder: ${r.stderr}`);
+            return { r, d };
+        };
+        const ended = run('');
+        assert.ok(!fs.existsSync(ended.d), 'a gate that runs to the end should leave no profile');
+        const failed = run("throw new Error('a gate failing hard');");
+        assert.notStrictEqual(failed.r.status, 0);
+        assert.ok(!fs.existsSync(failed.d), 'a gate that throws should leave no profile');
+        // The child signals itself once its folder is named and its handler
+        // is in place, so the test does not race a timer on a busy machine.
+        const stopped = run("setInterval(() => {}, 1000); process.kill(process.pid, 'SIGTERM');");
+        assert.strictEqual(stopped.r.status, 143, `SIGTERM should end the gate through its handler: ${stopped.r.signal}`);
+        assert.ok(!fs.existsSync(stopped.d), 'a gate stopped with SIGTERM should leave no profile');
+    });
+
     test('Nothing should assume this particular home directory', () => {
         // A path under /home/<someone> or /Users/<someone> in committed code
         // works on exactly one machine and fails silently on the next.
