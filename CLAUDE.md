@@ -201,12 +201,18 @@ the background, once, and wait for them to finish. Postcards in Sound and the
 Mustang page have only `site-audit.mjs`'s phone check, no gate of their own:
 look at both yourself.
 
-**All seventeen gates pass on Kyle's main machine as of November 13, 2026**
-(run on November 12 and 13, against the dev server, at the sizes above). So a
-gate that fails there now is news: suspect your change first. Two failed
-before that date and were fixed: Elevator '86's title wrapped at 320px wide
-(`docs/elevator-86.md`), and the Ironwing bank check timed itself by the wall
-clock (`docs/ironwing.md`). The arcade gates play in real time, and a headless
+**All seventeen gates pass on Kyle's main machine as of November 14, 2026**
+(all twenty runs in one pass that day, against the dev server, at the sizes
+above). So a gate that fails there now is news: suspect your change first.
+Two failed on November 13 and were fixed: Elevator '86's title wrapped at
+320px wide (`docs/elevator-86.md`), and the Ironwing bank check timed itself
+by the wall clock (`docs/ironwing.md`). On November 14 `site-audit.mjs` gained
+Elevator, Starfall, Ironwing, the Mustang page and Postcards, and the touch
+targets it found were fixed: Elevator's back link (11px tall), Ironwing's
+top-bar back link and "?" button, and the Mustang page's search box and genre
+chips (now 12px apart). The same day, Elevator's title row was hidden visually
+on phones 600px tall or less so the thumb controls fit at 320x568; no gate
+tests that size, so it was measured by hand. The arcade gates play in real time, and a headless
 browser there runs a game at about 75-85% of real speed; a wait in a gate
 should read the game's own clock from `snapshot()`.
 
