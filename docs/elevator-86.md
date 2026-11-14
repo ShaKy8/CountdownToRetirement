@@ -94,9 +94,14 @@ the controls to 741px on a 700px screen. `@media(max-width:340px)` now sets the
 title at 38px (276px wide, one line), and the controls end at 692px. 40px was
 tried first: it fits a phone's 296px but wraps in the harness's frame, where a
 desktop scrollbar takes 15px and leaves 281px. Not seen on a device that has
-Impact, where the title is narrower. Not fixed: at 320×568 the controls still
-end below the screen; the fixed heights need more than that screen has, and
-the harness does not test that size.
+Impact, where the title is narrower.
+
+At 320×568 (November 14) the controls still ended 49px below the screen: the
+game screen's 260px floor cannot come down, because the mission briefing must
+fit inside it. On screens up to 500px wide and 600px tall the title row (84px)
+is now hidden visually, kept in the page for screen readers, and the controls
+end inside the screen. The harness does not test that size; it was measured
+by hand in an emulated browser.
 
 ## Release and rollback
 
