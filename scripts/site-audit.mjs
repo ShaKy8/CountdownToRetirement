@@ -110,6 +110,7 @@ const PAGES = [
   ['/guitar/chord-modes/', '/guitar/chord-modes/', 1500],
   ['/guitar/caged/', '/guitar/caged/', 1500],
   ['/elevator/', '/elevator/', 2500],
+  ['/asteroids/', '/asteroids/', 2500],
 ];
 
 const rows = [];
