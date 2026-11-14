@@ -173,7 +173,7 @@ Each takes the server's address. Start the dev server first, then:
 
 ```bash
 node scripts/site-audit.mjs    http://localhost:8137          # phone check of /, clock, year, both daily games,
-                                                              #   console, showcase, guitar, Elevator, Starfall; again with: 320 700
+                                                              #   console, showcase, guitar, Elevator, Starfall, Ironwing; again with: 320 700
 node scripts/home-audit.mjs    http://localhost:8137          # homepage: one screen at nine sizes, contrast, links
 node scripts/lists-audit.mjs   http://localhost:8137          # clock list panels; again with: 320 700
 node scripts/figures-audit.mjs http://localhost:8137          # clock sky arc and milestone trail
