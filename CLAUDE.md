@@ -173,8 +173,8 @@ Each takes the server's address. Start the dev server first, then:
 
 ```bash
 node scripts/site-audit.mjs    http://localhost:8137          # phone check of /, clock, year, both daily games,
-                                                              #   console, showcase, guitar, Elevator, Starfall, Ironwing, Mustang presets;
-                                                              #   again with: 320 700
+                                                              #   console, showcase, guitar, Elevator, Starfall, Ironwing, Mustang presets,
+                                                              #   Postcards in Sound; again with: 320 700
 node scripts/home-audit.mjs    http://localhost:8137          # homepage: one screen at nine sizes, contrast, links
 node scripts/lists-audit.mjs   http://localhost:8137          # clock list panels; again with: 320 700
 node scripts/figures-audit.mjs http://localhost:8137          # clock sky arc and milestone trail
@@ -197,8 +197,8 @@ node scripts/ironwing-circuit-audit.mjs http://localhost:8137 OUT_DIR   # flies 
 ```
 
 Run the gates for the area you changed, not all seventeen. Run slow ones in
-the background, once, and wait for them to finish. Postcards in Sound has no
-browser gate, and the Mustang page has only `site-audit.mjs`'s phone check:
+the background, once, and wait for them to finish. Postcards in Sound and the
+Mustang page have only `site-audit.mjs`'s phone check, no gate of their own:
 look at both yourself.
 
 **All seventeen gates pass on Kyle's main machine as of November 13, 2026**

@@ -113,6 +113,7 @@ const PAGES = [
   ['/asteroids/', '/asteroids/', 2500],
   ['/ironwing/', '/ironwing/', 2500],
   ['/mustang-micro-plus/', '/mustang-micro-plus/', 1500],
+  ['/postcards-in-sound/', '/postcards-in-sound/', 2000],
 ];
 
 const rows = [];
