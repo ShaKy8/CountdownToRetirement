@@ -216,12 +216,12 @@ tests that size, so it was measured by hand. The arcade gates play in real
 time, and a headless browser there runs a game at about 75-85% of real speed;
 a wait in a gate should read the game's own clock from `snapshot()`.
 
-`mobile-audit.mjs` always exits 0, even when it prints `FAIL` rows, so read
-its last line (`all gates green`) and never its exit code. The other sixteen
-exit non-zero on a failure. At a desktop size some rows are expected to fail:
-at 1440x900 on Kyle's main machine (November 14, 2026) the two touch-target
-rows (main view and STORMS) and the scrubber touch-action row fail, and the
-font-size and render-tier rows pass.
+All seventeen gates exit non-zero when any check fails (`mobile-audit.mjs`
+always exited 0 until November 14, 2026). At a desktop size some of
+`mobile-audit.mjs`'s rows are expected to fail, so a desktop run of it exits 1
+by design: judge it by which rows fail. At 1440x900 on Kyle's main machine
+(November 14, 2026) the two touch-target rows (main view and STORMS) and the
+scrubber touch-action row fail, and the font-size and render-tier rows pass.
 
 ## 5. How to work here
 

@@ -16,9 +16,11 @@
  * extra top-bar child was enough to push the settings button off screen and
  * widen every view by 26px. The source passed while production failed.
  *
- * At desktop width the touch-target, font-size and render-tier rows are
- * expected to fail - they are mobile gates, and seeing the original desktop
- * values there is how you know the media query is scoped correctly.
+ * At desktop width some rows are expected to fail - they are mobile gates,
+ * and seeing the original desktop values there is how you know the media
+ * query is scoped correctly. At 1440x900 (November 14, 2026) those are the two
+ * touch-target rows and scrubber touch-action; font size and render tier pass.
+ * So a desktop-size run exits 1 by design; judge it by which rows fail.
  *
  * Baseline before any of this work, at 390x844:
  *   content 983px wide, 5 top-bar controls off screen, 38 targets under 44px,
@@ -170,4 +172,6 @@ for (const r of rows) {
 console.log('\n ', fails ? `${fails} gate(s) failing` : 'all gates green');
 if (errs.length) console.log('  errors:', errs.slice(0, 3));
 chrome.kill();
-process.exit(0);
+// Non-zero on any FAIL row, like every other gate. It used to exit 0 always,
+// so anything that trusted the exit code read a failing phone layout as a pass.
+process.exit(fails ? 1 : 0);
