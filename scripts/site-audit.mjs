@@ -112,6 +112,7 @@ const PAGES = [
   ['/elevator/', '/elevator/', 2500],
   ['/asteroids/', '/asteroids/', 2500],
   ['/ironwing/', '/ironwing/', 2500],
+  ['/mustang-micro-plus/', '/mustang-micro-plus/', 1500],
 ];
 
 const rows = [];

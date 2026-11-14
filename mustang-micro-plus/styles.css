@@ -22,14 +22,14 @@
   h1 { margin: 0 0 2px; font-size: 1.35rem; letter-spacing: .3px; }
   h1 .plus { color: var(--accent); }
   .sub { color: var(--muted); font-size: .85rem; margin-bottom: 10px; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
   #search {
     flex: 1 1 220px; padding: 10px 12px; font-size: 1rem;
     background: var(--row); color: var(--text);
     border: 1px solid var(--border); border-radius: 8px;
   }
   #search:focus { outline: none; border-color: var(--accent); }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 12px; }
   .chip {
     padding: 8px 12px; font-size: .85rem; border-radius: 999px;
     background: var(--row); color: var(--text);
