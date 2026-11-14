@@ -111,6 +111,7 @@ const PAGES = [
   ['/guitar/caged/', '/guitar/caged/', 1500],
   ['/elevator/', '/elevator/', 2500],
   ['/asteroids/', '/asteroids/', 2500],
+  ['/ironwing/', '/ironwing/', 2500],
 ];
 
 const rows = [];
