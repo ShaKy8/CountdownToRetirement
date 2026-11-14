@@ -6536,6 +6536,23 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.ok(/\/pollen\/90012$/.test(out.pollenUrl), 'a real ZIP still works');
     });
 
+    test('Should answer 400 when bundle, observations or aircraft get no coordinates, before going upstream', () => {
+        // They checked with Number() alone, and Number(null) and Number('') are
+        // 0: a request with no parameters answered 200 for 0,0, having asked
+        // the upstreams (the volunteer aircraft feeds among them) about a
+        // place nobody named. The Weather repo fixed its server in d415d10.
+        const out = run(`
+            const r = {};
+            for (const p of ['bundle', 'observations', 'aircraft'])
+                r[p] = [(await call(p, '')).status, (await call(p, 'lat=&lon=')).status, (await call(p, 'lat=%20&lon=1')).status];
+            console.log(JSON.stringify({ r, upstream: calls.length }));
+        `);
+        for (const p of ['bundle', 'observations', 'aircraft']) {
+            assert.deepStrictEqual(out.r[p], [400, 400, 400], `/api/${p}: missing, empty and blank coordinates`);
+        }
+        assert.strictEqual(out.upstream, 0, 'nothing reached an upstream service');
+    });
+
     test('Should be the same hardening in the local server', () => {
         const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo; CI may not have it

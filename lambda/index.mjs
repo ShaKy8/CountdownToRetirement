@@ -351,7 +351,11 @@ function climateURL(lat, lon) {
 /** lat/lon from the query, finite and on the globe, or a 400. */
 function point(q) {
   // Number(null) and Number('') are 0, so a missing parameter read as the
-  // equator or the meridian; require both to be there.
+  // equator or the meridian; require both to be there. /api/bundle,
+  // /api/observations and /api/aircraft once checked with Number() alone:
+  // a request with no parameters answered 200 for 0,0, having asked the
+  // upstreams (the volunteer aircraft feeds among them) about a place
+  // nobody named.
   if ([q.get('lat'), q.get('lon')].some((v) => v == null || !v.trim())) throw new HttpError(400, 'lat/lon required');
   const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
@@ -599,8 +603,7 @@ const routes = {
 
   /** Everything the console needs for one location, in one round trip. */
   async '/api/bundle'(q) {
-    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new HttpError(400, 'lat/lon required');
+    const { lat, lon } = point(q);
     const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
 
     const [forecast, air, alerts, space] = await Promise.all([
@@ -737,8 +740,7 @@ const routes = {
    * next to what the model thinks.
    */
   async '/api/observations'(q) {
-    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new HttpError(400, 'lat/lon required');
+    const { lat, lon } = point(q);
     const key = `obs_${lat.toFixed(3)},${lon.toFixed(3)}`;
     const hit = memGet(key);
     if (hit) return hit;
@@ -993,10 +995,7 @@ const routes = {
   },
 
   async '/api/aircraft'(q) {
-    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      const e = new Error('lat and lon are required'); e.status = 400; throw e;
-    }
+    const { lat, lon } = point(q);
     const nm = Math.max(5, Math.min(120, Number(q.get('dist')) || 40));
     const key = `ac_${lat.toFixed(1)}_${lon.toFixed(1)}_${nm}`;
     const hit = memGet(key);
