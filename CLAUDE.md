@@ -216,6 +216,11 @@ tests that size, so it was measured by hand. The arcade gates play in real time,
 browser there runs a game at about 75-85% of real speed; a wait in a gate
 should read the game's own clock from `snapshot()`.
 
+`mobile-audit.mjs` always exits 0, even when it prints `FAIL` rows, so read
+its last line (`all gates green`) and never its exit code. The other sixteen
+exit non-zero on a failure. At a desktop size its touch-target, font-size and
+render-tier rows are expected to fail.
+
 ## 5. How to work here
 
 1. **Start from the current `main`.** `git fetch`, then `git status -sb`. If
@@ -227,7 +232,11 @@ should read the game's own clock from `snapshot()`.
    that way before changing it.
 3. **Find the test first.** `grep -n "describe(" tests.js` lists the areas.
    Nearly every rule in this file is pinned by a test. A test that fails after
-   your change is usually telling you about a rule you did not know.
+   your change is usually telling you about a rule you did not know. Run
+   `node tests.js` once before you change anything, so you know what was
+   already red. A failure on an untouched checkout is rarely the code: check
+   mistakes 1, 3, 5 and 30 in section 8, in that order. If it is none of
+   them, tell Kyle that `main` is red before doing anything else.
 4. **Make the smallest change that does the job.** Do not refactor, rename,
    reformat or "modernise" nearby code. Do not add a dependency, a framework,
    a build step or a new file where an existing one fits.
@@ -294,8 +303,9 @@ tag mark the commit before each recent release; leave them alone.
 - **Storage keys and record shapes are permanent.** `oneputt.v1`,
   `slingshot.v1`, `starfall.v1`, `ironwing-v1`, `elevator86.best`,
   `elevator86.muted`, `mmp-presets-v1`, `postcards-in-sound-v1`,
-  `branyon.sky.v1`, `atmos.sats.v1`, `retirementDate`. Renaming one throws
-  away what a visitor saved.
+  `branyon.sky.v1`, `atmos.v1` (the console's saved place, favourites and
+  settings), `atmos.sats.v1`, `retirementDate`. Renaming one throws away what
+  a visitor saved.
 - **Call the API by absolute path:** `/weather/api/bundle`, never
   `./api/bundle`. A relative path from `/game/` fails silently.
 - **Every failure has a quiet, correct fallback.** No network gives synthetic
@@ -373,22 +383,30 @@ tag mark the commit before each recent release; leave them alone.
 
 1. **Working from a stale checkout.** Kyle and other sessions push to `main`
    from other machines. This file was first drafted on a checkout seven
-   commits behind, and it described a homepage that no longer existed.
+   commits behind, and it described a homepage that no longer existed. The
+   next day a session on the laptop began 151 commits behind.
    *Instead:* `git fetch` and `git status -sb` first; if behind, update with
    `git merge --ff-only origin/main` on a clean tree. Check again before you
-   commit.
+   commit. If it says `ahead` and `behind` together, this machine holds
+   commits that were never pushed, and that merge will refuse. Do not rebase,
+   merge or reset them away: show Kyle `git log --oneline origin/main..HEAD`
+   and ask.
 
 **Generated and duplicated files**
 
 2. **Editing `weather/` by hand.** The next sync deletes the edit. *Instead:*
    edit `~/Projects/Weather/public`, run
    `./scripts/sync-weather.sh ~/Projects/Weather/public`, and commit both
-   repos. The script's default path does not exist on this machine, so always
-   pass the path.
+   repos. The script's default, `../Weather/public` beside this checkout,
+   resolves only where the two repos sit side by side (it did not where this
+   file was written), so always pass the path.
 3. **Changing `lambda/index.mjs` and not `~/Projects/Weather/server.mjs`.**
    The route bodies are the same code in both, `atcf.mjs` is byte-identical in
    both, and `tests/weather-reliability.test.cjs` is identical in both. Tests
-   compare them. *Instead:* make the same edit in both places.
+   compare them, but only where the Weather repo sits beside this one. CI has
+   no copy and skips the comparison, so a green CI run says nothing about
+   drift. *Instead:* make the same edit in both places and run
+   `node tests.js` here.
 4. **Forgetting to stamp.** After changing any `.js`, `.css` or photograph
    under a stamped page, `tests.js` fails until you run
    `node scripts/stamp-assets.mjs`. *Also:* when a test looks for a script by
@@ -515,10 +533,13 @@ tag mark the commit before each recent release; leave them alone.
     sync injects a back link that the source does not have, and it once pushed
     a button off screen. Audit `http://localhost:8137/weather/`.
 27. **Starting a slow command twice, or waiting in nested loops.** Start it
-    once in the background and wait. To clear a stuck browser, list with
-    `pgrep -fa "[c]hrome-linux64/chrome --headless=new"` and kill those PIDs.
-    Never `pkill -f` with a pattern that is in your own command line: it
-    kills your shell (exit 144).
+    once in the background and wait, one gate at a time: gates can pick the
+    same debugging port, and the laptop has under 8 GB, which a pile of
+    headless browsers has exhausted before. To clear a stuck browser, run
+    `pgrep -fa -- "--[h]eadless=new"` as a command on its own and kill those
+    PIDs. Every gate starts its browser with that flag, whatever the binary
+    is called on the machine. Never `pkill -f` with a pattern that is in your
+    own command line: it kills your shell (exit 144).
 28. **Treating one timeout or one slow run as a verdict.** A gate can stall
     for reasons that are not the site. Run it again before concluding, and
     say in your report that it was flaky.

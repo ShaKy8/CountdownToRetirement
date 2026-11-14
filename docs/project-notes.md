@@ -27,6 +27,13 @@ Known stale spots in here, as of November 12, 2026:
 - **"22 WebP photographs"** in the Fish Hatchery section:
   `fish-hatchery/assets/` holds 34.
 - **"`pull.rebase` is set here"**: it is not set on every machine.
+- **"does not exist on this machine"**, said twice of the sync's default
+  path: it resolves wherever the two repos sit side by side, as they do on
+  the laptop. Passing the path is still the rule.
+- **`pgrep -fa "[c]hrome-linux64/chrome --headless=new"`** under "The whole
+  site on a phone": that is one machine's Chrome path, and it finds nothing
+  on the laptop, where the browser is `/usr/lib/chromium/chromium`.
+  `pgrep -fa -- "--[h]eadless=new"` finds a gate's browser on any of them.
 
 ## Project Overview
 
