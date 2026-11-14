@@ -27,6 +27,10 @@ The model is intentionally accessible: simplified energy, angle of attack, stall
 
 `node scripts/home-audit.mjs http://localhost:8142` covers homepage contrast, all thirteen links and responsive fit. The existing compact layout now also applies to phones up to 380px wide and 719px tall, preserving touch spacing while keeping the new link on one screen.
 
+### The bank check waits on game time (November 13, 2026)
+
+`ironwing-audit.mjs` failed "normal bank input turns aircraft" twice on a machine whose headless browser runs the game at about 75–85% of real time (software rendering). The check held the right arrow for 1200 ms and waited 1000 ms by the wall clock, so under two seconds of flight had passed and the turn was 0.07–0.09 rad against the 0.1 it needs. The same manoeuvre on `engine.js` at exact time turns 0.142 rad, so the game was never at fault. The check now uses `gameWait` and `gameHold`, which read `state.time` from `IronwingApp.snapshot()` and wait for the game's own clock; the thresholds and the game are unchanged. With that, the audit passes all 38 checks there and `ironwing-circuit-audit.mjs` passes (arrested recovery at 197 s). The audit's other waits are still wall-clock: if one fails on a slow machine, check game time against real time before suspecting the game.
+
 ## Deployment and rollback
 
 The existing GitHub Actions workflow bakes homepage counts, stamps content hashes, syncs the explicit static asset list to the same S3 bucket and invalidates CloudFront. Ironwing adds only its route and assets to those lists, and its tests to existing CI. No access, credential or security setting changes.

@@ -199,6 +199,15 @@ Run the gates for the area you changed, not all seventeen. Run slow ones in
 the background, once, and wait for them to finish. Postcards in Sound and the
 Mustang page have no browser gate: look at them yourself.
 
+**All seventeen gates pass on Kyle's main machine as of November 13, 2026**
+(run on November 12 and 13, against the dev server, at the sizes above). So a
+gate that fails there now is news: suspect your change first. Two failed
+before that date and were fixed: Elevator '86's title wrapped at 320px wide
+(`docs/elevator-86.md`), and the Ironwing bank check timed itself by the wall
+clock (`docs/ironwing.md`). The arcade gates play in real time, and a headless
+browser there runs a game at about 75-85% of real speed; a wait in a gate
+should read the game's own clock from `snapshot()`.
+
 ## 5. How to work here
 
 1. **Start from the current `main`.** `git fetch`, then `git status -sb`. If
