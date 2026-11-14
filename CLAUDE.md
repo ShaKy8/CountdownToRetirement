@@ -218,8 +218,10 @@ a wait in a gate should read the game's own clock from `snapshot()`.
 
 `mobile-audit.mjs` always exits 0, even when it prints `FAIL` rows, so read
 its last line (`all gates green`) and never its exit code. The other sixteen
-exit non-zero on a failure. At a desktop size its touch-target, font-size and
-render-tier rows are expected to fail.
+exit non-zero on a failure. At a desktop size some rows are expected to fail:
+at 1440x900 on Kyle's main machine (November 14, 2026) the two touch-target
+rows (main view and STORMS) and the scrubber touch-action row fail, and the
+font-size and render-tier rows pass.
 
 ## 5. How to work here
 
