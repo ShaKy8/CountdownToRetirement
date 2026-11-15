@@ -16,6 +16,28 @@ const Putt = require('./game/putt.js');
 const Daily = require('./shared/daily.js');
 const Sling = require('./slingshot/orbit.js');
 
+// The drift tests compare the Lambda with ../Weather, a sibling repo that is
+// edited in place by other work. They read its committed HEAD, not its working
+// tree, so a half-finished edit there cannot fail (or pass) a run here. The
+// files are copied out of git into a temp folder once; a file Weather does not
+// have, or no Weather checkout at all (CI), leaves it missing, and the tests
+// that need it skip as before.
+const WEATHER_HEAD = (() => {
+    const fs = require('fs');
+    const os = require('os');
+    const { execFileSync } = require('child_process');
+    const repo = path.join(__dirname, '..', 'Weather');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'weather-head-'));
+    process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
+    for (const f of ['server.mjs', 'atcf.mjs']) {
+        try {
+            fs.writeFileSync(path.join(dir, f), execFileSync('git', ['-C', repo, 'show', 'HEAD:' + f],
+                { stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 }));
+        } catch { /* not a repo, or no such file at HEAD */ }
+    }
+    return dir;
+})();
+
 // ANSI color codes for pretty output
 const colors = {
     reset: '\x1b[0m',
@@ -5580,7 +5602,7 @@ describe('ELSEWHERE - the sentence route', () => {
         assert.ok(route.length > 500, 'the route should be in lambda/index.mjs');
         // ../Weather/server.mjs is a sibling repo and may not be checked out
         // in CI, so this only asserts equality when it is there.
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (fs.existsSync(sibling)) {
             assert.strictEqual(route, slice(fs.readFileSync(sibling, 'utf8')),
                 'the two copies of this route have drifted');
@@ -6180,7 +6202,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
     });
 
     test('Should keep the aircraft route identical in the local server', () => {
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!require('fs').existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
         const cut = (src) => src.slice(src.indexOf("async '/api/aircraft'"), src.indexOf("async '/api/flight'"));
         const a = cut(require('fs').readFileSync(path.join(__dirname, 'lambda', 'index.mjs'), 'utf8'));
@@ -6255,7 +6277,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
     });
 
     test('Should keep the JSON body reader identical in the local server', () => {
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
         const helper = (f) => (f.match(/class NotJSON[\s\S]*?async function jsonBody[\s\S]*?\n}\n/) || [''])[0];
         const a = helper(fs.readFileSync(lambdaPath, 'utf8'));
@@ -6308,7 +6330,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         `);
         assert.ok(out.pollen.length === 2 && out.pollen.every((s) => s.signal), 'both pollen.com requests carry a deadline');
         assert.ok(out.model.length === 1 && out.model[0].signal, 'and so does the model call');
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         for (const f of [lambdaPath, sibling]) {
             if (!fs.existsSync(f)) continue;
             const src = fs.readFileSync(f, 'utf8');
@@ -6332,7 +6354,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.strictEqual(out.status, 200, 'the bundle still answers');
         assert.strictEqual(out.warns.length, 1, JSON.stringify(out.warns));
         assert.ok(/^\[soft\] air: TimeoutError /.test(out.warns[0]), out.warns[0]);
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;
         const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function soft[\s\S]*?\n}\n/) || [''])[0];
         assert.ok(fn(lambdaPath).includes('[soft]') && fn(lambdaPath) === fn(sibling), 'soft is the same code in both');
@@ -6356,7 +6378,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.ok(out.pos, 'the position is served');
         assert.deepStrictEqual(out.urls.filter((u) => !u.includes('wheretheiss.at')), [], 'nothing else is asked');
         assert.ok(out.ms < 1000, 'and it does not wait: ' + out.ms + ' ms');
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         for (const f of [lambdaPath, sibling]) {
             if (fs.existsSync(f)) assert.ok(!/celestrak/i.test(fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')),
                 path.basename(f) + ' has no CelesTrak request left');
@@ -6390,7 +6412,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.strictEqual(out.b, false, 'a 503 is still a failed source');
         assert.strictEqual(out.w503, 1, 'and is still named');
         assert.deepStrictEqual(out.c, { ok: true, data: { features: [{ id: 'a1' }] } }, 'US alerts pass through');
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;
         const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function alertsAt[\s\S]*?\n}\n/) || [''])[0];
         assert.ok(fn(lambdaPath).length > 100 && fn(lambdaPath) === fn(sibling), 'alertsAt is the same code in both');
@@ -6425,7 +6447,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.strictEqual(out.forecast, true, 'the rest of the bundle is untouched');
         assert.strictEqual(out.warns.length, 3, 'every failure is still named: ' + JSON.stringify(out.warns));
         assert.ok(/air quality failed a moment ago: TimeoutError/.test(out.warns[1]), out.warns[1]);
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;
         const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function airFor[\s\S]*?\n}\n/) || [''])[0];
         assert.ok(fn(lambdaPath).length > 200 && fn(lambdaPath) === fn(sibling), 'airFor is the same code in both');
@@ -6465,7 +6487,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.strictEqual(out.w502, 2, 'but both failed lookups are still named');
         assert.strictEqual(out.good.airline, 'United');
         assert.strictEqual(out.good.aircraft.type, 'A320', 'a real answer passes through');
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;
         const fn = (f) => (fs.readFileSync(f, 'utf8').match(/async function adsbdb[\s\S]*?\n}\n/) || [''])[0];
         assert.ok(fn(lambdaPath).length > 100 && fn(lambdaPath) === fn(sibling), 'adsbdb() is the same code in both');
@@ -6501,7 +6523,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
         assert.strictEqual(out.r.ok.status, 200);
         assert.ok(/ATMOS-NET\/1\.0/.test(out.ua) && /branyontech\.com/.test(out.ua) && /@/.test(out.ua),
             'weather.gov is told who is asking and how to reach them: ' + out.ua);
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;
         const pick = (f) => [/const UA = [^\n]*\n/, /let stations;[\s\S]*?\n    }\n/].map((re) => (fs.readFileSync(f, 'utf8').match(re) || [''])[0]);
         const a = pick(lambdaPath), b = pick(sibling);
@@ -6509,7 +6531,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
     });
 
     test('Should keep the upstream deadline and the slow-route note identical in the local server', () => {
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo, may not be checked out in CI
         const pick = (f) => ['const UPSTREAM_TIMEOUT_MS = 8000;', 'const ARCHIVE_TIMEOUT_MS = 20000;', 'const SLOW_MS = 5000;',
             'timeout = UPSTREAM_TIMEOUT_MS', 'function slowNote(route, t0) {'].map((x) => f.includes(x));
@@ -6554,7 +6576,7 @@ describe('WEATHER API - Abuse limits (security audit, October 3, 2026)', () => {
     });
 
     test('Should be the same hardening in the local server', () => {
-        const sibling = path.join(__dirname, '..', 'Weather', 'server.mjs');
+        const sibling = path.join(WEATHER_HEAD, 'server.mjs');
         if (!fs.existsSync(sibling)) return;   // a sibling repo; CI may not have it
         const pick = (src) => [/const MEM_MAX = \d+;[\s\S]*?\n}\n/, /function point\(q\) \{[\s\S]*?\n}\n/,
             /const MODEL_CALLS_PER_HOUR[\s\S]*?\n}\n/].map((re) => (src.match(re) || [''])[0]);
@@ -7590,7 +7612,7 @@ describe('WEATHER API - STORMS, live tropical cyclones (October 20, 2026)', () =
     });
 
     test('Should keep the storms code and the ATCF parser identical in the local server and the Lambda', () => {
-        const sibling = path.join(__dirname, '..', 'Weather');
+        const sibling = WEATHER_HEAD;
         if (!fs.existsSync(path.join(sibling, 'server.mjs'))) return;   // a sibling repo; CI may not have it
         assert.strictEqual(fs.readFileSync(path.join(sibling, 'atcf.mjs'), 'utf8'), fs.readFileSync(atcfPath, 'utf8'), 'atcf.mjs has drifted');
         const block = (f) => (fs.readFileSync(f, 'utf8').match(/\/\* =+ STORMS[\s\S]*?\/\* =+ \/STORMS \*\//) || [''])[0];
