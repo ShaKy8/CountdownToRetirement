@@ -220,8 +220,9 @@ All seventeen gates exit non-zero when any check fails (`mobile-audit.mjs`
 always exited 0 until November 14, 2026). At a desktop size some of
 `mobile-audit.mjs`'s rows are expected to fail, so a desktop run of it exits 1
 by design: judge it by which rows fail. At 1440x900 on Kyle's main machine
-(November 14, 2026) the two touch-target rows (main view and STORMS) and the
-scrubber touch-action row fail, and the font-size and render-tier rows pass.
+and on the laptop (November 14, 2026) the two touch-target rows (main view
+and STORMS) and the scrubber touch-action row fail, and the font-size and
+render-tier rows pass.
 
 ## 5. How to work here
 
