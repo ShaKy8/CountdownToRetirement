@@ -221,8 +221,11 @@ always exited 0 until November 14, 2026). At a desktop size some of
 `mobile-audit.mjs`'s rows are expected to fail, so a desktop run of it exits 1
 by design: judge it by which rows fail. At 1440x900 on Kyle's main machine
 and on the laptop (November 14, 2026) the two touch-target rows (main view
-and STORMS) and the scrubber touch-action row fail, and the font-size and
-render-tier rows pass.
+and STORMS) and the scrubber touch-action row fail, and the font-size rows
+pass. The render-tier row can go either way there: wider than 820px the
+console picks its tier from the measured frame rate (`perf.js`), so it passed
+on both machines on November 14 and failed, reading 3, on the main machine on
+November 16.
 
 ## 5. How to work here
 

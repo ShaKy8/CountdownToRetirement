@@ -18,9 +18,12 @@
  *
  * At desktop width some rows are expected to fail - they are mobile gates,
  * and seeing the original desktop values there is how you know the media
- * query is scoped correctly. At 1440x900 (November 14, 2026) those are the two
- * touch-target rows and scrubber touch-action; font size and render tier pass.
- * So a desktop-size run exits 1 by design; judge it by which rows fail.
+ * query is scoped correctly. At 1440x900 those are the two touch-target rows
+ * and scrubber touch-action; the font-size rows pass. Render tier can go
+ * either way: wider than 820px the console picks its tier from the measured
+ * frame rate (perf.js), so the row passed on November 14, 2026 and read 3 on
+ * geekom1 on November 16. So a desktop-size run exits 1 by design; judge it
+ * by which rows fail.
  *
  * Baseline before any of this work, at 390x844:
  *   content 983px wide, 5 top-bar controls off screen, 38 targets under 44px,
