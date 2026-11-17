@@ -21,9 +21,10 @@
  * query is scoped correctly. At 1440x900 those are the two touch-target rows
  * and scrubber touch-action; the font-size rows pass. Render tier can go
  * either way: wider than 820px the console picks its tier from the measured
- * frame rate (perf.js), so the row passed on November 14, 2026 and read 3 on
- * geekom1 on November 16. So a desktop-size run exits 1 by design; judge it
- * by which rows fail.
+ * frame rate (perf.js), so the row passed on November 14, 2026, read 3 on
+ * geekom1 on November 16, and read 2 and passed there on November 17: both
+ * ways on one machine. So a desktop-size run exits 1 by design; judge it by
+ * which rows fail.
  *
  * Baseline before any of this work, at 390x844:
  *   content 983px wide, 5 top-bar controls off screen, 38 targets under 44px,
