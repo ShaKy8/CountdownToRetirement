@@ -11,7 +11,9 @@
 # The key is never echoed, never passed on a command line, and the temp file
 # holding it is mode 600 and removed on exit.
 #
-#   aws login                      # the session expires; this needs a live one
+# Any working AWS credentials will do: a live `aws login` session (it expires)
+# or a long-lived access key in ~/.aws/credentials (what geekom1 uses).
+#
 #   ./scripts/set-lambda-key.sh
 #
 set -euo pipefail
@@ -23,7 +25,7 @@ SITE="${SITE:-https://branyontech.com}"
 [ -f "$KEY_FILE" ] || { echo "No key at $KEY_FILE (override with KEY_FILE=...)"; exit 1; }
 grep -q '^sk-ant-' "$KEY_FILE" || { echo "$KEY_FILE does not look like an API key"; exit 1; }
 
-aws sts get-caller-identity >/dev/null 2>&1 || { echo "No AWS session. Run: aws login"; exit 1; }
+aws sts get-caller-identity >/dev/null 2>&1 || { echo "No working AWS credentials. Run aws login, or put an access key in ~/.aws/credentials"; exit 1; }
 
 work="$(mktemp -d)"; chmod 700 "$work"
 trap 'rm -rf "$work"' EXIT
