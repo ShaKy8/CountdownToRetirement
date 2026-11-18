@@ -23,7 +23,6 @@ Known stale spots in here, as of November 12, 2026:
 - **The folder tree**: its root name, and it has no `guitar/`,
   `postcards-in-sound/`, `elevator/`, `asteroids/`, `ironwing/` or
   `mustang-micro-plus/`.
-- **"All thirteen gates"**: there are seventeen `scripts/*-audit.mjs` now.
 - **"22 WebP photographs"** in the Fish Hatchery section:
   `fish-hatchery/assets/` holds 34.
 - **"`pull.rebase` is set here"**: it is not set on every machine.
@@ -1009,7 +1008,7 @@ each needs a deliberate move:
 
 Two things the code needs from the machine, both asserted by tests:
 
-- **Node 22 or newer.** All thirteen gates speak CDP over a global `WebSocket` with
+- **Node 22 or newer.** All seventeen gates speak CDP over a global `WebSocket` with
   nothing to install; on an older Node they fail deep inside a browser session
   rather than up front.
 - **A browser, found rather than assumed.** `scripts/lib/chromium.mjs` resolves

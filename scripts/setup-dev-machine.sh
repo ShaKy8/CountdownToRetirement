@@ -39,7 +39,7 @@ ok "git $(git --version | awk '{print $3}')"
 command -v node >/dev/null || die "node is not installed (need 22+)"
 node_major=$(node -p 'process.versions.node.split(".")[0]')
 [ "$node_major" -ge 22 ] || die "node $(node -v) is too old; the gates need 22+ for a global WebSocket"
-# Checked directly rather than inferred from the version: the seven headless
+# Checked directly rather than inferred from the version: the seventeen headless
 # gates all speak CDP over `new WebSocket(...)` with no dependency to install,
 # and without it they fail deep inside a browser session rather than up front.
 node -e 'if (typeof WebSocket === "undefined") process.exit(1)' \
@@ -89,7 +89,7 @@ cd "$SITE"
 # the one that is wrong would be this one.
 browser=$(node -e "import('./scripts/lib/chromium.mjs').then(m=>console.log(m.chromiumPath())).catch(e=>{console.error(e.message);process.exit(1)})" 2>&1) \
   && ok "browser $browser" \
-  || warn "the seven audit gates will not run:
+  || warn "the seventeen audit gates will not run:
        $browser"
 
 node tests.js >/tmp/setup-tests.log 2>&1 \
