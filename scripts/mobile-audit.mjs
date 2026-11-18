@@ -23,8 +23,8 @@
  * either way: wider than 820px the console picks its tier from the measured
  * frame rate (perf.js), so the row passed on November 14, 2026, read 3 on
  * geekom1 on November 16, and read 2 and passed there on November 17: both
- * ways on one machine. So a desktop-size run exits 1 by design; judge it by
- * which rows fail.
+ * ways on one machine. The laptop also read 2 and passed on November 17. So
+ * a desktop-size run exits 1 by design; judge it by which rows fail.
  *
  * Baseline before any of this work, at 390x844:
  *   content 983px wide, 5 top-bar controls off screen, 38 targets under 44px,
