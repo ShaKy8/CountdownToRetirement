@@ -27,6 +27,14 @@
  * read 0 and passed on November 18. So a desktop-size run exits 1 by design;
  * judge it by which rows fail.
  *
+ * It needs a local hurricane archive in storms/, which is git-ignored. Without
+ * one, "storms: panel opened" and "console errors" fail (the panel has nothing
+ * to load, and the archive request is a 404), as they did on the laptop at
+ * 1440x900 on November 18. A sample archive, built with no download, is enough:
+ *   node scripts/fetch-storms.mjs storms --from-file \
+ *     tests/fixtures/hurdat-al-sample.txt tests/fixtures/hurdat-ep-sample.txt \
+ *     --plain --fixture
+ *
  * Baseline before any of this work, at 390x844:
  *   content 983px wide, 5 top-bar controls off screen, 38 targets under 44px,
  *   smallest font 6.9px, no safe-area insets, scrubber not draggable.

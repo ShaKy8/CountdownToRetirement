@@ -229,6 +229,14 @@ November 16, and passed there again, reading 2, on November 17. So it has
 gone both ways on one machine. The laptop also read 2 and passed on
 November 17, and read 0 and passed on November 18.
 
+`mobile-audit.mjs` also needs a local hurricane archive. `storms/` is
+git-ignored, so a checkout without one fails two more rows: STORMS panel
+opened (the panel has nothing to load) and console errors (the archive
+request is a 404). The laptop did, at 1440x900, on November 18. Build a sample
+archive first, with no download:
+`node scripts/fetch-storms.mjs storms --from-file tests/fixtures/hurdat-al-sample.txt tests/fixtures/hurdat-ep-sample.txt --plain --fixture`.
+Its eight storms are enough for both rows to pass.
+
 ## 5. How to work here
 
 1. **Start from the current `main`.** `git fetch`, then `git status -sb`. If
