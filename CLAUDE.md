@@ -227,7 +227,7 @@ console picks its tier from the measured frame rate (`perf.js`), so it passed
 on both machines on November 14, failed, reading 3, on the main machine on
 November 16, and passed there again, reading 2, on November 17. So it has
 gone both ways on one machine. The laptop also read 2 and passed on
-November 17.
+November 17, and read 0 and passed on November 18.
 
 ## 5. How to work here
 
