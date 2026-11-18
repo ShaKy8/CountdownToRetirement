@@ -12,31 +12,13 @@ disagrees with the code or the tests, the code and the tests are right: fix
 the note. When you change a feature, update its section here in the same
 commit.
 
-Known stale spots in here, as of November 12, 2026:
-
-- **The homepage's counts.** "Landing Page (/)" speaks of eight and then ten
-  links in five groups with a Play card. The page now has fourteen links in
-  six groups (Games and Music replaced Play); the last four sections of this
-  file and `docs/mustang-micro-plus.md` have the current state.
-- **The test counts** under "Development Commands" (482 and 65). `tests.js`
-  has 617 tests and `tests-server.js` 94.
-- **The folder tree**: its root name, and it has no `guitar/`,
-  `postcards-in-sound/`, `elevator/`, `asteroids/`, `ironwing/` or
-  `mustang-micro-plus/`.
-- **"22 WebP photographs"** in the Fish Hatchery section:
-  `fish-hatchery/assets/` holds 34.
-- **"`pull.rebase` is set here"**: it is not set on every machine.
-- **"does not exist on this machine"**, said twice of the sync's default
-  path: it resolves wherever the two repos sit side by side, as they do on
-  the laptop. Passing the path is still the rule.
-- **`pgrep -fa "[c]hrome-linux64/chrome --headless=new"`** under "The whole
-  site on a phone": that is one machine's Chrome path, and it finds nothing
-  on the laptop, where the browser is `/usr/lib/chromium/chromium`.
-  `pgrep -fa -- "--[h]eadless=new"` finds a gate's browser on any of them.
+Known stale spots in here: none known as of November 18, 2026, when the list
+kept here since November 12 was worked through. When you find one you cannot
+fix in the same commit, list it here.
 
 ## Project Overview
 
-**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, eight links). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
+**BranyonTech** - Kyle Shaver's personal site at branyontech.com. The homepage is a one-screen, text-only landing page (name, one sentence, fourteen links in six groups). The retirement clock at `/countdown/` is the original feature: Kyle retired on February 27, 2026, so it runs in count-up mode (days since retirement) by default and only counts down when a visitor sets a future date. `/weather/` is a live weather console, and `/game/` is ONE PUTT — a daily mini-golf hole played against the real wind wherever the visitor is, which is what ties the two together. `/slingshot/` is SLINGSHOT — a daily orbital puzzle where gravity bends your shot to a beacon. The console's OVERHEAD view answers what is flying above the visitor right now.
 
 ## Tech Stack
 
@@ -51,27 +33,27 @@ Known stale spots in here, as of November 12, 2026:
 # Serve the site the way production does — static files plus the weather API
 # routed to the Lambda handler, so /weather/ can be exercised from its real
 # subpath. This is what catches absolute-path bugs before they ship.
-node scripts/dev-server.mjs        # http://localhost:8000
+PORT=8137 node scripts/dev-server.mjs   # http://localhost:8137 (8000 is the systemd service)
 
 # Re-copy the weather console after changing it in the Weather repo. Pass the
-# source: the script's default (../../Weather/public) does not exist on this
-# machine (see Weather console)
+# source: the script's default (../../Weather/public) resolves only where the
+# two repos sit side by side (see Weather console)
 ./scripts/sync-weather.sh ~/Projects/Weather/public
 
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (482 tests)
+# Run client-side tests (620 tests, on CI on November 18, 2026)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
 # refresh the ?v= content stamps in those pages (tests.js fails until you do)
 node scripts/stamp-assets.mjs
 
-# Run server integration tests (65 tests)
-# Note: Stop any running server first, tests start their own -- or, where
-# port 8000 belongs to the systemd service, run them on another port:
-PORT=8137 node tests-server.js
+# Run server integration tests (94 tests). They start their own server; give
+# them a port of their own, since 8000 belongs to the systemd service and 8137
+# is the dev server's:
+PORT=8237 node tests-server.js
 ```
 
 ## Deployment
@@ -108,7 +90,7 @@ sudo systemctl status countdown-retirement
 ## Project Structure
 
 ```
-CountdownToRetirement/
+branyontech/               # the checkout (the GitHub repo is CountdownToRetirement)
 ├── index.html              # One-screen personal landing page (one script: home.js)
 ├── home.js                 # The sky right now: time of day + the visitor's weather
 ├── styles.css              # Landing page styles (warm cream, plum text, coral accent)
@@ -150,17 +132,34 @@ CountdownToRetirement/
 │   ├── audio.js            # Web Audio synthesis - NO audio files, see below
 │   ├── styles.css
 │   └── favicon.svg
-├── tests.js                # Client-side unit tests (482 tests)
-├── tests-server.js         # Server integration tests (65 tests)
+├── ironwing/ asteroids/ elevator/
+│                           # The three arcade games (IRONWING, Starfall, Elevator '86).
+│                           #   Each: engine.js (pure rules), render.js, audio.js,
+│                           #   app.js (input, menus, storage, loop), styles.css
+├── guitar/                 # Four theory tools on one fretboard: index.html,
+│                           #   lib/{theory.js (pure), board.js, synth.js, guitar.css},
+│                           #   pentatonic/ modes/ chord-modes/ caged/
+├── postcards-in-sound/     # Six chord sketches: index.html, app.js, content.json
+├── mustang-micro-plus/     # Kyle's 70 amp presets: index.html, app.js, styles.css
+├── fish-hatchery/          # Property showcase: index.html, app.js, styles.css, assets/*.webp
+├── tests.js                # Client-side unit tests (620 tests)
+├── tests-server.js         # Server integration tests (94 tests)
+├── tests/                  # node:test files, fixtures, the Elevator browser harness
 ├── countdown-retirement.service  # Systemd service file
-└── .github/workflows/      # GitHub Actions for CI/CD
-    ├── deploy.yml          # Auto-deploy on push to main
-    └── test.yml            # Run tests on PRs
+└── .github/workflows/      # GitHub Actions
+    ├── deploy.yml          # Deploy on a push to main that touches a deployed path
+    ├── test.yml            # Run tests on every push to main and on PRs
+    └── sats.yml storms.yml storms-watch.yml spend.yml
 ```
 
 ## Key Features
 
 ### Landing Page (/)
+- **Now (November 18, 2026): fourteen links in six groups** — Retirement,
+  Weather, Games, Music, Property, Reach me — plus the skip link. The eight
+  and then ten links in five groups with a Play card, below, are how it got
+  here; the last four sections of this file and `docs/mustang-micro-plus.md`
+  record the links added since.
 - **Content:** "Kyle Shaver", the tagline "Retired technologist. Since February: N trips, N concerts, N books, N things built with AI. Consulting by referral." — the numbers are counted from `countdown/stats.json` at build time (see below), so read them off the live page, not this file — and eight text links: the email address itself (`shaky8@proton.me`, as a `mailto:` — the word "Email" hid an address that `mailto:` does nothing with on a device without a mail handler, which is most Linux desktops), GitHub, the retirement clock, the year in review, weather console, ONE PUTT, SLINGSHOT, and Fish Hatchery — **in five titled groups**, see below
 - **Design:** Light warm palette matching the retirement page's dawn theme, serif name, system fonts only (CSP blocks external fonts), no graphics, and exactly one script: `home.js`, the sky right now.
 - **The sky right now.** `home.js` makes the page's colours follow the
@@ -325,8 +324,8 @@ CountdownToRetirement/
     top margin and the brand and tagline margins shrink, and the footer
     tightens.
   - **The link count and the one-screen budget** (October 18-22, 2026). The
-    page has **ten links** and a test pins the count; an eleventh needs a new
-    budget (`home-audit.mjs` and the pieces below), and nobody should add one
+    page had **ten links** then (fourteen now; see the top of this section),
+    and a test pins the count; another link needs a new budget (`home-audit.mjs` and the pieces below), and nobody should add one
     without running the gate. How it got here: Light Lasso (`c48dc30`, 1px over
     at 320x700, and the gate still expected eight links) and Postcards in Sound
     (`73cc50b`) joined the Play card on October 10-13 and nobody re-ran
@@ -359,7 +358,8 @@ CountdownToRetirement/
   The owner explicitly requested the Fish Hatchery link (September 25) and the
   year in review link (October 3: he could not find it on the clock, and chose
   the homepage's Retirement card for it). The earlier six- and seven-link
-  ceilings are superseded (the page has ten now; see the budget above).
+  ceilings are superseded (the page has fourteen now; see the top of this
+  section).
   Preserve all the links and
   verify the homepage at 390x844, 375x667, 320x700 and 360x640 when changing
   it — `home-audit.mjs` does, and `site-audit.mjs` at each size for targets.
@@ -369,7 +369,8 @@ CountdownToRetirement/
 An elegant before/during/after property showcase with five comparisons and a
 full-screen gallery. Read `docs/fish-hatchery/HANDOFF.md` before continuing this
 work; confirmed facts and image provenance are in that directory. The page,
-22 WebP photographs, and integration were copied from the owner's approved
+WebP photographs (22 then; `fish-hatchery/assets/` holds 34 now), and
+integration were copied from the owner's approved
 local draft. The rehabilitation began January 2026; no completion date is
 asserted. Credit, in this order, Keith, Diane, Jeremiah, and Harley. The showcase is deployed.
 
@@ -1018,9 +1019,9 @@ Two things the code needs from the machine, both asserted by tests:
 
 **Push before switching machines.** The repos are the sync mechanism, and the
 setup script refuses to touch a working tree with uncommitted changes rather
-than guess. Note also that `pull.rebase` is set here, so a plain `git pull` with
-unstaged changes fails with an error about rebasing that has nothing to do with
-what actually went wrong.
+than guess. Note also that on a machine where `pull.rebase` is set (it is not
+set on every machine), a plain `git pull` with unstaged changes fails with an
+error about rebasing that has nothing to do with what actually went wrong.
 
 ## The whole site on a phone
 
@@ -1039,7 +1040,8 @@ desktop layout is untouched.
 **Two ways it hangs that are not the site.** A gate killed by `timeout`
 leaves its headless browser running, holding a debugging port the next run
 may pick (ports are `base + pid % 90`); find them with
-`pgrep -fa "[c]hrome-linux64/chrome --headless=new"` and kill those PIDs — never
+`pgrep -fa -- "--[h]eadless=new"` (every gate starts its browser with that
+flag, whatever the binary is called on the machine) and kill those PIDs — never
 `pkill -f` with the pattern in the command line, which kills its own shell
 (exit 144). And on September 30, 2026 a `Runtime.evaluate` stalled at
 random pages against production and local alike, so a timeout here is not a
@@ -1073,8 +1075,9 @@ Developed in the sibling repo `../Weather`; `scripts/sync-weather.sh` copies its
 
 `weather/` is generated output. Change the console in the Weather repo, re-run
 the sync, commit the result. **The source is `~/Projects/Weather`**, and the
-sync's default path (`../../Weather/public` from `scripts/`) does not exist
-on this machine, so run it as
+sync's default path (`../../Weather/public` from `scripts/`) resolves only
+where the two repos sit side by side, as they do on the laptop, so always run
+it as
 `./scripts/sync-weather.sh ~/Projects/Weather/public`. (A stale duplicate
 checkout at `~/VibeCoding/Weather` was deleted on 2026-10-03.)
 
