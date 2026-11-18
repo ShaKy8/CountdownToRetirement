@@ -31,9 +31,10 @@
 # The GitHub workflow stays as a second, independent path: it is the one that
 # opens the issue with the checklist of what to look at on the first storm.
 #
-# Dry run by default; prints what exists now and what would change.
+# Dry run by default; prints what exists now and what would change. Any
+# working AWS credentials will do: a live `aws login` session (it expires) or a
+# long-lived access key in ~/.aws/credentials (what geekom1 uses).
 #
-#   aws login
 #   ./scripts/storm-watch-aws.sh            # show the plan
 #   ./scripts/storm-watch-aws.sh --apply    # create or update it (idempotent)
 #   ./scripts/storm-watch-aws.sh --test     # pretend one storm: the alarm goes
@@ -58,7 +59,7 @@ NS="AtmosWeather"
 MODE="plan"
 case "${1:-}" in --apply) MODE=apply;; --test) MODE=test;; "") ;; *) echo "usage: $0 [--apply|--test]"; exit 2;; esac
 
-aws sts get-caller-identity >/dev/null 2>&1 || { echo "No AWS session. Run: aws login"; exit 1; }
+aws sts get-caller-identity >/dev/null 2>&1 || { echo "No working AWS credentials. Run aws login, or put an access key in ~/.aws/credentials"; exit 1; }
 
 FN_ARN=$(aws lambda get-function --function-name "$FN" --query 'Configuration.FunctionArn' --output text)
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)

@@ -20,7 +20,10 @@
  * returns nothing. A check that cannot see the bill must not report a quiet
  * month, and a failed scheduled run is what GitHub sends mail about.
  *
- *   aws login                            # a live session; Actions uses OIDC
+ * Locally, any working AWS credentials will do: a live `aws login` session or
+ * a long-lived access key in ~/.aws/credentials (what geekom1 uses). Actions
+ * uses OIDC.
+ *
  *   node scripts/spend-check.mjs
  *   AWS_LIMIT=8 ANTHROPIC_LIMIT=5 node scripts/spend-check.mjs
  */

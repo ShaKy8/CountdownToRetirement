@@ -52,7 +52,7 @@ ok "python3 $(python3 -V 2>&1 | awk '{print $2}')"
 if command -v aws >/dev/null; then
   v=$(aws --version 2>&1 | sed -E 's|aws-cli/([0-9.]+).*|\1|')
   ok "aws $v"
-  case "$v" in 2.3[4-9]*|2.[4-9]*|[3-9]*) ;; *) warn "aws $v may predate 'aws login' (2.34 works)";; esac
+  case "$v" in 2.3[4-9]*|2.[4-9]*|[3-9]*) ;; *) warn "aws $v may predate 'aws login' (2.34 works); an access key in ~/.aws/credentials works with any version";; esac
 else warn "aws cli missing — needed only to set the Lambda key and deploy by hand"; fi
 command -v gh >/dev/null && ok "gh $(gh --version | head -1 | awk '{print $3}')" \
   || warn "gh missing — only used to watch deploy runs"
@@ -106,8 +106,11 @@ cat <<NEXT
        tailscale file get ~/.config/anthropic/
        chmod 600 ~/.config/anthropic/branyontech-key
 
-  2. AWS. There is no session to copy; log in fresh:
+  2. AWS. Any working credentials will do. Either log in fresh (there is no
+     session to copy, and it expires):
        aws login          # IAM user in account 391292551001, region us-east-1
+     or put a long-lived access key in ~/.aws/credentials (what geekom1 uses).
+     Then check:
        aws sts get-caller-identity
 
   3. Claude Code's memory for this project lives outside the repo, at

@@ -18,9 +18,10 @@
 #      the repo (repo:ShaKy8/CountdownToRetirement:*). Deploys, manual runs
 #      and the scheduled spend check all run on main.
 #
-# Dry run by default; prints what is set now and what would change.
+# Dry run by default; prints what is set now and what would change. Any
+# working AWS credentials will do: a live `aws login` session (it expires) or a
+# long-lived access key in ~/.aws/credentials (what geekom1 uses).
 #
-#   aws login
 #   ./scripts/api-throttle.sh            # show the plan
 #   ./scripts/api-throttle.sh --apply    # do it
 #
@@ -36,7 +37,7 @@ RATE=20 BURST=50 CONCURRENCY=20
 SUB="repo:ShaKy8/CountdownToRetirement:ref:refs/heads/main"
 APPLY=0; [ "${1:-}" = "--apply" ] && APPLY=1
 
-aws sts get-caller-identity >/dev/null 2>&1 || { echo "No AWS session. Run: aws login"; exit 1; }
+aws sts get-caller-identity >/dev/null 2>&1 || { echo "No working AWS credentials. Run aws login, or put an access key in ~/.aws/credentials"; exit 1; }
 
 api=$(aws apigatewayv2 get-apis --query "Items[?Name=='$API_NAME'].ApiId" --output text)
 [ -n "$api" ] || { echo "No API named $API_NAME"; exit 1; }

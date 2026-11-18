@@ -1000,7 +1000,10 @@ each needs a deliberate move:
    `~/.claude/projects/-home-kyle-Projects-branyontech/memory/`. The directory
    name is derived from the project path, so **clone to the same path on every
    machine** or past sessions' learned facts silently fail to load.
-3. **The AWS session.** Nothing to copy; `aws login` fresh. It is an IAM user in
+3. **AWS credentials.** Any working credentials will do: either `aws login`
+   fresh (nothing to copy; the session expires), or a long-lived access key in
+   `~/.aws/credentials`, which is what geekom1 uses. The scripts only check
+   `aws sts get-caller-identity`, which either kind passes. It is an IAM user in
    account `391292551001`, region `us-east-1`, and `aws login` is stock
    aws-cli 2.34, not local tooling.
 
