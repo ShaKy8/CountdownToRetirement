@@ -721,9 +721,12 @@ export function windRose(ctx, cx, cy, r, { dir, speed, gust, color = SERIES[0] }
 
   ctx.font = UI_LBL; ctx.fillStyle = FAINT;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // Outlined, like the other chart labels: plain faint grey measured 4.45:1
+  // for "E" at 1920x1080 (read-audit, November 19, 2026), and the outline
+  // gives each letter its own ground whatever is behind it.
   for (const [lab, a] of [['N', -90], ['E', 0], ['S', 90], ['W', 180]]) {
     const rad = a * Math.PI / 180;
-    ctx.fillText(lab, cx + Math.cos(rad) * (r + 8), cy + Math.sin(rad) * (r + 8));
+    haloText(ctx, lab, cx + Math.cos(rad) * (r + 8), cy + Math.sin(rad) * (r + 8));
   }
   for (let i = 0; i < 16; i++) {
     const a = (i * 22.5 - 90) * Math.PI / 180;

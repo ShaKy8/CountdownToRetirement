@@ -290,6 +290,10 @@
   content: ''; position: absolute; inset: 0 auto 0 0; width: 2px;
   background: var(--cy); box-shadow: 0 0 8px var(--cy);
 }
+/* Today's column is tinted and edged with that glow. At 1280px wide the date
+   starts 4.7px from the edge, and the faint grey measured 4.20:1 over it
+   (read-audit, the laptop, November 19, 2026). --dim is the TODAY label's grey. */
+.tenday-col.today .td-date { color: var(--dim); }
 .td-day { font-size: max(.56rem, var(--fs-floor, 0px)); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
 .td-date { font-size: max(.5rem, var(--fs-floor, 0px)); color: var(--faint); font-family: var(--mono); }
 .td-glyph { font-size: 1.05rem; line-height: 1.1; }

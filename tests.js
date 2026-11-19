@@ -3480,6 +3480,38 @@ describe('WEATHER CONSOLE - Every word readable', () => {
         assert.ok(/x\.px < 11\.5/.test(g) && /x\.large \? 3 : 4\.5/.test(g), 'and fails under 11.5px or 4.5:1 (3:1 large)');
         assert.ok(/getAnimations\(\)\.forEach/.test(g) && /elementFromPoint/.test(g), 'measuring finished, visible text only');
     });
+
+    test('Should keep today\'s outlook date and the compass letters readable over what is behind them', () => {
+        /*
+         * read-audit.mjs, November 19, 2026. Today's 16-day column is tinted
+         * and edged with a glow; at 1280px the date starts 4.7px from that
+         * edge, and the faint grey measured 4.20:1 over it (the laptop). The
+         * wind gauge's N/E/S/W were faint grey with no outline, and "E"
+         * measured 4.45:1 at 1920x1080 (the main machine).
+         */
+        assert.ok(/\.tenday-col\.today \.td-date\s*\{\s*color:\s*var\(--dim\);?\s*\}/.test(views),
+            'today\'s date should be --dim, not the faint grey, over the tinted, glowing column');
+        const code = `import(${JSON.stringify(path.join(__dirname, 'weather', 'js', 'charts.js'))}).then(({ windRose }) => {
+            const calls = [];
+            const ctx = new Proxy({}, {
+                get: (o, k) => (k in o ? o[k]
+                    : k === 'measureText' ? () => ({ width: 8, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 1 })
+                    : k === 'strokeText' || k === 'fillText' ? (t, x, y) => calls.push([k, String(t), Math.round(x), Math.round(y)])
+                    : () => {}),
+                set: (o, k, v) => { o[k] = v; return true; } });
+            windRose(ctx, 100, 100, 60, { dir: 90, speed: 5, gust: null });
+            console.log(JSON.stringify(calls)); })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        const calls = JSON.parse(r.stdout);
+        for (const letter of ['N', 'E', 'S', 'W']) {
+            const at = calls.findIndex(([k, t]) => k === 'fillText' && t === letter);
+            assert.ok(at >= 0, `${letter} should be drawn`);
+            const [, , x, y] = calls[at];
+            assert.ok(calls.slice(0, at).some(([k, t, sx, sy]) => k === 'strokeText' && t === letter && sx === x && sy === y),
+                `${letter} should be outlined (haloText) so it has its own ground`);
+        }
+    });
 });
 
 describe('WEATHER CONSOLE - One transport', () => {

@@ -1237,6 +1237,23 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   grey restored it fails 217 times.
 - **Known, not from this:** `tap-audit`'s "a slide along the chart is not a
   pick" fails against production too, before any of this; unexplained.
+- **Two near-misses that only showed on some days** (November 19, 2026). The
+  gate measures the real pixels, so what sits behind a faint-grey label can
+  change with the weather, the time and the machine's fonts. On the laptop it
+  failed the 16-day outlook's date on today's column, "Nov 19", at 4.20:1:
+  that column is tinted (6% cyan) and edged with a glowing 2px bar, and at
+  1280px wide the date starts 4.7px from it. Today's date is now `--dim`, the
+  grey of the TODAY label above it (`.tenday-col.today .td-date`); the other
+  fifteen dates are unchanged. The same day, on the main machine, it failed
+  the wind gauge's "E" at 4.45:1 at 1920x1080: N/E/S/W were plain faint grey
+  with no outline. They are drawn with `haloText` now, so they are measured
+  against their own outline. A test pins both (the rule, and the letters
+  outlined when the gauge is drawn into a canvas that records calls); a hand
+  copy failed both halves on the old code. After: all readable at all three
+  sizes, label-audit zero pairs at 390x844 and 1440x900. The lowest contrast
+  the gate measured afterwards was still 4.49:1 at 1920x1080 and 4.48:1 at
+  1280x800, which passes, but the gate names only failures, so some other
+  label sits that close to the line and could tip on another day.
 
 ### Midnight Slate — the palette, and why it is not black
 
