@@ -24,7 +24,7 @@
  * frame rate (perf.js), so the row passed on November 14, 2026, read 3 on
  * geekom1 on November 16, and read 2 and passed there on November 17: both
  * ways on one machine. The laptop also read 2 and passed on November 17, read
- * 0 and passed on November 18, and read 3 and failed, twice, on November 19:
+ * 0 and passed on November 18, and read 3 and failed three times on November 19:
  * both ways there too. So a desktop-size run exits 1 by design; judge it by
  * which rows fail.
  *
