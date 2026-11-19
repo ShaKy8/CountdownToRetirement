@@ -1907,6 +1907,25 @@ them are worth knowing about:
 canvas. That is how you tell a fix from a regression: a chart that stopped
 colliding by dropping half its axis is not fixed.
 
+**Some collisions only happen on some days.** On November 19, 2026 the gate
+found one pair at 390x844 on DECK's meteogram, on both machines: the rain
+amount `0.34"`, written 4px above the rain-chance line at a wet peak, sat in
+the caption row under "PRECIP PROBABILITY". That panel is 33px tall on a
+phone, so a peak near 100% put the number where the caption is, and the
+caption's halo, drawn after it, hid it. It had passed on November 14 because
+no peak that week was high enough. `plots.js` now measures the caption first;
+an amount that would come within 4px of it goes under its line instead (with
+`haloText`, since it sits on the fill there), and only when there is no room
+there either is it left to the readout's AMOUNT row. Amounts clear of the
+caption keep their place. It is the same move as the UV chart's band labels.
+A test in `tests.js` draws the meteogram into a canvas that records label boxes,
+with one peak under the caption and one clear of it; a hand copy of it failed
+on the old code and passed on the fix (the suite itself could not be run on
+the machine that made the change). After it: label-audit zero pairs at 390x844
+and 1440x900, with the meteogram's 25 labels at 390x844 unchanged, and
+read-audit all readable. Because the forecast is live, a check like this one
+can pass for a week and then fail without a line of code changing.
+
 **A finger cannot hover, so the readouts are sticky.** Six charts hold numbers
 that appear nowhere else — model confidence, the record high and the year it was
 set, Kp, pollutant concentrations hours ahead. All six lived in a hover tooltip,

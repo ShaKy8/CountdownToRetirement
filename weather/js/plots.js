@@ -10,6 +10,7 @@ import { haloText,
   SERIES, STATUS, INK, DIM, FAINT, GHOST, SURFACE, MONO, MONO_SM, UI_LBL,
   tempColor, alpha, mixHex, neonLine, smoothPath, gridY, capBar, tag, tooltip,
   legend, nightBands, marker, niceTicks, fitTicks, fitStride, fitLabel, tagRow,
+  boxesOverlap,
 } from './charts.js';
 import { clamp, fmt as F, compass, wx } from './lib/util.js';
 
@@ -186,9 +187,21 @@ export function meteogram(ctx, w, h, hover, opts) {
     /*
      * Accumulation is a second measure, so it is direct-labelled at the wet
      * peaks instead of being given its own y-axis on this panel.
+     *
+     * A peak near 100% put its label in the caption row: on DECK at 390x844,
+     * 0.34" sat under "PRECIP PROBABILITY", whose halo is drawn after it and
+     * hid the number. The caption is measured first, and a label that would
+     * meet it goes under its line, where the halo gives it its own ground on
+     * the fill. Only when there is no room there either is it left to the
+     * readout's AMOUNT row.
      */
+    const CAPTION = 'precip probability';
     ctx.save();
-    ctx.font = MONO_SM; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.font = UI_LBL; ctx.letterSpacing = '1.4px';
+    const captionBox = { l: b.x + 2, t: b.y - 11, r: b.x + 2 + ctx.measureText(CAPTION.toUpperCase()).width, b: b.y - 2 };
+    ctx.restore();
+    ctx.save();
+    ctx.font = MONO_SM; ctx.textAlign = 'center';
     ctx.fillStyle = SERIES[0];
     let lastX = -999;
     const popAxisW = ctx.measureText('100%').width + 6;
@@ -197,14 +210,19 @@ export function meteogram(ctx, w, h, hover, opts) {
       if ((d.precip ?? 0) < 0.02) continue;
       if ((d.precip ?? 0) <= (visible[i - 1].precip ?? 0) || (d.precip ?? 0) < (visible[i + 1].precip ?? 0)) continue;
       const x = xOf(d.t);
-      const lw = ctx.measureText(`${d.precip.toFixed(2)}"`).width;
+      const text = `${d.precip.toFixed(2)}"`;
+      const m = ctx.measureText(text), lw = m.width, lh = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
       if (x - lastX < 46 || x - lw / 2 < padL + 4 || x + lw / 2 > padL + plotW - popAxisW) continue;
-      ctx.fillText(`${d.precip.toFixed(2)}"`, x, yOf(d.pop ?? 0) - 4);
+      const yLine = yOf(d.pop ?? 0);
+      const above = !boxesOverlap({ l: x - lw / 2, t: yLine - 4 - lh, r: x + lw / 2, b: yLine - 4 }, captionBox, 4);
+      if (!above && yLine + 4 + lh > b.y + b.h) continue;
+      ctx.textBaseline = above ? 'bottom' : 'top';
+      haloText(ctx, text, x, above ? yLine - 4 : yLine + 4);
       lastX = x;
     }
     ctx.restore();
 
-    tag(ctx, b.x + 2, b.y - 11, 'precip probability');
+    tag(ctx, b.x + 2, b.y - 11, CAPTION);
     drawn.push({ key: 'pop', box: b, yOf });
   }
 
@@ -274,8 +292,18 @@ export function meteogram(ctx, w, h, hover, opts) {
     });
     ctx.save();
     ctx.font = UI_LBL; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ['HIGH', 'MID', 'LOW'].forEach((l, j) => {
-      const y = b.y + (b.h / 3) * (j + 0.5);
+    /*
+     * A label per deck only where a row can hold one. At 1600x857 this panel
+     * is 26px tall, so the rows were 8.5px apart under 8px glyphs: three
+     * labels touching, their backing boxes overlapping. Too tight for three,
+     * the top and bottom rows are named and the middle one reads between them;
+     * too tight for two, the panel title says what the rows are.
+     */
+    const rowH = b.h / 3, LABEL_ROW = 13;
+    const named = rowH >= LABEL_ROW ? [0, 1, 2] : rowH * 2 >= LABEL_ROW ? [0, 2] : [];
+    named.forEach((j) => {
+      const l = ['HIGH', 'MID', 'LOW'][j];
+      const y = b.y + rowH * (j + 0.5);
       ctx.fillStyle = 'rgba(22,33,47,.75)';
       ctx.fillRect(b.x + b.w - 30, y - 5, 30, 10);
       ctx.fillStyle = FAINT;
@@ -292,7 +320,14 @@ export function meteogram(ctx, w, h, hover, opts) {
     const vals = visible.map((d) => d.pressure).filter((v) => v != null);
     const lo = Math.min(...vals) - 1, hi = Math.max(...vals) + 1;
     const yOf = (v) => b.y + b.h - ((v - lo) / (hi - lo)) * b.h;
-    gridY(ctx, b, niceTicks(lo, hi, fitTicks(b.h, 2)).map((v) => ({ v, y: yOf(v) })), (v) => (v * 0.02953).toFixed(2));
+    /*
+     * niceTicks treats its count as a hint, so a panel fitTicks allows one
+     * line got two. At 1600x857 this panel is 36px: 30.12 and 29.83 sat 7px
+     * apart, the upper one across the pressure line. fitTicks is the ceiling
+     * here; the lowest lines are kept.
+     */
+    const pn = fitTicks(b.h, 2);
+    gridY(ctx, b, niceTicks(lo, hi, pn).slice(0, pn).map((v) => ({ v, y: yOf(v) })), (v) => (v * 0.02953).toFixed(2));
     neonLine(ctx, visible.filter((d) => d.pressure != null).map((d) => [xOf(d.t), yOf(d.pressure)]),
       SERIES[3], { width: 1.8, glow: 8 });
     tag(ctx, b.x + 2, b.y - 11, 'pressure inHg');
@@ -362,12 +397,16 @@ export function meteogram(ctx, w, h, hover, opts) {
     ctx.restore();
   }
 
-  /* --- markers --- */
+  /* --- markers ---
+   * Drawn panel by panel, so the lines break across the caption rows
+   * between panels. One line down the full height ran through
+   * "CLOUD DECKS %" and "CAPE J/KG" on DATA at 1600x857 and 390x844. */
+  const stack = panels.map((p) => boxes[p]);
   if (now != null && now >= span.lo && now <= span.hi) {
-    marker(ctx, xOf(now), full, alpha(STATUS.good, .9), 'NOW', { dash: [3, 3] });
+    stack.forEach((b, i) => marker(ctx, xOf(now), b, alpha(STATUS.good, .9), i ? null : 'NOW', { dash: [3, 3] }));
   }
   if (cursor != null && Math.abs(cursor - (now ?? cursor)) > 90e3 && cursor >= span.lo && cursor <= span.hi) {
-    marker(ctx, xOf(cursor), full, SERIES[1], null);
+    stack.forEach((b) => marker(ctx, xOf(cursor), b, SERIES[1], null));
   }
 
   /* --- hover --- */
@@ -429,6 +468,14 @@ function nearest(arr, t) {
 
 /* ============================================================ spread fan */
 
+/** Width of the column gridY writes its values into, measured, plus a gap. */
+function axisColumn(ctx, ticks, fmt) {
+  ctx.save(); ctx.font = MONO_SM;
+  const wd = Math.max(0, ...ticks.map((v) => ctx.measureText(fmt(v)).width));
+  ctx.restore();
+  return wd + 8;
+}
+
 /**
  * Multi-model agreement. One hue at graded opacity (a sequential encoding of
  * uncertainty), not five categorical colors — the question is "how wide is
@@ -442,10 +489,15 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
 
   const lo0 = Math.min(...rows.map((r) => r.min)), hi0 = Math.max(...rows.map((r) => r.max));
   const lo = lo0 - 2, hi = hi0 + 2;
-  const xOf = (t) => box.x + ((t - rows[0].t) / (rows.at(-1).t - rows[0].t)) * box.w;
   const yOf = (v) => box.y + box.h - ((v - lo) / (hi - lo)) * box.h;
+  // The envelope and the mean stop short of a column kept for the axis
+  // values. They ran to the box edge, through "60°", at 390x844 and 1600x857.
+  const ticks = niceTicks(lo, hi, fitTicks(box.h, 4));
+  const deg = (v) => `${Math.round(v)}°`;
+  const plotW = box.w - axisColumn(ctx, ticks, deg);
+  const xOf = (t) => box.x + ((t - rows[0].t) / (rows.at(-1).t - rows[0].t)) * plotW;
 
-  gridY(ctx, box, niceTicks(lo, hi, fitTicks(box.h, 4)).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
+  gridY(ctx, box, ticks.map((v) => ({ v, y: yOf(v) })), deg);
 
   // Envelope
   ctx.save();
@@ -478,7 +530,7 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
     lastDay = day;
     const x = xOf(r.t);
     ctx.beginPath(); ctx.moveTo(x + .5, box.y); ctx.lineTo(x + .5, box.y + box.h); ctx.stroke();
-    if (x < box.x + 12 || x > box.x + box.w - 12 || x - lastLx < gapD) continue;
+    if (x < box.x + 12 || x > box.x + plotW - 12 || x - lastLx < gapD) continue;
     ctx.fillText(tf.weekday(r.t).toUpperCase(), x, h - padB + 5);
     lastLx = x;
   }
@@ -493,8 +545,8 @@ export function spreadFan(ctx, w, h, hover, { rows, tf, now }) {
     { label: 'model range', short: 'range', color: alpha(SERIES[0], .35) },
   ], { short: 'model spread °F' });
 
-  if (hover && hover.x > box.x && hover.x < box.x + box.w) {
-    const t = rows[0].t + ((hover.x - box.x) / box.w) * (rows.at(-1).t - rows[0].t);
+  if (hover && hover.x > box.x && hover.x < box.x + plotW) {
+    const t = rows[0].t + ((hover.x - box.x) / plotW) * (rows.at(-1).t - rows[0].t);
     const r = nearest(rows, t);
     if (r) {
       const x = xOf(r.t);
@@ -537,11 +589,16 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
   const all = rows.flatMap((r) => [r.c.recordHigh, r.c.recordLow, r.tmax, r.tmin]).filter((v) => v != null);
   const lo = Math.min(...all) - 3, hi = Math.max(...all) + 3;
   const n = rows.length;
-  const colW = box.w / n;
+  // The columns stop short of the axis values: at 390x844 the last day's
+  // bar covered "60°" down to its "6", and the record band ran under the rest.
+  const ticks = niceTicks(lo, hi, fitTicks(box.h, 4));
+  const deg = (v) => `${Math.round(v)}°`;
+  const plotW = box.w - axisColumn(ctx, ticks, deg);
+  const colW = plotW / n;
   const xOf = (i) => box.x + colW * (i + 0.5);
   const yOf = (v) => box.y + box.h - ((v - lo) / (hi - lo)) * box.h;
 
-  gridY(ctx, box, niceTicks(lo, hi, fitTicks(box.h, 4)).map((v) => ({ v, y: yOf(v) })), (v) => `${Math.round(v)}°`);
+  gridY(ctx, box, ticks.map((v) => ({ v, y: yOf(v) })), deg);
 
   // Record envelope: the widest band, faintest ink.
   ctx.save();
@@ -622,7 +679,7 @@ export function climateEnvelope(ctx, w, h, hover, { days, climate, tf, doyOf }) 
     { label: 'record range', short: 'record', color: 'rgba(255,255,255,.2)' },
   ], { short: 'climate record °F' });
 
-  if (hover && hover.x > box.x && hover.x < box.x + box.w) {
+  if (hover && hover.x > box.x && hover.x < box.x + plotW) {
     const i = clamp(Math.floor((hover.x - box.x) / colW), 0, n - 1);
     const r = rows[i];
     const anomalyH = r.tmax - r.c.normalHigh;
@@ -645,30 +702,56 @@ export function kpChart(ctx, w, h, hover, { rows, tf, now }) {
   const box = { x: padL, y: padT, w: w - padL - padR, h: h - padT - padB };
   if (box.w < 30) return;
   const n = rows.length;
-  const bw = Math.max(2, box.w / n - 2);
   // Scale to the data but always keep the Kp 5 storm line on screen.
   const top = Math.max(5.6, Math.ceil(Math.max(...rows.map((r) => r.kp)) + 0.8));
   const yOf = (v) => box.y + box.h - (clamp(v, 0, top) / top) * box.h;
 
-  gridY(ctx, box, [3, 5, 7].filter((v) => v <= top).map((v) => ({ v, y: yOf(v) })), String);
+  /*
+   * The bars stop short of a column kept for the axis values, and STORM is
+   * written after the bars where they stay under its line. Both were drawn
+   * first with bars across them: "3" sat on two bars and STORM on one, at the
+   * phone's width and at 1600x857 alike.
+   */
+  const ticks = [3, 5, 7].filter((v) => v <= top);
+  ctx.save(); ctx.font = MONO_SM;
+  const plotW = Math.max(20, box.w - (Math.max(...ticks.map((v) => ctx.measureText(String(v)).width)) + 8));
+  ctx.restore();
+  const per = plotW / n;
+  const bw = Math.max(2, per - 2);
+
+  gridY(ctx, box, ticks.map((v) => ({ v, y: yOf(v) })), String);
 
   // Kp 5 is the storm threshold; mark it explicitly.
   ctx.save();
   ctx.strokeStyle = alpha(STATUS.serious, .5);
   ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(box.x, yOf(5)); ctx.lineTo(box.x + box.w, yOf(5)); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.font = UI_LBL; ctx.fillStyle = alpha(STATUS.serious, .8);
-  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-  haloText(ctx, 'STORM', box.x + 3, yOf(5) - 2);
   ctx.restore();
 
   rows.forEach((r, i) => {
     const c = r.kp < 3 ? SERIES[0] : r.kp < 5 ? STATUS.good : r.kp < 6 ? STATUS.warn
       : r.kp < 7 ? STATUS.serious : STATUS.crit;
-    const x = box.x + (i * box.w) / n;
+    const x = box.x + i * per;
     capBar(ctx, x, yOf(Math.min(r.kp, top)), bw, box.y + box.h, alpha(c, r.observed === 'observed' ? .9 : .55));
   });
+
+  ctx.save();
+  ctx.font = UI_LBL; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  const sw = ctx.measureText('STORM').width + 4;
+  const under = (x0) => {
+    for (let i = Math.max(0, Math.floor((x0 - box.x) / per)); i < n && box.x + i * per < x0 + sw; i++) if (rows[i].kp > 5) return false;
+    return true;
+  };
+  let sx = null;
+  for (let x0 = box.x + 3; x0 + sw <= box.x + plotW; x0 += per) if (under(x0)) { sx = x0; break; }
+  if (sx == null) {
+    sx = box.x + 3;
+    ctx.fillStyle = 'rgba(22,33,47,.85)';
+    ctx.fillRect(sx - 2, yOf(5) - 14, sw, 12);
+  }
+  ctx.fillStyle = alpha(STATUS.serious, .8);
+  haloText(ctx, 'STORM', sx, yOf(5) - 2);
+  ctx.restore();
 
   ctx.save();
   ctx.font = MONO_SM; ctx.fillStyle = FAINT;
@@ -680,8 +763,8 @@ export function kpChart(ctx, w, h, hover, { rows, tf, now }) {
     const d = tf.isoDate(r.t);
     if (d === last) return;
     last = d;
-    const x = box.x + (i * box.w) / n + bw / 2;
-    if (x < box.x + 10 || x > box.x + box.w - 10 || x - lastKx < gapK) return;
+    const x = box.x + i * per + bw / 2;
+    if (x < box.x + 10 || x > box.x + plotW - 10 || x - lastKx < gapK) return;
     ctx.fillText(tf.weekday(r.t).toUpperCase(), x, h - padB + 4);
     lastKx = x;
   });
@@ -689,10 +772,10 @@ export function kpChart(ctx, w, h, hover, { rows, tf, now }) {
 
   tag(ctx, box.x + 2, 2, 'planetary K index');
 
-  if (hover && hover.x > box.x && hover.x < box.x + box.w) {
-    const i = clamp(Math.floor(((hover.x - box.x) / box.w) * n), 0, n - 1);
+  if (hover && hover.x > box.x && hover.x < box.x + plotW) {
+    const i = clamp(Math.floor((hover.x - box.x) / per), 0, n - 1);
     const r = rows[i];
-    tooltip(ctx, box.x + (i * box.w) / n + bw / 2, hover.y, [
+    tooltip(ctx, box.x + i * per + bw / 2, hover.y, [
       `${tf.weekday(r.t)} ${tf.hm(r.t)}|`,
       `Kp|${r.kp.toFixed(2)}`,
       `STATUS|${(r.observed || 'predicted').toUpperCase()}`,

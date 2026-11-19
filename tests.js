@@ -4724,6 +4724,51 @@ describe('WEATHER CONSOLE - charts fitted to their box', () => {
             'gauge() and windRose() both need it');
     });
 
+    test('Should keep a rain amount off the precipitation caption', () => {
+        /*
+         * On DECK at 390x844 a wet peak near 100% put 0.34" in the caption row,
+         * under "PRECIP PROBABILITY", whose halo is drawn after it and hid the
+         * number (label-audit.mjs, November 19, 2026). Drawn here into a canvas
+         * that only records label boxes: one 100% peak under the caption, which
+         * must move under its line, and one clear of it, which must not.
+         */
+        const code = `import(${JSON.stringify(path.join(__dirname, 'weather', 'js', 'plots.js'))}).then(({ meteogram }) => {
+            const st = { font: '', textAlign: 'left', textBaseline: 'alphabetic', letterSpacing: '0px' }, saved = [];
+            let drawn = [];
+            const px = () => parseFloat(st.font.split('px')[0].split(' ').pop()) || 12;
+            const measure = (t) => { const s = px(), w = String(t).length * (s * 0.6 + (parseFloat(st.letterSpacing) || 0));
+                return { width: w, actualBoundingBoxAscent: s * 0.72, actualBoundingBoxDescent: s * 0.08, actualBoundingBoxLeft: 0, actualBoundingBoxRight: w }; };
+            const box = (t, x, y) => { const m = measure(t), h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+                const l = st.textAlign === 'center' ? x - m.width / 2 : /right|end/.test(st.textAlign) ? x - m.width : x;
+                const top = st.textBaseline === 'top' ? y : st.textBaseline === 'middle' ? y - h / 2 : y - h;
+                return { text: String(t), l, t: top, r: l + m.width, b: top + h }; };
+            const ctx = new Proxy(st, {
+                get: (o, k) => (k in o ? o[k] : k === 'measureText' ? measure : k === 'fillText' ? (t, x, y) => drawn.push(box(t, x, y))
+                    : k === 'save' ? () => saved.push({ ...st }) : k === 'restore' ? () => Object.assign(st, saved.pop() || {})
+                    : /create(Linear|Radial)Gradient/.test(k) ? () => ({ addColorStop() {} }) : () => {}),
+                set: (o, k, v) => { o[k] = v; return true; } });
+            // 48 hours on a 372px canvas: hour 12 is x = 88, under the caption; hour 36 is x = 257, clear of it.
+            const lo = Date.UTC(2026, 10, 19, 0), H = 3600e3;
+            const draw = (peak) => { drawn = [];
+                const hours = Array.from({ length: 49 }, (_, i) => ({ t: lo + i * H,
+                    pop: i === peak ? 100 : Math.abs(i - peak) === 1 ? 60 : 5, precip: i === peak ? 0.34 : Math.abs(i - peak) === 1 ? 0.05 : 0 }));
+                meteogram(ctx, 372, 220, null, { hours, days: [], span: { lo, hi: lo + 48 * H }, cursor: null, now: null, tf: {}, panels: ['pop'], showAxis: false });
+                return drawn; };
+            console.log(JSON.stringify({ under: draw(12), clear: draw(36) })); })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        const { under, clear } = JSON.parse(r.stdout);
+        const caption = under.find((l) => l.text === 'PRECIP PROBABILITY');
+        const amount = (list) => list.filter((l) => /^\d\.\d\d"$/.test(l.text));
+        assert.ok(caption, 'the panel should still be captioned');
+        assert.strictEqual(amount(under).length, 1, 'the amount under the caption should be moved, not dropped');
+        const a = amount(under)[0];
+        assert.ok(!(a.l < caption.r && caption.l < a.r && a.t < caption.b && caption.t < a.b),
+            `0.34" (${a.l}-${a.r} x ${a.t}-${a.b}) should not touch the caption (${caption.l}-${caption.r} x ${caption.t}-${caption.b})`);
+        assert.strictEqual(amount(clear).length, 1, 'an amount clear of the caption should be drawn');
+        assert.ok(amount(clear)[0].b < a.t, 'an amount clear of the caption should keep its place above its line');
+    });
+
     test('Should ship the audit that measured all of it', () => {
         const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'label-audit.mjs'), 'utf8');
         assert.ok(/actualBoundingBox/.test(audit),
