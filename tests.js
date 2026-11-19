@@ -5906,6 +5906,40 @@ describe('BUSINESS SITE - Runs on more than one machine', () => {
         }
     });
 
+    test('Every gate should start its browser with extensions off', () => {
+        /*
+         * On the laptop on November 18, 2026 an extension installed for the
+         * whole machine loaded into journal-audit.mjs's fresh profile, and the
+         * gate hung on its first /year/ page until it was killed. With
+         * --disable-extensions it passed 208/208. A gate measures the site,
+         * not what a machine has installed.
+         */
+        const lib = fs.readFileSync(path.join(dir, 'lib', 'chromium.mjs'), 'utf8');
+        assert.ok(/export const GATE_FLAGS = \[[^\]]*'--disable-extensions'/.test(lib),
+            'lib/chromium.mjs should turn extensions off in GATE_FLAGS');
+        for (const g of gates) {
+            const src = fs.readFileSync(path.join(dir, g), 'utf8');
+            const browserSource = src.includes("'./lib/arcade-browser.mjs'")
+                ? fs.readFileSync(path.join(dir, 'lib', 'arcade-browser.mjs'), 'utf8') : src;
+            assert.ok(/spawn\(chromiumPath\(\),\s*\['--headless=new',\s*(profile\.arg,\s*)?\.\.\.GATE_FLAGS,/.test(browserSource),
+                `${g} should start its browser with GATE_FLAGS from lib/chromium.mjs`);
+        }
+    });
+
+    test('The journal gate should fail, not hang, when the browser stops answering', () => {
+        /*
+         * Its first /year/ page never answered on the laptop on November 18,
+         * 2026, and with no deadline on its calls the gate sat silent for 101
+         * minutes. A missed deadline must become a failed row and exit 1.
+         */
+        const src = fs.readFileSync(path.join(dir, 'journal-audit.mjs'), 'utf8');
+        assert.ok(/const DEADLINE_MS = \d+;/.test(src)
+            && /setTimeout\(\(\) => \{ pending\.delete\(i\); j\(new Error\(/.test(src),
+            'every CDP call should reject when its deadline passes');
+        assert.ok(/\} catch \(e\) \{[\s\S]{0,200}check\('the run reached the end', false, e\.message/.test(src),
+            'a missed deadline should be reported as a failed row');
+    });
+
     test('Should delete the throwaway profile when a gate ends, finishes or is stopped', () => {
         const lib = require('url').pathToFileURL(path.join(dir, 'lib', 'chromium.mjs')).href;
         const run = (tail, opts = {}) => {

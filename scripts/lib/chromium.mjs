@@ -31,6 +31,19 @@ const CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ];
 
+/**
+ * Flags every gate's browser starts with, beside its own.
+ *
+ * --disable-extensions: a gate measures the site, not what a machine has
+ * installed. On the laptop on November 18, 2026 an extension installed for the
+ * whole machine loaded into a gate's fresh profile (it opened its own welcome
+ * tab and background page, with or without the launcher's flags file), and
+ * journal-audit.mjs hung on its first /year/ page on every run until timeout
+ * stopped it at 600 s. With extensions off it passed 208/208. A throwaway
+ * profile does not keep such an extension out; this flag does.
+ */
+export const GATE_FLAGS = ['--disable-extensions'];
+
 /** The browser to spawn, or a thrown error that says how to fix it. */
 export function chromiumPath() {
   const named = process.env.CHROMIUM;
@@ -55,7 +68,7 @@ export function chromiumPath() {
  * 13 GB, on Kyle's laptop by November 14, 2026.
  *
  *   const profile = throwawayProfile();
- *   const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, ...]);
+ *   const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, ...GATE_FLAGS, ...]);
  *   profile.owner(chrome);
  *
  * On exit, including an uncaught error or Ctrl-C, the browser is stopped

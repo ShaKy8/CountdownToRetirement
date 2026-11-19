@@ -23,7 +23,7 @@
  *   node scripts/home-audit.mjs http://localhost:8137
  */
 import { spawn } from 'node:child_process';
-import { chromiumPath, throwawayProfile } from './lib/chromium.mjs';
+import { chromiumPath, throwawayProfile, GATE_FLAGS } from './lib/chromium.mjs';
 import { createRequire } from 'node:module';
 import http from 'node:http';
 
@@ -32,7 +32,7 @@ const ORIGIN = (process.argv[2] || 'http://localhost:8000').replace(/\/$/, '');
 const port = 9200 + (process.pid % 90);
 
 const profile = throwawayProfile();
-const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, `--remote-debugging-port=${port}`,
+const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, ...GATE_FLAGS, `--remote-debugging-port=${port}`,
   '--no-sandbox', '--window-size=1280,800', '--use-gl=angle', '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader', '--disable-gpu-sandbox', 'about:blank'], { stdio: 'ignore' });
 profile.owner(chrome);

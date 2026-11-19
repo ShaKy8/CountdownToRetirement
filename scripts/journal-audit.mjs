@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { chromiumPath, throwawayProfile } from './lib/chromium.mjs';
+import { chromiumPath, throwawayProfile, GATE_FLAGS } from './lib/chromium.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,7 +39,7 @@ const DATES = ['2026-10-03', '2026-10-08', '2027-02-20', '2026-12-31'];
 
 const port = 9600 + (process.pid % 90);
 const profile = throwawayProfile();
-const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, `--remote-debugging-port=${port}`, '--no-sandbox',
+const chrome = spawn(chromiumPath(), ['--headless=new', profile.arg, ...GATE_FLAGS, `--remote-debugging-port=${port}`, '--no-sandbox',
     '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', 'about:blank'], { stdio: 'ignore' });
 profile.owner(chrome);
 const get = (p) => new Promise((r, j) => http.get({ host: '127.0.0.1', port, path: p }, (x) => { let d = ''; x.on('data', (c) => d += c); x.on('end', () => r(JSON.parse(d))); }).on('error', j));
@@ -58,7 +58,16 @@ try {
         if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push(m.params.args.map((a) => a.value || a.description).join(' '));
     };
     await new Promise((r) => ws.onopen = r);
-    const send = (method, params = {}, sessionId) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params, sessionId })); });
+    // A call the browser never answers used to wait forever. On the laptop on
+    // November 18, 2026 the first /year/ page never answered, and the gate sat
+    // silent for 101 minutes until it was killed. Every call now gets a
+    // deadline far past any answer seen here, and a missed one is a failed run
+    // that names the call and the page.
+    const DEADLINE_MS = 30000;
+    let current = 'about:blank';
+    const send = (method, params = {}, sessionId) => new Promise((r, j) => { const i = ++id;
+        const timer = setTimeout(() => { pending.delete(i); j(new Error(`no answer to ${method} in ${DEADLINE_MS / 1000} s, on ${current}`)); }, DEADLINE_MS);
+        pending.set(i, (m) => { clearTimeout(timer); r(m); }); ws.send(JSON.stringify({ id: i, method, params, sessionId })); });
     const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
     const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
     const S = (m, p) => send(m, p, sessionId);
@@ -68,6 +77,7 @@ try {
         await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: W < 600 });
         await S('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: reduce ? 'reduce' : 'no-preference' }] });
         const script = before ? (await S('Page.addScriptToEvaluateOnNewDocument', { source: before })).result?.identifier : null;
+        current = `${url} at ${W}x${H}`;
         await S('Page.navigate', { url }); await wait(3200);
         for (let i = 0; i < 4; i++) { await S('Page.captureScreenshot', { format: 'jpeg', quality: 1 }); await wait(100); }
         if (script) await S('Page.removeScriptToEvaluateOnNewDocument', { identifier: script });
@@ -155,6 +165,10 @@ try {
 
     check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | ') || 0, 0);
     ws.close();
+} catch (e) {
+    // A missed deadline, or anything else that stopped the run, is reported
+    // with the rows so far and exits 1, rather than as a bare stack trace.
+    check('the run reached the end', false, e.message, 'every call answered');
 } finally {
     chrome.kill();
 }

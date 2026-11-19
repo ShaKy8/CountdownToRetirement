@@ -43,7 +43,7 @@ PORT=8137 node scripts/dev-server.mjs   # http://localhost:8137 (8000 is the sys
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (620 tests, on CI on November 18, 2026)
+# Run client-side tests (622 tests, on CI on November 19, 2026)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -142,7 +142,7 @@ branyontech/               # the checkout (the GitHub repo is CountdownToRetirem
 ├── postcards-in-sound/     # Six chord sketches: index.html, app.js, content.json
 ├── mustang-micro-plus/     # Kyle's 70 amp presets: index.html, app.js, styles.css
 ├── fish-hatchery/          # Property showcase: index.html, app.js, styles.css, assets/*.webp
-├── tests.js                # Client-side unit tests (620 tests)
+├── tests.js                # Client-side unit tests (622 tests)
 ├── tests-server.js         # Server integration tests (94 tests)
 ├── tests/                  # node:test files, fixtures, the Elevator browser harness
 ├── countdown-retirement.service  # Systemd service file
@@ -1046,6 +1046,24 @@ flag, whatever the binary is called on the machine) and kill those PIDs — neve
 (exit 144). And on September 30, 2026 a `Runtime.evaluate` stalled at
 random pages against production and local alike, so a timeout here is not a
 verdict until the same run completes elsewhere.
+
+**A third: what the machine's browser brings with it.** On the laptop on
+November 18, 2026 `journal-audit.mjs` hung on its first `/year/` page on every
+run: once for 101 minutes, then three times until `timeout 600` stopped it. An
+extension installed for the whole machine (Omarchy's Chromium) loaded into the
+gate's fresh profile, opening its own welcome tab and background page, with or
+without the launcher's flags file. Narrowed down one change at a time on the
+laptop: without the flags file it still hung; with `--disable-gpu-sandbox`, or
+with the two anti-backgrounding flags, it still hung; with
+`--disable-extensions` it passed 208/208, as it does on the main machine in
+about 100 s. Why the extension stops that one page is not known; the other
+gates passed on the laptop with it loaded. Since November 19 every gate starts
+its browser with `GATE_FLAGS` from `scripts/lib/chromium.mjs`
+(`--disable-extensions`), and `journal-audit.mjs` gives each browser call 30 s
+and then fails with a row naming the call and the page, rather than sitting
+silent. A 1 ms deadline was used to see that row fire. The other twelve
+`throwawayProfile()` gates still have no deadline on their calls; the arcade
+gates' shared driver has had 20 s all along.
 
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves

@@ -109,7 +109,7 @@ scripts/          dev-server.mjs, sync-weather.sh, bake-home.mjs, stamp-assets.m
                   *-audit.mjs (browser gates), *-check.mjs (live checks),
                   fetch-sats.mjs, sats-cooldown.mjs, fetch-storms.mjs,
                   AWS setup scripts, lib/ (chromium.mjs, arcade-browser.mjs, sats-http.mjs, ...)
-tests.js          Main suite (620 tests)
+tests.js          Main suite (622 tests)
 tests-server.js   Local server suite (94 tests)
 tests/            node:test files (*.test.cjs, fetch-sats.test.mjs), fixtures/, and
                   elevator-browser.html + .js, a local-only harness that is never deployed
@@ -236,6 +236,16 @@ request is a 404). The laptop did, at 1440x900, on November 18. Build a sample
 archive first, with no download:
 `node scripts/fetch-storms.mjs storms --from-file tests/fixtures/hurdat-al-sample.txt tests/fixtures/hurdat-ep-sample.txt --plain --fixture`.
 Its eight storms are enough for both rows to pass.
+
+**Every gate starts its browser with extensions off** (`GATE_FLAGS` in
+`scripts/lib/chromium.mjs`, since November 19, 2026). On the laptop on
+November 18 an extension installed for the whole machine loaded into the
+gates' fresh profiles, and `journal-audit.mjs` hung on its first `/year/` page
+on every run; with `--disable-extensions` it passed 208/208, as on the main
+machine. Why that page stopped is not known. `journal-audit.mjs` now gives each
+browser call 30 s and fails with a row naming the call and the page instead of
+hanging; the other twelve `throwawayProfile()` gates have no such deadline yet.
+The story is in the notes under "The whole site on a phone".
 
 ## 5. How to work here
 
