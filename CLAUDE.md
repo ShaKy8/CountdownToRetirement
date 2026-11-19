@@ -249,6 +249,14 @@ browser call 30 s and fails with a row naming the call and the page instead of
 hanging; the other twelve `throwawayProfile()` gates have no such deadline yet.
 The story is in the notes under "The whole site on a phone".
 
+**`transport-audit.mjs`'s two loop rows cannot be judged on the laptop.** Its
+headless Chromium draws about 0.2-0.4 frames a second on the radar page, against
+2.4-3.4 on the main machine (geekom1), measured with a scratch probe on
+November 19, 2026. The radar loop counts its time in frames, so there it stays
+on its first frame far longer than any gate waits, and "the loop drives the
+cursor" and "the loop changes the frame" fail while the site is fine. Judge
+those two rows on the main machine.
+
 ## 5. How to work here
 
 1. **Start from the current `main`.** `git fetch`, then `git status -sb`. If

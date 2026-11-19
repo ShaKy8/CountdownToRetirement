@@ -1116,7 +1116,18 @@ slow headless machine stretches, and on the laptop it was still priming when
 loop stopped on purpose the two loop rows still fail. The same day a laptop
 run got no frame list at all, and the gate threw before printing a row; now
 a missing list fails "the radar has frames" (and its phone twin), skips the
-six checks that need frames and says so, and runs the rest. What is
+six checks that need frames and says so, and runs the rest. The 20 s did not
+fix the laptop: a scratch probe (the gate's browser flags, `/weather/#radar`,
+frames counted for 10 s left alone and 10 s asked for like the gate) found its
+headless Chromium drawing 0.2/s and 0.4/s, one screenshot in 12 s, a single
+page read taking about 23 s, and the radar not moving in either window; the
+main machine drew 2.4/s and 3.4/s with the radar moving in both. The loop
+counts its time in frames, so on the laptop its 5 s priming takes minutes, and
+the two loop rows fail there while the site is fine (later rows such as "and
+the frames advance" pass, once enough minutes have gone by). Judge those two
+rows on the main machine. The likely cause is the laptop's own
+`/usr/lib/chromium/chromium` drawing in SwiftShader on a slower machine, where
+the main machine runs Chrome for Testing; that is not tested. What is
 load-bearing:
 
 - **The frame shown is the one nearest the cursor** (`frameFor`, strict
