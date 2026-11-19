@@ -242,7 +242,8 @@ Its eight storms are enough for both rows to pass.
 November 18 an extension installed for the whole machine loaded into the
 gates' fresh profiles, and `journal-audit.mjs` hung on its first `/year/` page
 on every run; with `--disable-extensions` it passed 208/208, as on the main
-machine. Why that page stopped is not known. `journal-audit.mjs` now gives each
+machine. On November 19, with the repo's own flag and no wrapper, it passed
+208/208 on the laptop. Why that page stopped is not known. `journal-audit.mjs` now gives each
 browser call 30 s and fails with a row naming the call and the page instead of
 hanging; the other twelve `throwawayProfile()` gates have no such deadline yet.
 The story is in the notes under "The whole site on a phone".

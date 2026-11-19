@@ -1061,7 +1061,9 @@ gates passed on the laptop with it loaded. Since November 19 every gate starts
 its browser with `GATE_FLAGS` from `scripts/lib/chromium.mjs`
 (`--disable-extensions`), and `journal-audit.mjs` gives each browser call 30 s
 and then fails with a row naming the call and the page, rather than sitting
-silent. A 1 ms deadline was used to see that row fire. The other twelve
+silent. A 1 ms deadline was used to see that row fire. On November 19, with
+the repo's own flag and no `$CHROMIUM` wrapper, `journal-audit.mjs` passed
+208/208 on the laptop. The other twelve
 `throwawayProfile()` gates still have no deadline on their calls; the arcade
 gates' shared driver has had 20 s all along.
 
