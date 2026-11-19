@@ -124,6 +124,15 @@ const errorsSeen = () => ev.filter(e => e.method === 'Log.entryAdded' && e.param
 await load('#radar');
 const frames = await E(FRAMES);
 check('the radar has frames', frames ? frames.length : 0, v => v >= 3, '>= 3');
+/*
+ * Without a frame list there is nothing to hold a picture against. On the
+ * laptop on November 19, 2026 it came back null, nearest() threw, and the
+ * gate died before printing a single row. The row above has already failed;
+ * the checks that need frames are skipped and counted, and everything else
+ * still runs.
+ */
+const haveFrames = Array.isArray(frames) && frames.length > 0;
+let skipped = 0;
 const a = await state();
 check('cold on RADAR: the loop runs', a.playing, v => v === true, 'store.playing');
 check('cold: the two buttons agree', `${a.footer} / ${a.map}`, v => v === '❚❚ / ❚❚', '❚❚ / ❚❚');
@@ -141,10 +150,10 @@ await pumpUntil(async () => (await state()).rtime !== a.rtime, 20000);
 const b = await state();
 check('the loop drives the cursor', `${a.readout} -> ${b.readout}`, () => b.readout !== 'NOW' || b.cursor !== a.cursor, 'readout leaves NOW');
 check('the loop changes the frame', `${a.rtime} -> ${b.rtime}`, () => a.rtime !== b.rtime, 'r-time changes');
-{
+if (haveFrames) {
   const want = await hm(nearest(frames, b.cursor));
   check('the frame shown is the cursor\'s', `${b.rtime} vs nearest ${want}`, () => b.rtime === want, 'equal');
-}
+} else skipped++;
 
 /* --------------------------------------------------- the footer's play */
 
@@ -175,19 +184,21 @@ for (let i = 0; i < 3; i++) await clickAt('#scrub [data-act="back"]');
 await wait(300);
 const d = await state();
 {
-  const want = await hm(nearest(frames, d.cursor));
-  const earliest = await hm(Math.min(...frames));
-  check('◀◀ ×3: the picture follows the readout', `${d.readout}, r-time ${d.rtime}, nearest ${want}`, () => d.rtime === want, 'r-time = frame nearest cursor');
-  check('◀◀ ×3 clamps to the earliest frame', `${d.rtime} vs ${earliest}`, () => d.rtime === earliest, 'earliest');
+  if (haveFrames) {
+    const want = await hm(nearest(frames, d.cursor));
+    const earliest = await hm(Math.min(...frames));
+    check('◀◀ ×3: the picture follows the readout', `${d.readout}, r-time ${d.rtime}, nearest ${want}`, () => d.rtime === want, 'r-time = frame nearest cursor');
+    check('◀◀ ×3 clamps to the earliest frame', `${d.rtime} vs ${earliest}`, () => d.rtime === earliest, 'earliest');
+  } else skipped += 2;
   check('◀◀ keeps the map paused', d.map, v => v === '▶', '▶');
 }
 await clickAt('#scrub [data-act="fwd"]'); await clickAt('#scrub [data-act="fwd"]');
 await wait(300);
 const e2 = await state();
-{
+if (haveFrames) {
   const want = await hm(nearest(frames, e2.cursor));
   check('▶▶ ×2: the picture follows', `${e2.readout}, r-time ${e2.rtime}, nearest ${want}`, () => e2.rtime === want, 'r-time = frame nearest cursor');
-}
+} else skipped++;
 
 /* --------------------------------------------------------- the map's ❚❚ */
 
@@ -203,8 +214,10 @@ await clickAt('#scrub [data-act="now"]');
 await wait(300);
 const g = await state();
 {
-  const want = await hm(nearest(frames, Date.now()));
-  check('NOW: the frame nearest now, readout NOW', `${g.readout}, ${g.rtime} vs ${want}`, () => g.readout === 'NOW' && g.rtime === want, 'NOW, nearest');
+  if (haveFrames) {
+    const want = await hm(nearest(frames, Date.now()));
+    check('NOW: the frame nearest now, readout NOW', `${g.readout}, ${g.rtime} vs ${want}`, () => g.readout === 'NOW' && g.rtime === want, 'NOW, nearest');
+  } else skipped++;
   check('NOW stops play', g.playing, v => v === false, 'false');
 }
 
@@ -241,8 +254,14 @@ await wait(300);
 const p2 = await state();
 {
   const fr = await E(FRAMES);
-  const want = await hm(nearest(fr, p2.cursor));
-  check('phone: a tap on ◀◀ moves the picture', `${p2.readout}, ${p2.rtime} vs ${want}`, () => p2.rtime === want && p2.cursor < p1.cursor, 'follows');
+  if (Array.isArray(fr) && fr.length) {
+    const want = await hm(nearest(fr, p2.cursor));
+    check('phone: a tap on ◀◀ moves the picture', `${p2.readout}, ${p2.rtime} vs ${want}`, () => p2.rtime === want && p2.cursor < p1.cursor, 'follows');
+  } else {
+    // The phone load fetched its own frames; none there is a failure too.
+    check('phone: the radar has frames', fr ? fr.length : 0, v => v >= 3, '>= 3');
+    skipped++;
+  }
 }
 const phoneErrors = errorsSeen();
 check('no console errors or exceptions', desktopErrors.length + phoneErrors.length, v => v === 0,
@@ -254,6 +273,7 @@ for (const r of rows) {
   if (!r.ok) fails++;
   console.log(' ', r.ok ? 'PASS' : 'FAIL', String(r.name).padEnd(46), String(r.got).padEnd(40), r.want);
 }
+if (skipped) console.log(`\n  skipped ${skipped} check(s) that need the radar's frame list`);
 console.log('\n ', fails ? `${fails} gate(s) failing` : 'all gates green');
 chrome.kill();
 process.exit(fails ? 1 : 0);

@@ -1113,7 +1113,11 @@ is the gate. It waits up to 20 s for the loop to change frame (6 s until
 November 19, 2026): the loop primes for up to 5 s of its own time, which a
 slow headless machine stretches, and on the laptop it was still priming when
 6 s ran out, twice, while the main machine passed the same commit. With the
-loop stopped on purpose the two loop rows still fail. What is load-bearing:
+loop stopped on purpose the two loop rows still fail. The same day a laptop
+run got no frame list at all, and the gate threw before printing a row; now
+a missing list fails "the radar has frames" (and its phone twin), skips the
+six checks that need frames and says so, and runs the rest. What is
+load-bearing:
 
 - **The frame shown is the one nearest the cursor** (`frameFor`, strict
   `<` so a midpoint picks the earlier frame), applied from a `'cursor'`
