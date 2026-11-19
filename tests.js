@@ -3512,6 +3512,36 @@ describe('WEATHER CONSOLE - Every word readable', () => {
                 `${letter} should be outlined (haloText) so it has its own ground`);
         }
     });
+
+    test('Should outline the sky dome\'s compass letters', () => {
+        /*
+         * Same failure as the wind gauge, found on the live site the same day:
+         * SKY's dome "E" measured 4.37:1 at 1280x800. proj() clamps altitude to
+         * 0, so the letters sit on the cyan horizon ring; plain faint grey on
+         * it is too close to the line, an outline gives each its own ground.
+         */
+        const code = `import(${JSON.stringify(path.join(__dirname, 'weather', 'js', 'charts.js'))}).then(({ skyDome }) => {
+            const calls = [];
+            const ctx = new Proxy({}, {
+                get: (o, k) => (k in o ? o[k]
+                    : k === 'measureText' ? () => ({ width: 8, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 1 })
+                    : /create(Linear|Radial)Gradient/.test(k) ? () => ({ addColorStop() {} })
+                    : k === 'strokeText' || k === 'fillText' ? (t, x, y) => calls.push([k, String(t), Math.round(x), Math.round(y)])
+                    : () => {}),
+                set: (o, k, v) => { o[k] = v; return true; } });
+            skyDome(ctx, 100, 100, 60, {});
+            console.log(JSON.stringify(calls)); })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        const calls = JSON.parse(r.stdout);
+        for (const letter of ['N', 'E', 'S', 'W']) {
+            const at = calls.findIndex(([k, t]) => k === 'fillText' && t === letter);
+            assert.ok(at >= 0, `${letter} should be drawn`);
+            const [, , x, y] = calls[at];
+            assert.ok(calls.slice(0, at).some(([k, t, sx, sy]) => k === 'strokeText' && t === letter && sx === x && sy === y),
+                `${letter} should be outlined (haloText) so it has its own ground`);
+        }
+    });
 });
 
 describe('WEATHER CONSOLE - One transport', () => {

@@ -43,7 +43,7 @@ PORT=8137 node scripts/dev-server.mjs   # http://localhost:8137 (8000 is the sys
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (623 tests, on CI on November 19, 2026)
+# Run client-side tests (625 tests, on CI on November 19, 2026)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -142,7 +142,7 @@ branyontech/               # the checkout (the GitHub repo is CountdownToRetirem
 ├── postcards-in-sound/     # Six chord sketches: index.html, app.js, content.json
 ├── mustang-micro-plus/     # Kyle's 70 amp presets: index.html, app.js, styles.css
 ├── fish-hatchery/          # Property showcase: index.html, app.js, styles.css, assets/*.webp
-├── tests.js                # Client-side unit tests (623 tests)
+├── tests.js                # Client-side unit tests (625 tests)
 ├── tests-server.js         # Server integration tests (94 tests)
 ├── tests/                  # node:test files, fixtures, the Elevator browser harness
 ├── countdown-retirement.service  # Systemd service file
@@ -1253,7 +1253,13 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   sizes, label-audit zero pairs at 390x844 and 1440x900. The lowest contrast
   the gate measured afterwards was still 4.49:1 at 1920x1080 and 4.48:1 at
   1280x800, which passes, but the gate names only failures, so some other
-  label sits that close to the line and could tip on another day.
+  label sits that close to the line and could tip on another day. One did
+  the same evening: run against the live site, it failed SKY's dome "E" at
+  4.37:1 at 1280x800. The dome's N/E/S/W were plain faint grey too, and
+  `proj()` clamps altitude to 0, so the letters meant to sit 9° outside the
+  horizon sit on its cyan ring instead. They are drawn with `haloText` now;
+  a second test draws the dome into a recording canvas and fails without the
+  outline. After it: all readable at all three sizes against the dev server.
 
 ### Midnight Slate — the palette, and why it is not black
 

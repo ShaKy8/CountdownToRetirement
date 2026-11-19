@@ -868,7 +868,10 @@ export function skyDome(ctx, cx, cy, r, {
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x1, y1); ctx.stroke();
     const [lx, ly] = proj(az, -9);
     ctx.fillStyle = FAINT;
-    ctx.fillText(lab, lx, ly);
+    // Outlined, as on the wind gauge: proj() clamps altitude to 0, so the
+    // letters sit on the cyan horizon ring, and plain faint grey "E" measured
+    // 4.37:1 at 1280x800 on the live site (read-audit, November 19, 2026).
+    haloText(ctx, lab, lx, ly);
   }
 
   // Tracks (above-horizon segments only)
