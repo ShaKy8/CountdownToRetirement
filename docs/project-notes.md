@@ -1017,6 +1017,33 @@ Two things the code needs from the machine, both asserted by tests:
   hardcode `/usr/bin/chromium` — right on Arch, wrong nearly everywhere else,
   and one wrong assumption became twelve identical unhelpful failures.
 
+**Some gates can only be judged on the main machine.** On November 19, 2026
+the laptop's headless Chromium drew 0.2-0.4 animation frames a second on the
+radar page, against 2.4-3.4 on the main machine (a scratch probe; see "One
+transport"). Anything that plays in real time barely moves there. On the
+laptop, on the same commit as the main machine:
+
+- `transport-audit.mjs`: the two loop rows fail (the radar never leaves its
+  first frame); the rest pass.
+- `elevator-audit.mjs`, `asteroids-audit.mjs`, `ironwing-audit.mjs`: each
+  stopped at its first play check (Elevator "normal keyboard play collects
+  file", Starfall "keyboard thrust and rotation", IRONWING "normal unmodified
+  browser approach catches a wire", still flying with no wire after 18.3 s of
+  game time). These gates `assert` each check, so a failure ends the run and
+  the last line printed is Node's version, after the assertion's stack.
+- On the main machine the same day all three passed: Elevator 49 checks in
+  80 s, Starfall 38 in 44 s, IRONWING 37 in 190 s (the wire caught after
+  54.4 s of game time).
+
+Judge those on the main machine. The laptop's other runs that day: site at
+320x700, home, lists at both sizes, figures, journal (once extensions were
+off), both effects gates, tap and pinch passed; mobile at 1440x900 failed its
+three expected desktop rows and, reading 3, the render tier; label at 390x844
+found the meteogram rain-label overlap, which the main machine found too and
+which was then fixed. The likely cause is the laptop's own
+`/usr/lib/chromium/chromium` drawing in SwiftShader, where the main machine
+runs Chrome for Testing; not tested.
+
 **Push before switching machines.** The repos are the sync mechanism, and the
 setup script refuses to touch a working tree with uncommitted changes rather
 than guess. Note also that on a machine where `pull.rebase` is set (it is not

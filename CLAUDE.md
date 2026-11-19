@@ -257,6 +257,14 @@ on its first frame far longer than any gate waits, and "the loop drives the
 cursor" and "the loop changes the frame" fail while the site is fine. Judge
 those two rows on the main machine.
 
+**The three arcade gates cannot be judged on the laptop either.**
+`elevator-audit.mjs`, `asteroids-audit.mjs` and `ironwing-audit.mjs` play in
+real time, and on the laptop each stopped at its first play check on
+November 19, 2026 (the file pickup, thrust and rotation, the wire catch: still
+flying after 18.3 s of game time). The same day, on the same commit, all three
+passed on the main machine: 49, 38 and 37 checks. Judge them on the main
+machine (geekom1).
+
 ## 5. How to work here
 
 1. **Start from the current `main`.** `git fetch`, then `git status -sb`. If
