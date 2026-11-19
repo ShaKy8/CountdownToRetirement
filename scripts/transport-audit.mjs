@@ -127,7 +127,17 @@ check('the radar has frames', frames ? frames.length : 0, v => v >= 3, '>= 3');
 const a = await state();
 check('cold on RADAR: the loop runs', a.playing, v => v === true, 'store.playing');
 check('cold: the two buttons agree', `${a.footer} / ${a.map}`, v => v === '❚❚ / ❚❚', '❚❚ / ❚❚');
-await pumpUntil(async () => (await state()).rtime !== a.rtime, 6000);
+/*
+ * Wait on the loop itself, up to 20 s, not a fixed 6 s. The loop holds its
+ * first frame until that frame's tiles are in (PRIME_MAX, 5 s of loop time in
+ * radar.js), steps only onto frames whose tiles are in, and counts time in
+ * frames clamped to 0.2 s, so on a slow machine 5 s of loop time is far more
+ * than 5 s of wall time. On the laptop on November 19, 2026 it was still
+ * priming when 6 s ran out, twice, and both loop rows failed there while the
+ * main machine passed the same commit. A loop that never moves still fails:
+ * the rows below compare before and after, whenever the wait ends.
+ */
+await pumpUntil(async () => (await state()).rtime !== a.rtime, 20000);
 const b = await state();
 check('the loop drives the cursor', `${a.readout} -> ${b.readout}`, () => b.readout !== 'NOW' || b.cursor !== a.cursor, 'readout leaves NOW');
 check('the loop changes the frame', `${a.rtime} -> ${b.rtime}`, () => a.rtime !== b.rtime, 'r-time changes');
