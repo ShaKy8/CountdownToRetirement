@@ -43,7 +43,7 @@ PORT=8137 node scripts/dev-server.mjs   # http://localhost:8137 (8000 is the sys
 # Original static server (site + countdown; sets the security headers)
 node server.js
 
-# Run client-side tests (622 tests, on CI on November 19, 2026)
+# Run client-side tests (623 tests, on CI on November 19, 2026)
 node tests.js
 
 # After changing any .js or .css under countdown/, game/, slingshot/ or shared/:
@@ -142,7 +142,7 @@ branyontech/               # the checkout (the GitHub repo is CountdownToRetirem
 ├── postcards-in-sound/     # Six chord sketches: index.html, app.js, content.json
 ├── mustang-micro-plus/     # Kyle's 70 amp presets: index.html, app.js, styles.css
 ├── fish-hatchery/          # Property showcase: index.html, app.js, styles.css, assets/*.webp
-├── tests.js                # Client-side unit tests (622 tests)
+├── tests.js                # Client-side unit tests (623 tests)
 ├── tests-server.js         # Server integration tests (94 tests)
 ├── tests/                  # node:test files, fixtures, the Elevator browser harness
 ├── countdown-retirement.service  # Systemd service file
