@@ -167,6 +167,14 @@ async function play(query, { motion = true, shots = 8, nudge = 9 } = {}) {
   await S('Emulation.setEmulatedMedia', { features: [
     { name: 'prefers-reduced-motion', value: motion ? 'no-preference' : 'reduce' }] });
   await S('Page.navigate', { url: `${ORIGIN}/slingshot/${query}` });
+  // pump() waits for frames only the game draws. With no server on the port
+  // there is no game, and this gate hung, silent, until killed at 5 minutes
+  // (November 20, 2026). script.js sets SLINGSHOT_FX as it loads, so give it
+  // 10 s to appear, and fail the run if it never does.
+  let loaded = false;
+  for (let i = 0; i < 40 && !loaded; i++) { loaded = await E('!!window.SLINGSHOT_FX').catch(() => false); if (!loaded) await wait(250); }
+  check('the game loaded', loaded ? query : `no SLINGSHOT_FX at ${query}`, () => loaded, 'window.SLINGSHOT_FX');
+  if (!loaded) report();
   await pump(2500);
   await E("document.getElementById('launch').click()");
   await pump(400);
@@ -235,13 +243,19 @@ check('reduced motion: no shake', calm.restShake, v => v === 0, '0');
 check('reduced motion: scars survive', calm.peakScars, v => v > 0, '> 0');
 check('reduced motion: runs clean', calm.errors.length + calm.exceptions.length, v => v === 0, '0');
 
-console.log(`\n  ${ORIGIN}/slingshot/\n`);
-let fails = 0;
-for (const r of rows) {
-  if (!r.ok) fails++;
-  console.log(' ', r.ok ? 'PASS' : 'FAIL', String(r.name).padEnd(32), String(r.got).padEnd(22), r.want);
+report([full, off, calm]);
+
+// Also called early, from play(), when the game never loaded: then there are
+// no runs to show errors for.
+function report(runs = []) {
+  console.log(`\n  ${ORIGIN}/slingshot/\n`);
+  let fails = 0;
+  for (const r of rows) {
+    if (!r.ok) fails++;
+    console.log(' ', r.ok ? 'PASS' : 'FAIL', String(r.name).padEnd(32), String(r.got).padEnd(22), r.want);
+  }
+  console.log('\n ', fails ? `${fails} gate(s) failing` : 'all gates green');
+  for (const s of runs) if (s.errors.length) console.log('  errors:', s.errors.slice(0, 2));
+  chrome.kill();
+  process.exit(fails ? 1 : 0);
 }
-console.log('\n ', fails ? `${fails} gate(s) failing` : 'all gates green');
-for (const s of [full, off, calm]) if (s.errors.length) console.log('  errors:', s.errors.slice(0, 2));
-chrome.kill();
-process.exit(fails ? 1 : 0);

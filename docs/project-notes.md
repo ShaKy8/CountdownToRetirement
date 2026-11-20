@@ -960,6 +960,16 @@ Three things there that are easy to get wrong:
    running game; if the shim were dropped, every drain and cap check would pass
    by measuring a game that never started.
 
+   **So is the game being there at all** (November 20, 2026). Against a port
+   with no server it did not fail: it hung, printing nothing, until killed at
+   5 minutes. `pump()` waits inside the page for frames only the game draws,
+   and with no game none ever come. The other sixteen gates, run the same way
+   the same day, all exited 1 within 78 s. Now each of the three runs first
+   waits up to 10 s for `window.SLINGSHOT_FX`, which `script.js` sets as it
+   loads, and fails "the game loaded" if it never appears. Bite proof against
+   the empty port: FAIL and exit 1 in 10 s. Against the dev server afterwards:
+   19 of 19 rows green (the three new ones included), exit 0 in 22 s.
+
 ### Two things that will silently break it
 
 1. **The rules must stay pure** and the level must stay bit-identical. `fly()`
