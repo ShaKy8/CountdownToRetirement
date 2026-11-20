@@ -1155,6 +1155,12 @@ to 33 s. Against the dev server:
   likeliest cause is the page's smooth scroll not finishing before
   `settle()` reads it, but that was not measured.
 
+Later the same day, on commit `48c15db`, the laptop ran `journal-audit.mjs` and
+`figures-audit.mjs` against its dev server. Both passed: journal 208 of 208 in
+116 s, and figures 80 rows in 57 s with nothing failing. journal did not hang
+on its first `/year/` page, as it had on November 18 with the extension
+loaded.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
