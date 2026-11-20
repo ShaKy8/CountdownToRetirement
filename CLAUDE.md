@@ -274,7 +274,11 @@ button changed state between the audit's style read and its screenshot; why
 that lands there every time on the laptop was not measured. The main machine
 passed 1920x1080 on the same commit (4.50:1 locally, 4.49:1 live). The
 laptop's other two sizes passed with real measurements: 1280x800 at 4.59:1
-and 390x844 at 4.55:1. Judge 1920x1080 on the main machine.
+and 390x844 at 4.55:1. On November 20, on `5441ba6`, the laptop passed all
+three sizes and NOW did not fail: 1920x1080 at 4.52:1 in 560 s, 1280x800 at
+4.44:1 in 200 s, and 390x844 at 4.29:1 in 75 s. The lowest is over every run,
+large text (3:1) included. One pass after three failures does not settle it.
+Judge 1920x1080 on the main machine.
 
 **`lists-audit.mjs`'s "trips: a tap makes room for the whole list" is flaky on
 the laptop.** On November 20, 2026, on commit `017c4f6`, it failed once there:

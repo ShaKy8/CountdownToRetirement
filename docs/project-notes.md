@@ -1342,6 +1342,20 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   of text: 1280x800 lowest 4.59:1, 390x844 lowest 4.55:1. Judge 1920x1080 on
   the main machine. The gate is unchanged; re-reading NOW's state after the
   screenshot would let it tell a mid-change button from a faint one.
+  On November 20, 2026, on commit `5441ba6`, the laptop passed all three sizes
+  against its dev server, with real measurements. NOW did not fail this time.
+
+  | Size | Runs of text | Lowest | Time |
+  |---|---|---|---|
+  | 1920x1080 | 1102 | 4.52:1 | 560 s |
+  | 1280x800 | 1009 | 4.44:1 | 200 s |
+  | 390x844 | 422 | 4.29:1 | 75 s |
+
+  The lowest figure is taken over every run, large text included, and large
+  text needs only 3:1. So a lowest under 4.5:1 that passes is large text;
+  which labels set those two was not pulled. One pass after three failures
+  does not make 1920x1080 safe to judge there. Still judge it on the main
+  machine.
 - **A size that measured no text fails** (November 19, 2026). Twice that day
   on the laptop, with no server answering on the port, the gate printed PASS
   at all three sizes with "0 runs of text" and "all readable", and exited 0:
