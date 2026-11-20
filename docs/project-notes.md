@@ -1111,6 +1111,33 @@ the repo's own flag and no `$CHROMIUM` wrapper, `journal-audit.mjs` passed
 `throwawayProfile()` gates still have no deadline on their calls; the arcade
 gates' shared driver has had 20 s all along.
 
+**What each gate does with no page at all.** On November 20, 2026, on the main
+machine, all seventeen gates were run one at a time against a port with
+nothing on it, each with a 5-minute limit. `read-audit.mjs` passed (fixed the
+day before: a size with no text now fails). `slingshot-fx-audit.mjs` hung and
+was killed (fixed the same day with a "the game loaded" row; see "Impact is
+an event"). Four failed with proper rows: `site`, `figures`,
+`journal` and `mobile`. The other eleven exited 1 but crashed to get there,
+on a `TypeError` or a raw CDP exception, a few rows in or at the first call:
+`home`, `lists`, `oneputt-fx`, `label`, `tap`, `pinch`, `transport` and the
+four arcade gates. Those eleven now fail one plain row, "the page loaded",
+when something only the real page has is missing 10 s after the load:
+`#g-retirement` on the homepage, `#stat-trips-list` on the clock,
+`window.ONEPUTT_FX`, `window.ATMOS` for the four console gates, the harness's
+`#run` button and `window.Elevator86App`, `window.StarfallApp`, and
+`window.IronwingApp` for both Ironwing gates. The arcade gates share it as
+`loaded()` in `scripts/lib/arcade-browser.mjs`; the others carry a few lines
+each, in their own row format. `label-audit.mjs` has no rows, so it prints
+the line only when it fails. Bite proof against the empty port: all eleven
+exit 1 on that row, with no stack trace, in 10 to 31 s. Against the dev
+server afterwards all eleven exit 0, the row passing where the gate has rows:
+home 59 rows, lists, ONE PUTT, tap, pinch and transport all green, label zero
+overlapping pairs, Elevator 49 checks, Starfall 38, Ironwing 37 (as on
+November 19), and the circuit landed on its one launch. Two things this does
+not cover: a row inside a gate that already fails cleanly can still pass on an
+empty page (`mobile`'s "storms: smallest rendered font 99px", "console errors
+0"), and a page that half-loads was not tried.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with

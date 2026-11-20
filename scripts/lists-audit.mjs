@@ -77,6 +77,21 @@ const gate = (ok, name, detail = '') => {
   if (!ok) fails.push(name);
 };
 
+// With no server on the port this gate died on a TypeError after four rows
+// (November 20, 2026). Every load now has to show something only the real
+// page has within 10 s, or the run fails "the page loaded" and stops there.
+let pageSeen = false;
+async function pageLoaded(expr, where) {
+  for (let i = 0; i < 40; i++) {
+    if (await E(`!!(${expr})`)) { if (!pageSeen) gate(true, 'the page loaded', where); pageSeen = true; return; }
+    await wait(250);
+  }
+  gate(false, 'the page loaded', `no ${expr} at ${where}`);
+  console.log(`\n${fails.length} FAILED: ${fails.join(', ')}\n`);
+  ws.close(); chrome.kill();
+  process.exit(1);
+}
+
 // The one readout of a panel's state, in one place.
 const STATE = k => `(()=>{const c=document.getElementById('stat-${k}-card');
   const p=document.getElementById('stat-${k}-detail');
@@ -152,6 +167,7 @@ async function load(coarse) {
       document.querySelectorAll('#stat-' + k + '-list li').length > 0)`)) break;
     await wait(200);
   }
+  await pageLoaded("document.getElementById('stat-trips-list')", ORIGIN + '/countdown/index.html');
 }
 
 // A real tap focuses before it clicks. A programmatic .click() alone skips

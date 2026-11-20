@@ -20,5 +20,10 @@ export async function browser() {
  const key=(code,down=true,autoRepeat=false)=>{const codes={ArrowRight:39,ArrowLeft:37,ArrowUp:38,ArrowDown:40,Space:32,KeyP:80,KeyM:77,KeyR:82,Escape:27,Enter:13};return S('Input.dispatchKeyEvent',{type:down?'keyDown':'keyUp',code,key:code==='Space'?' ':code.startsWith('Key')?code.slice(3).toLowerCase():code,windowsVirtualKeyCode:codes[code]||0,nativeVirtualKeyCode:codes[code]||0,autoRepeat});};
  const screenshot=async file=>{const {data}=await S('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(file,Buffer.from(data,'base64'));};
  const close=async()=>{ws.close();chrome.kill();await wait(100);await rm(dir,{recursive:true,force:true,maxRetries:3});};
- return {S,E,nav,size,click,key,screenshot,errors,close};
+ // With no server on the port, every arcade gate died on its first call with a
+ // raw CDP exception (November 20, 2026). loaded() waits up to 10 s for
+ // something only the real page has; if it never appears it prints one FAIL
+ // row, closes the browser and exits 1.
+ const loaded=async(expr,what)=>{for(let i=0;i<40;i++){if(await E(`!!(${expr})`).catch(()=>false)){console.log(`PASS the page loaded ${what}`);return true;}await wait(250);}console.log(`FAIL the page loaded ${what}: no ${expr}`);await close();process.exit(1);};
+ return {S,E,nav,size,click,key,screenshot,errors,close,loaded};
 }

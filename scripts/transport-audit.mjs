@@ -54,6 +54,23 @@ const E = async e => {
 const rows = [];
 const check = (name, got, ok, want) => rows.push({ name, got, ok: ok(got), want });
 
+// With no server on the port this gate died on a TypeError (November 20,
+// 2026). Every load now has to show something only the real page has within
+// 10 s, or the run fails "the page loaded" and stops there.
+let pageSeen = false;
+async function pageLoaded(expr, where) {
+  for (let i = 0; i < 40; i++) {
+    if (await E(`!!(${expr})`).catch(() => false)) { if (!pageSeen) check('the page loaded', where.replace(ORIGIN, ''), () => true, expr); pageSeen = true; return; }
+    await wait(250);
+  }
+  check('the page loaded', `no ${expr}`, () => false, where);
+  console.log(`\n  ${ORIGIN}/weather/#radar\n`);
+  for (const r of rows) console.log(' ', r.ok ? 'PASS' : 'FAIL', String(r.name).padEnd(46), String(r.got).padEnd(40), r.want);
+  console.log('\n ', `${rows.filter(r => !r.ok).length} gate(s) failing`);
+  chrome.kill();
+  process.exit(1);
+}
+
 /*
  * Headless Chromium produces almost no animation frames on its own - about
  * four a second here - and the radar loop advances on them, with the frame
@@ -112,6 +129,7 @@ async function load(hash, { phone = false } = {}) {
     if (ready) break;
     await wait(200);
   }
+  await pageLoaded('window.ATMOS', `${ORIGIN}/weather/${hash}`);
   await wait(1200);
 }
 const errorsSeen = () => ev.filter(e => e.method === 'Log.entryAdded' && e.params.entry.level === 'error')

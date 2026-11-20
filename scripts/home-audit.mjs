@@ -66,6 +66,21 @@ const gate = (ok, name, detail = '') => {
   if (!ok) fails.push(name);
 };
 
+// With no server on the port this gate died on a TypeError after its first
+// row (November 20, 2026). Every load now has to show something only the real
+// page has within 10 s, or the run fails "the page loaded" and stops there.
+let pageSeen = false;
+async function pageLoaded(expr, where) {
+  for (let i = 0; i < 40; i++) {
+    if (await E(`!!(${expr})`)) { if (!pageSeen) gate(true, 'the page loaded', where); pageSeen = true; return; }
+    await wait(250);
+  }
+  gate(false, 'the page loaded', `no ${expr} at ${where}`);
+  console.log(`\n${fails.length} FAILED: ${fails.join(', ')}\n`);
+  ws.close(); chrome.kill();
+  process.exit(1);
+}
+
 /*
  * What the browser painted, read back. The gradient string comes from
  * getComputedStyle with every var() resolved to rgb()/rgba(); the two
@@ -141,6 +156,7 @@ async function load(w, h, opts = {}) {
     if (await E("document.readyState === 'complete'")) break;
     await wait(150);
   }
+  await pageLoaded("document.getElementById('g-retirement')", ORIGIN + '/');
   await S('Page.captureScreenshot', { format: 'jpeg', quality: 1 });
 }
 

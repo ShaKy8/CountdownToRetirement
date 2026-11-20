@@ -22,7 +22,7 @@ const gameHold=async(code,sec)=>{await b.key(code);await gameWait(sec);await b.k
 const gameUntil=async(fn,sec=5,ms=sec*4000+10000)=>{const end=(await snap()).state.time+sec,t=Date.now()+ms;while(Date.now()<t){if(await fn())return true;const a=await snap();if(a.state.time>=end||a.mode!=='playing'||['landed','crashed'].includes(a.state.status))return !!(await fn());await wait(50);}return false;};
 const menu=async()=>{await b.nav(origin+'/ironwing/');};
 try{
- await b.size(1440,1000);await menu();gate((await snap()).mode==='menu','hangar loads');await b.screenshot(out+'/desktop-hangar.png');
+ await b.size(1440,1000);await menu();await b.loaded('window.IronwingApp','/ironwing/');gate((await snap()).mode==='menu','hangar loads');await b.screenshot(out+'/desktop-hangar.png');
  await b.click('[data-start=approach]');await gameHold('KeyQ',.1);await gameWait(13);
  {const a=(await snap()).state;if(a.heading<0)await gameHold('KeyE',Math.max(.02,Math.abs(a.heading)/.06));}
  gate((await snap()).state.x<17,'normal rudder input corrects initial lateral offset',(await snap()).state.x);

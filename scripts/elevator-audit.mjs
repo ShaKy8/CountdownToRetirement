@@ -35,13 +35,13 @@ async function captureFixture(){
 try {
  await b.size(1280,900);
  if(!live){
-  await b.nav(origin+'/tests/elevator-browser.html');await b.click('#run');
+  await b.nav(origin+'/tests/elevator-browser.html');await b.loaded('document.querySelector("#run")','/tests/elevator-browser.html');await b.click('#run');
   gate(await until(async()=>{await b.S('Page.captureScreenshot',{format:'jpeg',quality:1});return b.E('/passed, \\d+ failed/.test(document.querySelector("#summary").textContent)');},90000),'existing browser harness completes');
   const summary=await b.E('document.querySelector("#summary").textContent');
   const failures=await b.E('[...document.querySelectorAll("#results .fail")].map(e=>e.textContent)');
   gate(failures.length===0,'existing restart/combat/storage/touch/layout checks', {summary,failures});
  }
- await b.nav(origin+'/elevator/');await b.screenshot(out+'/desktop-ready.png');await b.click('#primary');
+ await b.nav(origin+'/elevator/');await b.loaded('window.Elevator86App','/elevator/');await b.screenshot(out+'/desktop-ready.png');await b.click('#primary');
  for(const file of (await snap()).docs){
   let s=await snap();if(s.player.floor!==file.floor){await walk(246,true);await ride(file.floor);}
   await walk(file.x,true);await b.key('KeyE');await wait(700);await b.key('KeyE',false);

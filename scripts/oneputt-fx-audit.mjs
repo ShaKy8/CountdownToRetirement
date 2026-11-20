@@ -125,6 +125,23 @@ async function pumpWatch(ms) {
 
 const rows = [];
 const check = (name, got, ok, want) => rows.push({ name, got, ok: ok(got), want });
+
+// With no server on the port this gate died on a TypeError (November 20,
+// 2026). Every load now has to show something only the real page has within
+// 10 s, or the run fails "the page loaded" and stops there.
+let pageSeen = false;
+async function pageLoaded(expr, where) {
+  for (let i = 0; i < 40; i++) {
+    if (await E(`!!(${expr})`).catch(() => false)) { if (!pageSeen) check('the page loaded', where.replace(ORIGIN, ''), () => true, expr); pageSeen = true; return; }
+    await wait(250);
+  }
+  check('the page loaded', `no ${expr}`, () => false, where);
+  console.log(`\n  ${ORIGIN}/game/  seed ${SEED}\n`);
+  for (const r of rows) console.log(' ', r.ok ? 'PASS' : 'FAIL', String(r.name).padEnd(38), String(r.got).padEnd(26), r.want);
+  console.log('\n ', `${rows.filter(r => !r.ok).length} gate(s) failing`);
+  chrome.kill();
+  process.exit(1);
+}
 const errorsSeen = () => ({
   errors: ev.filter(e => e.method === 'Log.entryAdded' && e.params.entry.level === 'error')
     .map(e => e.params.entry.text).filter(t => !/favicon/.test(t)),
@@ -141,6 +158,7 @@ async function load(query, { motion = true } = {}) {
     if (await E("document.readyState === 'complete' && !!window.ONEPUTT_FX")) break;
     await wait(100);
   }
+  await pageLoaded('window.ONEPUTT_FX', `${ORIGIN}/game/${query}`);
   await pump(300);
 }
 

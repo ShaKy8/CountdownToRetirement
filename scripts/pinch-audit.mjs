@@ -52,11 +52,27 @@ const E = async e => {
 };
 await S('Page.navigate', { url: URL });
 await wait(14000);
-await E("window.ATMOS.setView('radar')");
-await wait(3000);
 
 const rows = [];
 const check = (name, got, ok, want) => rows.push({ name, got, ok: ok(got), want });
+
+// With no server on the port this gate died on a TypeError (November 20,
+// 2026). The console has to be there within 10 s more, or the run fails
+// "the page loaded" and stops there.
+{
+  let ok = false;
+  for (let i = 0; i < 40 && !ok; i++) { ok = await E('!!window.ATMOS').catch(() => false); if (!ok) await wait(250); }
+  check('the page loaded', ok ? 'yes' : 'no', v => v === 'yes', 'window.ATMOS');
+  if (!ok) {
+    console.log(`\n  ${URL}  radar at ${W}x${H}\n`);
+    console.log(' ', 'FAIL', 'the page loaded'.padEnd(44), 'no'.padEnd(18), 'window.ATMOS');
+    console.log('\n  1 gate(s) failing');
+    chrome.kill();
+    process.exit(1);
+  }
+}
+await E("window.ATMOS.setView('radar')");
+await wait(3000);
 
 const M = () => E(`(()=>{const m=window.ATMOS.views.radar.map;
   return {lat:m.lat, lon:m.lon, zoom:m.zoom, w:m.w, h:m.h,

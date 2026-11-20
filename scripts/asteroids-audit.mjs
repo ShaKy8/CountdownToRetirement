@@ -12,7 +12,7 @@ const snap = () => b.E('StarfallApp.snapshot()');
 const tap = async code => { await b.key(code); await b.key(code,false); };
 const until = async (fn, timeout=4000) => { const end = Date.now()+timeout; while(Date.now()<end){if(await fn())return true;await wait(50);}return false; };
 try {
- await b.size(1280,900); await b.nav(origin+'/asteroids/');
+ await b.size(1280,900); await b.nav(origin+'/asteroids/'); await b.loaded('window.StarfallApp','/asteroids/');
  gate((await snap()).mode==='ready','ready screen loads'); await b.screenshot(out+'/desktop-ready.png');
  await b.click('#primary'); await wait(300); gate((await snap()).mode==='playing','launch via real pointer');
  const initial=(await snap()).state.ship;

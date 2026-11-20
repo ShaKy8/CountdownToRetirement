@@ -6,7 +6,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 const origin=process.argv[2]||'http://localhost:8142',out=process.argv[3]||'/tmp/ironwing-circuit';await mkdir(out,{recursive:true});
 const b=await browser(),log=[];const tap=async code=>{await b.key(code);await b.key(code,false);};const sn=()=>b.E('IronwingApp.snapshot()');
 try{
- await b.size(1280,900);await b.nav(origin+'/ironwing/');await b.click('[data-start=free]');await b.key('KeyW');while((await sn()).state.throttle<.95)await wait(80);await b.key('KeyW',false);await tap('Enter');while((await sn()).state.status!=='flying')await wait(80);await wait(2500);await tap('KeyG');await tap('KeyF');await b.click('#mouse');
+ await b.size(1280,900);await b.nav(origin+'/ironwing/');await b.loaded('window.IronwingApp','/ironwing/');await b.click('[data-start=free]');await b.key('KeyW');while((await sn()).state.throttle<.95)await wait(80);await b.key('KeyW',false);await tap('Enter');while((await sn()).state.status!=='flying')await wait(80);await wait(2500);await tap('KeyG');await tap('KeyF');await b.click('#mouse');
  const p=await b.E('(()=>{const r=document.querySelector("#world").getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height*.43}})()');await b.S('Input.dispatchMouseEvent',{type:'mousePressed',...p,button:'left',clickCount:1});
  const points=[{x:0,z:1800,y:300},{x:-2400,z:2000,y:350},{x:-2600,z:-5200,y:360},{x:-900,z:-6200,y:370},{x:0,z:-110,y:22}];let phase=0,lastLog=-5,power=null,configured=false;
  const started=Date.now();

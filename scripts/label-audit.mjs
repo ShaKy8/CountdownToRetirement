@@ -92,6 +92,18 @@ const E = async e => {
 };
 await S('Page.navigate', { url: URL });
 await wait(14000);
+// With no server on the port this gate died on a TypeError (November 20,
+// 2026). The console has to be there within 10 s more, or the run fails
+// "the page loaded" and stops there.
+{
+  let ok = false;
+  for (let i = 0; i < 40 && !ok; i++) { ok = await E('!!window.ATMOS').catch(() => false); if (!ok) await wait(250); }
+  if (!ok) {
+    console.log(`\n  ${URL}  at ${W}x${H}\n\n  FAIL the page loaded  no window.ATMOS\n`);
+    chrome.kill();
+    process.exit(1);
+  }
+}
 
 const report = []; const census = [];
 for (const v of ['deck', 'radar', 'sky', 'air', 'data']) {

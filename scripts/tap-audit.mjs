@@ -72,6 +72,22 @@ await wait(14000);
 const rows = [];
 const check = (name, got, ok, want) => rows.push({ name, got, ok: ok(got), want });
 
+// With no server on the port this gate died on a TypeError (November 20,
+// 2026). The console has to be there within 10 s more, or the run fails
+// "the page loaded" and stops there.
+{
+  let ok = false;
+  for (let i = 0; i < 40 && !ok; i++) { ok = await E('!!window.ATMOS').catch(() => false); if (!ok) await wait(250); }
+  check('the page loaded', ok ? 'yes' : 'no', v => v === 'yes', 'window.ATMOS');
+  if (!ok) {
+    console.log(`\n  ${URL}\n`);
+    console.log(' ', 'FAIL', 'the page loaded'.padEnd(40), 'no'.padEnd(10), 'window.ATMOS');
+    console.log('\n  1 gate(s) failing');
+    chrome.kill();
+    process.exit(1);
+  }
+}
+
 const view = async v => { await E(`window.ATMOS.setView('${v}')`); await wait(2400); };
 const rect = async id => E(`(()=>{const r=document.getElementById('${id}').getBoundingClientRect();
   return {x:r.x,y:r.y,w:r.width,h:r.height};})()`);
