@@ -968,7 +968,14 @@ Three things there that are easy to get wrong:
    waits up to 10 s for `window.SLINGSHOT_FX`, which `script.js` sets as it
    loads, and fails "the game loaded" if it never appears. Bite proof against
    the empty port: FAIL and exit 1 in 10 s. Against the dev server afterwards:
-   19 of 19 rows green (the three new ones included), exit 0 in 22 s.
+   19 of 19 rows green (the three new ones included), exit 0 in 22 s. That
+   was the main machine (geekom1). The laptop, the same day on `fdf0917`:
+   against the empty port, FAIL "the game loaded" and exit 1 in 13 s; against
+   its own dev server, 19 of 19 green and exit 0 in 94 s. Its rows matched the
+   main machine's (20 particles at peak, 8 and 6 scars, the pool drained to
+   0) except the frame count, 790 against 786. It took about four times as
+   long, but this gate runs the game on its own clock, not the browser's
+   frames, so the laptop can judge it.
 
 ### Two things that will silently break it
 
