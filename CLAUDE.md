@@ -276,6 +276,15 @@ passed 1920x1080 on the same commit (4.50:1 locally, 4.49:1 live). The
 laptop's other two sizes passed with real measurements: 1280x800 at 4.59:1
 and 390x844 at 4.55:1. Judge 1920x1080 on the main machine.
 
+**`lists-audit.mjs`'s "trips: a tap makes room for the whole list" is flaky on
+the laptop.** On November 20, 2026, on commit `017c4f6`, it failed once there:
+the list needed 395px and got 343px of room, so it scrolled inside its box. The
+rerun on the same commit passed all 156 rows in 518 s, with 397px of room, and
+the main machine passed it the same day. If it fails on the laptop, run it
+again; if it fails on the main machine, that is news. Why it is flaky was not
+measured; the page's smooth scroll not finishing before the gate reads it is
+the guess.
+
 ## 5. How to work here
 
 1. **Start from the current `main`.** `git fetch`, then `git status -sb`. If

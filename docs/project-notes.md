@@ -1138,6 +1138,23 @@ not cover: a row inside a gate that already fails cleanly can still pass on an
 empty page (`mobile`'s "storms: smallest rendered font 99px", "console errors
 0"), and a page that half-loads was not tried.
 
+The same day the seven non-arcade gates were run on the laptop, on `017c4f6`.
+A first try there ran on `63b907a`, because the checkout had not been
+fetched, and crashed the old way, so check the commit first. Against the
+empty port all seven exit 1 on "the page loaded", with no stack trace, in 15
+to 33 s. Against the dev server:
+
+- **Passed:** home in 29 s, ONE PUTT in 201 s, label in 37 s, tap in 59 s and
+  pinch in 144 s.
+- **transport** fails only its two loop rows, which cannot be judged there
+  (see CLAUDE.md), in 134 s.
+- **lists** failed one row once: "trips: a tap makes room for the whole list".
+  The list needed 395px and had 343px, so it scrolled inside its box. The
+  rerun on the same commit passed 156 of 156 in 518 s, with 397px of room. The
+  main machine passed it the same day. So it is flaky on the laptop. The
+  likeliest cause is the page's smooth scroll not finishing before
+  `settle()` reads it, but that was not measured.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
