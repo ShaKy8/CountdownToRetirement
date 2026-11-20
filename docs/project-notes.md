@@ -1260,6 +1260,27 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   horizon sit on its cyan ring instead. They are drawn with `haloText` now;
   a second test draws the dome into a recording canvas and fails without the
   outline. After it: all readable at all three sizes against the dev server.
+- **On the laptop, 1920x1080 measures NOW mid-change** (November 19, 2026,
+  commit `5752d28`, the laptop's dev server). Three runs at 1920x1080 failed
+  one label each, the same one: the scrubber's NOW button, measured on
+  OVERHEAD, at 1.52, 1.52 and 1.50:1. The text colour it read,
+  `rgb(179, 191, 204)`, is the unlit button's grey. The ground it measured
+  (luminance 0.32) is the lit button's cyan (`.tl-btn.on`, `--void` on
+  `--cy`). Neither real state is anywhere near that low; only the two mixed
+  are. The third run saved its screenshots (`SHOTS=`), and
+  `1920x1080-overhead.png` shows NOW lit, dark text on cyan, readable. So the
+  button changed state between the gate's style read and its screenshot.
+  NOW is lit when the cursor is within 90 s of the real time (`store.atNow`,
+  set in `updatePlayBtn()`), and the radar loop leaves the cursor away from
+  now before OVERHEAD. What puts it back between those two moments, every
+  time and only on the laptop, was not measured; that laptop's headless
+  browser draws about a tenth as many frames as the main machine's (see "One
+  transport"). The main machine passed 1920x1080 on the same commit, at
+  4.50:1 against the dev server and 4.49:1 against the live site. On the
+  laptop the other two sizes passed with real measurements, 1013 and 423 runs
+  of text: 1280x800 lowest 4.59:1, 390x844 lowest 4.55:1. Judge 1920x1080 on
+  the main machine. The gate is unchanged; re-reading NOW's state after the
+  screenshot would let it tell a mid-change button from a faint one.
 
 ### Midnight Slate — the palette, and why it is not black
 

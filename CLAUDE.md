@@ -265,6 +265,17 @@ flying after 18.3 s of game time). The same day, on the same commit, all three
 passed on the main machine: 49, 38 and 37 checks. Judge them on the main
 machine (geekom1).
 
+**`read-audit.mjs` at 1920x1080 cannot be judged on the laptop.** On
+November 19, 2026, on commit `5752d28`, it failed the same label in three runs
+there: the scrubber's NOW button on OVERHEAD, at 1.52, 1.52 and 1.50:1. It read
+the unlit button's grey text over the lit button's cyan. The third run's
+screenshot shows NOW lit, with dark text on cyan, which is readable. So the
+button changed state between the audit's style read and its screenshot; why
+that lands there every time on the laptop was not measured. The main machine
+passed 1920x1080 on the same commit (4.50:1 locally, 4.49:1 live). The
+laptop's other two sizes passed with real measurements: 1280x800 at 4.59:1
+and 390x844 at 4.55:1. Judge 1920x1080 on the main machine.
+
 ## 5. How to work here
 
 1. **Start from the current `main`.** `git fetch`, then `git status -sb`. If
