@@ -1281,6 +1281,18 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   of text: 1280x800 lowest 4.59:1, 390x844 lowest 4.55:1. Judge 1920x1080 on
   the main machine. The gate is unchanged; re-reading NOW's state after the
   screenshot would let it tell a mid-change button from a faint one.
+- **A size that measured no text fails** (November 19, 2026). Twice that day
+  on the laptop, with no server answering on the port, the gate printed PASS
+  at all three sizes with "0 runs of text" and "all readable", and exited 0:
+  the browser loaded an error page, there was nothing to fail, and the summary
+  printed its starting values (`smallest 99.0px  contrast 99.00-0.00:1`) as
+  if they were readings. Now a size with no runs prints
+  `FAIL … 0 runs of text: nothing measured` and counts as a failure. Bite
+  proof, on the main machine against a port with nothing on it: before the
+  change, PASS at 390x844 with 0 runs and exit 0; after it, FAIL at all
+  three sizes and exit 1. Against the dev server afterwards it still passed
+  every size: 1134, 1029 and 425 runs of text, lowest 4.60, 4.59 and 4.52:1,
+  all readable. The other gates were not checked for the same hole.
 
 ### Midnight Slate — the palette, and why it is not black
 

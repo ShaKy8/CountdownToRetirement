@@ -17,7 +17,8 @@
  * early run measured whole views at opacity 0.
  *
  * Fails on: text under 11.5px; under 4.5:1 (3:1 at 24px, or 18.66px bold);
- * text hard-clipped without an ellipsis at a desktop size.
+ * text hard-clipped without an ellipsis at a desktop size; a size that
+ * measured no text at all (no server, or a console that never loaded).
  *
  * And at the other end, since Kyle found the console "light gray text on a
  * black background, very hard on the eyes" once it passed all of the above:
@@ -251,8 +252,17 @@ const why = (x) => x.px < 11.5 ? 'small' : x.contrast < (x.large ? 3 : 4.5) ? 'f
   : !x.large && x.contrast > GLARE ? 'glare' : lum(x.ground) < BLACK ? 'black ground' : null;
 const fails = all.filter(x => !allowed(x) && why(x));
 console.log(`\n  ${URL}\n`);
+// A size that measured no text has checked nothing, so it fails. With no
+// server on the port, the gate passed all three sizes "all readable" with
+// 0 runs of text, twice (the laptop, November 19, 2026).
+let empty = 0;
 for (const [W, H] of SIZES) {
   const k = `${W}x${H}`, here = all.filter(x => x.size === k), bad = fails.filter(x => x.size === k);
+  if (!here.length) {
+    empty++;
+    console.log(`  FAIL ${k.padEnd(10)}     0 runs of text: nothing measured. Is the server up, and did the console load?`);
+    continue;
+  }
   const worst = here.filter(x => !allowed(x)).reduce((m, x) => Math.min(m, x.contrast), 99);
   const small = here.filter(x => !allowed(x)).reduce((m, x) => Math.min(m, x.px), 99);
   const most = here.filter(x => !allowed(x) && !x.large).reduce((m, x) => Math.max(m, x.contrast), 0);
@@ -264,6 +274,6 @@ for (const [W, H] of SIZES) {
 }
 console.log(`  ${clipped.length ? 'FAIL' : 'PASS'} hard-clipped text   ${clipped.length ? clipped.slice(0, 6).join(' | ') : 'none'}`);
 console.log(`\n  allowed: ${ALLOW.map(a => `"${a.t}" (${a.why})`).join('; ')}`);
-const n = fails.length + clipped.length;
+const n = fails.length + clipped.length + empty;
 console.log(n ? `\n  ${n} failure(s)\n` : '\n  all readable\n');
 process.exit(n ? 1 : 0);
