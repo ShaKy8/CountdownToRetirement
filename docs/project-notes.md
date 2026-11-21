@@ -1161,6 +1161,11 @@ Later the same day, on commit `48c15db`, the laptop ran `journal-audit.mjs` and
 on its first `/year/` page, as it had on November 18 with the extension
 loaded.
 
+On commit `938a270` the laptop ran `site-audit.mjs` against its dev server at
+both phone sizes. Both exited 0 with "all pages clean": 390x844 passed 17 of
+17 pages in 60 s, and 320x700 17 of 17 in 56 s. Every page had no overflow,
+no small touch targets, no hard-clipped text and no console errors.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
