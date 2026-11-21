@@ -1166,6 +1166,9 @@ both phone sizes. Both exited 0 with "all pages clean": 390x844 passed 17 of
 17 pages in 60 s, and 320x700 17 of 17 in 56 s. Every page had no overflow,
 no small touch targets, no hard-clipped text and no console errors.
 
+On commit `f1cb144` the laptop ran `home-audit.mjs` against its dev server. It
+exited 0 with "all gates pass": 59 of 59 rows in 26 s.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
