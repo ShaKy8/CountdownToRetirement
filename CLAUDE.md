@@ -288,7 +288,9 @@ rerun on the same commit passed all 156 rows in 518 s, with 397px of room, and
 the main machine passed it the same day. If it fails on the laptop, run it
 again; if it fails on the main machine, that is news. Why it is flaky was not
 measured; the page's smooth scroll not finishing before the gate reads it is
-the guess.
+the guess. On November 21, on `7946aa2`, the laptop passed both sizes, with the
+trips list fitting its 395px at both: 390x844 156/156 in 509 s, 320x700
+156/156 in 353 s.
 
 **One failed forecast request leaves a console page load with no location and
 no radar, and the gates report that as a site failure.** On November 20, 2026,

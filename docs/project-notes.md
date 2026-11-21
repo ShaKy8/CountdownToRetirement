@@ -1169,6 +1169,11 @@ no small touch targets, no hard-clipped text and no console errors.
 On commit `f1cb144` the laptop ran `home-audit.mjs` against its dev server. It
 exited 0 with "all gates pass": 59 of 59 rows in 26 s.
 
+On November 21, on commit `7946aa2`, the laptop ran `lists-audit.mjs` against
+its dev server at the default size (390x844) and at 320x700. Both exited 0
+with "all gates pass": 156 of 156 rows in 509 s, and 156 of 156 in 353 s. The
+flaky trips row passed at both, the list fitting its 395px.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
