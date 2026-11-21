@@ -1193,6 +1193,10 @@ empty pass on November 20 had 0. The dev server logged one forecast failure
 (`[soft] forecast: TypeError fetch failed`) during each size, and the labels
 were drawn anyway; which request it hit was not checked.
 
+On commit `384de22` the laptop ran `tap-audit.mjs` against its dev server. It
+exited 0 with "all gates green": 15 of 15 rows in 61 s, and the dev server
+logged no forecast failure.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
