@@ -2058,6 +2058,14 @@ the desktop console is untouched. Run `node scripts/mobile-audit.mjs` before
 changing any console layout — it loads all five views at 390x844 and checks for
 overflow, unreachable controls, sub-44px targets and sub-12px text.
 
+On November 20, 2026, on commit `f78a3ea`, the laptop passed it at both phone
+sizes against its dev server: 390x844 15 of 15 rows in 55 s, and 320x700 15
+of 15 in 52 s. "storms: panel opened" passed at both, with the full sample
+archive (both basins) in `storms/`. The 390x844 figure is a rerun. Another
+session killed the first run's browser, and the gate exited 13 after 46 s
+with only "unsettled top-level await" and nothing measured. An exit 13 like
+that is not a verdict on the site.
+
 **Audit the DEPLOYED copy** (`localhost:8000/weather/` via `dev-server.mjs`),
 never `../Weather`'s own server. `inject-backlink.py` adds a top-bar child that
 the source does not have, and that one extra element pushed the settings button
