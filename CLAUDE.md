@@ -292,6 +292,17 @@ the guess. On November 21, on `7946aa2`, the laptop passed both sizes, with the
 trips list fitting its 395px at both: 390x844 156/156 in 509 s, 320x700
 156/156 in 353 s.
 
+**`oneputt-fx-audit.mjs`'s "the card waits for the drop" is flaky on the
+laptop.** On November 21, 2026, on commit `17641bd`, it failed once there in
+180 s, reading `true/false/false`: the result card was already showing at the
+gate's second look, after the ball came to rest and 64 frames were pumped.
+The rerun on the same commit passed all 37 rows in 181 s. It had passed there
+on November 20 on `017c4f6`, and nothing in `game/`, `shared/`, the gate or
+`scripts/lib/` changed in between. If it fails on the laptop, run it again; if
+it fails on the main machine, that is news. Why was not measured; the guess is
+that the card's 900 ms delay runs in real time and the laptop's slow headless
+browser lets it run out before the gate looks.
+
 **One failed forecast request leaves a console page load with no location and
 no radar, and the gates report that as a site failure.** On November 20, 2026,
 Node's `fetch` to `api.open-meteo.com` sometimes failed on both machines. A

@@ -1174,6 +1174,17 @@ its dev server at the default size (390x844) and at 320x700. Both exited 0
 with "all gates pass": 156 of 156 rows in 509 s, and 156 of 156 in 353 s. The
 flaky trips row passed at both, the list fitting its 395px.
 
+The same day, on commit `17641bd`, the laptop ran `oneputt-fx-audit.mjs`
+against its dev server. The first run exited 1 in 180 s on one row, "the card
+waits for the drop", reading `true/false/false` where it wants hidden, hidden,
+then shown: the result card was already up at the second look, after the ball
+came to rest and 64 frames were pumped. The rerun on the same commit passed 37
+of 37 in 181 s. The row had passed there on `017c4f6`, and nothing in the game,
+`shared/`, the gate or `scripts/lib/` changed in between, so it is flaky on the
+laptop. The card's 900 ms delay runs in real time, and the guess is that the
+laptop's slow headless browser lets it run out before the gate looks; that was
+not measured.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
