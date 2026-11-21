@@ -601,6 +601,20 @@ tag mark the commit before each recent release; leave them alone.
     by the `sats.yml` workflow, which holds a shared cooldown in S3: never run
     `fetch-sats.mjs` directly, and never re-dispatch the workflow to clear a
     failure.
+
+    On November 20, three scheduled runs in a row failed at "Fetch
+    elements", each in a different way, and none was the code's fault. At
+    13:15 UTC every TCP connect timed out (CelesTrak or the route to it); at
+    21:53 `starlink` got a 403 after the other four groups had passed; at
+    03:17 on the 21st `stations` got a 500. The 03:34 success ran the same
+    commit as the first failure. GitHub started the 2-hour cron only every
+    5 to 10 hours, so the snapshot went 32 hours without an update. At
+    Kyle's request the workflow was dispatched by hand at 11:40 UTC on the
+    21st, after the cooldown had expired, and all five groups fetched and
+    published. That shows CelesTrak had recovered, not that a dispatch
+    fixes anything: the rule above stands. `gh run view --log-failed`
+    printed nothing for these runs. The full log came from
+    `gh api repos/ShaKy8/CountdownToRetirement/actions/jobs/<id>/logs`.
 17. **Putting a secret in the repo, the browser or a command line.** This
     repository is public. The Anthropic key is set by hand as a Lambda
     environment variable and expires 2027-01-01. An expired key looks exactly
