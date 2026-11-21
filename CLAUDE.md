@@ -339,7 +339,11 @@ the main machine counted 30 labels there. Run it with `CENSUS=1` to print each
 chart's label count, and do not count a pass whose charts are empty. The same
 day at 1440x900, the laptop failed it once with one overlap, "66°" over "NOW"
 by 3x6px on `deck/d-meteo`, with all 30 labels drawn. It passed on the rerun
-with 30 labels and no overlaps, and the main machine passed it too.
+with 30 labels and no overlaps, and the main machine passed it too. On
+November 21, on `a7a176b`, with `CENSUS=1`, the laptop passed 390x844 with 0
+overlapping pairs in 51 s and 1440x900 with 0 in 82 s, `deck/d-meteo`
+drawing 24 and 28 labels. Its dev server logged one forecast failure during
+each size, and the charts were drawn anyway.
 
 **`pinch-audit.mjs`'s "the point between the fingers stays put" fails on the
 laptop, and why is not known.** On November 20, 2026, on commit `f78a3ea`, it

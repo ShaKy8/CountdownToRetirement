@@ -1185,6 +1185,14 @@ laptop. The card's 900 ms delay runs in real time, and the guess is that the
 laptop's slow headless browser lets it run out before the gate looks; that was
 not measured.
 
+Then, on commit `a7a176b`, the laptop ran `label-audit.mjs` with `CENSUS=1`
+against its dev server. 390x844 passed with 0 overlapping pairs and 0 labels
+off the canvas in 51 s, and 1440x900 passed with 0 and 0 in 82 s. The census
+shows the charts were drawn: `deck/d-meteo` had 24 and 28 labels, where the
+empty pass on November 20 had 0. The dev server logged one forecast failure
+(`[soft] forecast: TypeError fetch failed`) during each size, and the labels
+were drawn anyway; which request it hit was not checked.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
