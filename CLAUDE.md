@@ -262,8 +262,9 @@ those two rows on the main machine.
 real time, and on the laptop each stopped at its first play check on
 November 19, 2026 (the file pickup, thrust and rotation, the wire catch: still
 flying after 18.3 s of game time). The same day, on the same commit, all three
-passed on the main machine: 49, 38 and 37 checks. Judge them on the main
-machine (geekom1).
+passed on the main machine: 49, 38 and 37 checks. On November 20, on
+`f78a3ea`, they passed there again: 49, 38 and 38 checks. Judge them on the
+main machine (geekom1).
 
 **`read-audit.mjs` at 1920x1080 cannot be judged on the laptop.** On
 November 19, 2026, on commit `5752d28`, it failed the same label in three runs
@@ -288,6 +289,57 @@ the main machine passed it the same day. If it fails on the laptop, run it
 again; if it fails on the main machine, that is news. Why it is flaky was not
 measured; the page's smooth scroll not finishing before the gate reads it is
 the guess.
+
+**One failed forecast request leaves a console page load with no location and
+no radar, and the gates report that as a site failure.** On November 20, 2026,
+Node's `fetch` to `api.open-meteo.com` sometimes failed on both machines. A
+scratch probe on the laptop got `ECONNRESET` once in three fresh processes and
+once in ten requests from one process; `curl` never failed there. The dev
+server logs it as `[soft] forecast: TypeError fetch failed`: 13 times in the
+laptop's 54-minute sweep, and once in three shorter runs on the main machine.
+When the bundle has no forecast, `refresh()` in `weather/js/state.js` throws
+"Forecast unavailable" before it saves the location or asks for radar frames.
+Three gates were misled by it that day:
+
+- `transport-audit.mjs` on the main machine, in the run with the one failure,
+  read "the radar has frames" as 0 on desktop and phone, failed 4 rows and
+  skipped 6. The next run had no forecast failure and passed every row, with
+  13 frames.
+- `mobile-audit.mjs` on the laptop at 390x844 failed "storms: panel opened"
+  with the sample archive present, then passed 15 of 15 on a rerun with no
+  failure. The first run's log had no timestamps, so the forecast is the
+  likely cause, not a measured one.
+- `label-audit.mjs` passed with empty charts: see the next paragraph.
+
+`mobile-audit.mjs`'s and `transport-audit.mjs`'s "console errors" rows do not
+catch it, because they count browser log entries (and uncaught exceptions),
+not `console.error`. Before you call a console gate's failure, look for
+`[soft] forecast` in the dev server's output. If it is there, run the gate
+again.
+
+**`label-audit.mjs` passes when it has no labels to check.** It prints
+`TOTAL 0 overlapping label pairs` whether it measured 30 labels or none. On
+November 20, 2026, on the laptop at 390x844, a run passed with `deck/d-meteo`
+at 0 labels. Its dev server had logged a forecast failure 5 s after the gate
+started, and another session's gate shared the laptop with it. At 1440x900
+the main machine counted 30 labels there. Run it with `CENSUS=1` to print each
+chart's label count, and do not count a pass whose charts are empty. The same
+day at 1440x900, the laptop failed it once with one overlap, "66°" over "NOW"
+by 3x6px on `deck/d-meteo`, with all 30 labels drawn. It passed on the rerun
+with 30 labels and no overlaps, and the main machine passed it too.
+
+**`pinch-audit.mjs`'s "the point between the fingers stays put" fails on the
+laptop, and why is not known.** On November 20, 2026, on commit `f78a3ea`, it
+failed twice there, about 50 minutes apart, both times with the same drift:
+0.046,0.005 degrees, against a limit of 0.02. Every other row passed both
+times. The second run's dev server logged no forecast failure, so the
+paragraph above does not explain it. Earlier the same day (the run that began
+at 12:10, on `017c4f6`) the laptop measured 0.000,0.000, and only `CLAUDE.md`
+and `docs/project-notes.md` changed between those commits. The laptop's
+Chromium (155.0.8059.84, Arch) has not changed since October 22. The main
+machine measured 0.000,0.000 on `f78a3ea` with Chrome for Testing
+153.0.8010.36. The same number twice is not flakiness. Until the cause is
+found, judge this row on the main machine, and treat a failure there as news.
 
 ## 5. How to work here
 
