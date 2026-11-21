@@ -86,8 +86,19 @@ const setView = (lat, lon, z) => E(`window.ATMOS.views.radar.map.setView(${lat},
 const touch = (type, pts) =>
   S('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y]) => ({ x, y })) });
 
-/** A two-finger pinch about (cx, cy): `from` px apart, ending `to` px apart. */
-async function pinch(cx, cy, from, to, { steps = 6, dx = 0, dy = 0 } = {}) {
+/**
+ * A two-finger pinch about the point `fx` of the way across the map and `fy`
+ * of the way down: `from` px apart, ending `to` px apart. Where the map is
+ * gets measured here, just before the fingers go down, unless the caller
+ * passes the `box` it measured itself. Measuring it once at the start went
+ * wrong on the laptop (November 20, 2026): the view slides in (`.view` in
+ * core.css, 8px and scale .995 over 0.32 s), a box read before that finished
+ * put the off-centre pinch 9px from the point its row checks, and the row
+ * failed at 0.046,0.005 twice.
+ */
+async function pinch(fx, fy, from, to, { steps = 6, dx = 0, dy = 0, box } = {}) {
+  const b = box || await rect();
+  const cx = b.x + b.w * fx, cy = b.y + b.h * fy;
   const pair = (gap, ox = 0, oy = 0) =>
     [[cx - gap / 2 + ox, cy + oy], [cx + gap / 2 + ox, cy + oy]];
   await touch('touchStart', pair(from));
@@ -100,6 +111,8 @@ async function pinch(cx, cy, from, to, { steps = 6, dx = 0, dy = 0 } = {}) {
   await wait(300);
 }
 
+// Only the one-finger and PointerEvent rows aim with this; pinch() measures
+// for itself.
 const r = await rect();
 const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
 const lx = r.w / 2, ly = r.h / 2;                  // the same point, canvas-local
@@ -108,14 +121,14 @@ const lx = r.w / 2, ly = r.h / 2;                  // the same point, canvas-loc
 
 await setView(34.05, -118.24, 7);
 await wait(400);
-await pinch(cx, cy, 90, 180);
+await pinch(0.5, 0.5, 90, 180);
 let m = await M();
 check('spreading two fingers 2x zooms in one level',
   (m.zoom - 7).toFixed(2), v => Math.abs(Number(v) - 1) < 0.12, '+1.00');
 
 await setView(34.05, -118.24, 7);
 await wait(400);
-await pinch(cx, cy, 180, 90);
+await pinch(0.5, 0.5, 180, 90);
 m = await M();
 check('closing them 2x zooms out one level',
   (m.zoom - 7).toFixed(2), v => Math.abs(Number(v) + 1) < 0.12, '-1.00');
@@ -125,10 +138,11 @@ check('closing them 2x zooms out one level',
 await setView(34.05, -118.24, 7);
 await wait(400);
 // Pinch about a point well off centre; that geography must not move.
-const ax = r.x + r.w * 0.28, ay = r.y + r.h * 0.72;
-const before = await at(r.w * 0.28, r.h * 0.72);
-await pinch(ax, ay, 80, 170);
-const after = await at(r.w * 0.28, r.h * 0.72);
+// One box for the fingers and for the point checked under them.
+const b = await rect();
+const before = await at(b.w * 0.28, b.h * 0.72);
+await pinch(0.28, 0.72, 80, 170, { box: b });
+const after = await at(b.w * 0.28, b.h * 0.72);
 check('the point between the fingers stays put',
   `${Math.abs(after[0] - before[0]).toFixed(3)},${Math.abs(after[1] - before[1]).toFixed(3)}`,
   () => Math.abs(after[0] - before[0]) < 0.02 && Math.abs(after[1] - before[1]) < 0.02,
@@ -200,14 +214,14 @@ check('the finger left behind keeps panning',
 
 await setView(34.05, -118.24, 10.6);
 await wait(400);
-await pinch(cx, cy, 60, 300);
+await pinch(0.5, 0.5, 60, 300);
 m = await M();
 check('pinching past the top clamps', m.zoom, v => v === m.max, `= maxZoom ${m.max}`);
 
 await setView(34.05, -118.24, 3.4);
 await wait(400);
 // The starting gap has to fit on the canvas or neither finger lands on it.
-await pinch(cx, cy, 240, 48);
+await pinch(0.5, 0.5, 240, 48);
 m = await M();
 check('pinching past the bottom clamps', m.zoom, v => v === m.min, `= minZoom ${m.min}`);
 
@@ -237,7 +251,7 @@ const askedFor = async (zoom) => {
 
 await setView(34.05, -118.24, 7);
 await wait(400);
-await pinch(cx, cy, 70, 260);                        // well past z 7 in one go
+await pinch(0.5, 0.5, 70, 260);                      // well past z 7 in one go
 m = await M();
 check('a pinch past the radar\'s deepest tile still zooms',
   m.zoom.toFixed(1), () => m.zoom > 7.5, '> 7.5');

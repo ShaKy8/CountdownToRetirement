@@ -345,18 +345,33 @@ overlapping pairs in 51 s and 1440x900 with 0 in 82 s, `deck/d-meteo`
 drawing 24 and 28 labels. Its dev server logged one forecast failure during
 each size, and the charts were drawn anyway.
 
-**`pinch-audit.mjs`'s "the point between the fingers stays put" fails on the
-laptop, and why is not known.** On November 20, 2026, on commit `f78a3ea`, it
-failed twice there, about 50 minutes apart, both times with the same drift:
-0.046,0.005 degrees, against a limit of 0.02. Every other row passed both
-times. The second run's dev server logged no forecast failure, so the
-paragraph above does not explain it. Earlier the same day (the run that began
-at 12:10, on `017c4f6`) the laptop measured 0.000,0.000, and only `CLAUDE.md`
-and `docs/project-notes.md` changed between those commits. The laptop's
-Chromium (155.0.8059.84, Arch) has not changed since October 22. The main
-machine measured 0.000,0.000 on `f78a3ea` with Chrome for Testing
-153.0.8010.36. The same number twice is not flakiness. Until the cause is
-found, judge this row on the main machine, and treat a failure there as news.
+**`pinch-audit.mjs`'s "the point between the fingers stays put" failed on the
+laptop because the gate measured the map while the view was still sliding
+in.** On November 20, 2026, on commit `f78a3ea`, it failed there twice, about
+50 minutes apart, both times with the same drift: 0.046,0.005 degrees, against
+a limit of 0.02. A view slides in when it is shown (`.view` in `core.css`:
+from 8px down and scale .995, over 0.32 s). The gate read `#r-map`'s box once,
+3 s after switching to the radar, and aimed every pinch from it. The drift
+fits that box being read before the slide had finished: at the start of the
+slide the map is 9.4px lower and 0.95px further right than where it comes to
+rest. The map's own handler measures when the fingers land, so the off-centre
+pinch zoomed about a point 9px from the one its row checks, and a 2.1x zoom
+moves the checked point by exactly 0.046,0.005. The centred pinches barely
+notice an offset that small, which is why every other row passed. On November
+21 the main machine reproduced the number exactly by reading the box at once
+instead of after 3 s; with the wait it measures 0.000,0.000. **The fix:**
+`pinch()` now measures the box just before each pinch, and the off-centre row
+uses one fresh box for the fingers and for the point it checks. With no wait
+at all the old gate fails at 0.046,0.005 and the new one passes 15 of 15. It
+has not been run on the laptop yet. Why the laptop's slide had not finished
+after 3 s is not known. A 25x CPU slowdown on the main machine still let it
+finish in time, so the laptop's headless browser must have drawn almost no
+frames in that wait (it had measured 0.000,0.000 at 12:10 the same day, on
+`017c4f6`). One lead: on November 21 a gate's browser on the laptop was
+running with flags no gate passes, `--ozone-platform=wayland` among them, most
+likely added by Arch's `/usr/bin/chromium` wrapper from
+`~/.config/chromium-flags.conf`. `CHROMIUM=/usr/lib/chromium/chromium` would
+run the browser without the wrapper.
 
 ## 5. How to work here
 
