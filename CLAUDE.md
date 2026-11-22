@@ -279,7 +279,10 @@ and 390x844 at 4.55:1. On November 20, on `5441ba6`, the laptop passed all
 three sizes and NOW did not fail: 1920x1080 at 4.52:1 in 560 s, 1280x800 at
 4.44:1 in 200 s, and 390x844 at 4.29:1 in 75 s. The lowest is over every run,
 large text (3:1) included. One pass after three failures does not settle it.
-Judge 1920x1080 on the main machine.
+On November 22, on `8d3fd95`, with nothing else running, the laptop failed
+1920x1080 again on NOW alone, at 1.55:1 in 521 s. It passed 1280x800 at
+4.48:1 in 166 s and 390x844 at 4.36:1 in 76 s. Judge 1920x1080 on the main
+machine.
 
 **`lists-audit.mjs`'s "trips: a tap makes room for the whole list" is flaky on
 the laptop.** On November 20, 2026, on commit `017c4f6`, it failed once there:

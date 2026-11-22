@@ -1434,6 +1434,14 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   which labels set those two was not pulled. One pass after three failures
   does not make 1920x1080 safe to judge there. Still judge it on the main
   machine.
+  On November 22, on commit `8d3fd95`, with nothing else running, NOW failed
+  there again. 1920x1080 failed only NOW on OVERHEAD's scrubber, at 1.55:1 in
+  521 s, over 1088 runs of text. The case was the same as before: the unlit
+  grey `rgb(179, 191, 204)` read against the lit cyan, ground 0.3122. The
+  other two sizes passed with "all readable": 1280x800 at 4.48:1 in 166 s,
+  and 390x844 at 4.36:1 in 76 s. The dev server logged two forecast failures
+  during 1280x800 and one during 390x844. Their runs-of-text counts were not
+  collected.
 - **A size that measured no text fails** (November 19, 2026). Twice that day
   on the laptop, with no server answering on the port, the gate printed PASS
   at all three sizes with "0 runs of text" and "all readable", and exited 0:
