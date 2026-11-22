@@ -1264,6 +1264,13 @@ Then, on `69b99ec` (which changed only these notes), with nothing else
 running, it ran the gate at 320x700. It exited 0 with "all gates green",
 passing 15 of 15 in 45 s, again with no forecast failure.
 
+On commit `7bc2593`, with nothing else running, the laptop ran
+`tap-audit.mjs` against its dev server. It exited 0 with "all gates green",
+passing 15 of 15 in 68 s. The dev server logged one forecast failure during
+it; its log has no timestamps, so which part of the run it hit is not known.
+The chart still had data: "readout survives the lift" drew 66082 px, against a
+floor of 5000.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
