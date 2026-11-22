@@ -1215,6 +1215,13 @@ logged no forecast failure.
   `errors:` line came back. CLAUDE.md's pinch entry has the session that
   found the fix.
 
+On November 22, on commit `40c5729`, the laptop ran `transport-audit.mjs`
+against its dev server, with nothing else running. It exited 1 in 135 s on
+only its two loop rows, which cannot be judged there (see CLAUDE.md): "the
+loop drives the cursor" (NOW -> NOW) and "the loop changes the frame" (06:30
+-> 06:30). The other 21 rows passed, "no console errors or exceptions" read
+0 and 0, and the dev server logged no forecast failure.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
