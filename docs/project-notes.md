@@ -1260,6 +1260,9 @@ On commit `e563940`, with nothing else running, the laptop ran
 `mobile-audit.mjs` against its dev server at 390x844 only, the gate's default
 size. It exited 0 with "all gates green", passing 15 of 15 in 54 s. The dev
 server logged no forecast failure, and the sample archive was in `storms/`.
+Then, on `69b99ec` (which changed only these notes), with nothing else
+running, it ran the gate at 320x700. It exited 0 with "all gates green",
+passing 15 of 15 in 45 s, again with no forecast failure.
 
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
