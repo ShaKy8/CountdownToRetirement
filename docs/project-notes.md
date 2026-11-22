@@ -1250,6 +1250,12 @@ On commit `2f210d4`, with nothing else running, the laptop ran
 with "all pages clean": 390x844 passed 17 of 17 pages in 61 s, and 320x700 17
 of 17 in 60 s. The dev server logged no forecast failure.
 
+On commit `1d4eb9c`, with nothing else running, the laptop ran
+`lists-audit.mjs` against its dev server at both phone sizes. Both exited 0
+with "all gates pass": 390x844 passed 156 of 156 rows in 473 s, and 320x700
+156 of 156 in 315 s. The flaky trips row passed at both, the list fitting its
+395px.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with

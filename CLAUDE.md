@@ -293,7 +293,9 @@ again; if it fails on the main machine, that is news. Why it is flaky was not
 measured; the page's smooth scroll not finishing before the gate reads it is
 the guess. On November 21, on `7946aa2`, the laptop passed both sizes, with the
 trips list fitting its 395px at both: 390x844 156/156 in 509 s, 320x700
-156/156 in 353 s.
+156/156 in 353 s. On November 22, on `1d4eb9c`, with nothing else running, it
+passed both again, fitting at 395px: 390x844 156/156 in 473 s, 320x700 156/156
+in 315 s.
 
 **`oneputt-fx-audit.mjs`'s "the card waits for the drop" is flaky on the
 laptop.** On November 21, 2026, on commit `17641bd`, it failed once there in
