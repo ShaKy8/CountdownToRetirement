@@ -4831,6 +4831,47 @@ describe('WEATHER CONSOLE - charts fitted to their box', () => {
         assert.ok(amount(clear)[0].b < a.t, 'an amount clear of the caption should keep its place above its line');
     });
 
+    test('Should keep the meteogram\'s first hour label on the canvas', () => {
+        /*
+         * Hour labels are centred on their tick, and the edge check kept a
+         * tick only 14px in, so a tick 14-17px in printed "00:00" from x = -3
+         * on DECK at 1440x900 (label-audit.mjs, November 22, 2026). The span
+         * follows the cursor, so it happened for a few minutes every 6 hours.
+         * Here the cursor is set so that midnight lands at x = 15 on DECK's
+         * 624px canvas, the same 12 hours back and 36 ahead.
+         */
+        const code = `import(${JSON.stringify(path.join(__dirname, 'weather', 'js', 'plots.js'))}).then(({ meteogram }) => {
+            const st = { font: '', textAlign: 'left', textBaseline: 'alphabetic', letterSpacing: '0px' }, saved = [];
+            const drawn = [];
+            const px = () => parseFloat(st.font.split('px')[0].split(' ').pop()) || 12;
+            const measure = (t) => { const s = px(), w = String(t).length * (s * 0.6 + (parseFloat(st.letterSpacing) || 0));
+                return { width: w, actualBoundingBoxAscent: s * 0.72, actualBoundingBoxDescent: s * 0.08, actualBoundingBoxLeft: 0, actualBoundingBoxRight: w }; };
+            const box = (t, x) => { const m = measure(t);
+                const l = st.textAlign === 'center' ? x - m.width / 2 : /right|end/.test(st.textAlign) ? x - m.width : x;
+                return { text: String(t), l, r: l + m.width }; };
+            const ctx = new Proxy(st, {
+                get: (o, k) => (k in o ? o[k] : k === 'measureText' ? measure : k === 'fillText' ? (t, x) => drawn.push(box(t, x))
+                    : k === 'save' ? () => saved.push({ ...st }) : k === 'restore' ? () => Object.assign(st, saved.pop() || {})
+                    : /create(Linear|Radial)Gradient/.test(k) ? () => ({ addColorStop() {} }) : () => {}),
+                set: (o, k, v) => { o[k] = v; return true; } });
+            const H = 3600e3, W = 624, plotW = W - 34, midnight = Date.UTC(2026, 10, 22, 0);
+            // xOf(midnight) = 4 + (midnight - lo) / 48h * plotW = 15.
+            const lo = midnight - (11 / plotW) * 48 * H, cursor = lo + 12 * H;
+            const hours = Array.from({ length: 50 }, (_, i) => ({ t: midnight + (i - 1) * H, pop: 5, precip: 0 }));
+            const tf = { hourOfDay: (t) => new Date(t).getUTCHours() + new Date(t).getUTCMinutes() / 60,
+                hm: (t) => new Date(t).toISOString().slice(11, 16), weekday: () => 'SUN' };
+            meteogram(ctx, W, 220, null, { hours, days: [], span: { lo: cursor - 12 * H, hi: cursor + 36 * H },
+                cursor, now: null, tf, panels: ['pop'] });
+            console.log(JSON.stringify({ W, labels: drawn.filter((l) => /^\\d\\d:\\d\\d$/.test(l.text)) })); })`;
+        const r = require('child_process').spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 30000 });
+        assert.strictEqual(r.status, 0, r.stderr || 'timed out');
+        const { W, labels } = JSON.parse(r.stdout);
+        assert.ok(labels.length >= 6, `the axis should keep its other hours, not drop them (${labels.length} drawn)`);
+        for (const l of labels) {
+            assert.ok(l.l >= 0 && l.r <= W, `${l.text} (${l.l.toFixed(1)}-${l.r.toFixed(1)}) should be inside the ${W}px canvas`);
+        }
+    });
+
     test('Should ship the audit that measured all of it', () => {
         const audit = fs.readFileSync(path.join(__dirname, 'scripts', 'label-audit.mjs'), 'utf8');
         assert.ok(/actualBoundingBox/.test(audit),

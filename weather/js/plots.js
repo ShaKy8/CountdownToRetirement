@@ -383,6 +383,10 @@ export function meteogram(ctx, w, h, hover, opts) {
      */
     const bySpan = hoursSpan > 200 ? 24 : hoursSpan > 96 ? 12 : hoursSpan > 40 ? 6 : hoursSpan > 16 ? 3 : 1;
     const need = ctx.measureText('00:00').width + 8;
+    // Labels are centred, so half of one hangs left of its tick. padL + 10
+    // let a tick 14-17px in print "00:00" from x = -3 at 1440x900, once
+    // every 6 hours on DECK and 12 on DATA (label-audit.mjs, Nov 22, 2026).
+    const half = ctx.measureText('00:00').width / 2;
     const perHour = plotW / Math.max(hoursSpan, 1);
     const stepH = [1, 3, 6, 12, 24, 48]
       .filter((v) => v >= bySpan).find((v) => v * perHour >= need) ?? 48;
@@ -391,7 +395,7 @@ export function meteogram(ctx, w, h, hover, opts) {
       if (Math.abs(hod - Math.round(hod)) > 0.01) continue;
       if (Math.round(hod) % stepH !== 0) continue;
       const x = xOf(d.t);
-      if (x < padL + 10 || x > padL + plotW - 10) continue;
+      if (x - half < 0 || x > padL + plotW - 10) continue;
       ctx.fillText(tf.hm(d.t), x, h - padB + 4);
     }
     ctx.restore();
