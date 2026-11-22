@@ -1227,6 +1227,12 @@ the frame" read 06:30 -> 04:30. It passed all 23 rows in 48 s, with no console
 errors and no forecast failure, so the laptop's two failures are the laptop's
 browser and not the site.
 
+Then, on commit `a4f1d8b`, with nothing else running, the laptop ran
+`mobile-audit.mjs` against its dev server at both phone sizes. Both exited 0
+with "all gates green": 390x844 passed 15 of 15 in 40 s, and 320x700 15 of 15
+in 44 s. The dev server logged no forecast failure. The full sample archive
+was in `storms/` (`al`, `al-radii`, `ep`, `ep-radii` and `index.json`).
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
