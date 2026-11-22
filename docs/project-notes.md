@@ -1220,7 +1220,12 @@ against its dev server, with nothing else running. It exited 1 in 135 s on
 only its two loop rows, which cannot be judged there (see CLAUDE.md): "the
 loop drives the cursor" (NOW -> NOW) and "the loop changes the frame" (06:30
 -> 06:30). The other 21 rows passed, "no console errors or exceptions" read
-0 and 0, and the dev server logged no forecast failure.
+0 and 0, and the dev server logged no forecast failure. The same morning, on
+`c8d599c` (one docs commit later), the main machine (geekom1) passed both loop
+rows. "the loop drives the cursor" read NOW -> −2h 8m, and "the loop changes
+the frame" read 06:30 -> 04:30. It passed all 23 rows in 48 s, with no console
+errors and no forecast failure, so the laptop's two failures are the laptop's
+browser and not the site.
 
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
