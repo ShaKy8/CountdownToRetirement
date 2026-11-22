@@ -1238,6 +1238,13 @@ On commit `d9e9339`, with nothing else running, the laptop ran
 exited 0: figures passed 80 rows in 58 s, and journal 208 of 208 in 113 s. The
 dev server logged no forecast failure during either.
 
+On commit `73743b1`, with nothing else running, the laptop ran
+`oneputt-fx-audit.mjs` and then `slingshot-fx-audit.mjs` against its dev
+server. Both exited 0 with "all gates green": ONE PUTT passed 37 of 37 in
+166 s, including "the card waits for the drop", the row that is flaky there.
+SLINGSHOT passed 19 of 19 in 96 s. The dev server logged no forecast failure
+during either.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
