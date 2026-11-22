@@ -348,7 +348,16 @@ with 30 labels and no overlaps, and the main machine passed it too. On
 November 21, on `a7a176b`, with `CENSUS=1`, the laptop passed 390x844 with 0
 overlapping pairs in 51 s and 1440x900 with 0 in 82 s, `deck/d-meteo`
 drawing 24 and 28 labels. Its dev server logged one forecast failure during
-each size, and the charts were drawn anyway.
+each size, and the charts were drawn anyway. On November 22, at 1440x900, it
+failed three times with one meteogram hour label off the canvas: DATA's
+12:00 at 10:39 and DECK's 00:00 at 11:05 on the laptop, and DECK's 00:00 at
+11:11 on the main machine, each starting 2-3px left of x = 0. The labels are
+centred on their tick and the edge check kept a tick only 14px in, so it
+failed only while a tick sat 14-17px in, for minutes every 6 or 12 hours.
+Fixed in `619ca1c` (`x - half < 0` in `meteogram()`), with a test; see
+"Every word readable" in the notes. On `619ca1c`, with `CENSUS=1`, the
+laptop passed 390x844 in 35 s and 1440x900 in 79 s, with 0 overlapping pairs
+and 0 labels off the canvas.
 
 **`pinch-audit.mjs`'s "the point between the fingers stays put" failed on the
 laptop because the gate measured the map while the view was still sliding

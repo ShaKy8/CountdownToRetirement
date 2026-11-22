@@ -1492,6 +1492,41 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   three sizes and exit 1. Against the dev server afterwards it still passed
   every size: 1134, 1029 and 425 runs of text, lowest 4.60, 4.59 and 4.52:1,
   all readable. The other gates were not checked for the same hole.
+- **A meteogram's first hour label ran off the canvas, at some times of day**
+  (November 22, 2026). `label-audit.mjs` at 1440x900, with `CENSUS=1`,
+  failed three times, each with 0 overlaps and 1 label off the canvas:
+
+  | When | Machine | Chart | Label | Box (x) |
+  |---|---|---|---|---|
+  | 10:39 | laptop | DATA `data/d2-meteo`, 1008px | 12:00 | -2..32 |
+  | 11:05 | laptop | DECK `deck/d-meteo`, 624px | 00:00 | -2..32 |
+  | 11:11 | main machine | DECK `deck/d-meteo`, 624px | 00:00 | -3..31 |
+
+  The cause is the time axis in `meteogram()` (`plots.js`). Hour labels are
+  drawn centred on their tick, so half of a 34px "00:00" hangs left of it,
+  but the edge check, `x < padL + 10`, kept any tick 14px in. A tick 14-17px
+  in printed from just past x = 0. It had been that way since the console's
+  first commit. The window follows the cursor (DECK 12 hours back and 36
+  ahead, DATA 24 back and 96 ahead), so the ticks drift left as the clock
+  runs, and one sits in that 3px band for about 15-20 minutes once per tick
+  step: every 6 hours on DECK and every 12 on DATA at 1440x900. Worked out
+  from the code, that band is about 10:56-11:11 on DECK and 10:24-10:46 on
+  DATA, which matches all three failures; it is why the gate passed on other
+  days. The same check guards every size, so a phone run in the band would
+  fail too; that was not measured.
+
+  **The fix** (`619ca1c`, synced from Weather `c566a8d`) measures half of
+  "00:00" and drops a label whose left edge would go past 0
+  (`x - half < 0`); the right side was already 19px clear. A test draws
+  DECK's meteogram into a canvas that records label boxes, with the cursor
+  set so midnight lands at x = 15 on 624px, and requires every hour label
+  inside the canvas and at least six drawn. With the old check back it failed
+  on "00:00 (-2.3-32.3)"; with the fix it passes. After it, on the main
+  machine at 12:12, the gate passed 1440x900 in 36 s and 390x844 in 28 s.
+  On `619ca1c`, with nothing else running, the laptop passed 390x844 in 35 s
+  and 1440x900 in 79 s, each with 0 overlapping pairs and 0 labels off the
+  canvas, and no forecast failure. Those passes were outside the band, so the
+  old code would have passed them too: the test is what pins the fix.
 
 ### Midnight Slate — the palette, and why it is not black
 
