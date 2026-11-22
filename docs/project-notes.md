@@ -1256,6 +1256,11 @@ with "all gates pass": 390x844 passed 156 of 156 rows in 473 s, and 320x700
 156 of 156 in 315 s. The flaky trips row passed at both, the list fitting its
 395px.
 
+On commit `e563940`, with nothing else running, the laptop ran
+`mobile-audit.mjs` against its dev server at 390x844 only, the gate's default
+size. It exited 0 with "all gates green", passing 15 of 15 in 54 s. The dev
+server logged no forecast failure, and the sample archive was in `storms/`.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
