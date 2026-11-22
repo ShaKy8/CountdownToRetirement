@@ -381,12 +381,22 @@ likely added by Arch's `/usr/bin/chromium` wrapper from
 the browser without the wrapper. In the same session the old gate (`c44c1d8`)
 also measured 0.000,0.000 both ways: the slide finished in time that day
 through the wrapper and without it, so that run neither clears nor convicts
-the flags. It was run with Kyle at the laptop; whether a locked or blank
-screen stalls the slide has not been tried. Later that day, on `7586351` (the
-fix plus a CLAUDE.md note), with no other browser running, the laptop passed
-the fixed gate again: 15 of 15 in 151 s, this row included. The old gate did
-not pass every run that day, though: at 12:45, on `c44c1d8`, with four other
-headless browsers already running, it failed this row again at 0.046,0.005.
+the flags. It was run with Kyle at the laptop. Later that day, on `7586351`
+(the fix plus a CLAUDE.md note), with no other browser running, the laptop
+passed the fixed gate again: 15 of 15 in 151 s, this row included. The old
+gate did not pass every run that day, though: at 12:45, on `c44c1d8`, with
+four other headless browsers already running, it failed this row again at
+0.046,0.005. That evening, at 20:38, the old gate failed this row once more at
+0.046,0.005 through `/usr/bin/chromium`, while two copies of the same test
+were running at once (the other copy's cleanup deleted the shared copy of the
+old gate, so the run without the wrapper never started). On November 22 at
+09:51, with no other gate, dev server or headless browser running, it passed
+0.000,0.000 both ways. So both laptop failures of the old gate since November
+20 came with other headless browsers running, and the one run checked to be
+alone passed. That points at load, but it is not proven: what else was running
+on November 20 is not known. Whether a locked or blank screen stalls the slide
+is still open: the 20:38 failure was measured about two minutes before the
+screen was locked, and hyprlock was never seen running during the 09:51 run.
 
 ## 5. How to work here
 
