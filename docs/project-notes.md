@@ -1245,6 +1245,11 @@ server. Both exited 0 with "all gates green": ONE PUTT passed 37 of 37 in
 SLINGSHOT passed 19 of 19 in 96 s. The dev server logged no forecast failure
 during either.
 
+On commit `2f210d4`, with nothing else running, the laptop ran
+`site-audit.mjs` against its dev server at both phone sizes. Both exited 0
+with "all pages clean": 390x844 passed 17 of 17 pages in 61 s, and 320x700 17
+of 17 in 60 s. The dev server logged no forecast failure.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
