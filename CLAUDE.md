@@ -362,16 +362,22 @@ notice an offset that small, which is why every other row passed. On November
 instead of after 3 s; with the wait it measures 0.000,0.000. **The fix:**
 `pinch()` now measures the box just before each pinch, and the off-centre row
 uses one fresh box for the fingers and for the point it checks. With no wait
-at all the old gate fails at 0.046,0.005 and the new one passes 15 of 15. It
-has not been run on the laptop yet. Why the laptop's slide had not finished
+at all the old gate fails at 0.046,0.005 and the new one passes 15 of 15. On
+November 21, on `043564c`, the laptop passed the fixed gate 15 of 15 with both
+`/usr/bin/chromium` and `CHROMIUM=/usr/lib/chromium/chromium`, measuring
+0.000,0.000 on this row each time. Why the laptop's slide had not finished
 after 3 s is not known. A 25x CPU slowdown on the main machine still let it
 finish in time, so the laptop's headless browser must have drawn almost no
 frames in that wait (it had measured 0.000,0.000 at 12:10 the same day, on
 `017c4f6`). One lead: on November 21 a gate's browser on the laptop was
 running with flags no gate passes, `--ozone-platform=wayland` among them, most
 likely added by Arch's `/usr/bin/chromium` wrapper from
-`~/.config/chromium-flags.conf`. `CHROMIUM=/usr/lib/chromium/chromium` would
-run the browser without the wrapper.
+`~/.config/chromium-flags.conf`. `CHROMIUM=/usr/lib/chromium/chromium` runs
+the browser without the wrapper. In the same session the old gate (`c44c1d8`)
+also measured 0.000,0.000 both ways: the slide finished in time that day
+through the wrapper and without it, so that run neither clears nor convicts
+the flags. It was run with Kyle at the laptop; whether a locked or blank
+screen stalls the slide has not been tried.
 
 ## 5. How to work here
 
