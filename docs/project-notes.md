@@ -1233,6 +1233,11 @@ with "all gates green": 390x844 passed 15 of 15 in 40 s, and 320x700 15 of 15
 in 44 s. The dev server logged no forecast failure. The full sample archive
 was in `storms/` (`al`, `al-radii`, `ep`, `ep-radii` and `index.json`).
 
+On commit `d9e9339`, with nothing else running, the laptop ran
+`figures-audit.mjs` and then `journal-audit.mjs` against its dev server. Both
+exited 0: figures passed 80 rows in 58 s, and journal 208 of 208 in 113 s. The
+dev server logged no forecast failure during either.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
