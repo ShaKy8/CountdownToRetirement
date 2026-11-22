@@ -377,7 +377,11 @@ the browser without the wrapper. In the same session the old gate (`c44c1d8`)
 also measured 0.000,0.000 both ways: the slide finished in time that day
 through the wrapper and without it, so that run neither clears nor convicts
 the flags. It was run with Kyle at the laptop; whether a locked or blank
-screen stalls the slide has not been tried.
+screen stalls the slide has not been tried. Later that day, on `7586351` (the
+fix plus a CLAUDE.md note), with no other browser running, the laptop passed
+the fixed gate again: 15 of 15 in 151 s, this row included. The old gate did
+not pass every run that day, though: at 12:45, on `c44c1d8`, with four other
+headless browsers already running, it failed this row again at 0.046,0.005.
 
 ## 5. How to work here
 

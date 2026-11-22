@@ -1197,6 +1197,24 @@ On commit `384de22` the laptop ran `tap-audit.mjs` against its dev server. It
 exited 0 with "all gates green": 15 of 15 rows in 61 s, and the dev server
 logged no forecast failure.
 
+`pinch-audit.mjs` was run on the laptop twice more that day:
+
+- **12:45, on `c44c1d8`, before the fix.** Four headless browsers were already
+  running when it started. It exited 1 in 207 s: "the point between the
+  fingers stays put" failed at 0.046,0.005, the drift of November 20, and the
+  other 14 rows passed. It also printed `errors: [ 'Failed to load resource:
+  net::ERR_CONNECTION_REFUSED' ]` under a passing "console errors 0" row. The
+  gate builds both from one list, so that pair should not be possible. The
+  laptop's file was the committed one as far as could be checked: the run's
+  header showed no local changes, and the later fast-forward went through.
+  The refused address was not recorded. The guess is that another gate was
+  running at the same time, but that was not measured.
+- **20:28, on `7586351`, with the fix from `043564c`.** Nothing else was
+  running: 0 browsers and nothing on 8137 before it started. It exited 0 with
+  "all gates green", 15 of 15 in 151 s. The drift row passed, and no
+  `errors:` line came back. CLAUDE.md's pinch entry has the session that
+  found the fix.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
