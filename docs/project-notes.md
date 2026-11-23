@@ -1300,6 +1300,11 @@ On commit `58a4fb1`, with nothing else running, the laptop ran
 `figures-audit.mjs` against its dev server. It exited 0 with "all gates
 pass", passing 80 rows in 57 s. The dev server logged no `[soft]` lines.
 
+On commit `e8a92ac`, with nothing else running, the laptop ran
+`journal-audit.mjs` against its dev server. It exited 0 with "208/208
+passed" in 115 s. The dev server logged one forecast failure during it,
+`[soft] forecast: TypeError fetch failed`, and every page still passed.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
