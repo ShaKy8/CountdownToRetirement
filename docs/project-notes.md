@@ -1278,6 +1278,15 @@ measured 0.000,0.000. The dev server logged one forecast failure during it,
 `[soft] forecast: TypeError fetch failed`; its log has no timestamps, so which
 part of the run it hit is not known. Every map row still passed.
 
+On commit `730fa76`, with nothing else running, the laptop ran
+`transport-audit.mjs` against its dev server. It exited 1 in 153 s on only
+its two loop rows, which cannot be judged there (see CLAUDE.md): 21 rows
+passed and 2 failed. "The loop drives the cursor" read NOW -> NOW and "the
+loop changes the frame" read 06:40 -> 06:40. The dev server logged one
+forecast failure, but the radar was not left empty by it: "the radar has
+frames" read 13, "and the frames advance" read 05:50 -> 06:40, and there
+were no console errors or exceptions and no skipped rows.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with

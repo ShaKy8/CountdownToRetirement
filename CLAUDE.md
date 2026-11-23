@@ -255,7 +255,10 @@ headless Chromium draws about 0.2-0.4 frames a second on the radar page, against
 November 19, 2026. The radar loop counts its time in frames, so there it stays
 on its first frame far longer than any gate waits, and "the loop drives the
 cursor" and "the loop changes the frame" fail while the site is fine. Judge
-those two rows on the main machine.
+those two rows on the main machine. On November 23, 2026, on `730fa76`, with
+nothing else running, the laptop exited 1 in 153 s on only those two rows
+(21 passed, 2 failed). The radar had 13 frames and they advanced, despite one
+forecast failure during the run.
 
 **The three arcade gates cannot be judged on the laptop either.**
 `elevator-audit.mjs`, `asteroids-audit.mjs` and `ironwing-audit.mjs` play in
