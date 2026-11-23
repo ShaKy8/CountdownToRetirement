@@ -1305,6 +1305,46 @@ On commit `e8a92ac`, with nothing else running, the laptop ran
 passed" in 115 s. The dev server logged one forecast failure during it,
 `[soft] forecast: TypeError fetch failed`, and every page still passed.
 
+**All seventeen gates on the main machine, November 23, 2026.** On commit
+`a68b032`, the main machine (geekom1) ran every gate one after another
+against one fresh dev server on 8137, from 07:13 to 07:36, with Node
+v24.18.0. Nothing else was on 8137 and no headless browser was running
+before it started; none was left after any run. The arcade gates wrote their
+screenshots to a folder outside the repo. All twenty runs exited 0:
+
+| Gate | Size | Result | Time |
+|---|---|---|---|
+| site | 390x844 | 17 of 17 pages, "all pages clean" | 52 s |
+| site | 320x700 | 17 of 17 pages, "all pages clean" | 52 s |
+| home | nine sizes | 59 of 59 | 8 s |
+| lists | 390x844 | 156 of 156 | 90 s |
+| lists | 320x700 | 156 of 156 | 64 s |
+| figures | default | 80 rows | 13 s |
+| journal | default | 208/208 | 102 s |
+| oneputt-fx | default | 37 of 37 | 39 s |
+| slingshot-fx | default | 19 of 19 | 21 s |
+| mobile | 390x844 | 15 of 15 | 31 s |
+| read | 1920x1080, 1280x800, 390x844 | "all readable": 1127, 1027 and 419 runs of text, lowest 4.49, 4.46 and 4.35:1 | 170 s |
+| label (`CENSUS=1`) | 390x844 | 0 overlapping pairs, 0 off the canvas; `deck/d-meteo` 23, `data/d2-meteo` 21 | 27 s |
+| label (`CENSUS=1`) | 1440x900 | 0 overlapping pairs, 0 off the canvas; `deck/d-meteo` 28, `data/d2-meteo` 27 | 31 s |
+| tap | 390x844 and 1440x900 | 15 of 15 | 34 s |
+| pinch | default | 15 of 15, the off-centre row at 0.000,0.000 | 34 s |
+| transport | desktop and phone | 23 of 23; the loop rows read NOW -> −1h 57m and 07:20 -> 05:30, 13 frames | 60 s |
+| elevator | - | 49 browser gates passed | 71 s |
+| asteroids | - | 38 browser gates passed | 27 s |
+| ironwing | - | 38 checks passed | 186 s |
+| ironwing-circuit | - | one continuous flight: takeoff, circuit and an arrested landing, "EXCELLENT, Wire 2" | 219 s |
+
+The read lowest figures are over every run of text, large text (3:1)
+included. NOW did not fail at 1920x1080 here, as it keeps doing on the
+laptop. The dev server logged one `[soft]` line in the whole sweep, during
+`read-audit.mjs`: `[soft] feed: TimeoutError The operation was aborted due
+to timeout`, a feed timeout, not a forecast failure; which feed is not in
+the log. No `[soft] forecast` line was logged. The same day, the main suite
+ran 626 tests on CI for `619ca1c` with 0 failed (the meteogram test is the
+626th), and the Weather repo's three `node:test` files passed 57 of 57 here
+after its `plots.js` change.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with

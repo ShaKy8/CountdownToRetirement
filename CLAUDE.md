@@ -109,7 +109,7 @@ scripts/          dev-server.mjs, sync-weather.sh, bake-home.mjs, stamp-assets.m
                   *-audit.mjs (browser gates), *-check.mjs (live checks),
                   fetch-sats.mjs, sats-cooldown.mjs, fetch-storms.mjs,
                   AWS setup scripts, lib/ (chromium.mjs, arcade-browser.mjs, sats-http.mjs, ...)
-tests.js          Main suite (625 tests)
+tests.js          Main suite (626 tests)
 tests-server.js   Local server suite (94 tests)
 tests/            node:test files (*.test.cjs, fetch-sats.test.mjs), fixtures/, and
                   elevator-browser.html + .js, a local-only harness that is never deployed
@@ -201,9 +201,11 @@ the background, once, and wait for them to finish. Postcards in Sound and the
 Mustang page have only `site-audit.mjs`'s phone check, no gate of their own:
 look at both yourself.
 
-**All seventeen gates pass on Kyle's main machine as of November 14, 2026**
-(all twenty runs in one pass that day, against the dev server, at the sizes
-above). So a gate that fails there now is news: suspect your change first.
+**All seventeen gates pass on Kyle's main machine as of November 23, 2026**
+(all twenty runs in one pass, on `a68b032`, against one fresh dev server, at
+the sizes above, in 22 minutes; the results are in the notes under "The
+whole site on a phone"). The full pass before that was on November 14. So a
+gate that fails there now is news: suspect your change first.
 Two failed on November 13 and were fixed: Elevator '86's title wrapped at
 320px wide (`docs/elevator-86.md`), and the Ironwing bank check timed itself
 by the wall clock (`docs/ironwing.md`). On November 14 `site-audit.mjs` gained
