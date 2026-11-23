@@ -1480,6 +1480,22 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   and 390x844 at 4.36:1 in 76 s. The dev server logged two forecast failures
   during 1280x800 and one during 390x844. Their runs-of-text counts were not
   collected.
+  On November 23, on commit `b2653f8`, with nothing else running, it failed
+  the same way. 1920x1080 exited 1 on NOW alone, at 1.59:1, with the same
+  unlit grey `rgb(179, 191, 204)` over the lit cyan (ground 0.3036). The other
+  two sizes exited 0 with "all readable", and hard-clipped text passed at all
+  three:
+
+  | Size | Exit | Runs of text | Lowest | Time |
+  |---|---|---|---|---|
+  | 1920x1080 | 1 | 1097 | 1.59:1 (NOW) | 517 s |
+  | 1280x800 | 0 | 1002 | 4.58:1 | 203 s |
+  | 390x844 | 0 | 419 | 4.48:1 | 80 s |
+
+  The dev server logged one `[soft]` line, during 1920x1080:
+  `[soft] feed: TimeoutError The operation was aborted due to timeout`. That
+  is a feed timeout, not a forecast failure; there was no `[soft] forecast`
+  line. Which feed it was is not in the log.
 - **A size that measured no text fails** (November 19, 2026). Twice that day
   on the laptop, with no server answering on the port, the gate printed PASS
   at all three sizes with "0 runs of text" and "all readable", and exited 0:

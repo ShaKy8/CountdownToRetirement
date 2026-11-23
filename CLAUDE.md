@@ -281,8 +281,12 @@ three sizes and NOW did not fail: 1920x1080 at 4.52:1 in 560 s, 1280x800 at
 large text (3:1) included. One pass after three failures does not settle it.
 On November 22, on `8d3fd95`, with nothing else running, the laptop failed
 1920x1080 again on NOW alone, at 1.55:1 in 521 s. It passed 1280x800 at
-4.48:1 in 166 s and 390x844 at 4.36:1 in 76 s. Judge 1920x1080 on the main
-machine.
+4.48:1 in 166 s and 390x844 at 4.36:1 in 76 s. On November 23, on
+`b2653f8`, with nothing else running, it failed 1920x1080 on NOW alone
+again, at 1.59:1 in 517 s (exit 1). It passed 1280x800 at 4.58:1 in 203 s
+and 390x844 at 4.48:1 in 80 s (exit 0). The one `[soft]` line its dev
+server logged was a feed timeout, not a forecast failure. Judge 1920x1080
+on the main machine.
 
 **`lists-audit.mjs`'s "trips: a tap makes room for the whole list" is flaky on
 the laptop.** On November 20, 2026, on commit `017c4f6`, it failed once there:
