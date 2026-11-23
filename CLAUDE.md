@@ -258,7 +258,9 @@ cursor" and "the loop changes the frame" fail while the site is fine. Judge
 those two rows on the main machine. On November 23, 2026, on `730fa76`, with
 nothing else running, the laptop exited 1 in 153 s on only those two rows
 (21 passed, 2 failed). The radar had 13 frames and they advanced, despite one
-forecast failure during the run.
+forecast failure during the run. The main machine passed all 23 rows on
+`7c80d87` in 55 s against a fresh dev server, the loop rows reading
+NOW -> −2h 0m and 06:40 -> 04:50, with 13 frames and no `[soft]` lines.
 
 **The three arcade gates cannot be judged on the laptop either.**
 `elevator-audit.mjs`, `asteroids-audit.mjs` and `ironwing-audit.mjs` play in

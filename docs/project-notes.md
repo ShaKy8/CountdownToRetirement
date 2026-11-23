@@ -1286,6 +1286,11 @@ loop changes the frame" read 06:40 -> 06:40. The dev server logged one
 forecast failure, but the radar was not left empty by it: "the radar has
 frames" read 13, "and the frames advance" read 05:50 -> 06:40, and there
 were no console errors or exceptions and no skipped rows.
+The main machine ran the gate on `7c80d87` (which changed only these notes)
+against a fresh dev server. It passed all 23 rows in 55 s, both loop rows
+included: "the loop drives the cursor" read NOW -> −2h 0m and "the loop
+changes the frame" 06:40 -> 04:50. The radar had 13 frames, and the dev
+server logged no `[soft]` lines.
 
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
