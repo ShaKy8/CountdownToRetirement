@@ -1271,6 +1271,13 @@ it; its log has no timestamps, so which part of the run it hit is not known.
 The chart still had data: "readout survives the lift" drew 66082 px, against a
 floor of 5000.
 
+On November 23, on commit `4016649`, with nothing else running, the laptop
+ran `pinch-audit.mjs` against its dev server. It exited 0 with "all gates
+green", passing 15 of 15 in 131 s. "The point between the fingers stays put"
+measured 0.000,0.000. The dev server logged one forecast failure during it,
+`[soft] forecast: TypeError fetch failed`; its log has no timestamps, so which
+part of the run it hit is not known. Every map row still passed.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with

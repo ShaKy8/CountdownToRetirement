@@ -414,6 +414,9 @@ alone passed. That points at load, but it is not proven: what else was running
 on November 20 is not known. Whether a locked or blank screen stalls the slide
 is still open: the 20:38 failure was measured about two minutes before the
 screen was locked, and hyprlock was never seen running during the 09:51 run.
+On November 23, on `4016649`, with nothing else running, the laptop passed
+the fixed gate 15 of 15 in 131 s, this row at 0.000,0.000, with one forecast
+failure logged during the run.
 
 ## 5. How to work here
 
