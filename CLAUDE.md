@@ -357,7 +357,11 @@ failed only while a tick sat 14-17px in, for minutes every 6 or 12 hours.
 Fixed in `619ca1c` (`x - half < 0` in `meteogram()`), with a test; see
 "Every word readable" in the notes. On `619ca1c`, with `CENSUS=1`, the
 laptop passed 390x844 in 35 s and 1440x900 in 79 s, with 0 overlapping pairs
-and 0 labels off the canvas.
+and 0 labels off the canvas. Those runs were outside the band, so on
+`b32ec96` it was run again inside DECK's next one, at 23:01, when the old
+check would have drawn DECK's 12:00 from about x = -1 (worked out from the
+code, not printed by the gate). With `CENSUS=1` the laptop passed 1440x900
+in 38 s with 0 labels off the canvas, so the fix held there.
 
 **`pinch-audit.mjs`'s "the point between the fingers stays put" failed on the
 laptop because the gate measured the map while the view was still sliding

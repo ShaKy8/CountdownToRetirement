@@ -1527,6 +1527,14 @@ once rather than 900 times; `node scripts/read-audit.mjs` is the gate.
   and 1440x900 in 79 s, each with 0 overlapping pairs and 0 labels off the
   canvas, and no forecast failure. Those passes were outside the band, so the
   old code would have passed them too: the test is what pins the fix.
+  So it was run again inside DECK's next band. On `b32ec96`, at 23:01 the same
+  day, with `CENSUS=1` and nothing else running, the laptop passed 1440x900
+  in 38 s with 0 overlapping pairs and 0 labels off the canvas, `deck/d-meteo`
+  drawing 28 labels, and no forecast failure. At that minute the window opens
+  at 11:01, so the edge tick is 12:00 at about x = 16, which the old check
+  would have drawn from about x = -1. That position is worked out from the
+  code; the gate does not print where a label it kept or dropped sat. So the
+  fix held in the browser at a time when the old code would have failed.
 
 ### Midnight Slate — the palette, and why it is not black
 
