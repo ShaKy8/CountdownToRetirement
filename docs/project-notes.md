@@ -1292,6 +1292,10 @@ included: "the loop drives the cursor" read NOW -> −2h 0m and "the loop
 changes the frame" 06:40 -> 04:50. The radar had 13 frames, and the dev
 server logged no `[soft]` lines.
 
+On commit `cd74c63`, with nothing else running, the laptop ran
+`home-audit.mjs` against its dev server. It exited 0 with "all gates pass",
+passing 59 of 59 rows in 28 s. The dev server logged no `[soft]` lines.
+
 **It also checks for text hard-clipped inside its own box**, which is the one
 thing neither the overflow check nor the label audit could see: nothing leaves
 the viewport, so the page measures clean. Truncation with
